@@ -205,6 +205,9 @@ public class Program
         builder.Services.AddSingleton<WhisperNetTranscriber>();
         builder.Services.AddSingleton<TranscriptionService>();
 
+        // Prompt loader for LLM routers
+        builder.Services.AddSingleton<IPromptLoader, PromptLoader>();
+
         // LLM Routers - register as BaseLlmRouterService for MultiProvider to collect
         // HttpClient is transient by default
         builder.Services.AddHttpClient();

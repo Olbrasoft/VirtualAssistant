@@ -16,8 +16,9 @@ public class CerebrasRouterService : BaseLlmRouterService
     public CerebrasRouterService(
         ILogger<CerebrasRouterService> logger,
         HttpClient httpClient,
-        IConfiguration configuration)
-        : base(logger, httpClient, GetModel(configuration))
+        IConfiguration configuration,
+        IPromptLoader promptLoader)
+        : base(logger, httpClient, GetModel(configuration), promptLoader)
     {
         // Try environment variable first, then config
         var apiKey = Environment.GetEnvironmentVariable("CEREBRAS_API_KEY") 

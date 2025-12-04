@@ -16,8 +16,9 @@ public class GroqRouterService : BaseLlmRouterService
     public GroqRouterService(
         ILogger<GroqRouterService> logger,
         HttpClient httpClient,
-        IConfiguration configuration)
-        : base(logger, httpClient, GetModel(configuration))
+        IConfiguration configuration,
+        IPromptLoader promptLoader)
+        : base(logger, httpClient, GetModel(configuration), promptLoader)
     {
         // Try environment variable first, then config
         var apiKey = Environment.GetEnvironmentVariable("GROQ_API_KEY") 
