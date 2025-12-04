@@ -18,6 +18,11 @@ namespace Olbrasoft.VirtualAssistant.Service;
 /// </summary>
 public record AssistantSpeechStartRequest(string Text);
 
+/// <summary>
+/// Request model for TTS notify endpoint (from OpenCode plugin).
+/// </summary>
+public record TtsNotifyRequest(string Text);
+
 public class Program
 {
     private static WebApplication? _app;
@@ -275,5 +280,14 @@ public class Program
 
         // Health check
         app.MapGet("/health", () => Results.Ok("OK"));
+
+        // TTS Notify endpoint - receives text from OpenCode plugin
+        app.MapPost("/api/tts/notify", (TtsNotifyRequest request, ILogger<Program> logger) =>
+        {
+            // Cyan output for received notification
+            Console.WriteLine($"\u001b[96;1m📩 TTS Notify: \"{request.Text}\"\u001b[0m");
+            logger.LogInformation("TTS Notify received: {Text}", request.Text);
+            return Results.Ok(new { success = true, message = "Notification received", text = request.Text });
+        });
     }
 }
