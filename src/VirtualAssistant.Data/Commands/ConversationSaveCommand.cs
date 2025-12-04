@@ -3,9 +3,9 @@ namespace VirtualAssistant.Data.Commands;
 /// <summary>
 /// Command to save (create or update) a conversation.
 /// </summary>
-public class ConversationSaveCommand : BaseCommand<long>
+public class ConversationSaveCommand : BaseCommand<int>
 {
-    public long Id { get; set; }
+    public int Id { get; set; }
     
     public string? Title { get; set; }
 

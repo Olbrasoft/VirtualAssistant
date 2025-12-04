@@ -7,7 +7,7 @@ namespace VirtualAssistant.Data.Queries;
 /// </summary>
 public class MessagesByConversationIdQuery : BaseQuery<IEnumerable<MessageDto>>
 {
-    public long ConversationId { get; set; }
+    public int ConversationId { get; set; }
 
     public MessagesByConversationIdQuery(IQueryProcessor processor) : base(processor)
     {

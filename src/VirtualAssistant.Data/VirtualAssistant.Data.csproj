@@ -13,6 +13,7 @@
 
   <ItemGroup>
     <ProjectReference Include="..\..\..\Data\src\Data.Cqrs.Common\Data.Cqrs.Common.csproj" />
+    <ProjectReference Include="..\..\..\Data\src\Data.Entities.Abstractions\Data.Entities.Abstractions.csproj" />
   </ItemGroup>
 
   <ItemGroup>

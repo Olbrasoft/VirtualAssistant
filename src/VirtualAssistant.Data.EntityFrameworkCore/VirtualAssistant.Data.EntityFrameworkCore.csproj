@@ -1,0 +1,37 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <TargetFramework>net10.0</TargetFramework>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <Nullable>enable</Nullable>
+    <LangVersion>13</LangVersion>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <PackageReference Include="Npgsql.EntityFrameworkCore.PostgreSQL" Version="10.0.0-preview.1" />
+    <PackageReference Include="Microsoft.EntityFrameworkCore.Design" Version="10.0.0-preview.5.25277.114">
+      <PrivateAssets>all</PrivateAssets>
+      <IncludeAssets>runtime; build; native; contentfiles; analyzers; buildtransitive</IncludeAssets>
+    </PackageReference>
+    <PackageReference Include="Microsoft.Extensions.Configuration.Json" Version="10.0.0-preview.5.25277.114" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\VirtualAssistant.Data\VirtualAssistant.Data.csproj" />
+    <ProjectReference Include="..\..\..\Data\src\Data.Cqrs.EntityFrameworkCore\Data.Cqrs.EntityFrameworkCore.csproj" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <Using Include="Microsoft.EntityFrameworkCore" />
+    <Using Include="Microsoft.EntityFrameworkCore.Metadata.Builders" />
+    <Using Include="VirtualAssistant.Data.Entities" />
+    <Using Include="VirtualAssistant.Data.Dtos" />
+    <Using Include="VirtualAssistant.Data.Commands" />
+    <Using Include="VirtualAssistant.Data.Queries" />
+    <Using Include="Olbrasoft.Mapping" />
+    <Using Include="Olbrasoft.Mediation" />
+    <Using Include="Olbrasoft.Data.Cqrs" />
+    <Using Include="Olbrasoft.Data.Cqrs.EntityFrameworkCore" />
+  </ItemGroup>
+
+</Project>

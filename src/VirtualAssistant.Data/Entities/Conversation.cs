@@ -1,12 +1,12 @@
+using Olbrasoft.Data.Entities.Abstractions;
+
 namespace VirtualAssistant.Data.Entities;
 
 /// <summary>
 /// Represents a conversation between the user and the assistant.
 /// </summary>
-public class Conversation
+public class Conversation : BaseEnity
 {
-    public long Id { get; set; }
-    
     public string? Title { get; set; }
     
     public DateTime CreatedAt { get; set; }

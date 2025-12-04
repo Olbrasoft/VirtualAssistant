@@ -5,7 +5,7 @@ namespace VirtualAssistant.Data.Dtos;
 /// </summary>
 public class ConversationDto
 {
-    public long Id { get; set; }
+    public int Id { get; set; }
     
     public string? Title { get; set; }
     

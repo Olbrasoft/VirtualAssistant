@@ -1,13 +1,13 @@
+using Olbrasoft.Data.Entities.Abstractions;
+
 namespace VirtualAssistant.Data.Entities;
 
 /// <summary>
 /// Represents a message in a conversation.
 /// </summary>
-public class Message
+public class Message : BaseEnity
 {
-    public long Id { get; set; }
-    
-    public long ConversationId { get; set; }
+    public int ConversationId { get; set; }
     
     public string Content { get; set; } = string.Empty;
     
