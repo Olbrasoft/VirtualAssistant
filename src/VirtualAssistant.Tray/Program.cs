@@ -120,7 +120,7 @@ class Program
     [STAThread]
     static void Main(string[] args)
     {
-        Console.WriteLine("SysAssist Tray starting...");
+        Console.WriteLine("VirtualAssistant Tray starting...");
 
         try
         {
@@ -150,7 +150,7 @@ class Program
             }
 
             AppIndicator.app_indicator_set_icon_theme_path(indicator, iconPath);
-            AppIndicator.app_indicator_set_title(indicator, "SysAssist");
+            AppIndicator.app_indicator_set_title(indicator, "VirtualAssistant");
             AppIndicator.app_indicator_set_status(indicator, AppIndicator.Status.Active);
             Console.WriteLine("App indicator created");
 
@@ -158,7 +158,7 @@ class Program
             var menu = Gtk.gtk_menu_new();
 
             // Status item (disabled)
-            var statusItem = Gtk.gtk_menu_item_new_with_label("SysAssist běží");
+            var statusItem = Gtk.gtk_menu_item_new_with_label("VirtualAssistant běží");
             Gtk.gtk_widget_set_sensitive(statusItem, false);
             Gtk.gtk_menu_shell_append(menu, statusItem);
 
@@ -216,13 +216,13 @@ class Program
                 Gtk.gtk_main_quit();
             };
 
-            Console.WriteLine("SysAssist tray icon is active");
+            Console.WriteLine("VirtualAssistant tray icon is active");
             Console.WriteLine("Press Ctrl+C to exit or use menu 'Ukončit'");
 
             // Run GTK main loop
             Gtk.gtk_main();
 
-            Console.WriteLine("SysAssist Tray exiting...");
+            Console.WriteLine("VirtualAssistant Tray exiting...");
         }
         catch (Exception ex)
         {

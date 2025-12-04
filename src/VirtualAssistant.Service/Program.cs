@@ -22,7 +22,7 @@ public class Program
     private static TrayIconService? _trayService;
     private static CancellationTokenSource? _cts;
     private static FileStream? _lockFile;
-    private const string LockFilePath = "/tmp/sysassist.lock";
+    private const string LockFilePath = "/tmp/virtual-assistant.lock";
 
     [STAThread]
     public static void Main(string[] args)
@@ -30,14 +30,14 @@ public class Program
         // Single instance check - try to acquire exclusive lock
         if (!TryAcquireSingleInstanceLock())
         {
-            Console.WriteLine("ERROR: SysAssist is already running!");
+            Console.WriteLine("ERROR: VirtualAssistant is already running!");
             Console.WriteLine("Only one instance is allowed.");
             Environment.Exit(1);
             return;
         }
 
         Console.WriteLine("╔══════════════════════════════════════════════════════════════╗");
-        Console.WriteLine("║               SysAssist Voice Assistant Service              ║");
+        Console.WriteLine("║                   VirtualAssistant Service                   ║");
         Console.WriteLine("╚══════════════════════════════════════════════════════════════╝");
         Console.WriteLine();
 
@@ -98,7 +98,7 @@ public class Program
                 _trayService.QuitMainLoop();
             };
 
-            Console.WriteLine("SysAssist running - tray icon active");
+            Console.WriteLine("VirtualAssistant running - tray icon active");
             Console.WriteLine("Press Ctrl+C or use tray menu to exit");
             Console.WriteLine();
 
@@ -122,7 +122,7 @@ public class Program
             ReleaseSingleInstanceLock();
         }
 
-        Console.WriteLine("SysAssist stopped");
+        Console.WriteLine("VirtualAssistant stopped");
     }
 
     /// <summary>

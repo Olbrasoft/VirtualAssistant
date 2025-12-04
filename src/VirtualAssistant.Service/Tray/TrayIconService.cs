@@ -50,7 +50,7 @@ public class TrayIconService : IDisposable
 
         // Create app indicator
         _indicator = AppIndicator.app_indicator_new(
-            "sysassist-service",
+            "virtual-assistant-service",
             "sysassist",
             AppIndicator.Category.ApplicationStatus);
 
@@ -60,14 +60,14 @@ public class TrayIconService : IDisposable
         }
 
         AppIndicator.app_indicator_set_icon_theme_path(_indicator, iconPath);
-        AppIndicator.app_indicator_set_title(_indicator, "SysAssist");
+        AppIndicator.app_indicator_set_title(_indicator, "VirtualAssistant");
         AppIndicator.app_indicator_set_status(_indicator, AppIndicator.Status.Active);
 
         // Create menu
         var menu = Gtk.gtk_menu_new();
 
         // Status item (disabled)
-        var statusItem = Gtk.gtk_menu_item_new_with_label("SysAssist - poslouchám");
+        var statusItem = Gtk.gtk_menu_item_new_with_label("VirtualAssistant - poslouchám");
         Gtk.gtk_widget_set_sensitive(statusItem, false);
         Gtk.gtk_menu_shell_append(menu, statusItem);
 
