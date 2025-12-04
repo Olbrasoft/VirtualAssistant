@@ -1,0 +1,6 @@
+@SysAssist.Api_HostAddress = http://localhost:5299
+
+GET {{SysAssist.Api_HostAddress}}/weatherforecast/
+Accept: application/json
+
+###

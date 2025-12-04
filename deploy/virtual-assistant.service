@@ -1,0 +1,23 @@
+[Unit]
+Description=VirtualAssistant Voice Assistant Service
+After=network.target graphical-session.target
+Wants=graphical-session.target
+
+[Service]
+Type=simple
+ExecStart=/home/jirka/virtual-assistant/VirtualAssistant.Service
+WorkingDirectory=/home/jirka/virtual-assistant
+Restart=always
+RestartSec=5
+Environment="DISPLAY=:0"
+Environment="DBUS_SESSION_BUS_ADDRESS=unix:path=/run/user/1000/bus"
+Environment="XDG_RUNTIME_DIR=/run/user/1000"
+Environment="DOTNET_ENVIRONMENT=Production"
+Environment="CEREBRAS_API_KEY="
+Environment="GROQ_API_KEY="
+Environment="MISTRAL_API_KEY="
+StandardOutput=journal
+StandardError=journal
+
+[Install]
+WantedBy=default.target

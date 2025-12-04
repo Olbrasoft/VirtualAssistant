@@ -1,0 +1,52 @@
+namespace Olbrasoft.VirtualAssistant.PushToTalk;
+
+/// <summary>
+/// Interface for monitoring keyboard events (cross-platform abstraction).
+/// </summary>
+public interface IKeyboardMonitor : IDisposable
+{
+    /// <summary>
+    /// Event raised when a key is pressed.
+    /// </summary>
+    event EventHandler<KeyEventArgs>? KeyPressed;
+
+    /// <summary>
+    /// Event raised when a key is released.
+    /// </summary>
+    event EventHandler<KeyEventArgs>? KeyReleased;
+
+    /// <summary>
+    /// Gets a value indicating whether keyboard monitoring is currently active.
+    /// </summary>
+    bool IsMonitoring { get; }
+
+    /// <summary>
+    /// Starts monitoring keyboard events.
+    /// </summary>
+    /// <param name="cancellationToken">Cancellation token.</param>
+    Task StartMonitoringAsync(CancellationToken cancellationToken = default);
+
+    /// <summary>
+    /// Stops monitoring keyboard events.
+    /// </summary>
+    Task StopMonitoringAsync();
+
+    /// <summary>
+    /// Gets the current state of CapsLock.
+    /// </summary>
+    /// <returns>True if CapsLock is ON (LED lit), false if OFF.</returns>
+    bool IsCapsLockOn();
+
+    /// <summary>
+    /// Gets the current state of ScrollLock.
+    /// </summary>
+    /// <returns>True if ScrollLock is ON (LED lit), false if OFF.</returns>
+    bool IsScrollLockOn();
+
+    /// <summary>
+    /// Simulates a key press and release using uinput.
+    /// Used to toggle ScrollLock from software (e.g., tray menu click).
+    /// </summary>
+    /// <param name="key">The key to simulate.</param>
+    Task SimulateKeyPressAsync(KeyCode key);
+}

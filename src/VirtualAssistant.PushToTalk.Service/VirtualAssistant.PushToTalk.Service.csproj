@@ -1,0 +1,17 @@
+<Project Sdk="Microsoft.NET.Sdk.Web">
+
+  <PropertyGroup>
+    <TargetFramework>net10.0</TargetFramework>
+    <Nullable>enable</Nullable>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <RootNamespace>Olbrasoft.VirtualAssistant.PushToTalk.Service</RootNamespace>
+    <UserSecretsId>dotnet-VirtualAssistant.PushToTalk.Service-20251204</UserSecretsId>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\VirtualAssistant.PushToTalk\VirtualAssistant.PushToTalk.csproj" />
+    <ProjectReference Include="..\VirtualAssistant.Core\VirtualAssistant.Core.csproj" />
+    <ProjectReference Include="..\VirtualAssistant.Voice\VirtualAssistant.Voice.csproj" />
+  </ItemGroup>
+
+</Project>
