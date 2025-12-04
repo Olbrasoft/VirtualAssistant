@@ -28,7 +28,7 @@ public sealed class TtsService : IDisposable
     {
         _cacheDirectory = Path.Combine(
             Environment.GetFolderPath(Environment.SpecialFolder.UserProfile),
-            ".cache", "sysassist-tts");
+            ".cache", "virtual-assistant-tts");
         
         Directory.CreateDirectory(_cacheDirectory);
     }

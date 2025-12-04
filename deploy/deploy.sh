@@ -2,7 +2,7 @@
 set -e
 
 # VirtualAssistant Deploy Script
-# Builds and deploys VirtualAssistant Voice Assistant Service
+# Builds and deploys VirtualAssistant Service
 
 PROJECT_PATH="/home/jirka/Olbrasoft/VirtualAssistant"
 DEPLOY_TARGET="/home/jirka/virtual-assistant"

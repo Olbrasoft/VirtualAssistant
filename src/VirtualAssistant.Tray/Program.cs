@@ -139,8 +139,8 @@ class Program
 
             // Create app indicator
             var indicator = AppIndicator.app_indicator_new(
-                "sysassist-tray",
-                "sysassist",
+                "virtual-assistant-tray",
+                "virtual-assistant-muted",
                 AppIndicator.Category.ApplicationStatus);
 
             if (indicator == IntPtr.Zero)

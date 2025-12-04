@@ -420,7 +420,7 @@ fcntl.ioctl(fd, UI_SET_KEYBIT, {keyCode})
 
 # uinput_user_dev structure (legacy)
 # char name[80], id (bustype, vendor, product, version = 4x uint16), ff_effects_max, absmax[64], absmin[64], absfuzz[64], absflat[64]
-name = b'sysassist-virtual-kbd'
+name = b'virtual-assistant-kbd'
 name = name + b'\x00' * (80 - len(name))
 user_dev = name + struct.pack('<HHHHI', 0x03, 0x1234, 0x5678, 0x0001, 0)  # BUS_VIRTUAL
 user_dev = user_dev + b'\x00' * (4 * 64 * 4)  # abs arrays

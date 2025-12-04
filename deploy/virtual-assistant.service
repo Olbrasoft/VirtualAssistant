@@ -1,5 +1,5 @@
 [Unit]
-Description=VirtualAssistant Voice Assistant Service
+Description=VirtualAssistant Service
 After=network.target graphical-session.target
 Wants=graphical-session.target
 

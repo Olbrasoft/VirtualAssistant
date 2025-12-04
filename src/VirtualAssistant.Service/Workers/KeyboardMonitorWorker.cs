@@ -49,9 +49,11 @@ public class KeyboardMonitorWorker : BackgroundService
 
     private void OnKeyReleased(object? sender, KeyEventArgs e)
     {
+        _logger.LogInformation("Key released: {Key}", e.Key);
+        
         if (e.Key == KeyCode.ScrollLock)
         {
-            _logger.LogDebug("ScrollLock released - toggling mute");
+            _logger.LogInformation("ScrollLock released - toggling mute");
             _muteService.Toggle();
         }
     }

@@ -36,12 +36,12 @@ public class ContinuousListenerOptions
     /// <summary>
     /// Path to Silero VAD ONNX model file.
     /// </summary>
-    public string SileroVadModelPath { get; set; } = "/home/jirka/voice-assistant/models/silero_vad.onnx";
+    public string SileroVadModelPath { get; set; } = "/home/jirka/virtual-assistant/models/silero_vad.onnx";
 
     /// <summary>
     /// Path to Whisper model file for transcription.
     /// </summary>
-    public string WhisperModelPath { get; set; } = "/home/jirka/voice-assistant/automatic-speech-recognition-models/ggml-medium.bin";
+    public string WhisperModelPath { get; set; } = "/home/jirka/virtual-assistant/asr-models/ggml-medium.bin";
 
     /// <summary>
     /// Language for Whisper transcription.
@@ -56,7 +56,7 @@ public class ContinuousListenerOptions
 
     /// <summary>
     /// PipeWire audio source to capture from.
-    /// If set, uses the specified source (e.g., "voice-assistant-aec-source" for echo cancellation).
+    /// If set, uses the specified source (e.g., "virtual-assistant-aec-source" for echo cancellation).
     /// If null/empty, uses the default microphone.
     /// </summary>
     public string? AudioSource { get; set; }

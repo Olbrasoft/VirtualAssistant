@@ -1,6 +1,6 @@
 # VirtualAssistant
 
-Linux voice assistant pro ovládání desktopu a integraci s AI coding agenty.
+Linux virtuální asistent pro ovládání desktopu a integraci s AI coding agenty.
 
 ## Funkce
 

@@ -80,29 +80,52 @@ public class ContinuousListenerWorker : BackgroundService
         if (_muteService != null)
         {
             _muteService.MuteStateChanged += OnMuteStateChanged;
+            _logger.LogWarning("Subscribed to MuteStateChanged event on instance {HashCode}", _muteService.GetHashCode());
+        }
+        else
+        {
+            _logger.LogWarning("IManualMuteService is NULL - mute functionality disabled!");
         }
     }
 
     private void OnMuteStateChanged(object? sender, bool isMuted)
     {
-        if (isMuted)
+        try
         {
-            // If we were recording, abort and go to muted state
-            if (_state == State.Recording)
+            _logger.LogWarning("OnMuteStateChanged called: isMuted={IsMuted}", isMuted);
+            
+            if (isMuted)
             {
-                Console.WriteLine("\u001b[93;1m🔇 MUTED - recording cancelled\u001b[0m");
-                ResetToMuted();
+                // If we were recording, abort and go to muted state
+                if (_state == State.Recording)
+                {
+                    Console.WriteLine("\u001b[93;1m🔇 MUTED - recording cancelled\u001b[0m");
+                    ResetToMuted();
+                }
+                else
+                {
+                    Console.WriteLine("\u001b[93;1m🔇 MUTED\u001b[0m");
+                    _state = State.Muted;
+                }
+                
+                // Release microphone completely so other apps can use it
+                _logger.LogWarning("About to release microphone...");
+                _audioCapture.Stop();
+                _logger.LogWarning("Microphone released successfully");
             }
             else
             {
-                Console.WriteLine("\u001b[93;1m🔇 MUTED\u001b[0m");
-                _state = State.Muted;
+                // Restart audio capture when unmuted
+                _logger.LogWarning("About to start microphone...");
+                _audioCapture.Start();
+                _logger.LogWarning("Microphone started successfully");
+                Console.WriteLine("\u001b[92;1m🔊 UNMUTED - listening resumed\u001b[0m");
+                _state = State.Waiting;
             }
         }
-        else
+        catch (Exception ex)
         {
-            Console.WriteLine("\u001b[92;1m🔊 UNMUTED - listening resumed\u001b[0m");
-            _state = State.Waiting;
+            _logger.LogError(ex, "Error in OnMuteStateChanged");
         }
     }
 
@@ -112,9 +135,18 @@ public class ContinuousListenerWorker : BackgroundService
         try
         {
             _transcription.Initialize();
-            _audioCapture.Start();
             
-            Console.WriteLine("\u001b[92;1m🎤 ContinuousListener started - listening for speech\u001b[0m");
+            // Only start audio capture if not muted
+            if (_muteService?.IsMuted == true)
+            {
+                _state = State.Muted;
+                Console.WriteLine("\u001b[93;1m🎤 ContinuousListener started - MUTED (microphone not captured)\u001b[0m");
+            }
+            else
+            {
+                _audioCapture.Start();
+                Console.WriteLine("\u001b[92;1m🎤 ContinuousListener started - listening for speech\u001b[0m");
+            }
             _logger.LogInformation("ContinuousListener started");
         }
         catch (Exception ex)
@@ -127,8 +159,21 @@ public class ContinuousListenerWorker : BackgroundService
         {
             while (!stoppingToken.IsCancellationRequested)
             {
+                // Wait while muted - microphone is released
+                if (_muteService?.IsMuted == true)
+                {
+                    await Task.Delay(100, stoppingToken);
+                    continue;
+                }
+                
                 var chunk = await _audioCapture.ReadChunkAsync(stoppingToken);
-                if (chunk == null) break;
+                if (chunk == null)
+                {
+                    // End of stream - might happen when audio capture is stopped
+                    // Wait a bit and check if we should restart
+                    await Task.Delay(100, stoppingToken);
+                    continue;
+                }
 
                 await ProcessChunkAsync(chunk, stoppingToken);
             }
@@ -136,6 +181,11 @@ public class ContinuousListenerWorker : BackgroundService
         catch (OperationCanceledException)
         {
             // Normal shutdown
+        }
+        catch (InvalidOperationException ex) when (ex.Message.Contains("not started"))
+        {
+            // Audio capture was stopped (muted) - this is expected, loop will restart
+            _logger.LogDebug("Audio capture stopped, waiting for unmute");
         }
         catch (Exception ex)
         {

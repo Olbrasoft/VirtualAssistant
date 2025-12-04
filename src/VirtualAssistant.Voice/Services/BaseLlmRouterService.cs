@@ -51,7 +51,7 @@ public abstract class BaseLlmRouterService : ILlmRouterService
         var stopwatch = Stopwatch.StartNew();
 
         var systemPrompt = BuildSystemPrompt(isDiscussionActive);
-        var userMessage = $"Voice assistant zachytil: \"{inputText}\"";
+        var userMessage = $"VirtualAssistant zachytil: \"{inputText}\"";
 
         var request = new LlmRequest
         {

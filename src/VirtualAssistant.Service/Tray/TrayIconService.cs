@@ -48,10 +48,11 @@ public class TrayIconService : IDisposable
         // Get icon path
         string iconPath = Path.Combine(AppContext.BaseDirectory, "icons");
 
-        // Create app indicator
+        // Create app indicator with initial icon based on mute state
+        var initialIcon = _muteService.IsMuted ? "virtual-assistant-muted" : "virtual-assistant-active";
         _indicator = AppIndicator.app_indicator_new(
             "virtual-assistant-service",
-            "sysassist",
+            initialIcon,
             AppIndicator.Category.ApplicationStatus);
 
         if (_indicator == IntPtr.Zero)
@@ -145,13 +146,21 @@ public class TrayIconService : IDisposable
 
     private void OnMuteStateChanged(object? sender, bool isMuted)
     {
-        // Update menu label from GTK thread
+        // Update menu label and icon from GTK thread
         _updateMuteCallback = _ =>
         {
             if (_muteMenuItem != IntPtr.Zero)
             {
                 Gtk.gtk_menu_item_set_label(_muteMenuItem, GetMuteLabel());
             }
+            
+            // Change icon based on mute state
+            if (_indicator != IntPtr.Zero)
+            {
+                var iconName = isMuted ? "virtual-assistant-muted" : "virtual-assistant-active";
+                AppIndicator.app_indicator_set_icon(_indicator, iconName);
+            }
+            
             return false; // Don't repeat
         };
         GLib.g_idle_add(_updateMuteCallback, IntPtr.Zero);
