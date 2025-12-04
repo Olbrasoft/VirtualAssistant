@@ -13,6 +13,9 @@ public class PttNotifier : IPttNotifier
     private readonly IHubContext<PttHub> _hubContext;
     private readonly ILogger<PttNotifier> _logger;
     
+    /// <inheritdoc />
+    public event EventHandler<PttEvent>? PttEventReceived;
+    
     /// <summary>
     /// Initializes a new instance of the <see cref="PttNotifier"/> class.
     /// </summary>
@@ -26,6 +29,14 @@ public class PttNotifier : IPttNotifier
         _logger = logger;
     }
     
+    /// <summary>
+    /// Raises the PttEventReceived event for local subscribers.
+    /// </summary>
+    private void RaisePttEvent(PttEvent pttEvent)
+    {
+        PttEventReceived?.Invoke(this, pttEvent);
+    }
+    
     /// <inheritdoc />
     public async Task NotifyRecordingStartedAsync()
     {
@@ -35,6 +46,7 @@ public class PttNotifier : IPttNotifier
         };
         
         _logger.LogDebug("Broadcasting RecordingStarted event");
+        RaisePttEvent(pttEvent);
         await _hubContext.Clients.All.SendAsync("PttEvent", pttEvent);
     }
     
@@ -48,6 +60,7 @@ public class PttNotifier : IPttNotifier
         };
         
         _logger.LogDebug("Broadcasting RecordingStopped event (duration: {Duration:F2}s)", durationSeconds);
+        RaisePttEvent(pttEvent);
         await _hubContext.Clients.All.SendAsync("PttEvent", pttEvent);
     }
     
@@ -60,6 +73,7 @@ public class PttNotifier : IPttNotifier
         };
         
         _logger.LogDebug("Broadcasting TranscriptionStarted event");
+        RaisePttEvent(pttEvent);
         await _hubContext.Clients.All.SendAsync("PttEvent", pttEvent);
     }
     
@@ -74,6 +88,7 @@ public class PttNotifier : IPttNotifier
         };
         
         _logger.LogDebug("Broadcasting TranscriptionCompleted event: {Text}", text);
+        RaisePttEvent(pttEvent);
         await _hubContext.Clients.All.SendAsync("PttEvent", pttEvent);
     }
     
@@ -87,6 +102,7 @@ public class PttNotifier : IPttNotifier
         };
         
         _logger.LogWarning("Broadcasting TranscriptionFailed event: {Error}", errorMessage);
+        RaisePttEvent(pttEvent);
         await _hubContext.Clients.All.SendAsync("PttEvent", pttEvent);
     }
     
@@ -100,6 +116,7 @@ public class PttNotifier : IPttNotifier
         
         _logger.LogInformation("Broadcasting {EventType} event (ScrollLock: {State})", 
             pttEvent.EventType, isMuted ? "ON" : "OFF");
+        RaisePttEvent(pttEvent);
         await _hubContext.Clients.All.SendAsync("PttEvent", pttEvent);
     }
 }

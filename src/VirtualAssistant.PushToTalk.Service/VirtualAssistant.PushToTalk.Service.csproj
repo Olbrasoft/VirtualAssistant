@@ -14,4 +14,10 @@
     <ProjectReference Include="..\VirtualAssistant.Voice\VirtualAssistant.Voice.csproj" />
   </ItemGroup>
 
+  <ItemGroup>
+    <None Update="icons\**\*">
+      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+    </None>
+  </ItemGroup>
+
 </Project>

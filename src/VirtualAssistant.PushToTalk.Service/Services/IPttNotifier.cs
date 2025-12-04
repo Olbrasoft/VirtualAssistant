@@ -1,3 +1,5 @@
+using Olbrasoft.VirtualAssistant.PushToTalk.Service.Models;
+
 namespace Olbrasoft.VirtualAssistant.PushToTalk.Service.Services;
 
 /// <summary>
@@ -5,6 +7,11 @@ namespace Olbrasoft.VirtualAssistant.PushToTalk.Service.Services;
 /// </summary>
 public interface IPttNotifier
 {
+    /// <summary>
+    /// Event raised when any PTT event occurs. Used by local subscribers like the tray icon.
+    /// </summary>
+    event EventHandler<PttEvent>? PttEventReceived;
+    
     /// <summary>
     /// Notifies all connected clients that recording has started.
     /// </summary>
