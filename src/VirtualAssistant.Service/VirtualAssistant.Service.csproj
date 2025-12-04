@@ -11,6 +11,7 @@
 
   <ItemGroup>
     <ProjectReference Include="..\VirtualAssistant.Voice\VirtualAssistant.Voice.csproj" />
+    <ProjectReference Include="..\VirtualAssistant.Data.EntityFrameworkCore\VirtualAssistant.Data.EntityFrameworkCore.csproj" />
   </ItemGroup>
 
   <ItemGroup>
@@ -20,6 +21,13 @@
     <None Update="icons\**\*">
       <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
     </None>
+  </ItemGroup>
+
+  <ItemGroup>
+    <PackageReference Include="Microsoft.EntityFrameworkCore.Design" Version="10.0.0">
+      <IncludeAssets>runtime; build; native; contentfiles; analyzers; buildtransitive</IncludeAssets>
+      <PrivateAssets>all</PrivateAssets>
+    </PackageReference>
   </ItemGroup>
 
 </Project>
