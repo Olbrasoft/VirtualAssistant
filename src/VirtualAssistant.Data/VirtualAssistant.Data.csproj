@@ -1,0 +1,23 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <TargetFramework>net10.0</TargetFramework>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <Nullable>enable</Nullable>
+    <LangVersion>13</LangVersion>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <PackageReference Include="Mapster" Version="7.4.0" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\..\..\Data\src\Data.Cqrs.Common\Data.Cqrs.Common.csproj" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <Using Include="Olbrasoft.Mediation" />
+    <Using Include="Olbrasoft.Data.Cqrs" />
+  </ItemGroup>
+
+</Project>
