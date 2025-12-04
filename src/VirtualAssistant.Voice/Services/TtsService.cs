@@ -20,7 +20,7 @@ public sealed class TtsService : IDisposable
 
     private readonly ILogger<TtsService> _logger;
     private readonly string _cacheDirectory;
-    private readonly string _micLockFile = "/tmp/microphone-active.lock";
+    private readonly string _micLockFile = "/tmp/speech-lock";
     private readonly string _voice = "cs-CZ-AntoninNeural";
     private readonly string _rate = "+20%";
     private readonly string _volume = "+0%";
