@@ -244,6 +244,9 @@ public class Program
             return new EvdevKeyboardMonitor(logger, options.Value.KeyboardDevice);
         });
 
+        // TTS Service for text-to-speech
+        builder.Services.AddSingleton<TtsService>();
+
         // Background workers
         builder.Services.AddHostedService<KeyboardMonitorWorker>();
         builder.Services.AddHostedService<ContinuousListenerWorker>();
@@ -281,12 +284,26 @@ public class Program
         // Health check
         app.MapGet("/health", () => Results.Ok("OK"));
 
-        // TTS Notify endpoint - receives text from OpenCode plugin
-        app.MapPost("/api/tts/notify", (TtsNotifyRequest request, ILogger<Program> logger) =>
+        // TTS Notify endpoint - receives text from OpenCode plugin and speaks it
+        app.MapPost("/api/tts/notify", async (TtsNotifyRequest request, TtsService ttsService, ILogger<Program> logger) =>
         {
             // Cyan output for received notification
             Console.WriteLine($"\u001b[96;1m📩 TTS Notify: \"{request.Text}\"\u001b[0m");
             logger.LogInformation("TTS Notify received: {Text}", request.Text);
+            
+            // Speak the text asynchronously (fire and forget for quick response)
+            _ = Task.Run(async () =>
+            {
+                try
+                {
+                    await ttsService.SpeakAsync(request.Text);
+                }
+                catch (Exception ex)
+                {
+                    logger.LogError(ex, "Error speaking text: {Text}", request.Text);
+                }
+            });
+            
             return Results.Ok(new { success = true, message = "Notification received", text = request.Text });
         });
     }
