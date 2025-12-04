@@ -9,6 +9,7 @@ using Olbrasoft.VirtualAssistant.Service.Tray;
 using Olbrasoft.VirtualAssistant.Service.Workers;
 using Olbrasoft.VirtualAssistant.Voice.Similarity;
 using OpenCode.DotnetClient;
+using VirtualAssistant.Data.EntityFrameworkCore;
 
 namespace Olbrasoft.VirtualAssistant.Service;
 
@@ -187,6 +188,11 @@ public class Program
         // Register ContinuousListener options
         builder.Services.Configure<ContinuousListenerOptions>(
             builder.Configuration.GetSection(ContinuousListenerOptions.SectionName));
+
+        // Register VirtualAssistant Data services (DbContext + CQRS handlers)
+        var connectionString = builder.Configuration.GetConnectionString("VirtualAssistantDb")
+            ?? throw new InvalidOperationException("Connection string 'VirtualAssistantDb' not found.");
+        builder.Services.AddVirtualAssistantData(connectionString);
 
         // String similarity for echo cancellation
         builder.Services.AddSingleton<IStringSimilarity, LevenshteinSimilarity>();
