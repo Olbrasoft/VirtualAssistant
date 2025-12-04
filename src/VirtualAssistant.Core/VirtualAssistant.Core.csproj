@@ -24,4 +24,8 @@
     <PackageReference Include="SpeexDSPSharp.Natives" Version="1.2.1.1" />
   </ItemGroup>
 
+  <ItemGroup>
+    <ProjectReference Include="..\..\..\OpenCode.DotnetClient\src\OpenCode.DotnetClient\OpenCode.DotnetClient.csproj" />
+  </ItemGroup>
+
 </Project>

@@ -8,6 +8,7 @@ using Olbrasoft.VirtualAssistant.Voice.Services;
 using Olbrasoft.VirtualAssistant.Service.Tray;
 using Olbrasoft.VirtualAssistant.Service.Workers;
 using Olbrasoft.VirtualAssistant.Voice.Similarity;
+using OpenCode.DotnetClient;
 
 namespace Olbrasoft.VirtualAssistant.Service;
 
@@ -217,6 +218,8 @@ public class Program
         builder.Services.AddSingleton<ILlmRouterService, MultiProviderLlmRouter>();
 
         // Text input service for OpenCode
+        var openCodeUrl = builder.Configuration["OpenCodeUrl"] ?? "http://localhost:4096";
+        builder.Services.AddSingleton(new OpenCodeClient(openCodeUrl));
         builder.Services.AddSingleton<TextInputService>();
 
         // Mute service (shared between tray, keyboard monitor, and continuous listener)
