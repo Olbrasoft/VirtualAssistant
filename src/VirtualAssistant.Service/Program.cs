@@ -7,7 +7,7 @@ using Olbrasoft.VirtualAssistant.Voice.Audio;
 using Olbrasoft.VirtualAssistant.Voice.Services;
 using Olbrasoft.VirtualAssistant.Service.Tray;
 using Olbrasoft.VirtualAssistant.Service.Workers;
-using Olbrasoft.Text.Similarity;
+using Olbrasoft.VirtualAssistant.Voice.Similarity;
 
 namespace Olbrasoft.VirtualAssistant.Service;
 

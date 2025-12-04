@@ -27,7 +27,8 @@
 
   <ItemGroup>
     <ProjectReference Include="..\VirtualAssistant.Core\VirtualAssistant.Core.csproj" />
-    <ProjectReference Include="..\..\..\Text.Similarity\src\Text.Similarity\Text.Similarity.csproj" />
+    <!-- F23.StringSimilarity for Levenshtein distance calculation -->
+    <PackageReference Include="F23.StringSimilarity" Version="5.1.0" />
   </ItemGroup>
 
   <!-- Copy prompt files to output directory -->

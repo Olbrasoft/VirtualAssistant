@@ -1,6 +1,6 @@
 using Microsoft.Extensions.Logging;
 using Moq;
-using Olbrasoft.Text.Similarity;
+using Olbrasoft.VirtualAssistant.Voice.Similarity;
 using Olbrasoft.VirtualAssistant.Voice.Services;
 
 namespace VirtualAssistant.Voice.Tests.Services;

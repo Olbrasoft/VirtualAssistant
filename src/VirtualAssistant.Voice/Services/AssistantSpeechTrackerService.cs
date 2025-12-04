@@ -1,6 +1,6 @@
 using System.Globalization;
 using System.Text;
-using Olbrasoft.Text.Similarity;
+using Olbrasoft.VirtualAssistant.Voice.Similarity;
 using Microsoft.Extensions.Logging;
 
 namespace Olbrasoft.VirtualAssistant.Voice.Services;
