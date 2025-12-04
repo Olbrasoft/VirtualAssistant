@@ -1,3 +1,4 @@
+using System.Collections.Concurrent;
 using System.Diagnostics;
 using System.Net.WebSockets;
 using System.Security.Cryptography;
@@ -25,6 +26,7 @@ public sealed class TtsService : IDisposable
     private readonly string _rate = "+20%";
     private readonly string _volume = "+0%";
     private readonly string _pitch = "+0Hz";
+    private readonly ConcurrentQueue<string> _messageQueue = new();
 
     public TtsService(ILogger<TtsService> logger)
     {
@@ -38,49 +40,97 @@ public sealed class TtsService : IDisposable
 
     /// <summary>
     /// Řekne text přes Microsoft Edge TTS API (přímé WebSocket volání).
+    /// If speech lock is active, queues the message for later playback.
     /// </summary>
     public async Task SpeakAsync(string text, CancellationToken cancellationToken = default)
     {
         try
         {
-            // Check if microphone is active
+            // Check if microphone is active - queue message instead of discarding
             if (File.Exists(_micLockFile))
             {
-                _logger.LogInformation("🎤 Mikrofon aktivní - text odložen: {Text}", text);
+                _messageQueue.Enqueue(text);
+                _logger.LogInformation("🎤 Mikrofon aktivní - text zařazen do fronty ({QueueCount}): {Text}", 
+                    _messageQueue.Count, text);
                 return;
             }
 
-            // Check cache first
-            var cacheFile = GetCacheFilePath(text);
-            if (File.Exists(cacheFile))
-            {
-                _logger.LogDebug("Playing from cache: {Text}", text);
-                await PlayAudioAsync(cacheFile, cancellationToken);
-                return;
-            }
-
-            // Generate new audio via WebSocket
-            _logger.LogDebug("Generating audio for: {Text}", text);
-            var audioData = await GenerateAudioAsync(text, cancellationToken);
-
-            if (audioData == null || audioData.Length == 0)
-            {
-                _logger.LogWarning("Failed to generate audio for: {Text}", text);
-                return;
-            }
-
-            // Save to cache
-            await File.WriteAllBytesAsync(cacheFile, audioData, cancellationToken);
-
-            // Play audio
-            await PlayAudioAsync(cacheFile, cancellationToken);
-
-            _logger.LogInformation("🗣️ TTS: \"{Text}\"", text);
+            await SpeakDirectAsync(text, cancellationToken);
         }
         catch (Exception ex)
         {
             _logger.LogError(ex, "TTS error for text: {Text}", text);
         }
+    }
+
+    /// <summary>
+    /// Plays all queued messages. Called by DictationWorker after dictation ends.
+    /// </summary>
+    public async Task FlushQueueAsync(CancellationToken cancellationToken = default)
+    {
+        var count = _messageQueue.Count;
+        if (count == 0)
+        {
+            _logger.LogDebug("FlushQueue: No messages in queue");
+            return;
+        }
+
+        _logger.LogInformation("🔊 FlushQueue: Playing {Count} queued message(s)", count);
+
+        while (_messageQueue.TryDequeue(out var text))
+        {
+            // Check if lock was re-acquired (user started dictating again)
+            if (File.Exists(_micLockFile))
+            {
+                // Re-queue the message and stop flushing
+                _messageQueue.Enqueue(text);
+                _logger.LogInformation("🎤 Lock re-acquired during flush - stopping. Remaining: {Count}", 
+                    _messageQueue.Count);
+                return;
+            }
+
+            await SpeakDirectAsync(text, cancellationToken);
+        }
+
+        _logger.LogDebug("FlushQueue: All messages played");
+    }
+
+    /// <summary>
+    /// Gets the number of messages currently in the queue.
+    /// </summary>
+    public int QueueCount => _messageQueue.Count;
+
+    /// <summary>
+    /// Internal method to actually speak text (no queue check).
+    /// </summary>
+    private async Task SpeakDirectAsync(string text, CancellationToken cancellationToken)
+    {
+        // Check cache first
+        var cacheFile = GetCacheFilePath(text);
+        if (File.Exists(cacheFile))
+        {
+            _logger.LogDebug("Playing from cache: {Text}", text);
+            await PlayAudioAsync(cacheFile, cancellationToken);
+            return;
+        }
+
+        // Generate new audio via WebSocket
+        _logger.LogDebug("Generating audio for: {Text}", text);
+        var audioData = await GenerateAudioAsync(text, cancellationToken);
+
+        if (audioData == null || audioData.Length == 0)
+        {
+            _logger.LogWarning("Failed to generate audio for: {Text}", text);
+            return;
+        }
+
+        // Save to cache
+        await File.WriteAllBytesAsync(cacheFile, audioData, cancellationToken);
+
+        // Play audio
+        await PlayAudioAsync(cacheFile, cancellationToken);
+
+        _logger.LogInformation("🗣️ TTS: \"{Text}\"", text);
     }
 
     private async Task<byte[]?> GenerateAudioAsync(string text, CancellationToken cancellationToken)
