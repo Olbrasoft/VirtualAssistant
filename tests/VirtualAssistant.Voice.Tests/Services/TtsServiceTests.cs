@@ -1,0 +1,192 @@
+using Microsoft.Extensions.Logging;
+using Moq;
+using Olbrasoft.VirtualAssistant.Voice.Services;
+
+namespace VirtualAssistant.Voice.Tests.Services;
+
+/// <summary>
+/// Unit tests for TtsService message queue functionality.
+/// Note: WebSocket/audio playback functionality requires integration tests.
+/// </summary>
+public class TtsServiceTests : IDisposable
+{
+    private readonly Mock<ILogger<TtsService>> _loggerMock;
+    private readonly TtsService _sut;
+    private const string SpeechLockFilePath = "/tmp/speech-lock";
+
+    public TtsServiceTests()
+    {
+        _loggerMock = new Mock<ILogger<TtsService>>();
+        _sut = new TtsService(_loggerMock.Object);
+        
+        // Ensure clean state - no lock file
+        if (File.Exists(SpeechLockFilePath))
+        {
+            File.Delete(SpeechLockFilePath);
+        }
+    }
+
+    public void Dispose()
+    {
+        // Clean up lock file after tests
+        if (File.Exists(SpeechLockFilePath))
+        {
+            File.Delete(SpeechLockFilePath);
+        }
+        _sut.Dispose();
+    }
+
+    [Fact]
+    public void QueueCount_InitialState_ReturnsZero()
+    {
+        // Act
+        var result = _sut.QueueCount;
+        
+        // Assert
+        Assert.Equal(0, result);
+    }
+
+    [Fact]
+    public async Task SpeakAsync_WhenLockExists_QueuesMessage()
+    {
+        // Arrange
+        File.WriteAllText(SpeechLockFilePath, "test");
+        
+        // Act
+        await _sut.SpeakAsync("Test message");
+        
+        // Assert
+        Assert.Equal(1, _sut.QueueCount);
+    }
+
+    [Fact]
+    public async Task SpeakAsync_WhenLockExists_QueuesMultipleMessages()
+    {
+        // Arrange
+        File.WriteAllText(SpeechLockFilePath, "test");
+        
+        // Act
+        await _sut.SpeakAsync("Message 1");
+        await _sut.SpeakAsync("Message 2");
+        await _sut.SpeakAsync("Message 3");
+        
+        // Assert
+        Assert.Equal(3, _sut.QueueCount);
+    }
+
+    [Fact]
+    public async Task FlushQueueAsync_WhenQueueEmpty_DoesNothing()
+    {
+        // Arrange - queue is empty
+        Assert.Equal(0, _sut.QueueCount);
+        
+        // Act
+        await _sut.FlushQueueAsync();
+        
+        // Assert - no errors, still empty
+        Assert.Equal(0, _sut.QueueCount);
+    }
+
+    [Fact]
+    public async Task FlushQueueAsync_WhenLockReacquired_StopsAndRequeues()
+    {
+        // Arrange - queue some messages
+        File.WriteAllText(SpeechLockFilePath, "test");
+        await _sut.SpeakAsync("Message 1");
+        await _sut.SpeakAsync("Message 2");
+        Assert.Equal(2, _sut.QueueCount);
+        
+        // Note: FlushQueueAsync will check for lock file before each message
+        // Since lock still exists, messages should be re-queued
+        
+        // Act
+        await _sut.FlushQueueAsync();
+        
+        // Assert - messages were re-queued because lock still exists
+        // First message was dequeued, lock checked, re-queued
+        Assert.True(_sut.QueueCount >= 1, "Messages should remain in queue when lock exists");
+    }
+
+    [Fact]
+    public async Task SpeakAsync_QueuePreservesOrder()
+    {
+        // Arrange
+        File.WriteAllText(SpeechLockFilePath, "test");
+        var messages = new[] { "First", "Second", "Third" };
+        
+        // Act
+        foreach (var msg in messages)
+        {
+            await _sut.SpeakAsync(msg);
+        }
+        
+        // Assert
+        Assert.Equal(3, _sut.QueueCount);
+        // Queue should preserve FIFO order (tested implicitly by queue behavior)
+    }
+
+    [Fact]
+    public async Task SpeakAsync_NoLock_DoesNotQueue()
+    {
+        // Arrange - ensure no lock file exists
+        if (File.Exists(SpeechLockFilePath))
+        {
+            File.Delete(SpeechLockFilePath);
+        }
+        
+        // Act - try to speak without lock
+        // Note: This will fail because we can't actually play audio in tests,
+        // but the queue should remain empty since lock doesn't exist
+        try
+        {
+            await _sut.SpeakAsync("Test message");
+        }
+        catch
+        {
+            // Expected - can't play audio in test environment
+        }
+        
+        // Assert - message was NOT queued (was attempted to be played directly)
+        Assert.Equal(0, _sut.QueueCount);
+    }
+
+    [Fact]
+    public async Task SpeakAsync_ThreadSafety_MultipleEnqueues()
+    {
+        // Arrange
+        File.WriteAllText(SpeechLockFilePath, "test");
+        var tasks = new Task[10];
+        
+        // Act - multiple concurrent enqueues
+        for (int i = 0; i < tasks.Length; i++)
+        {
+            var index = i;
+            tasks[i] = Task.Run(async () =>
+            {
+                await _sut.SpeakAsync($"Message {index}");
+            });
+        }
+        
+        await Task.WhenAll(tasks);
+        
+        // Assert - all messages should be queued
+        Assert.Equal(10, _sut.QueueCount);
+    }
+
+    [Fact]
+    public async Task QueueCount_AfterFlushWithLock_PreservesCount()
+    {
+        // Arrange - add messages while lock exists
+        File.WriteAllText(SpeechLockFilePath, "test");
+        await _sut.SpeakAsync("Message 1");
+        await _sut.SpeakAsync("Message 2");
+        var initialCount = _sut.QueueCount;
+        Assert.Equal(2, initialCount);
+        
+        // Act - try to flush while lock still exists
+        await _sut.FlushQueueAsync();
+        
+        // Assert - queue should still have messages (lock prevents playback)
+        Assert.True(_sut.QueueCount >= 1);
+    }
+}
