@@ -24,6 +24,7 @@ public class DictationWorker : BackgroundService
     private DateTime? _recordingStartTime;
     private KeyCode _triggerKey;
     private readonly string _ttsBaseUrl;
+    private readonly string _virtualAssistantBaseUrl;
     
     /// <summary>
     /// Path to the speech lock file. When this file exists, TTS should not speak.
@@ -55,6 +56,7 @@ public class DictationWorker : BackgroundService
         var triggerKeyName = _configuration.GetValue<string>("PushToTalkDictation:TriggerKey", "CapsLock");
         _triggerKey = Enum.Parse<KeyCode>(triggerKeyName);
         _ttsBaseUrl = _configuration.GetValue<string>("EdgeTts:BaseUrl", "http://localhost:5555");
+        _virtualAssistantBaseUrl = _configuration.GetValue<string>("VirtualAssistant:BaseUrl", "http://localhost:5055");
 
         _logger.LogInformation("Dictation worker initialized. Trigger key: {TriggerKey}", _triggerKey);
     }
@@ -282,6 +284,9 @@ public class DictationWorker : BackgroundService
             
             // Delete speech lock to allow TTS to speak again
             DeleteSpeechLock();
+            
+            // Flush any queued TTS messages that accumulated during dictation
+            await FlushTtsQueueAsync();
         }
     }
     
@@ -341,6 +346,31 @@ public class DictationWorker : BackgroundService
         catch (Exception ex)
         {
             _logger.LogWarning(ex, "Failed to send TTS speech stop request");
+        }
+    }
+
+    /// <summary>
+    /// Flushes the TTS message queue by calling VirtualAssistant service.
+    /// Messages that were queued during dictation will be played.
+    /// </summary>
+    private async Task FlushTtsQueueAsync()
+    {
+        try
+        {
+            var response = await _httpClient.PostAsync($"{_virtualAssistantBaseUrl}/api/tts/flush-queue", null);
+            
+            if (response.IsSuccessStatusCode)
+            {
+                _logger.LogDebug("TTS queue flush request sent successfully");
+            }
+            else
+            {
+                _logger.LogWarning("TTS queue flush request failed: {StatusCode}", response.StatusCode);
+            }
+        }
+        catch (Exception ex)
+        {
+            _logger.LogWarning(ex, "Failed to send TTS queue flush request");
         }
     }
 

@@ -306,5 +306,37 @@ public class Program
             
             return Results.Ok(new { success = true, message = "Notification received", text = request.Text });
         });
+
+        // TTS Queue status endpoint - returns current queue count
+        app.MapGet("/api/tts/queue", (TtsService ttsService) =>
+        {
+            return Results.Ok(new { queueCount = ttsService.QueueCount });
+        });
+
+        // TTS Flush queue endpoint - plays all queued messages (called by PushToTalk after dictation ends)
+        app.MapPost("/api/tts/flush-queue", async (TtsService ttsService, ILogger<Program> logger) =>
+        {
+            var queueCount = ttsService.QueueCount;
+            if (queueCount > 0)
+            {
+                Console.WriteLine($"\u001b[93;1m🔊 TTS Flush Queue: {queueCount} message(s) pending\u001b[0m");
+            }
+            logger.LogInformation("TTS Flush Queue requested. Queue count: {Count}", queueCount);
+            
+            // Flush the queue asynchronously (fire and forget for quick response)
+            _ = Task.Run(async () =>
+            {
+                try
+                {
+                    await ttsService.FlushQueueAsync();
+                }
+                catch (Exception ex)
+                {
+                    logger.LogError(ex, "Error flushing TTS queue");
+                }
+            });
+            
+            return Results.Ok(new { success = true, message = "Flush queue initiated", queueCount });
+        });
     }
 }
