@@ -11,6 +11,22 @@ namespace Olbrasoft.VirtualAssistant.PushToTalk.Service;
 /// </summary>
 public class DictationWorker : BackgroundService
 {
+    /// <summary>
+    /// Known Whisper hallucinations to filter out.
+    /// Whisper model sometimes hallucinates common phrases when given silent or very short audio.
+    /// </summary>
+    private static readonly HashSet<string> WhisperHallucinations = new(StringComparer.OrdinalIgnoreCase)
+    {
+        "titulky vytvořil johnyx",
+        "titulky vytvořil johny x",
+        "titulky vytvořil johnny x",
+        "titulky vytvořil johnyx.",
+        "subtitles by johnyx",
+        "subtitles created by johnyx",
+        "thank you for watching",
+        "thanks for watching"
+    };
+
     private readonly ILogger<DictationWorker> _logger;
     private readonly IConfiguration _configuration;
     private readonly IKeyboardMonitor _keyboardMonitor;
@@ -268,7 +284,16 @@ public class DictationWorker : BackgroundService
 
                 if (transcription.Success && !string.IsNullOrWhiteSpace(transcription.Text))
                 {
-                    _logger.LogInformation("Transcription successful: {Text} (confidence: {Confidence:F3})", 
+                    // CRITICAL: Validate transcription to filter out Whisper hallucinations
+                    if (!IsValidTranscription(transcription.Text))
+                    {
+                        // Hallucination detected - abort operation silently
+                        // No typing, no sounds, no notifications, no icon changes
+                        _logger.LogInformation("Transcription ignored (hallucination/invalid): '{Text}'", transcription.Text);
+                        return; // STOP HERE - no further processing
+                    }
+
+                    _logger.LogInformation("Transcription successful: {Text} (confidence: {Confidence:F3})",
                         transcription.Text, transcription.Confidence);
 
                     // Notify clients about successful transcription
@@ -286,7 +311,7 @@ public class DictationWorker : BackgroundService
                 {
                     var errorMessage = transcription.ErrorMessage ?? "Empty transcription result";
                     _logger.LogWarning("Transcription failed or empty: {Error}", errorMessage);
-                    
+
                     // Notify clients about failed transcription
                     await _pttNotifier.NotifyTranscriptionFailedAsync(errorMessage);
                 }
@@ -330,6 +355,39 @@ public class DictationWorker : BackgroundService
         }
     }
     
+    /// <summary>
+    /// Validates transcription text to filter out Whisper hallucinations and empty results.
+    /// </summary>
+    /// <param name="text">Transcription text to validate</param>
+    /// <returns>True if transcription is valid, false if it's a hallucination or invalid</returns>
+    private bool IsValidTranscription(string? text)
+    {
+        // Empty or whitespace
+        if (string.IsNullOrWhiteSpace(text))
+        {
+            _logger.LogDebug("Transcription validation failed: empty or whitespace");
+            return false;
+        }
+
+        var trimmedText = text.Trim();
+
+        // Too short (likely noise)
+        if (trimmedText.Length < 2)
+        {
+            _logger.LogDebug("Transcription validation failed: too short ({Length} chars)", trimmedText.Length);
+            return false;
+        }
+
+        // Known Whisper hallucinations
+        if (WhisperHallucinations.Contains(trimmedText))
+        {
+            _logger.LogInformation("Whisper hallucination detected and filtered: '{Text}'", trimmedText);
+            return false;
+        }
+
+        return true;
+    }
+
     /// <summary>
     /// Creates the speech lock file to signal TTS to not speak.
     /// </summary>
