@@ -37,7 +37,7 @@ public class ContinuousListenerWorker : BackgroundService
 
     // State machine
     private enum State { Waiting, Recording, Muted }
-    private State _state = State.Waiting;
+    private State _state; // Initialized in constructor based on StartMuted config
 
     // Buffers
     private readonly Queue<byte[]> _preBuffer = new();
@@ -106,6 +106,11 @@ public class ContinuousListenerWorker : BackgroundService
         _ttsService = ttsService;
         _httpClient = httpClient;
         _muteService = muteService;
+
+        // Initialize state based on StartMuted configuration (#70)
+        _state = _options.StartMuted ? State.Muted : State.Waiting;
+        _logger.LogInformation("ContinuousListener starting in {State} state (StartMuted={StartMuted})", 
+            _state, _options.StartMuted);
 
         // Subscribe to mute state changes
         if (_muteService != null)
