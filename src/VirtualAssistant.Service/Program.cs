@@ -10,6 +10,7 @@ using Olbrasoft.VirtualAssistant.Service.Workers;
 using Olbrasoft.VirtualAssistant.Voice.Similarity;
 using OpenCode.DotnetClient;
 using VirtualAssistant.Data.EntityFrameworkCore;
+using System.Text.Json.Serialization;
 
 namespace Olbrasoft.VirtualAssistant.Service;
 
@@ -22,7 +23,11 @@ public record AssistantSpeechStartRequest(string Text);
 /// Request model for TTS notify endpoint (from OpenCode plugin).
 /// Source identifies the AI client for voice differentiation.
 /// </summary>
-public record TtsNotifyRequest(string Text, string? Source = null);
+public class TtsNotifyRequest
+{
+    public string Text { get; set; } = string.Empty;
+    public string? Source { get; set; }
+}
 
 /// <summary>
 /// Request model for mute control endpoint (from PushToTalk service).
@@ -297,6 +302,9 @@ public class Program
         // Source parameter allows different AI clients to have distinct voices
         app.MapPost("/api/tts/notify", async (TtsNotifyRequest request, TtsService ttsService, ILogger<Program> logger) =>
         {
+            // Debug: log raw source value directly to console
+            Console.WriteLine($"\u001b[93;1m🔍 DEBUG: Source='{request.Source}', IsNull={request.Source == null}\u001b[0m");
+            
             // Cyan output for received notification
             var sourceInfo = string.IsNullOrEmpty(request.Source) ? "" : $" [{request.Source}]";
             Console.WriteLine($"\u001b[96;1m📩 TTS Notify{sourceInfo}: \"{request.Text}\"\u001b[0m");
@@ -315,7 +323,8 @@ public class Program
                 }
             });
             
-            return Results.Ok(new { success = true, message = "Notification received", text = request.Text, source = request.Source ?? "default" });
+            var actualSource = request.Source ?? "NOT_SET";
+            return Results.Ok(new { success = true, message = "Notification received", text = request.Text, source = actualSource, sourceWasNull = request.Source == null });
         });
 
         // TTS Queue status endpoint - returns current queue count
