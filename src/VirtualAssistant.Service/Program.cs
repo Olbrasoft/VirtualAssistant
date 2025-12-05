@@ -20,8 +20,9 @@ public record AssistantSpeechStartRequest(string Text);
 
 /// <summary>
 /// Request model for TTS notify endpoint (from OpenCode plugin).
+/// Source identifies the AI client for voice differentiation.
 /// </summary>
-public record TtsNotifyRequest(string Text);
+public record TtsNotifyRequest(string Text, string? Source = null);
 
 /// <summary>
 /// Request model for mute control endpoint (from PushToTalk service).
@@ -293,18 +294,20 @@ public class Program
         app.MapGet("/health", () => Results.Ok("OK"));
 
         // TTS Notify endpoint - receives text from OpenCode plugin and speaks it
+        // Source parameter allows different AI clients to have distinct voices
         app.MapPost("/api/tts/notify", async (TtsNotifyRequest request, TtsService ttsService, ILogger<Program> logger) =>
         {
             // Cyan output for received notification
-            Console.WriteLine($"\u001b[96;1m📩 TTS Notify: \"{request.Text}\"\u001b[0m");
-            logger.LogInformation("TTS Notify received: {Text}", request.Text);
+            var sourceInfo = string.IsNullOrEmpty(request.Source) ? "" : $" [{request.Source}]";
+            Console.WriteLine($"\u001b[96;1m📩 TTS Notify{sourceInfo}: \"{request.Text}\"\u001b[0m");
+            logger.LogInformation("TTS Notify received from {Source}: {Text}", request.Source ?? "default", request.Text);
             
             // Speak the text asynchronously (fire and forget for quick response)
             _ = Task.Run(async () =>
             {
                 try
                 {
-                    await ttsService.SpeakAsync(request.Text);
+                    await ttsService.SpeakAsync(request.Text, request.Source);
                 }
                 catch (Exception ex)
                 {
@@ -312,7 +315,7 @@ public class Program
                 }
             });
             
-            return Results.Ok(new { success = true, message = "Notification received", text = request.Text });
+            return Results.Ok(new { success = true, message = "Notification received", text = request.Text, source = request.Source ?? "default" });
         });
 
         // TTS Queue status endpoint - returns current queue count

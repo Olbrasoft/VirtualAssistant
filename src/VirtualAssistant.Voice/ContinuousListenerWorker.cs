@@ -547,24 +547,24 @@ public class ContinuousListenerWorker : BackgroundService
                 
                 // TTS confirmation with random phrase (Issue #68)
                 var phrase = ClipboardConfirmationPhrases[_phraseRandom.Next(ClipboardConfirmationPhrases.Length)];
-                await _ttsService.SpeakAsync(phrase, cancellationToken);
+                await _ttsService.SpeakAsync(phrase, source: null, cancellationToken);
             }
             else if (response.StatusCode == System.Net.HttpStatusCode.NotFound)
             {
                 Console.WriteLine($"\u001b[93;1m⚠ No text in history\u001b[0m");
-                await _ttsService.SpeakAsync("Žádný text v historii.", cancellationToken);
+                await _ttsService.SpeakAsync("Žádný text v historii.", source: null, cancellationToken);
             }
             else
             {
                 Console.WriteLine($"\u001b[91;1m✗ PTT repeat failed: {response.StatusCode}\u001b[0m");
-                await _ttsService.SpeakAsync("Nepodařilo se získat text.", cancellationToken);
+                await _ttsService.SpeakAsync("Nepodařilo se získat text.", source: null, cancellationToken);
             }
         }
         catch (HttpRequestException ex)
         {
             _logger.LogError(ex, "Failed to call PTT repeat endpoint");
             Console.WriteLine($"\u001b[91;1m✗ PTT service unavailable: {ex.Message}\u001b[0m");
-            await _ttsService.SpeakAsync("Služba není dostupná.", cancellationToken);
+            await _ttsService.SpeakAsync("Služba není dostupná.", source: null, cancellationToken);
         }
         catch (Exception ex)
         {

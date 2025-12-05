@@ -1,5 +1,7 @@
 using Microsoft.Extensions.Logging;
+using Microsoft.Extensions.Options;
 using Moq;
+using Olbrasoft.VirtualAssistant.Core.Configuration;
 using Olbrasoft.VirtualAssistant.Voice.Services;
 
 namespace VirtualAssistant.Voice.Tests.Services;
@@ -7,12 +9,15 @@ namespace VirtualAssistant.Voice.Tests.Services;
 public class ManualMuteServiceTests
 {
     private readonly Mock<ILogger<ManualMuteService>> _loggerMock;
+    private readonly Mock<IOptions<ContinuousListenerOptions>> _optionsMock;
     private readonly ManualMuteService _sut;
 
     public ManualMuteServiceTests()
     {
         _loggerMock = new Mock<ILogger<ManualMuteService>>();
-        _sut = new ManualMuteService(_loggerMock.Object);
+        _optionsMock = new Mock<IOptions<ContinuousListenerOptions>>();
+        _optionsMock.Setup(x => x.Value).Returns(new ContinuousListenerOptions { StartMuted = false });
+        _sut = new ManualMuteService(_loggerMock.Object, _optionsMock.Object);
     }
 
     [Fact]

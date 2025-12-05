@@ -8,8 +8,14 @@ using Microsoft.Extensions.Logging;
 namespace Olbrasoft.VirtualAssistant.Voice.Services;
 
 /// <summary>
+/// Voice configuration for different AI clients.
+/// </summary>
+public sealed record VoiceConfig(string Voice, string Rate, string Volume, string Pitch);
+
+/// <summary>
 /// Text-to-Speech service using direct WebSocket to Microsoft Edge TTS API.
 /// Pure C# - no external dependencies like Python edge-tts.
+/// Supports multiple voice profiles for different AI clients.
 /// </summary>
 public sealed class TtsService : IDisposable
 {
@@ -22,12 +28,24 @@ public sealed class TtsService : IDisposable
     private readonly ILogger<TtsService> _logger;
     private readonly string _cacheDirectory;
     private readonly string _micLockFile = "/tmp/speech-lock";
-    private readonly string _voice = "cs-CZ-AntoninNeural";
-    private readonly string _rate = "+20%";
-    private readonly string _volume = "+0%";
-    private readonly string _pitch = "+0Hz";
-    private readonly ConcurrentQueue<string> _messageQueue = new();
+    private readonly ConcurrentQueue<(string Text, string? Source)> _messageQueue = new();
     private readonly SemaphoreSlim _playbackLock = new(1, 1);
+    
+    /// <summary>
+    /// Voice profiles for different AI clients.
+    /// Each client can have distinct voice, rate, volume, and pitch settings.
+    /// </summary>
+    private static readonly Dictionary<string, VoiceConfig> VoiceProfiles = new(StringComparer.OrdinalIgnoreCase)
+    {
+        // Default voice (VirtualAssistant) - normal Antonín
+        ["default"] = new("cs-CZ-AntoninNeural", "+20%", "+0%", "+0Hz"),
+        
+        // OpenCode - slightly faster, higher pitch
+        ["opencode"] = new("cs-CZ-AntoninNeural", "+25%", "+0%", "+10Hz"),
+        
+        // Claude Code - deeper voice, slightly slower
+        ["claudecode"] = new("cs-CZ-AntoninNeural", "+15%", "+0%", "-20Hz"),
+    };
 
     public TtsService(ILogger<TtsService> logger)
     {
@@ -40,23 +58,39 @@ public sealed class TtsService : IDisposable
     }
 
     /// <summary>
+    /// Gets the voice configuration for a given source.
+    /// Falls back to default if source is unknown.
+    /// </summary>
+    private static VoiceConfig GetVoiceConfig(string? source)
+    {
+        if (string.IsNullOrEmpty(source) || !VoiceProfiles.TryGetValue(source, out var config))
+        {
+            return VoiceProfiles["default"];
+        }
+        return config;
+    }
+
+    /// <summary>
     /// Řekne text přes Microsoft Edge TTS API (přímé WebSocket volání).
     /// If speech lock is active, queues the message for later playback.
     /// </summary>
-    public async Task SpeakAsync(string text, CancellationToken cancellationToken = default)
+    /// <param name="text">Text to speak</param>
+    /// <param name="source">AI client identifier for voice selection (e.g., "opencode", "claudecode")</param>
+    /// <param name="cancellationToken">Cancellation token</param>
+    public async Task SpeakAsync(string text, string? source = null, CancellationToken cancellationToken = default)
     {
         try
         {
             // Check if microphone is active - queue message instead of discarding
             if (File.Exists(_micLockFile))
             {
-                _messageQueue.Enqueue(text);
+                _messageQueue.Enqueue((text, source));
                 _logger.LogInformation("🎤 Mikrofon aktivní - text zařazen do fronty ({QueueCount}): {Text}", 
                     _messageQueue.Count, text);
                 return;
             }
 
-            await SpeakDirectAsync(text, cancellationToken);
+            await SpeakDirectAsync(text, source, cancellationToken);
         }
         catch (Exception ex)
         {
@@ -78,19 +112,19 @@ public sealed class TtsService : IDisposable
 
         _logger.LogInformation("🔊 FlushQueue: Playing {Count} queued message(s)", count);
 
-        while (_messageQueue.TryDequeue(out var text))
+        while (_messageQueue.TryDequeue(out var item))
         {
             // Check if lock was re-acquired (user started dictating again)
             if (File.Exists(_micLockFile))
             {
                 // Re-queue the message and stop flushing
-                _messageQueue.Enqueue(text);
+                _messageQueue.Enqueue(item);
                 _logger.LogInformation("🎤 Lock re-acquired during flush - stopping. Remaining: {Count}", 
                     _messageQueue.Count);
                 return;
             }
 
-            await SpeakDirectAsync(text, cancellationToken);
+            await SpeakDirectAsync(item.Text, item.Source, cancellationToken);
         }
 
         _logger.LogDebug("FlushQueue: All messages played");
@@ -105,23 +139,25 @@ public sealed class TtsService : IDisposable
     /// Internal method to actually speak text (no queue check).
     /// Uses SemaphoreSlim to ensure only one message plays at a time.
     /// </summary>
-    private async Task SpeakDirectAsync(string text, CancellationToken cancellationToken)
+    private async Task SpeakDirectAsync(string text, string? source, CancellationToken cancellationToken)
     {
+        var voiceConfig = GetVoiceConfig(source);
+        
         await _playbackLock.WaitAsync(cancellationToken);
         try
         {
             // Check cache first
-            var cacheFile = GetCacheFilePath(text);
+            var cacheFile = GetCacheFilePath(text, voiceConfig);
             if (File.Exists(cacheFile))
             {
-                _logger.LogDebug("Playing from cache: {Text}", text);
+                _logger.LogDebug("Playing from cache: {Text} (source: {Source})", text, source ?? "default");
                 await PlayAudioAsync(cacheFile, cancellationToken);
                 return;
             }
 
             // Generate new audio via WebSocket
-            _logger.LogDebug("Generating audio for: {Text}", text);
-            var audioData = await GenerateAudioAsync(text, cancellationToken);
+            _logger.LogDebug("Generating audio for: {Text} (source: {Source})", text, source ?? "default");
+            var audioData = await GenerateAudioAsync(text, voiceConfig, cancellationToken);
 
             if (audioData == null || audioData.Length == 0)
             {
@@ -135,7 +171,7 @@ public sealed class TtsService : IDisposable
             // Play audio
             await PlayAudioAsync(cacheFile, cancellationToken);
 
-            _logger.LogInformation("🗣️ TTS: \"{Text}\"", text);
+            _logger.LogInformation("🗣️ TTS [{Source}]: \"{Text}\"", source ?? "default", text);
         }
         finally
         {
@@ -143,7 +179,7 @@ public sealed class TtsService : IDisposable
         }
     }
 
-    private async Task<byte[]?> GenerateAudioAsync(string text, CancellationToken cancellationToken)
+    private async Task<byte[]?> GenerateAudioAsync(string text, VoiceConfig voiceConfig, CancellationToken cancellationToken)
     {
         using var client = new ClientWebSocket();
 
@@ -186,7 +222,7 @@ public sealed class TtsService : IDisposable
                 cancellationToken);
 
             // Send SSML message
-            var ssml = GenerateSsml(text);
+            var ssml = GenerateSsml(text, voiceConfig);
             var requestId = Guid.NewGuid().ToString("N");
             var ssmlMessage = $"X-RequestId:{requestId}\r\n" +
                              "Content-Type:application/ssml+xml\r\n" +
@@ -270,12 +306,12 @@ public sealed class TtsService : IDisposable
         return Convert.ToHexString(hashBytes);
     }
 
-    private string GenerateSsml(string text)
+    private static string GenerateSsml(string text, VoiceConfig config)
     {
         var escapedText = System.Security.SecurityElement.Escape(text);
         return $@"<speak version='1.0' xmlns='http://www.w3.org/2001/10/synthesis' xml:lang='cs-CZ'>
-            <voice name='{_voice}'>
-                <prosody rate='{_rate}' volume='{_volume}' pitch='{_pitch}'>
+            <voice name='{config.Voice}'>
+                <prosody rate='{config.Rate}' volume='{config.Volume}' pitch='{config.Pitch}'>
                     {escapedText}
                 </prosody>
             </voice>
@@ -301,7 +337,7 @@ public sealed class TtsService : IDisposable
         await process.WaitForExitAsync(cancellationToken);
     }
 
-    private string GetCacheFilePath(string text)
+    private string GetCacheFilePath(string text, VoiceConfig config)
     {
         var safeName = new string(text
             .Take(50)
@@ -310,7 +346,7 @@ public sealed class TtsService : IDisposable
             .Trim('-')
             .ToLowerInvariant();
 
-        var parameters = $"{_voice}{_rate}{_volume}{_pitch}";
+        var parameters = $"{config.Voice}{config.Rate}{config.Volume}{config.Pitch}";
         var hash = Convert.ToHexString(MD5.HashData(Encoding.UTF8.GetBytes(parameters)))[..8];
 
         return Path.Combine(_cacheDirectory, $"{safeName}-{hash}.mp3");

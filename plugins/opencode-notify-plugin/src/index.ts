@@ -54,6 +54,7 @@ interface NotifyResponse {
   success: boolean
   message: string
   text: string
+  source: string
 }
 
 /**
@@ -74,13 +75,14 @@ export const NotifyPlugin: Plugin = async () => {
 
   /**
    * Send notification to VirtualAssistant
+   * Uses source: "opencode" for voice differentiation
    */
   async function notify(text: string): Promise<{ success: boolean; error?: string }> {
     try {
       const response = await fetch(config.notifyUrl, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ text }),
+        body: JSON.stringify({ text, source: "opencode" }),
         signal: AbortSignal.timeout(5000), // 5 second timeout
       })
 
