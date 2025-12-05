@@ -20,6 +20,7 @@ public class DictationWorker : BackgroundService
     private readonly IPttNotifier _pttNotifier;
     private readonly HttpClient _httpClient;
     private readonly ManualMuteService _manualMuteService;
+    private readonly ITranscriptionHistory _transcriptionHistory;
     private bool _isRecording;
     private DateTime? _recordingStartTime;
     private KeyCode _triggerKey;
@@ -46,7 +47,8 @@ public class DictationWorker : BackgroundService
         ITextTyper textTyper,
         IPttNotifier pttNotifier,
         HttpClient httpClient,
-        ManualMuteService manualMuteService)
+        ManualMuteService manualMuteService,
+        ITranscriptionHistory transcriptionHistory)
     {
         _logger = logger ?? throw new ArgumentNullException(nameof(logger));
         _configuration = configuration ?? throw new ArgumentNullException(nameof(configuration));
@@ -57,6 +59,7 @@ public class DictationWorker : BackgroundService
         _pttNotifier = pttNotifier ?? throw new ArgumentNullException(nameof(pttNotifier));
         _httpClient = httpClient ?? throw new ArgumentNullException(nameof(httpClient));
         _manualMuteService = manualMuteService ?? throw new ArgumentNullException(nameof(manualMuteService));
+        _transcriptionHistory = transcriptionHistory ?? throw new ArgumentNullException(nameof(transcriptionHistory));
 
         // Load configuration
         var triggerKeyName = _configuration.GetValue<string>("PushToTalkDictation:TriggerKey", "CapsLock");
@@ -270,6 +273,10 @@ public class DictationWorker : BackgroundService
 
                     // Notify clients about successful transcription
                     await _pttNotifier.NotifyTranscriptionCompletedAsync(transcription.Text, transcription.Confidence);
+
+                    // Save to history before typing (allows repeat if pasted to wrong window)
+                    _transcriptionHistory.SaveText(transcription.Text);
+                    _logger.LogDebug("Transcription saved to history");
 
                     // Type transcribed text
                     await _textTyper.TypeTextAsync(transcription.Text);
