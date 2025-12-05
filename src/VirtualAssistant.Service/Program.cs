@@ -23,6 +23,11 @@ public record AssistantSpeechStartRequest(string Text);
 /// </summary>
 public record TtsNotifyRequest(string Text);
 
+/// <summary>
+/// Request model for mute control endpoint (from PushToTalk service).
+/// </summary>
+public record MuteRequest(bool Muted);
+
 public class Program
 {
     private static WebApplication? _app;
@@ -337,6 +342,26 @@ public class Program
             });
             
             return Results.Ok(new { success = true, message = "Flush queue initiated", queueCount });
+        });
+
+        // Mute control endpoint - allows PushToTalk to control mute state (changes icon)
+        var muteService = app.Services.GetRequiredService<IManualMuteService>();
+        app.MapPost("/api/mute", (MuteRequest request, ILogger<Program> logger) =>
+        {
+            var previousState = muteService.IsMuted;
+            muteService.SetMuted(request.Muted);
+            
+            var action = request.Muted ? "🔇 MUTED" : "🔊 UNMUTED";
+            Console.WriteLine($"\u001b[95;1m{action} (via API)\u001b[0m");
+            logger.LogInformation("Mute state changed via API: {PreviousState} -> {NewState}", previousState, request.Muted);
+            
+            return Results.Ok(new { success = true, muted = muteService.IsMuted, previousState });
+        });
+
+        // Get current mute state
+        app.MapGet("/api/mute", () =>
+        {
+            return Results.Ok(new { muted = muteService.IsMuted });
         });
     }
 }

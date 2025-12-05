@@ -34,6 +34,8 @@ public class PttNotifier : IPttNotifier
     /// </summary>
     private void RaisePttEvent(PttEvent pttEvent)
     {
+        var handlerCount = PttEventReceived?.GetInvocationList()?.Length ?? 0;
+        _logger.LogInformation("RaisePttEvent: {EventType}, subscribers: {Count}", pttEvent.EventType, handlerCount);
         PttEventReceived?.Invoke(this, pttEvent);
     }
     
@@ -53,6 +55,8 @@ public class PttNotifier : IPttNotifier
     /// <inheritdoc />
     public async Task NotifyRecordingStoppedAsync(double durationSeconds)
     {
+        _logger.LogInformation("NotifyRecordingStoppedAsync called with duration: {Duration:F2}s", durationSeconds);
+        
         var pttEvent = new PttEvent
         {
             EventType = PttEventType.RecordingStopped,

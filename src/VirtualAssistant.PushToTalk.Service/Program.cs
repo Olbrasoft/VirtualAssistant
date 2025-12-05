@@ -43,6 +43,9 @@ builder.Services.AddCors(options =>
 // PTT Notifier service
 builder.Services.AddSingleton<IPttNotifier, PttNotifier>();
 
+// Transcription history service (single-level history for repeat functionality)
+builder.Services.AddSingleton<ITranscriptionHistory, TranscriptionHistory>();
+
 // Manual mute service (ScrollLock) - register as concrete type for injection
 // Also register interface for backwards compatibility
 builder.Services.AddSingleton<PttManualMuteService>();
@@ -77,6 +80,9 @@ builder.Services.AddSingleton<ITextTyper>(sp =>
     return TextTyperFactory.Create(loggerFactory);
 });
 
+// Typing sound player for transcription feedback
+builder.Services.AddSingleton<TypingSoundPlayer>();
+
 // Transcription tray service (not from DI - needs special lifecycle with GTK)
 builder.Services.AddSingleton<TranscriptionTrayService>();
 
@@ -103,7 +109,8 @@ _app.MapGet("/", () => Results.Ok(new { service = "VirtualAssistant.PushToTalk",
 // Get tray service from DI
 var pttNotifier = _app.Services.GetRequiredService<IPttNotifier>();
 var trayLogger = _app.Services.GetRequiredService<ILogger<TranscriptionTrayService>>();
-_trayService = new TranscriptionTrayService(trayLogger, pttNotifier);
+var typingSoundPlayer = _app.Services.GetRequiredService<TypingSoundPlayer>();
+_trayService = new TranscriptionTrayService(trayLogger, pttNotifier, typingSoundPlayer);
 
 try
 {

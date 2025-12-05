@@ -14,6 +14,7 @@ public class TranscriptionTrayService : IDisposable
 {
     private readonly ILogger<TranscriptionTrayService> _logger;
     private readonly IPttNotifier _pttNotifier;
+    private readonly TypingSoundPlayer _typingSoundPlayer;
     
     private IntPtr _indicator;
     private string _iconsPath = null!;
@@ -39,10 +40,12 @@ public class TranscriptionTrayService : IDisposable
 
     public TranscriptionTrayService(
         ILogger<TranscriptionTrayService> logger,
-        IPttNotifier pttNotifier)
+        IPttNotifier pttNotifier,
+        TypingSoundPlayer typingSoundPlayer)
     {
         _logger = logger;
         _pttNotifier = pttNotifier;
+        _typingSoundPlayer = typingSoundPlayer;
     }
 
     /// <summary>
@@ -92,6 +95,7 @@ public class TranscriptionTrayService : IDisposable
         _pttNotifier.PttEventReceived += OnPttEvent;
         
         _isInitialized = true;
+        _logger.LogWarning("=== TRAY NOTIFIER HASH: {Hash} ===", _pttNotifier.GetHashCode());
         _logger.LogInformation("TranscriptionTrayService initialized, icons path: {Path}", _iconsPath);
     }
 
@@ -133,16 +137,18 @@ public class TranscriptionTrayService : IDisposable
 
     private void OnPttEvent(object? sender, PttEvent evt)
     {
+        _logger.LogInformation("PttEvent received: {EventType}", evt.EventType);
+        
         switch (evt.EventType)
         {
             case PttEventType.RecordingStopped:
-                _logger.LogDebug("Recording stopped - showing indicator");
+                _logger.LogInformation("Recording stopped - showing indicator and starting typing sound");
                 ScheduleShow();
                 break;
                 
             case PttEventType.TranscriptionCompleted:
             case PttEventType.TranscriptionFailed:
-                _logger.LogDebug("Transcription finished - hiding indicator");
+                _logger.LogInformation("Transcription finished - hiding indicator and stopping typing sound");
                 ScheduleHide();
                 break;
         }
@@ -175,6 +181,9 @@ public class TranscriptionTrayService : IDisposable
             
         AppIndicator.app_indicator_set_status(_indicator, AppIndicator.Status.Active);
         
+        // Start typing sound
+        _typingSoundPlayer.StartLoop();
+        
         // Start animation if not already running
         if (!_isAnimating)
         {
@@ -192,6 +201,9 @@ public class TranscriptionTrayService : IDisposable
             return;
             
         AppIndicator.app_indicator_set_status(_indicator, AppIndicator.Status.Passive);
+        
+        // Stop typing sound
+        _typingSoundPlayer.StopLoop();
         
         // Stop animation
         if (_isAnimating && _animationTimer != 0)

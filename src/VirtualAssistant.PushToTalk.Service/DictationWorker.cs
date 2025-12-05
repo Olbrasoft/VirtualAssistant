@@ -27,6 +27,12 @@ public class DictationWorker : BackgroundService
     private readonly string _virtualAssistantBaseUrl;
     
     /// <summary>
+    /// Stores the mute state of VirtualAssistant before CapsLock recording started.
+    /// Used to restore the original state after recording ends.
+    /// </summary>
+    private bool? _previousMuteState;
+    
+    /// <summary>
     /// Path to the speech lock file. When this file exists, TTS should not speak.
     /// </summary>
     private const string SpeechLockFilePath = "/tmp/speech-lock";
@@ -58,6 +64,7 @@ public class DictationWorker : BackgroundService
         _ttsBaseUrl = _configuration.GetValue<string>("EdgeTts:BaseUrl", "http://localhost:5555");
         _virtualAssistantBaseUrl = _configuration.GetValue<string>("VirtualAssistant:BaseUrl", "http://localhost:5055");
 
+        _logger.LogWarning("=== NOTIFIER HASH: {Hash} ===", _pttNotifier.GetHashCode());
         _logger.LogInformation("Dictation worker initialized. Trigger key: {TriggerKey}", _triggerKey);
     }
 
@@ -190,6 +197,17 @@ public class DictationWorker : BackgroundService
             // Stop any TTS speech immediately (fire-and-forget but don't await)
             _ = StopTtsSpeechAsync();
             
+            // Save current mute state before forcing mute (to restore after recording)
+            _previousMuteState = await GetVirtualAssistantMuteStateAsync();
+            _logger.LogDebug("Saved previous mute state: {PreviousMuteState}", _previousMuteState);
+            
+            // Mute VirtualAssistant (changes tray icon to muted state)
+            // Only set if not already muted
+            if (_previousMuteState != true)
+            {
+                await SetVirtualAssistantMuteAsync(true);
+            }
+            
             // Create speech lock synchronously to prevent TTS from speaking during recording
             CreateSpeechLock();
             
@@ -285,6 +303,21 @@ public class DictationWorker : BackgroundService
             // Delete speech lock to allow TTS to speak again
             DeleteSpeechLock();
             
+            // Restore VirtualAssistant mute state to what it was before recording
+            // If it was muted before (via ScrollLock/menu), keep it muted
+            // If it was unmuted before, unmute it now
+            if (_previousMuteState.HasValue)
+            {
+                _logger.LogDebug("Restoring previous mute state: {PreviousMuteState}", _previousMuteState.Value);
+                await SetVirtualAssistantMuteAsync(_previousMuteState.Value);
+                _previousMuteState = null;
+            }
+            else
+            {
+                // Fallback: if we couldn't get previous state, unmute
+                await SetVirtualAssistantMuteAsync(false);
+            }
+            
             // Flush any queued TTS messages that accumulated during dictation
             await FlushTtsQueueAsync();
         }
@@ -298,11 +331,20 @@ public class DictationWorker : BackgroundService
         try
         {
             File.WriteAllText(SpeechLockFilePath, "PushToTalk:Recording");
-            _logger.LogDebug("Speech lock file created: {Path}", SpeechLockFilePath);
+            
+            // Verify the file was actually created
+            if (File.Exists(SpeechLockFilePath))
+            {
+                _logger.LogInformation("🔒 Speech lock file CREATED: {Path}", SpeechLockFilePath);
+            }
+            else
+            {
+                _logger.LogError("❌ Speech lock file NOT created despite no exception: {Path}", SpeechLockFilePath);
+            }
         }
         catch (Exception ex)
         {
-            _logger.LogWarning(ex, "Failed to create speech lock file");
+            _logger.LogError(ex, "❌ Failed to create speech lock file: {Path}", SpeechLockFilePath);
         }
     }
     
@@ -316,7 +358,7 @@ public class DictationWorker : BackgroundService
             if (File.Exists(SpeechLockFilePath))
             {
                 File.Delete(SpeechLockFilePath);
-                _logger.LogDebug("Speech lock file deleted: {Path}", SpeechLockFilePath);
+                _logger.LogInformation("🔓 Speech lock file DELETED: {Path}", SpeechLockFilePath);
             }
         }
         catch (Exception ex)
@@ -372,6 +414,67 @@ public class DictationWorker : BackgroundService
         {
             _logger.LogWarning(ex, "Failed to send TTS queue flush request");
         }
+    }
+
+    /// <summary>
+    /// Sets the mute state of VirtualAssistant service.
+    /// When muted, the tray icon changes to indicate muted state.
+    /// </summary>
+    private async Task SetVirtualAssistantMuteAsync(bool muted)
+    {
+        try
+        {
+            var content = new StringContent(
+                System.Text.Json.JsonSerializer.Serialize(new { Muted = muted }),
+                System.Text.Encoding.UTF8,
+                "application/json");
+            
+            var response = await _httpClient.PostAsync($"{_virtualAssistantBaseUrl}/api/mute", content);
+            
+            if (response.IsSuccessStatusCode)
+            {
+                _logger.LogDebug("VirtualAssistant mute state set to: {Muted}", muted);
+            }
+            else
+            {
+                _logger.LogWarning("VirtualAssistant mute request failed: {StatusCode}", response.StatusCode);
+            }
+        }
+        catch (Exception ex)
+        {
+            _logger.LogWarning(ex, "Failed to set VirtualAssistant mute state to {Muted}", muted);
+        }
+    }
+
+    /// <summary>
+    /// Gets the current mute state of VirtualAssistant service.
+    /// </summary>
+    private async Task<bool?> GetVirtualAssistantMuteStateAsync()
+    {
+        try
+        {
+            var response = await _httpClient.GetAsync($"{_virtualAssistantBaseUrl}/api/mute");
+            
+            if (response.IsSuccessStatusCode)
+            {
+                var json = await response.Content.ReadAsStringAsync();
+                var doc = System.Text.Json.JsonDocument.Parse(json);
+                if (doc.RootElement.TryGetProperty("muted", out var mutedElement))
+                {
+                    return mutedElement.GetBoolean();
+                }
+            }
+            else
+            {
+                _logger.LogWarning("VirtualAssistant mute state request failed: {StatusCode}", response.StatusCode);
+            }
+        }
+        catch (Exception ex)
+        {
+            _logger.LogWarning(ex, "Failed to get VirtualAssistant mute state");
+        }
+        
+        return null;
     }
 
     public override async Task StopAsync(CancellationToken cancellationToken)
