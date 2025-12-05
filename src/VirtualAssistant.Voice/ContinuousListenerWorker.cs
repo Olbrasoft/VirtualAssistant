@@ -1,3 +1,4 @@
+using System.Net.Http.Json;
 using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
@@ -14,6 +15,7 @@ namespace Olbrasoft.VirtualAssistant.Voice;
 /// and uses LLM Router to determine actions (OpenCode, Respond, Ignore).
 /// 
 /// Includes TTS echo cancellation via AssistantSpeechTrackerService.
+/// Also handles PTT history repeat requests via RepeatTextIntentService.
 /// </summary>
 public class ContinuousListenerWorker : BackgroundService
 {
@@ -26,6 +28,12 @@ public class ContinuousListenerWorker : BackgroundService
     private readonly ContinuousListenerOptions _options;
     private readonly IManualMuteService? _muteService;
     private readonly AssistantSpeechTrackerService _speechTracker;
+    private readonly IRepeatTextIntentService _repeatTextIntent;
+    private readonly TtsService _ttsService;
+    private readonly HttpClient _httpClient;
+
+    // PTT Service endpoint for repeat text
+    private const string PttRepeatEndpoint = "http://localhost:5050/api/ptt/repeat";
 
     // State machine
     private enum State { Waiting, Recording, Muted }
@@ -64,6 +72,9 @@ public class ContinuousListenerWorker : BackgroundService
         TextInputService textInput,
         IOptions<ContinuousListenerOptions> options,
         AssistantSpeechTrackerService speechTracker,
+        IRepeatTextIntentService repeatTextIntent,
+        TtsService ttsService,
+        HttpClient httpClient,
         IManualMuteService? muteService = null)
     {
         _logger = logger;
@@ -74,6 +85,9 @@ public class ContinuousListenerWorker : BackgroundService
         _textInput = textInput;
         _options = options.Value;
         _speechTracker = speechTracker;
+        _repeatTextIntent = repeatTextIntent;
+        _ttsService = ttsService;
+        _httpClient = httpClient;
         _muteService = muteService;
 
         // Subscribe to mute state changes
@@ -367,7 +381,27 @@ public class ContinuousListenerWorker : BackgroundService
                 return;
             }
 
-            // White color for text being sent to LLM
+            // FIRST LLM QUERY: Check for repeat text intent (PTT history feature)
+            // This is done before the main router to handle "vrať mi text" requests
+            Console.WriteLine($"\u001b[90m🔍 Checking repeat text intent...\u001b[0m");
+            var repeatIntent = await _repeatTextIntent.DetectIntentAsync(text, cancellationToken);
+            
+            if (repeatIntent.IsRepeatTextIntent && repeatIntent.Confidence >= 0.7f)
+            {
+                Console.WriteLine($"\u001b[95;1m📋 REPEAT TEXT INTENT detected (confidence: {repeatIntent.Confidence:F2}, {repeatIntent.ResponseTimeMs}ms)\u001b[0m");
+                Console.WriteLine($"\u001b[95;1m   └─ {repeatIntent.Reason}\u001b[0m");
+                
+                // Call PTT repeat endpoint
+                await HandleRepeatTextAsync(cancellationToken);
+                ResetToWaiting();
+                return;
+            }
+            else
+            {
+                Console.WriteLine($"\u001b[90m   └─ Not repeat intent ({repeatIntent.ResponseTimeMs}ms): {repeatIntent.Reason}\u001b[0m");
+            }
+
+            // SECOND LLM QUERY: Normal routing through multi-provider LLM
             Console.WriteLine($"\u001b[97;1m🤖 → LLM: \"{text}\"\u001b[0m");
 
             // Route through LLM
@@ -471,6 +505,55 @@ public class ContinuousListenerWorker : BackgroundService
         
         return Task.CompletedTask;
     }
+
+    /// <summary>
+    /// Handles repeat text request - calls PTT service and speaks confirmation.
+    /// </summary>
+    private async Task HandleRepeatTextAsync(CancellationToken cancellationToken)
+    {
+        try
+        {
+            Console.WriteLine($"\u001b[95;1m📋 Calling PTT repeat endpoint...\u001b[0m");
+            
+            var response = await _httpClient.PostAsync(PttRepeatEndpoint, null, cancellationToken);
+            
+            if (response.IsSuccessStatusCode)
+            {
+                var result = await response.Content.ReadFromJsonAsync<PttRepeatResponse>(cancellationToken: cancellationToken);
+                
+                Console.WriteLine($"\u001b[92;1m✓ Text copied to clipboard: \"{result?.Text?.Substring(0, Math.Min(50, result?.Text?.Length ?? 0))}...\"\u001b[0m");
+                
+                // TTS confirmation
+                await _ttsService.SpeakAsync("Text je ve schránce.", cancellationToken);
+            }
+            else if (response.StatusCode == System.Net.HttpStatusCode.NotFound)
+            {
+                Console.WriteLine($"\u001b[93;1m⚠ No text in history\u001b[0m");
+                await _ttsService.SpeakAsync("Žádný text v historii.", cancellationToken);
+            }
+            else
+            {
+                Console.WriteLine($"\u001b[91;1m✗ PTT repeat failed: {response.StatusCode}\u001b[0m");
+                await _ttsService.SpeakAsync("Nepodařilo se získat text.", cancellationToken);
+            }
+        }
+        catch (HttpRequestException ex)
+        {
+            _logger.LogError(ex, "Failed to call PTT repeat endpoint");
+            Console.WriteLine($"\u001b[91;1m✗ PTT service unavailable: {ex.Message}\u001b[0m");
+            await _ttsService.SpeakAsync("Služba není dostupná.", cancellationToken);
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Error handling repeat text request");
+            Console.WriteLine($"\u001b[91;1m✗ Error: {ex.Message}\u001b[0m");
+        }
+    }
+
+    /// <summary>
+    /// Response from PTT repeat endpoint.
+    /// </summary>
+    private record PttRepeatResponse(string? Text, string? Message);
 
     private void ResetToWaiting()
     {

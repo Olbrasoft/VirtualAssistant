@@ -233,6 +233,9 @@ public class Program
         builder.Services.AddSingleton<BaseLlmRouterService, MistralRouterService>();
         builder.Services.AddSingleton<ILlmRouterService, MultiProviderLlmRouter>();
 
+        // Repeat text intent detection service (for PTT history feature)
+        builder.Services.AddSingleton<IRepeatTextIntentService, RepeatTextIntentService>();
+
         // Text input service for OpenCode
         var openCodeUrl = builder.Configuration["OpenCodeUrl"] ?? "http://localhost:4096";
         builder.Services.AddSingleton(new OpenCodeClient(openCodeUrl));
