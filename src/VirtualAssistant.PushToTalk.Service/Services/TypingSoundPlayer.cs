@@ -10,6 +10,8 @@ public class TypingSoundPlayer : IDisposable
 {
     private readonly ILogger<TypingSoundPlayer> _logger;
     private readonly string _soundFilePath;
+    private readonly string _tearPaperSoundPath;
+    private readonly string _soundsDirectory;
     private Process? _playProcess;
     private CancellationTokenSource? _loopCts;
     private Task? _loopTask;
@@ -20,11 +22,13 @@ public class TypingSoundPlayer : IDisposable
     public TypingSoundPlayer(ILogger<TypingSoundPlayer> logger)
     {
         _logger = logger;
-        
+
         // Find the sound file relative to the application
         var baseDir = AppContext.BaseDirectory;
-        _soundFilePath = Path.Combine(baseDir, "sounds", "write.mp3");
-        
+        _soundsDirectory = Path.Combine(baseDir, "sounds");
+        _soundFilePath = Path.Combine(_soundsDirectory, "write.mp3");
+        _tearPaperSoundPath = Path.Combine(_soundsDirectory, "tear-paper.mp3");
+
         if (!File.Exists(_soundFilePath))
         {
             _logger.LogWarning("Typing sound file not found: {Path}", _soundFilePath);
@@ -32,6 +36,11 @@ public class TypingSoundPlayer : IDisposable
         else
         {
             _logger.LogInformation("Typing sound file found: {Path}", _soundFilePath);
+        }
+
+        if (!File.Exists(_tearPaperSoundPath))
+        {
+            _logger.LogDebug("Tear paper sound file not found: {Path}", _tearPaperSoundPath);
         }
     }
 
@@ -71,7 +80,7 @@ public class TypingSoundPlayer : IDisposable
 
             _isPlaying = false;
             _loopCts?.Cancel();
-            
+
             // Kill any running play process
             try
             {
@@ -86,8 +95,63 @@ public class TypingSoundPlayer : IDisposable
             {
                 _logger.LogDebug(ex, "Error stopping play process");
             }
-            
+
             _logger.LogDebug("Typing sound loop stopped");
+        }
+    }
+
+    /// <summary>
+    /// Plays the tear paper sound once (for hallucination rejection feedback).
+    /// </summary>
+    public async Task PlayTearPaperAsync()
+    {
+        if (_disposed)
+            return;
+
+        if (!File.Exists(_tearPaperSoundPath))
+        {
+            _logger.LogDebug("Tear paper sound file not found, skipping playback");
+            return;
+        }
+
+        try
+        {
+            await PlaySoundOnceAsync(_tearPaperSoundPath);
+            _logger.LogDebug("Tear paper sound played");
+        }
+        catch (Exception ex)
+        {
+            _logger.LogWarning(ex, "Failed to play tear paper sound");
+        }
+    }
+
+    /// <summary>
+    /// Plays a sound file once (non-blocking).
+    /// </summary>
+    private async Task PlaySoundOnceAsync(string soundPath)
+    {
+        var player = await GetAvailablePlayerAsync();
+
+        if (string.IsNullOrEmpty(player))
+        {
+            _logger.LogWarning("No audio player available");
+            return;
+        }
+
+        var startInfo = new ProcessStartInfo
+        {
+            FileName = player,
+            Arguments = $"\"{soundPath}\"",
+            UseShellExecute = false,
+            RedirectStandardOutput = true,
+            RedirectStandardError = true,
+            CreateNoWindow = true
+        };
+
+        using var process = Process.Start(startInfo);
+        if (process != null)
+        {
+            await process.WaitForExitAsync();
         }
     }
 

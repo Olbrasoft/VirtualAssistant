@@ -37,6 +37,7 @@ public class DictationWorker : BackgroundService
     private readonly HttpClient _httpClient;
     private readonly ManualMuteService _manualMuteService;
     private readonly ITranscriptionHistory _transcriptionHistory;
+    private readonly TypingSoundPlayer _typingSoundPlayer;
     private bool _isRecording;
     private bool _isTranscribing;
     private DateTime? _recordingStartTime;
@@ -71,7 +72,8 @@ public class DictationWorker : BackgroundService
         IPttNotifier pttNotifier,
         HttpClient httpClient,
         ManualMuteService manualMuteService,
-        ITranscriptionHistory transcriptionHistory)
+        ITranscriptionHistory transcriptionHistory,
+        TypingSoundPlayer typingSoundPlayer)
     {
         _logger = logger ?? throw new ArgumentNullException(nameof(logger));
         _configuration = configuration ?? throw new ArgumentNullException(nameof(configuration));
@@ -83,6 +85,7 @@ public class DictationWorker : BackgroundService
         _httpClient = httpClient ?? throw new ArgumentNullException(nameof(httpClient));
         _manualMuteService = manualMuteService ?? throw new ArgumentNullException(nameof(manualMuteService));
         _transcriptionHistory = transcriptionHistory ?? throw new ArgumentNullException(nameof(transcriptionHistory));
+        _typingSoundPlayer = typingSoundPlayer ?? throw new ArgumentNullException(nameof(typingSoundPlayer));
 
         // Load configuration
         var triggerKeyName = _configuration.GetValue<string>("PushToTalkDictation:TriggerKey", "CapsLock");
@@ -313,6 +316,10 @@ public class DictationWorker : BackgroundService
                     {
                         // Hallucination detected - hide icon, stop sound, but DON'T type text
                         _logger.LogInformation("Whisper hallucination detected and filtered: '{Text}'", transcription.Text);
+
+                        // Play tear paper sound to indicate rejection
+                        _ = Task.Run(async () => await _typingSoundPlayer.PlayTearPaperAsync());
+
                         // Stop icon/sound by sending failed notification
                         await _pttNotifier.NotifyTranscriptionFailedAsync("Whisper hallucination filtered");
                         return; // STOP HERE - no text typing
