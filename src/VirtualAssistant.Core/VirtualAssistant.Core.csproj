@@ -25,7 +25,7 @@
   </ItemGroup>
 
   <ItemGroup>
-    <ProjectReference Include="..\..\..\OpenCode.DotnetClient\src\OpenCode.DotnetClient\OpenCode.DotnetClient.csproj" />
+    <PackageReference Include="Olbrasoft.OpenCode.DotnetClient" Version="1.0.0" />
   </ItemGroup>
 
 </Project>

@@ -21,7 +21,7 @@
 
   <ItemGroup>
     <ProjectReference Include="..\VirtualAssistant.Data\VirtualAssistant.Data.csproj" />
-    <ProjectReference Include="..\..\..\Data\src\Data.Cqrs.EntityFrameworkCore\Data.Cqrs.EntityFrameworkCore.csproj" />
+    <PackageReference Include="Olbrasoft.Data.Cqrs.EntityFrameworkCore" Version="1.8.0" />
   </ItemGroup>
 
   <ItemGroup>
