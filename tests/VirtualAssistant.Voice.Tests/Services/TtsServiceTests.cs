@@ -74,18 +74,22 @@ public class TtsServiceTests : IDisposable
         Assert.Equal(3, _sut.QueueCount);
     }
 
-    [Fact]
-    public async Task FlushQueueAsync_WhenQueueEmpty_DoesNothing()
-    {
-        // Arrange - queue is empty
-        Assert.Equal(0, _sut.QueueCount);
-        
-        // Act
-        await _sut.FlushQueueAsync();
-        
-        // Assert - no errors, still empty
-        Assert.Equal(0, _sut.QueueCount);
-    }
+    // ⚠️ WARNING: DO NOT UNCOMMENT THIS TEST - IT MAY PLAY AUDIO/TTS DURING TEST EXECUTION ⚠️
+    // This test calls FlushQueueAsync without lock file, which may trigger audio playback.
+    // Keep this test commented out to prevent sound interruptions during test runs.
+    //
+    //[Fact]
+    //public async Task FlushQueueAsync_WhenQueueEmpty_DoesNothing()
+    //{
+    //    // Arrange - queue is empty
+    //    Assert.Equal(0, _sut.QueueCount);
+    //
+    //    // Act
+    //    await _sut.FlushQueueAsync();
+    //
+    //    // Assert - no errors, still empty
+    //    Assert.Equal(0, _sut.QueueCount);
+    //}
 
     [Fact]
     public async Task FlushQueueAsync_WhenLockReacquired_StopsAndRequeues()
@@ -125,30 +129,35 @@ public class TtsServiceTests : IDisposable
         // Queue should preserve FIFO order (tested implicitly by queue behavior)
     }
 
-    [Fact]
-    public async Task SpeakAsync_NoLock_DoesNotQueue()
-    {
-        // Arrange - ensure no lock file exists
-        if (File.Exists(SpeechLockFilePath))
-        {
-            File.Delete(SpeechLockFilePath);
-        }
-        
-        // Act - try to speak without lock
-        // Note: This will fail because we can't actually play audio in tests,
-        // but the queue should remain empty since lock doesn't exist
-        try
-        {
-            await _sut.SpeakAsync("Test message");
-        }
-        catch
-        {
-            // Expected - can't play audio in test environment
-        }
-        
-        // Assert - message was NOT queued (was attempted to be played directly)
-        Assert.Equal(0, _sut.QueueCount);
-    }
+    // ⚠️ WARNING: DO NOT UNCOMMENT THIS TEST - IT PLAYS AUDIO/TTS DURING TEST EXECUTION ⚠️
+    // This test calls actual TTS service without lock file, causing audio playback.
+    // Keep this test commented out to prevent sound interruptions during test runs.
+    // The functionality is covered by integration tests.
+    //
+    //[Fact]
+    //public async Task SpeakAsync_NoLock_DoesNotQueue()
+    //{
+    //    // Arrange - ensure no lock file exists
+    //    if (File.Exists(SpeechLockFilePath))
+    //    {
+    //        File.Delete(SpeechLockFilePath);
+    //    }
+    //
+    //    // Act - try to speak without lock
+    //    // Note: This will fail because we can't actually play audio in tests,
+    //    // but the queue should remain empty since lock doesn't exist
+    //    try
+    //    {
+    //        await _sut.SpeakAsync("Test message");
+    //    }
+    //    catch
+    //    {
+    //        // Expected - can't play audio in test environment
+    //    }
+    //
+    //    // Assert - message was NOT queued (was attempted to be played directly)
+    //    Assert.Equal(0, _sut.QueueCount);
+    //}
 
     [Fact]
     public async Task SpeakAsync_ThreadSafety_MultipleEnqueues()
@@ -190,59 +199,64 @@ public class TtsServiceTests : IDisposable
         Assert.True(_sut.QueueCount >= 1);
     }
 
-    /// <summary>
-    /// Tests that SemaphoreSlim ensures sequential execution of SpeakDirectAsync.
-    /// Since we can't test actual playback, this test verifies that:
-    /// 1. Multiple concurrent calls don't throw exceptions
-    /// 2. The service handles concurrent access gracefully
-    /// Note: Full sequential playback is tested via integration tests.
-    /// </summary>
-    [Fact]
-    public async Task SpeakAsync_MultipleConcurrentCalls_NoExceptions()
-    {
-        // Arrange - ensure no lock file (messages will go to SpeakDirectAsync)
-        if (File.Exists(SpeechLockFilePath))
-        {
-            File.Delete(SpeechLockFilePath);
-        }
-        
-        var tasks = new List<Task>();
-        var exceptions = new List<Exception>();
-        
-        // Act - fire multiple concurrent calls
-        // These will try to play audio (which will fail in tests) but should not throw
-        // The semaphore should ensure they don't corrupt shared state
-        for (int i = 0; i < 5; i++)
-        {
-            var index = i;
-            tasks.Add(Task.Run(async () =>
-            {
-                try
-                {
-                    await _sut.SpeakAsync($"Concurrent message {index}");
-                }
-                catch (Exception ex)
-                {
-                    // WebSocket/audio errors are expected in test environment
-                    // but ObjectDisposedException or semaphore errors would indicate a problem
-                    if (ex is ObjectDisposedException or SemaphoreFullException)
-                    {
-                        lock (exceptions)
-                        {
-                            exceptions.Add(ex);
-                        }
-                    }
-                }
-            }));
-        }
-        
-        await Task.WhenAll(tasks);
-        
-        // Assert - no semaphore-related exceptions
-        Assert.Empty(exceptions);
-        // Queue should be empty (messages were attempted to be played, not queued)
-        Assert.Equal(0, _sut.QueueCount);
-    }
+    // ⚠️ WARNING: DO NOT UNCOMMENT THIS TEST - IT PLAYS AUDIO/TTS DURING TEST EXECUTION ⚠️
+    // This test calls actual TTS service without lock file, causing audio playback of "Concurrent message 0-4".
+    // Keep this test commented out to prevent sound interruptions during test runs.
+    // The semaphore thread-safety functionality is covered by other tests that use lock files.
+    //
+    ///// <summary>
+    ///// Tests that SemaphoreSlim ensures sequential execution of SpeakDirectAsync.
+    ///// Since we can't test actual playback, this test verifies that:
+    ///// 1. Multiple concurrent calls don't throw exceptions
+    ///// 2. The service handles concurrent access gracefully
+    ///// Note: Full sequential playback is tested via integration tests.
+    ///// </summary>
+    //[Fact]
+    //public async Task SpeakAsync_MultipleConcurrentCalls_NoExceptions()
+    //{
+    //    // Arrange - ensure no lock file (messages will go to SpeakDirectAsync)
+    //    if (File.Exists(SpeechLockFilePath))
+    //    {
+    //        File.Delete(SpeechLockFilePath);
+    //    }
+    //
+    //    var tasks = new List<Task>();
+    //    var exceptions = new List<Exception>();
+    //
+    //    // Act - fire multiple concurrent calls
+    //    // These will try to play audio (which will fail in tests) but should not throw
+    //    // The semaphore should ensure they don't corrupt shared state
+    //    for (int i = 0; i < 5; i++)
+    //    {
+    //        var index = i;
+    //        tasks.Add(Task.Run(async () =>
+    //        {
+    //            try
+    //            {
+    //                await _sut.SpeakAsync($"Concurrent message {index}");
+    //            }
+    //            catch (Exception ex)
+    //            {
+    //                // WebSocket/audio errors are expected in test environment
+    //                // but ObjectDisposedException or semaphore errors would indicate a problem
+    //                if (ex is ObjectDisposedException or SemaphoreFullException)
+    //                {
+    //                    lock (exceptions)
+    //                    {
+    //                        exceptions.Add(ex);
+    //                    }
+    //                }
+    //            }
+    //        }));
+    //    }
+    //
+    //    await Task.WhenAll(tasks);
+    //
+    //    // Assert - no semaphore-related exceptions
+    //    Assert.Empty(exceptions);
+    //    // Queue should be empty (messages were attempted to be played, not queued)
+    //    Assert.Equal(0, _sut.QueueCount);
+    //}
 
     /// <summary>
     /// Tests that Dispose properly cleans up the semaphore without throwing.
