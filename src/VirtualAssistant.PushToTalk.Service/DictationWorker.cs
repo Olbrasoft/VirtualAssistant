@@ -276,25 +276,26 @@ public class DictationWorker : BackgroundService
 
             if (recordedData.Length > 0)
             {
-                // Notify clients about transcription start
-                await _pttNotifier.NotifyTranscriptionStartedAsync();
-                
                 _logger.LogInformation("Starting transcription...");
                 var transcription = await _speechTranscriber.TranscribeAsync(recordedData);
 
                 if (transcription.Success && !string.IsNullOrWhiteSpace(transcription.Text))
                 {
-                    // CRITICAL: Validate transcription to filter out Whisper hallucinations
+                    // CRITICAL: Validate transcription BEFORE any UI notifications
+                    // This prevents stuck icons/sounds when hallucinations are detected
                     if (!IsValidTranscription(transcription.Text))
                     {
                         // Hallucination detected - abort operation silently
                         // No typing, no sounds, no notifications, no icon changes
-                        _logger.LogInformation("Transcription ignored (hallucination/invalid): '{Text}'", transcription.Text);
+                        _logger.LogInformation("Whisper hallucination detected and filtered: '{Text}'", transcription.Text);
                         return; // STOP HERE - no further processing
                     }
 
                     _logger.LogInformation("Transcription successful: {Text} (confidence: {Confidence:F3})",
                         transcription.Text, transcription.Confidence);
+
+                    // Notify clients about transcription start (only after validation passes)
+                    await _pttNotifier.NotifyTranscriptionStartedAsync();
 
                     // Notify clients about successful transcription
                     await _pttNotifier.NotifyTranscriptionCompletedAsync(transcription.Text, transcription.Confidence);
