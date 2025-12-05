@@ -285,10 +285,11 @@ public class DotoolTextTyper : ITextTyper
 
             if (process.ExitCode == 0 && !string.IsNullOrWhiteSpace(output))
             {
-                _logger.LogDebug("D-Bus window-calls returned: {Output}", output?.Trim());
-                    
+                _logger.LogDebug("D-Bus window-calls returned: {Output}", output.Trim());
+
                 // Output format is: ('[{"wm_class":"kitty",...,"focus":true},...]',)
                 // Extract the JSON array from the gdbus output
+                // output is guaranteed non-null by the if condition above
                 var jsonStart = output.IndexOf('[');
                 var jsonEnd = output.LastIndexOf(']');
                 
