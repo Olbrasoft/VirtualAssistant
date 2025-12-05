@@ -1,4 +1,6 @@
 using Microsoft.Extensions.Logging;
+using Microsoft.Extensions.Options;
+using Olbrasoft.VirtualAssistant.Core.Configuration;
 using Olbrasoft.VirtualAssistant.Core.Services;
 
 namespace Olbrasoft.VirtualAssistant.Voice.Services;
@@ -15,9 +17,11 @@ public class ManualMuteService : IManualMuteService
 
     public event EventHandler<bool>? MuteStateChanged;
 
-    public ManualMuteService(ILogger<ManualMuteService> logger)
+    public ManualMuteService(ILogger<ManualMuteService> logger, IOptions<ContinuousListenerOptions> options)
     {
         _logger = logger;
+        _isMuted = options.Value.StartMuted;
+        _logger.LogInformation("ManualMuteService initialized with StartMuted={StartMuted}", _isMuted);
     }
 
     /// <inheritdoc />
