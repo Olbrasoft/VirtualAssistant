@@ -276,26 +276,26 @@ public class DictationWorker : BackgroundService
 
             if (recordedData.Length > 0)
             {
+                // Show icon and play sound IMMEDIATELY (before Whisper processing)
+                await _pttNotifier.NotifyTranscriptionStartedAsync();
+
                 _logger.LogInformation("Starting transcription...");
                 var transcription = await _speechTranscriber.TranscribeAsync(recordedData);
 
                 if (transcription.Success && !string.IsNullOrWhiteSpace(transcription.Text))
                 {
-                    // CRITICAL: Validate transcription BEFORE any UI notifications
-                    // This prevents stuck icons/sounds when hallucinations are detected
+                    // CRITICAL: Validate transcription to filter out Whisper hallucinations
                     if (!IsValidTranscription(transcription.Text))
                     {
-                        // Hallucination detected - abort operation silently
-                        // No typing, no sounds, no notifications, no icon changes
+                        // Hallucination detected - hide icon, stop sound, but DON'T type text
                         _logger.LogInformation("Whisper hallucination detected and filtered: '{Text}'", transcription.Text);
-                        return; // STOP HERE - no further processing
+                        // Stop icon/sound by sending failed notification
+                        await _pttNotifier.NotifyTranscriptionFailedAsync("Whisper hallucination filtered");
+                        return; // STOP HERE - no text typing
                     }
 
                     _logger.LogInformation("Transcription successful: {Text} (confidence: {Confidence:F3})",
                         transcription.Text, transcription.Confidence);
-
-                    // Notify clients about transcription start (only after validation passes)
-                    await _pttNotifier.NotifyTranscriptionStartedAsync();
 
                     // Notify clients about successful transcription
                     await _pttNotifier.NotifyTranscriptionCompletedAsync(transcription.Text, transcription.Confidence);
