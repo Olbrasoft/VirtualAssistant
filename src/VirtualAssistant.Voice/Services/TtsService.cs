@@ -3,7 +3,9 @@ using System.Diagnostics;
 using System.Net.WebSockets;
 using System.Security.Cryptography;
 using System.Text;
+using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.Logging;
+using Olbrasoft.VirtualAssistant.Voice.Configuration;
 
 namespace Olbrasoft.VirtualAssistant.Voice.Services;
 
@@ -30,24 +32,14 @@ public sealed class TtsService : IDisposable
     private readonly string _micLockFile = "/tmp/speech-lock";
     private readonly ConcurrentQueue<(string Text, string? Source)> _messageQueue = new();
     private readonly SemaphoreSlim _playbackLock = new(1, 1);
-    
+
     /// <summary>
-    /// Voice profiles for different AI clients.
+    /// Voice profiles for different AI clients loaded from configuration.
     /// Each client can have distinct voice, rate, volume, and pitch settings.
     /// </summary>
-    private static readonly Dictionary<string, VoiceConfig> VoiceProfiles = new(StringComparer.OrdinalIgnoreCase)
-    {
-        // Default voice (VirtualAssistant) - normal Antonín
-        ["default"] = new("cs-CZ-AntoninNeural", "+20%", "+0%", "+0Hz"),
-        
-        // OpenCode - MUCH faster, higher pitch (energetic)
-        ["opencode"] = new("cs-CZ-AntoninNeural", "+40%", "+0%", "+3st"),
-        
-        // Claude Code - MUCH deeper voice, slower (authoritative)
-        ["claudecode"] = new("cs-CZ-AntoninNeural", "+5%", "+0%", "-5st"),
-    };
+    private readonly Dictionary<string, VoiceConfig> _voiceProfiles;
 
-    public TtsService(ILogger<TtsService> logger)
+    public TtsService(ILogger<TtsService> logger, IConfiguration configuration)
     {
         _logger = logger;
         _cacheDirectory = Path.Combine(
@@ -55,17 +47,25 @@ public sealed class TtsService : IDisposable
             ".cache", "virtual-assistant-tts");
 
         Directory.CreateDirectory(_cacheDirectory);
+
+        // Load voice profiles from configuration with fallback to defaults
+        var options = new TtsVoiceProfilesOptions();
+        configuration.GetSection(TtsVoiceProfilesOptions.SectionName).Bind(options);
+        _voiceProfiles = options.Profiles;
+
+        _logger.LogInformation("Loaded {Count} TTS voice profiles: {Profiles}",
+            _voiceProfiles.Count, string.Join(", ", _voiceProfiles.Keys));
     }
 
     /// <summary>
     /// Gets the voice configuration for a given source.
     /// Falls back to default if source is unknown.
     /// </summary>
-    private static VoiceConfig GetVoiceConfig(string? source)
+    private VoiceConfig GetVoiceConfig(string? source)
     {
-        if (string.IsNullOrEmpty(source) || !VoiceProfiles.TryGetValue(source, out var config))
+        if (string.IsNullOrEmpty(source) || !_voiceProfiles.TryGetValue(source, out var config))
         {
-            return VoiceProfiles["default"];
+            return _voiceProfiles["default"];
         }
         return config;
     }

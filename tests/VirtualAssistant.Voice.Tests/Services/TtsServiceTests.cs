@@ -1,3 +1,4 @@
+using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.Logging;
 using Moq;
 using Olbrasoft.VirtualAssistant.Voice.Services;
@@ -11,14 +12,21 @@ namespace VirtualAssistant.Voice.Tests.Services;
 public class TtsServiceTests : IDisposable
 {
     private readonly Mock<ILogger<TtsService>> _loggerMock;
+    private readonly Mock<IConfiguration> _configurationMock;
     private readonly TtsService _sut;
     private const string SpeechLockFilePath = "/tmp/speech-lock";
 
     public TtsServiceTests()
     {
         _loggerMock = new Mock<ILogger<TtsService>>();
-        _sut = new TtsService(_loggerMock.Object);
-        
+        _configurationMock = new Mock<IConfiguration>();
+
+        // Setup empty configuration section (will use defaults from TtsVoiceProfilesOptions)
+        var sectionMock = new Mock<IConfigurationSection>();
+        _configurationMock.Setup(x => x.GetSection("TtsVoiceProfiles")).Returns(sectionMock.Object);
+
+        _sut = new TtsService(_loggerMock.Object, _configurationMock.Object);
+
         // Ensure clean state - no lock file
         if (File.Exists(SpeechLockFilePath))
         {
@@ -266,12 +274,16 @@ public class TtsServiceTests : IDisposable
     {
         // Arrange
         var logger = new Mock<ILogger<TtsService>>();
-        var service = new TtsService(logger.Object);
-        
+        var configuration = new Mock<IConfiguration>();
+        var sectionMock = new Mock<IConfigurationSection>();
+        configuration.Setup(x => x.GetSection("TtsVoiceProfiles")).Returns(sectionMock.Object);
+
+        var service = new TtsService(logger.Object, configuration.Object);
+
         // Act & Assert - multiple dispose calls should not throw
         service.Dispose();
         var exception = Record.Exception(() => service.Dispose());
-        
+
         // Note: Second dispose may throw ObjectDisposedException which is acceptable
         // We're mainly testing that the first dispose doesn't throw
     }
