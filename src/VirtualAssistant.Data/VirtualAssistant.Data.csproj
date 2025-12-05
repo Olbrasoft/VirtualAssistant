@@ -12,8 +12,8 @@
   </ItemGroup>
 
   <ItemGroup>
-    <ProjectReference Include="..\..\..\Data\src\Data.Cqrs.Common\Data.Cqrs.Common.csproj" />
-    <ProjectReference Include="..\..\..\Data\src\Data.Entities.Abstractions\Data.Entities.Abstractions.csproj" />
+    <PackageReference Include="Olbrasoft.Data.Cqrs.Common" Version="1.7.0" />
+    <PackageReference Include="Olbrasoft.Data.Entities.Abstractions" Version="1.8.0" />
   </ItemGroup>
 
   <ItemGroup>
