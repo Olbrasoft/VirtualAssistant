@@ -27,7 +27,7 @@ public class TypingSoundPlayer : IDisposable
         var baseDir = AppContext.BaseDirectory;
         _soundsDirectory = Path.Combine(baseDir, "sounds");
         _soundFilePath = Path.Combine(_soundsDirectory, "write.mp3");
-        _tearPaperSoundPath = Path.Combine(_soundsDirectory, "tear-paper.mp3");
+        _tearPaperSoundPath = Path.Combine(_soundsDirectory, "tear-a-paper.mp3");
 
         if (!File.Exists(_soundFilePath))
         {
