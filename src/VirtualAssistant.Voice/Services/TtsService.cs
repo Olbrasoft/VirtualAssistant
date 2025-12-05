@@ -27,6 +27,7 @@ public sealed class TtsService : IDisposable
     private readonly string _volume = "+0%";
     private readonly string _pitch = "+0Hz";
     private readonly ConcurrentQueue<string> _messageQueue = new();
+    private readonly SemaphoreSlim _playbackLock = new(1, 1);
 
     public TtsService(ILogger<TtsService> logger)
     {
@@ -102,35 +103,44 @@ public sealed class TtsService : IDisposable
 
     /// <summary>
     /// Internal method to actually speak text (no queue check).
+    /// Uses SemaphoreSlim to ensure only one message plays at a time.
     /// </summary>
     private async Task SpeakDirectAsync(string text, CancellationToken cancellationToken)
     {
-        // Check cache first
-        var cacheFile = GetCacheFilePath(text);
-        if (File.Exists(cacheFile))
+        await _playbackLock.WaitAsync(cancellationToken);
+        try
         {
-            _logger.LogDebug("Playing from cache: {Text}", text);
+            // Check cache first
+            var cacheFile = GetCacheFilePath(text);
+            if (File.Exists(cacheFile))
+            {
+                _logger.LogDebug("Playing from cache: {Text}", text);
+                await PlayAudioAsync(cacheFile, cancellationToken);
+                return;
+            }
+
+            // Generate new audio via WebSocket
+            _logger.LogDebug("Generating audio for: {Text}", text);
+            var audioData = await GenerateAudioAsync(text, cancellationToken);
+
+            if (audioData == null || audioData.Length == 0)
+            {
+                _logger.LogWarning("Failed to generate audio for: {Text}", text);
+                return;
+            }
+
+            // Save to cache
+            await File.WriteAllBytesAsync(cacheFile, audioData, cancellationToken);
+
+            // Play audio
             await PlayAudioAsync(cacheFile, cancellationToken);
-            return;
+
+            _logger.LogInformation("🗣️ TTS: \"{Text}\"", text);
         }
-
-        // Generate new audio via WebSocket
-        _logger.LogDebug("Generating audio for: {Text}", text);
-        var audioData = await GenerateAudioAsync(text, cancellationToken);
-
-        if (audioData == null || audioData.Length == 0)
+        finally
         {
-            _logger.LogWarning("Failed to generate audio for: {Text}", text);
-            return;
+            _playbackLock.Release();
         }
-
-        // Save to cache
-        await File.WriteAllBytesAsync(cacheFile, audioData, cancellationToken);
-
-        // Play audio
-        await PlayAudioAsync(cacheFile, cancellationToken);
-
-        _logger.LogInformation("🗣️ TTS: \"{Text}\"", text);
     }
 
     private async Task<byte[]?> GenerateAudioAsync(string text, CancellationToken cancellationToken)
@@ -308,6 +318,6 @@ public sealed class TtsService : IDisposable
 
     public void Dispose()
     {
-        // Nothing to dispose
+        _playbackLock.Dispose();
     }
 }
