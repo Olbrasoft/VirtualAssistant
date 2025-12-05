@@ -52,8 +52,9 @@ public class TranscriptionService : IDisposable
     /// If audio is too large, it will be truncated to prevent Whisper.net crashes.
     /// </summary>
     /// <param name="audioData">16-bit PCM audio data at 16kHz.</param>
+    /// <param name="cancellationToken">Cancellation token to abort transcription.</param>
     /// <returns>Transcription result.</returns>
-    public async Task<TranscriptionResult> TranscribeAsync(byte[] audioData)
+    public async Task<TranscriptionResult> TranscribeAsync(byte[] audioData, CancellationToken cancellationToken = default)
     {
         if (_transcriber == null)
         {
@@ -64,10 +65,10 @@ public class TranscriptionService : IDisposable
         var safeAudio = TruncateIfTooLarge(audioData);
 
         // Whisper.net is NOT thread-safe - acquire lock before transcription
-        await _transcriptionLock.WaitAsync();
+        await _transcriptionLock.WaitAsync(cancellationToken);
         try
         {
-            var result = await _transcriber.TranscribeAsync(safeAudio);
+            var result = await _transcriber.TranscribeAsync(safeAudio, cancellationToken);
             return result;
         }
         finally

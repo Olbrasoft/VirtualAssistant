@@ -7,6 +7,7 @@ using Olbrasoft.VirtualAssistant.Core.Enums;
 using Olbrasoft.VirtualAssistant.Core.Services;
 using Olbrasoft.VirtualAssistant.Core.TextInput;
 using Olbrasoft.VirtualAssistant.Voice.Services;
+using KeyCode = Olbrasoft.VirtualAssistant.Core.Services.KeyCode;
 
 namespace Olbrasoft.VirtualAssistant.Voice;
 
@@ -31,6 +32,7 @@ public class ContinuousListenerWorker : BackgroundService
     private readonly IRepeatTextIntentService _repeatTextIntent;
     private readonly TtsService _ttsService;
     private readonly HttpClient _httpClient;
+    private readonly IKeyboardMonitor? _keyboardMonitor;
 
     // PTT Service endpoint for repeat text
     private const string PttRepeatEndpoint = "http://localhost:5050/api/ptt/repeat";
@@ -38,6 +40,10 @@ public class ContinuousListenerWorker : BackgroundService
     // State machine
     private enum State { Waiting, Recording, Muted }
     private State _state; // Initialized in constructor based on StartMuted config
+
+    // Transcription cancellation
+    private CancellationTokenSource? _transcriptionCts;
+    private bool _isTranscribing;
 
     // Buffers
     private readonly Queue<byte[]> _preBuffer = new();
@@ -92,7 +98,8 @@ public class ContinuousListenerWorker : BackgroundService
         IRepeatTextIntentService repeatTextIntent,
         TtsService ttsService,
         HttpClient httpClient,
-        IManualMuteService? muteService = null)
+        IManualMuteService? muteService = null,
+        IKeyboardMonitor? keyboardMonitor = null)
     {
         _logger = logger;
         _audioCapture = audioCapture;
@@ -106,10 +113,11 @@ public class ContinuousListenerWorker : BackgroundService
         _ttsService = ttsService;
         _httpClient = httpClient;
         _muteService = muteService;
+        _keyboardMonitor = keyboardMonitor;
 
         // Initialize state based on StartMuted configuration (#70)
         _state = _options.StartMuted ? State.Muted : State.Waiting;
-        _logger.LogInformation("ContinuousListener starting in {State} state (StartMuted={StartMuted})", 
+        _logger.LogInformation("ContinuousListener starting in {State} state (StartMuted={StartMuted})",
             _state, _options.StartMuted);
 
         // Subscribe to mute state changes
@@ -121,6 +129,26 @@ public class ContinuousListenerWorker : BackgroundService
         else
         {
             _logger.LogWarning("IManualMuteService is NULL - mute functionality disabled!");
+        }
+
+        // Subscribe to keyboard events for Escape key
+        if (_keyboardMonitor != null)
+        {
+            _keyboardMonitor.KeyReleased += OnKeyReleased;
+            _logger.LogInformation("Subscribed to keyboard events for transcription cancellation");
+        }
+    }
+
+    private void OnKeyReleased(object? sender, KeyEventArgs e)
+    {
+        // Handle Escape - cancel ongoing transcription
+        if (e.Key == KeyCode.Escape)
+        {
+            if (_isTranscribing && _transcriptionCts != null)
+            {
+                _logger.LogInformation("Escape pressed - canceling transcription");
+                _transcriptionCts.Cancel();
+            }
         }
     }
 
@@ -347,14 +375,18 @@ public class ContinuousListenerWorker : BackgroundService
             offset += chunk.Length;
         }
 
+        // Create cancellation token for transcription (can be cancelled with Escape key)
+        _transcriptionCts = new CancellationTokenSource();
+        _isTranscribing = true;
+
         try
         {
             // Transcribe speech
-            var transcriptionResult = await _transcription.TranscribeAsync(audioData);
+            _logger.LogDebug("Starting transcription... (press Escape to cancel)");
+            var transcriptionResult = await _transcription.TranscribeAsync(audioData, _transcriptionCts.Token);
 
             if (!transcriptionResult.Success || string.IsNullOrWhiteSpace(transcriptionResult.Text))
             {
-                ResetToWaiting();
                 return;
             }
 
@@ -473,12 +505,20 @@ public class ContinuousListenerWorker : BackgroundService
                     break;
             }
         }
+        catch (OperationCanceledException)
+        {
+            _logger.LogInformation("Transcription cancelled by user (Escape key pressed)");
+            Console.WriteLine($"\u001b[93;1m✋ CANCELLED - transcription cancelled by Escape key\u001b[0m");
+        }
         catch (Exception ex)
         {
             _logger.LogError(ex, "Error processing speech");
         }
         finally
         {
+            _isTranscribing = false;
+            _transcriptionCts?.Dispose();
+            _transcriptionCts = null;
             ResetToWaiting();
         }
     }

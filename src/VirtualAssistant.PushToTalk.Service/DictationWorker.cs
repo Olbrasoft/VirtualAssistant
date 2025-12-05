@@ -38,16 +38,23 @@ public class DictationWorker : BackgroundService
     private readonly ManualMuteService _manualMuteService;
     private readonly ITranscriptionHistory _transcriptionHistory;
     private bool _isRecording;
+    private bool _isTranscribing;
     private DateTime? _recordingStartTime;
     private KeyCode _triggerKey;
     private readonly string _ttsBaseUrl;
     private readonly string _virtualAssistantBaseUrl;
-    
+
     /// <summary>
     /// Stores the mute state of VirtualAssistant before CapsLock recording started.
     /// Used to restore the original state after recording ends.
     /// </summary>
     private bool? _previousMuteState;
+
+    /// <summary>
+    /// CancellationTokenSource for the current transcription operation.
+    /// Allows canceling Whisper transcription when user presses Escape.
+    /// </summary>
+    private CancellationTokenSource? _transcriptionCts;
     
     /// <summary>
     /// Path to the speech lock file. When this file exists, TTS should not speak.
@@ -161,6 +168,17 @@ public class DictationWorker : BackgroundService
         if (e.Key == KeyCode.ScrollLock)
         {
             _ = Task.Run(async () => await HandleScrollLockPressedAsync());
+            return;
+        }
+
+        // Handle Escape - cancel ongoing transcription
+        if (e.Key == KeyCode.Escape)
+        {
+            if (_isTranscribing && _transcriptionCts != null)
+            {
+                _logger.LogInformation("Escape pressed - canceling transcription");
+                _transcriptionCts.Cancel();
+            }
             return;
         }
 
@@ -279,10 +297,16 @@ public class DictationWorker : BackgroundService
                 // Show icon and play sound IMMEDIATELY (before Whisper processing)
                 await _pttNotifier.NotifyTranscriptionStartedAsync();
 
-                _logger.LogInformation("Starting transcription...");
-                var transcription = await _speechTranscriber.TranscribeAsync(recordedData);
+                // Create cancellation token for transcription (can be cancelled with Escape key)
+                _transcriptionCts = new CancellationTokenSource();
+                _isTranscribing = true;
 
-                if (transcription.Success && !string.IsNullOrWhiteSpace(transcription.Text))
+                try
+                {
+                    _logger.LogInformation("Starting transcription... (press Escape to cancel)");
+                    var transcription = await _speechTranscriber.TranscribeAsync(recordedData, _transcriptionCts.Token);
+
+                    if (transcription.Success && !string.IsNullOrWhiteSpace(transcription.Text))
                 {
                     // CRITICAL: Validate transcription to filter out Whisper hallucinations
                     if (!IsValidTranscription(transcription.Text))
@@ -315,6 +339,18 @@ public class DictationWorker : BackgroundService
 
                     // Notify clients about failed transcription
                     await _pttNotifier.NotifyTranscriptionFailedAsync(errorMessage);
+                }
+                }
+                catch (OperationCanceledException)
+                {
+                    _logger.LogInformation("Transcription cancelled by user (Escape key pressed)");
+                    await _pttNotifier.NotifyTranscriptionFailedAsync("Transcription cancelled");
+                }
+                finally
+                {
+                    _isTranscribing = false;
+                    _transcriptionCts?.Dispose();
+                    _transcriptionCts = null;
                 }
             }
             else
