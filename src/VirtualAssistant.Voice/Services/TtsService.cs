@@ -40,11 +40,11 @@ public sealed class TtsService : IDisposable
         // Default voice (VirtualAssistant) - normal Antonín
         ["default"] = new("cs-CZ-AntoninNeural", "+20%", "+0%", "+0Hz"),
         
-        // OpenCode - slightly faster, higher pitch
-        ["opencode"] = new("cs-CZ-AntoninNeural", "+25%", "+0%", "+10Hz"),
+        // OpenCode - MUCH faster, higher pitch (energetic)
+        ["opencode"] = new("cs-CZ-AntoninNeural", "+40%", "+0%", "+3st"),
         
-        // Claude Code - deeper voice, slightly slower
-        ["claudecode"] = new("cs-CZ-AntoninNeural", "+15%", "+0%", "-20Hz"),
+        // Claude Code - MUCH deeper voice, slower (authoritative)
+        ["claudecode"] = new("cs-CZ-AntoninNeural", "+5%", "+0%", "-5st"),
     };
 
     public TtsService(ILogger<TtsService> logger)
