@@ -12,6 +12,7 @@ using OpenCode.DotnetClient;
 using VirtualAssistant.Data.EntityFrameworkCore;
 using VirtualAssistant.GitHub;
 using VirtualAssistant.GitHub.Services;
+using VirtualAssistant.Core;
 using System.Text.Json.Serialization;
 
 namespace Olbrasoft.VirtualAssistant.Service;
@@ -214,6 +215,9 @@ public class Program
 
         // Register GitHub sync services
         builder.Services.AddGitHubServices(builder.Configuration);
+
+        // Register Core services (AgentHubService)
+        builder.Services.AddCoreServices();
 
         // String similarity for echo cancellation
         builder.Services.AddSingleton<IStringSimilarity, LevenshteinSimilarity>();
