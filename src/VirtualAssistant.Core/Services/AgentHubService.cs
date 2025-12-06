@@ -4,6 +4,7 @@ using Microsoft.Extensions.Logging;
 using VirtualAssistant.Data.Dtos;
 using VirtualAssistant.Data.Entities;
 using VirtualAssistant.Data.EntityFrameworkCore;
+using VirtualAssistant.Data.Enums;
 
 namespace VirtualAssistant.Core.Services;
 
@@ -158,6 +159,145 @@ public class AgentHubService : IAgentHubService
         return messages.Select(MapToDto).ToList();
     }
 
+    public async Task<int> StartTaskAsync(string sourceAgent, string content, string? targetAgent = null, CancellationToken ct = default)
+    {
+        ArgumentException.ThrowIfNullOrWhiteSpace(sourceAgent);
+        ArgumentException.ThrowIfNullOrWhiteSpace(content);
+
+        var entity = new AgentMessage
+        {
+            SourceAgent = sourceAgent,
+            TargetAgent = targetAgent ?? string.Empty,
+            MessageType = "task",
+            Content = content,
+            Phase = MessagePhase.Start,
+            Status = "active",
+            CreatedAt = DateTime.UtcNow
+        };
+
+        _dbContext.AgentMessages.Add(entity);
+        await _dbContext.SaveChangesAsync(ct);
+
+        _logger.LogInformation(
+            "Task started: {Id} by {Source}, content: {Content}",
+            entity.Id, sourceAgent, content);
+
+        // Notify user via TTS
+        await _ttsNotificationService.SpeakAsync(
+            $"{sourceAgent} začíná pracovat.", source: "assistant", ct);
+
+        return entity.Id;
+    }
+
+    public async Task SendProgressAsync(int parentMessageId, string content, CancellationToken ct = default)
+    {
+        ArgumentException.ThrowIfNullOrWhiteSpace(content);
+
+        var parent = await GetMessageOrThrowAsync(parentMessageId, ct);
+
+        if (parent.Phase != MessagePhase.Start)
+        {
+            throw new InvalidOperationException($"Cannot add progress to message with phase '{parent.Phase}'");
+        }
+
+        var entity = new AgentMessage
+        {
+            SourceAgent = parent.SourceAgent,
+            TargetAgent = parent.TargetAgent,
+            MessageType = "progress",
+            Content = content,
+            Phase = MessagePhase.Progress,
+            ParentMessageId = parentMessageId,
+            Status = "delivered",
+            CreatedAt = DateTime.UtcNow
+        };
+
+        _dbContext.AgentMessages.Add(entity);
+        await _dbContext.SaveChangesAsync(ct);
+
+        _logger.LogInformation(
+            "Progress update: {Id} for task {ParentId}, content: {Content}",
+            entity.Id, parentMessageId, content);
+    }
+
+    public async Task CompleteTaskAsync(int parentMessageId, string summary, CancellationToken ct = default)
+    {
+        ArgumentException.ThrowIfNullOrWhiteSpace(summary);
+
+        var parent = await GetMessageOrThrowAsync(parentMessageId, ct);
+
+        if (parent.Phase != MessagePhase.Start)
+        {
+            throw new InvalidOperationException($"Cannot complete message with phase '{parent.Phase}'");
+        }
+
+        var entity = new AgentMessage
+        {
+            SourceAgent = parent.SourceAgent,
+            TargetAgent = parent.TargetAgent,
+            MessageType = "completion",
+            Content = summary,
+            Phase = MessagePhase.Complete,
+            ParentMessageId = parentMessageId,
+            Status = "processed",
+            CreatedAt = DateTime.UtcNow,
+            ProcessedAt = DateTime.UtcNow
+        };
+
+        _dbContext.AgentMessages.Add(entity);
+
+        // Update parent status to processed
+        parent.Status = "processed";
+        parent.ProcessedAt = DateTime.UtcNow;
+
+        await _dbContext.SaveChangesAsync(ct);
+
+        _logger.LogInformation(
+            "Task completed: {Id} for task {ParentId}, summary: {Summary}",
+            entity.Id, parentMessageId, summary);
+
+        // Notify user via TTS
+        await _ttsNotificationService.SpeakAsync(
+            $"{parent.SourceAgent} dokončil úkol.", source: "assistant", ct);
+    }
+
+    public async Task<IReadOnlyList<AgentMessageDto>> GetActiveTasksAsync(string? sourceAgent = null, CancellationToken ct = default)
+    {
+        var query = _dbContext.AgentMessages
+            .Where(m => m.Phase == MessagePhase.Start)
+            .Where(m => m.Status == "active");
+
+        if (!string.IsNullOrEmpty(sourceAgent))
+        {
+            query = query.Where(m => m.SourceAgent == sourceAgent);
+        }
+
+        var messages = await query
+            .OrderByDescending(m => m.CreatedAt)
+            .ToListAsync(ct);
+
+        _logger.LogDebug("Found {Count} active tasks for {Agent}", messages.Count, sourceAgent ?? "all agents");
+
+        return messages.Select(MapToDto).ToList();
+    }
+
+    public async Task<IReadOnlyList<AgentMessageDto>> GetTaskHistoryAsync(int taskId, CancellationToken ct = default)
+    {
+        var messages = await _dbContext.AgentMessages
+            .Where(m => m.Id == taskId || m.ParentMessageId == taskId)
+            .OrderBy(m => m.CreatedAt)
+            .ToListAsync(ct);
+
+        if (messages.Count == 0)
+        {
+            throw new KeyNotFoundException($"Task with ID {taskId} not found");
+        }
+
+        _logger.LogDebug("Found {Count} messages for task {TaskId}", messages.Count, taskId);
+
+        return messages.Select(MapToDto).ToList();
+    }
+
     private async Task<AgentMessage> GetMessageOrThrowAsync(int messageId, CancellationToken ct)
     {
         var message = await _dbContext.AgentMessages.FindAsync([messageId], ct);
@@ -187,7 +327,9 @@ public class AgentHubService : IAgentHubService
             CreatedAt = entity.CreatedAt,
             ApprovedAt = entity.ApprovedAt,
             DeliveredAt = entity.DeliveredAt,
-            ProcessedAt = entity.ProcessedAt
+            ProcessedAt = entity.ProcessedAt,
+            Phase = entity.Phase,
+            ParentMessageId = entity.ParentMessageId
         };
     }
 

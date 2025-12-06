@@ -1,4 +1,5 @@
 using Olbrasoft.Data.Entities.Abstractions;
+using VirtualAssistant.Data.Enums;
 
 namespace VirtualAssistant.Data.Entities;
 
@@ -62,4 +63,24 @@ public class AgentMessage : BaseEnity
     /// When the target agent confirmed processing
     /// </summary>
     public DateTime? ProcessedAt { get; set; }
+
+    /// <summary>
+    /// Phase of the message in a task workflow (Start, Progress, Complete).
+    /// </summary>
+    public MessagePhase Phase { get; set; } = MessagePhase.Complete;
+
+    /// <summary>
+    /// Reference to parent message (for linking Progress/Complete to Start).
+    /// </summary>
+    public int? ParentMessageId { get; set; }
+
+    /// <summary>
+    /// Navigation property to parent message.
+    /// </summary>
+    public AgentMessage? ParentMessage { get; set; }
+
+    /// <summary>
+    /// Navigation property to child messages (progress updates, completion).
+    /// </summary>
+    public ICollection<AgentMessage> ChildMessages { get; set; } = new List<AgentMessage>();
 }

@@ -64,4 +64,46 @@ public interface IAgentHubService
     /// <param name="ct">Cancellation token</param>
     /// <returns>Messages with RequiresApproval=true and Status=pending</returns>
     Task<IReadOnlyList<AgentMessageDto>> GetAwaitingApprovalAsync(CancellationToken ct = default);
+
+    /// <summary>
+    /// Start a new task and return its message ID for tracking.
+    /// </summary>
+    /// <param name="sourceAgent">Agent starting the task</param>
+    /// <param name="content">Task description</param>
+    /// <param name="targetAgent">Optional target agent</param>
+    /// <param name="ct">Cancellation token</param>
+    /// <returns>ID of the start message (used as parent for progress/complete)</returns>
+    Task<int> StartTaskAsync(string sourceAgent, string content, string? targetAgent = null, CancellationToken ct = default);
+
+    /// <summary>
+    /// Send a progress update for an ongoing task.
+    /// </summary>
+    /// <param name="parentMessageId">ID of the start message</param>
+    /// <param name="content">Progress update content</param>
+    /// <param name="ct">Cancellation token</param>
+    Task SendProgressAsync(int parentMessageId, string content, CancellationToken ct = default);
+
+    /// <summary>
+    /// Complete a task with a summary.
+    /// </summary>
+    /// <param name="parentMessageId">ID of the start message</param>
+    /// <param name="summary">Completion summary</param>
+    /// <param name="ct">Cancellation token</param>
+    Task CompleteTaskAsync(int parentMessageId, string summary, CancellationToken ct = default);
+
+    /// <summary>
+    /// Get currently active tasks (started but not completed).
+    /// </summary>
+    /// <param name="sourceAgent">Optional filter by source agent</param>
+    /// <param name="ct">Cancellation token</param>
+    /// <returns>List of active task messages</returns>
+    Task<IReadOnlyList<AgentMessageDto>> GetActiveTasksAsync(string? sourceAgent = null, CancellationToken ct = default);
+
+    /// <summary>
+    /// Get full task history including all progress and completion messages.
+    /// </summary>
+    /// <param name="taskId">ID of the start message</param>
+    /// <param name="ct">Cancellation token</param>
+    /// <returns>All messages related to this task</returns>
+    Task<IReadOnlyList<AgentMessageDto>> GetTaskHistoryAsync(int taskId, CancellationToken ct = default);
 }

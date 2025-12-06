@@ -1,3 +1,5 @@
+using VirtualAssistant.Data.Enums;
+
 namespace VirtualAssistant.Data.Dtos;
 
 /// <summary>
@@ -17,4 +19,14 @@ public class AgentMessageDto
     public DateTime? ApprovedAt { get; set; }
     public DateTime? DeliveredAt { get; set; }
     public DateTime? ProcessedAt { get; set; }
+
+    /// <summary>
+    /// Phase of the message in a task workflow.
+    /// </summary>
+    public MessagePhase Phase { get; set; } = MessagePhase.Complete;
+
+    /// <summary>
+    /// Reference to parent message ID (for Progress/Complete messages).
+    /// </summary>
+    public int? ParentMessageId { get; set; }
 }
