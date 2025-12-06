@@ -32,6 +32,7 @@ public sealed class TtsService : IDisposable
     private readonly string _micLockFile = "/tmp/speech-lock";
     private readonly ConcurrentQueue<(string Text, string? Source)> _messageQueue = new();
     private readonly SemaphoreSlim _playbackLock = new(1, 1);
+    private Process? _currentPlaybackProcess;
 
     /// <summary>
     /// Voice profiles for different AI clients loaded from configuration.
@@ -134,6 +135,28 @@ public sealed class TtsService : IDisposable
     /// Gets the number of messages currently in the queue.
     /// </summary>
     public int QueueCount => _messageQueue.Count;
+
+    /// <summary>
+    /// Stops any currently playing TTS audio immediately.
+    /// Called when user presses CapsLock to start recording.
+    /// </summary>
+    public void StopPlayback()
+    {
+        try
+        {
+            var process = _currentPlaybackProcess;
+            if (process != null && !process.HasExited)
+            {
+                _logger.LogInformation("🛑 Stopping TTS playback (CapsLock pressed)");
+                process.Kill();
+                _currentPlaybackProcess = null;
+            }
+        }
+        catch (Exception ex)
+        {
+            _logger.LogWarning(ex, "Error stopping TTS playback");
+        }
+    }
 
     /// <summary>
     /// Internal method to actually speak text (no queue check).
@@ -333,8 +356,16 @@ public sealed class TtsService : IDisposable
             }
         };
 
-        process.Start();
-        await process.WaitForExitAsync(cancellationToken);
+        _currentPlaybackProcess = process;
+        try
+        {
+            process.Start();
+            await process.WaitForExitAsync(cancellationToken);
+        }
+        finally
+        {
+            _currentPlaybackProcess = null;
+        }
     }
 
     private string GetCacheFilePath(string text, VoiceConfig config)

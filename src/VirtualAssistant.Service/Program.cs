@@ -333,6 +333,15 @@ public class Program
             return Results.Ok(new { queueCount = ttsService.QueueCount });
         });
 
+        // TTS Stop endpoint - stops any currently playing audio (called by PushToTalk when recording starts)
+        app.MapPost("/api/tts/stop", (TtsService ttsService, ILogger<Program> logger) =>
+        {
+            Console.WriteLine($"\u001b[91;1m🛑 TTS Stop requested\u001b[0m");
+            logger.LogInformation("TTS Stop requested - stopping playback");
+            ttsService.StopPlayback();
+            return Results.Ok(new { success = true, message = "Playback stopped" });
+        });
+
         // TTS Flush queue endpoint - plays all queued messages (called by PushToTalk after dictation ends)
         app.MapPost("/api/tts/flush-queue", async (TtsService ttsService, ILogger<Program> logger) =>
         {

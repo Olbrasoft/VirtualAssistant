@@ -485,26 +485,65 @@ public class DictationWorker : BackgroundService
     }
 
     /// <summary>
-    /// Stops any currently playing TTS speech by calling the EdgeTTS server.
+    /// Stops any currently playing TTS speech by calling both EdgeTTS server and VirtualAssistant service.
     /// </summary>
     private async Task StopTtsSpeechAsync()
+    {
+        // Stop both TTS services in parallel
+        var tasks = new[]
+        {
+            StopEdgeTtsAsync(),
+            StopVirtualAssistantTtsAsync()
+        };
+
+        await Task.WhenAll(tasks);
+    }
+
+    /// <summary>
+    /// Stops EdgeTTS server at port 5555.
+    /// </summary>
+    private async Task StopEdgeTtsAsync()
     {
         try
         {
             var response = await _httpClient.PostAsync($"{_ttsBaseUrl}/api/speech/stop", null);
-            
+
             if (response.IsSuccessStatusCode)
             {
-                _logger.LogDebug("TTS speech stop request sent successfully");
+                _logger.LogDebug("EdgeTTS speech stop request sent successfully");
             }
             else
             {
-                _logger.LogWarning("TTS speech stop request failed: {StatusCode}", response.StatusCode);
+                _logger.LogWarning("EdgeTTS speech stop request failed: {StatusCode}", response.StatusCode);
             }
         }
         catch (Exception ex)
         {
-            _logger.LogWarning(ex, "Failed to send TTS speech stop request");
+            _logger.LogWarning(ex, "Failed to send EdgeTTS speech stop request");
+        }
+    }
+
+    /// <summary>
+    /// Stops VirtualAssistant TTS at port 5055.
+    /// </summary>
+    private async Task StopVirtualAssistantTtsAsync()
+    {
+        try
+        {
+            var response = await _httpClient.PostAsync($"{_virtualAssistantBaseUrl}/api/tts/stop", null);
+
+            if (response.IsSuccessStatusCode)
+            {
+                _logger.LogDebug("VirtualAssistant TTS stop request sent successfully");
+            }
+            else
+            {
+                _logger.LogWarning("VirtualAssistant TTS stop request failed: {StatusCode}", response.StatusCode);
+            }
+        }
+        catch (Exception ex)
+        {
+            _logger.LogWarning(ex, "Failed to send VirtualAssistant TTS stop request");
         }
     }
 
