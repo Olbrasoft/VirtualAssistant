@@ -44,6 +44,11 @@ public class VirtualAssistantDbContext : DbContext
     /// </summary>
     public DbSet<GitHubIssueAgent> GitHubIssueAgents => Set<GitHubIssueAgent>();
 
+    /// <summary>
+    /// Gets or sets the AgentMessages DbSet for inter-agent communication.
+    /// </summary>
+    public DbSet<AgentMessage> AgentMessages => Set<AgentMessage>();
+
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {
         base.OnModelCreating(modelBuilder);
