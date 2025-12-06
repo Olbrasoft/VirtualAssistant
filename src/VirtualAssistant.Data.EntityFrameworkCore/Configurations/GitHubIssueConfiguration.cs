@@ -60,14 +60,14 @@ public class GitHubIssueConfiguration : IEntityTypeConfiguration<GitHubIssue>
         // Index for faster lookups by state
         builder.HasIndex(i => i.State);
 
-        // Vector columns for semantic search (1536 dimensions = text-embedding-3-small)
+        // Vector columns for semantic search (768 dimensions = nomic-embed-text)
         builder.Property(i => i.TitleEmbedding)
             .HasColumnName("title_embedding")
-            .HasColumnType("vector(1536)");
+            .HasColumnType("vector(768)");
 
         builder.Property(i => i.BodyEmbedding)
             .HasColumnName("body_embedding")
-            .HasColumnType("vector(1536)");
+            .HasColumnType("vector(768)");
 
         builder.Property(i => i.EmbeddingGeneratedAt)
             .HasColumnName("embedding_generated_at");

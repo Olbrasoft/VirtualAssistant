@@ -11,22 +11,22 @@ public class EmbeddingSettings
     public const string SectionName = "Embeddings";
 
     /// <summary>
-    /// Gets or sets the embedding provider (e.g., "OpenRouter", "OpenAI").
-    /// Default: "OpenRouter".
+    /// Gets or sets the embedding provider (e.g., "Ollama", "OpenRouter").
+    /// Default: "Ollama" (local).
     /// </summary>
-    public string Provider { get; set; } = "OpenRouter";
+    public string Provider { get; set; } = "Ollama";
 
     /// <summary>
     /// Gets or sets the embedding model to use.
-    /// Default: "text-embedding-3-small" (1536 dimensions).
+    /// Default: "nomic-embed-text" (768 dimensions).
     /// </summary>
-    public string Model { get; set; } = "openai/text-embedding-3-small";
+    public string Model { get; set; } = "nomic-embed-text";
 
     /// <summary>
     /// Gets or sets the embedding dimensions.
-    /// Default: 1536 (text-embedding-3-small).
+    /// Default: 768 (nomic-embed-text).
     /// </summary>
-    public int Dimensions { get; set; } = 1536;
+    public int Dimensions { get; set; } = 768;
 
     /// <summary>
     /// Gets or sets the API key for the embedding provider.
@@ -42,9 +42,9 @@ public class EmbeddingSettings
 
     /// <summary>
     /// Gets or sets the base URL for the API.
-    /// Default: "https://openrouter.ai/api/v1" for OpenRouter.
+    /// Default: "http://localhost:11434" for Ollama.
     /// </summary>
-    public string BaseUrl { get; set; } = "https://openrouter.ai/api/v1";
+    public string BaseUrl { get; set; } = "http://localhost:11434";
 
     /// <summary>
     /// Gets or sets whether to skip embedding generation for very short content.

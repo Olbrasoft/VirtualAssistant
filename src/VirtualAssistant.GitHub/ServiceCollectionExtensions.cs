@@ -29,8 +29,8 @@ public static class ServiceCollectionExtensions
         services.Configure<EmbeddingSettings>(
             configuration.GetSection(EmbeddingSettings.SectionName));
 
-        // Register embedding service
-        services.AddHttpClient<IEmbeddingService, OpenRouterEmbeddingService>();
+        // Register embedding service (Ollama - local, no API key needed)
+        services.AddHttpClient<IEmbeddingService, OllamaEmbeddingService>();
 
         // Register sync service
         services.AddScoped<IGitHubSyncService, GitHubSyncService>();

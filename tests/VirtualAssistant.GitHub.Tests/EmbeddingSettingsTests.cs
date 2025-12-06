@@ -17,10 +17,10 @@ public class EmbeddingSettingsTests
         var settings = new EmbeddingSettings();
 
         // Assert
-        Assert.Equal("OpenRouter", settings.Provider);
-        Assert.Equal("openai/text-embedding-3-small", settings.Model);
-        Assert.Equal(1536, settings.Dimensions);
-        Assert.Equal("https://openrouter.ai/api/v1", settings.BaseUrl);
+        Assert.Equal("Ollama", settings.Provider);
+        Assert.Equal("nomic-embed-text", settings.Model);
+        Assert.Equal(768, settings.Dimensions);
+        Assert.Equal("http://localhost:11434", settings.BaseUrl);
         Assert.True(settings.SkipShortContent);
         Assert.Equal(10, settings.MinContentLength);
         Assert.Equal(20, settings.BatchSize);
