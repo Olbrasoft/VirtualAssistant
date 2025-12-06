@@ -269,7 +269,8 @@ public class Program
             return new EvdevKeyboardMonitor(logger, options.Value.KeyboardDevice);
         });
 
-        // TTS Service for text-to-speech
+        // TTS Provider and Service for text-to-speech
+        builder.Services.AddSingleton<ITtsProvider, EdgeTtsProvider>();
         builder.Services.AddSingleton<TtsService>();
 
         // TTS Notification Service (wrapper for Core → Voice dependency inversion)
