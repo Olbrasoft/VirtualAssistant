@@ -35,6 +35,9 @@ public static class ServiceCollectionExtensions
         // Register sync service
         services.AddScoped<IGitHubSyncService, GitHubSyncService>();
 
+        // Register search service
+        services.AddScoped<IGitHubSearchService, GitHubSearchService>();
+
         // Register background sync service as singleton (hosted services must be singletons)
         // Also expose as GitHubSyncBackgroundService for health check access
         services.AddSingleton<GitHubSyncBackgroundService>();

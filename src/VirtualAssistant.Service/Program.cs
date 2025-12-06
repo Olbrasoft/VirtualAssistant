@@ -503,5 +503,116 @@ public class Program
                 return Results.Problem($"Embedding generation failed: {ex.Message}");
             }
         });
+
+        // GET /api/github/search - semantic search for similar issues
+        app.MapGet("/api/github/search", async (
+            string q,
+            string? target,
+            int? limit,
+            IGitHubSearchService searchService,
+            ILogger<Program> logger,
+            CancellationToken ct) =>
+        {
+            if (string.IsNullOrWhiteSpace(q))
+            {
+                return Results.BadRequest(new { error = "Query parameter 'q' is required" });
+            }
+
+            var searchTarget = target?.ToLower() switch
+            {
+                "title" => SearchTarget.Title,
+                "body" => SearchTarget.Body,
+                _ => SearchTarget.Both
+            };
+
+            logger.LogInformation("GitHub search: q={Query}, target={Target}, limit={Limit}",
+                q, searchTarget, limit ?? 10);
+
+            try
+            {
+                var results = await searchService.SearchSimilarAsync(q, searchTarget, limit ?? 10, ct);
+                return Results.Ok(new
+                {
+                    query = q,
+                    target = searchTarget.ToString().ToLower(),
+                    count = results.Count,
+                    results
+                });
+            }
+            catch (Exception ex)
+            {
+                logger.LogError(ex, "Error searching issues");
+                return Results.Problem($"Search failed: {ex.Message}");
+            }
+        });
+
+        // GET /api/github/duplicates - find potential duplicate issues
+        app.MapGet("/api/github/duplicates", async (
+            string title,
+            string? body,
+            float? threshold,
+            IGitHubSearchService searchService,
+            ILogger<Program> logger,
+            CancellationToken ct) =>
+        {
+            if (string.IsNullOrWhiteSpace(title))
+            {
+                return Results.BadRequest(new { error = "Query parameter 'title' is required" });
+            }
+
+            var effectiveThreshold = threshold ?? 0.8f;
+            if (effectiveThreshold < 0 || effectiveThreshold > 1)
+            {
+                return Results.BadRequest(new { error = "Threshold must be between 0 and 1" });
+            }
+
+            logger.LogInformation("GitHub duplicate check: title={Title}, threshold={Threshold}",
+                title, effectiveThreshold);
+
+            try
+            {
+                var results = await searchService.FindDuplicatesAsync(title, body, effectiveThreshold, ct);
+                return Results.Ok(new
+                {
+                    title,
+                    threshold = effectiveThreshold,
+                    count = results.Count,
+                    duplicates = results
+                });
+            }
+            catch (Exception ex)
+            {
+                logger.LogError(ex, "Error finding duplicates");
+                return Results.Problem($"Duplicate check failed: {ex.Message}");
+            }
+        });
+
+        // GET /api/github/issues/open/{owner}/{repo} - get open issues for a repository
+        app.MapGet("/api/github/issues/open/{owner}/{repo}", async (
+            string owner,
+            string repo,
+            IGitHubSearchService searchService,
+            ILogger<Program> logger,
+            CancellationToken ct) =>
+        {
+            var repoFullName = $"{owner}/{repo}";
+            logger.LogInformation("Getting open issues for {Repo}", repoFullName);
+
+            try
+            {
+                var results = await searchService.GetOpenIssuesAsync(repoFullName, ct);
+                return Results.Ok(new
+                {
+                    repository = repoFullName,
+                    count = results.Count,
+                    issues = results
+                });
+            }
+            catch (Exception ex)
+            {
+                logger.LogError(ex, "Error getting open issues for {Repo}", repoFullName);
+                return Results.Problem($"Failed to get open issues: {ex.Message}");
+            }
+        });
     }
 }
