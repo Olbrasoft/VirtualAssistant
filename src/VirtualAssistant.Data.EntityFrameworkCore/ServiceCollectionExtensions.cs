@@ -1,6 +1,7 @@
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.DependencyInjection;
 using Olbrasoft.Data.Cqrs;
+using Pgvector.EntityFrameworkCore;
 using VirtualAssistant.Data;
 
 namespace VirtualAssistant.Data.EntityFrameworkCore;
@@ -22,10 +23,13 @@ public static class ServiceCollectionExtensions
         string connectionString,
         ServiceLifetime lifetime = ServiceLifetime.Scoped)
     {
-        // Register DbContext with PostgreSQL
+        // Register DbContext with PostgreSQL and pgvector support
         services.AddDbContext<VirtualAssistantDbContext>(options =>
         {
-            options.UseNpgsql(connectionString);
+            options.UseNpgsql(connectionString, npgsqlOptions =>
+            {
+                npgsqlOptions.UseVector();
+            });
         }, lifetime);
 
         // Register CQRS handlers from this assembly

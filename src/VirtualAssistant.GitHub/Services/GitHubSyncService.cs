@@ -16,14 +16,17 @@ public class GitHubSyncService : IGitHubSyncService
 {
     private readonly VirtualAssistantDbContext _dbContext;
     private readonly GitHubClient _gitHubClient;
+    private readonly IEmbeddingService _embeddingService;
     private readonly ILogger<GitHubSyncService> _logger;
 
     public GitHubSyncService(
         VirtualAssistantDbContext dbContext,
         IOptions<GitHubSettings> settings,
+        IEmbeddingService embeddingService,
         ILogger<GitHubSyncService> logger)
     {
         _dbContext = dbContext;
+        _embeddingService = embeddingService;
         _logger = logger;
 
         // Configure GitHub client with authentication
@@ -369,5 +372,63 @@ public class GitHubSyncService : IGitHubSyncService
                     agentName, dbIssue.IssueNumber);
             }
         }
+    }
+
+    /// <inheritdoc />
+    public async Task<int> GenerateMissingEmbeddingsAsync(CancellationToken ct = default)
+    {
+        if (!_embeddingService.IsConfigured)
+        {
+            _logger.LogWarning("Embedding service not configured, skipping embedding generation");
+            return 0;
+        }
+
+        // Find issues without embeddings
+        var issuesWithoutEmbeddings = await _dbContext.GitHubIssues
+            .Where(i => i.EmbeddingGeneratedAt == null)
+            .ToListAsync(ct);
+
+        if (issuesWithoutEmbeddings.Count == 0)
+        {
+            _logger.LogInformation("All issues already have embeddings");
+            return 0;
+        }
+
+        _logger.LogInformation("Generating embeddings for {Count} issues", issuesWithoutEmbeddings.Count);
+
+        var generatedCount = 0;
+        foreach (var issue in issuesWithoutEmbeddings)
+        {
+            ct.ThrowIfCancellationRequested();
+
+            try
+            {
+                // Generate title embedding
+                var titleEmbedding = await _embeddingService.GenerateEmbeddingAsync(issue.Title, ct);
+                issue.TitleEmbedding = titleEmbedding;
+
+                // Generate body embedding
+                var bodyEmbedding = await _embeddingService.GenerateEmbeddingAsync(issue.Body, ct);
+                issue.BodyEmbedding = bodyEmbedding;
+
+                issue.EmbeddingGeneratedAt = DateTime.UtcNow;
+                generatedCount++;
+
+                _logger.LogDebug("Generated embeddings for issue #{Number}: Title={HasTitle}, Body={HasBody}",
+                    issue.IssueNumber,
+                    titleEmbedding != null,
+                    bodyEmbedding != null);
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(ex, "Error generating embedding for issue #{Number}", issue.IssueNumber);
+                // Continue with next issue
+            }
+        }
+
+        await _dbContext.SaveChangesAsync(ct);
+        _logger.LogInformation("Generated embeddings for {Count} issues", generatedCount);
+
+        return generatedCount;
     }
 }

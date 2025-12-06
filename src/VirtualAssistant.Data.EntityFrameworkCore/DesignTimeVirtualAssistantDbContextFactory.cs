@@ -1,5 +1,6 @@
 using Microsoft.EntityFrameworkCore.Design;
 using Microsoft.Extensions.Configuration;
+using Pgvector.EntityFrameworkCore;
 
 namespace VirtualAssistant.Data.EntityFrameworkCore;
 
@@ -16,11 +17,14 @@ public class DesignTimeVirtualAssistantDbContextFactory : IDesignTimeDbContextFa
             .AddJsonFile("appsettings.Development.json", optional: true)
             .Build();
 
-        var connectionString = configuration.GetConnectionString("DefaultConnection") 
+        var connectionString = configuration.GetConnectionString("DefaultConnection")
             ?? "Host=localhost;Database=virtual_assistant;Username=postgres;Password=postgres";
 
         var optionsBuilder = new DbContextOptionsBuilder<VirtualAssistantDbContext>();
-        optionsBuilder.UseNpgsql(connectionString);
+        optionsBuilder.UseNpgsql(connectionString, npgsqlOptions =>
+        {
+            npgsqlOptions.UseVector();
+        });
 
         return new VirtualAssistantDbContext(optionsBuilder.Options);
     }

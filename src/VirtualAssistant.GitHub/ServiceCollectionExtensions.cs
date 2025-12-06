@@ -21,9 +21,16 @@ public static class ServiceCollectionExtensions
         this IServiceCollection services,
         IConfiguration configuration)
     {
-        // Register configuration
+        // Register GitHub configuration
         services.Configure<GitHubSettings>(
             configuration.GetSection(GitHubSettings.SectionName));
+
+        // Register Embedding configuration
+        services.Configure<EmbeddingSettings>(
+            configuration.GetSection(EmbeddingSettings.SectionName));
+
+        // Register embedding service
+        services.AddHttpClient<IEmbeddingService, OpenRouterEmbeddingService>();
 
         // Register sync service
         services.AddScoped<IGitHubSyncService, GitHubSyncService>();

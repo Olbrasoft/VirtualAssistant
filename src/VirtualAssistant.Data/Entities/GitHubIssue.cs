@@ -1,4 +1,5 @@
 using Olbrasoft.Data.Entities.Abstractions;
+using Pgvector;
 
 namespace VirtualAssistant.Data.Entities;
 
@@ -62,4 +63,22 @@ public class GitHubIssue : BaseEnity
     /// Supports multiple agents: claude, opencode, user.
     /// </summary>
     public ICollection<GitHubIssueAgent> Agents { get; set; } = new List<GitHubIssueAgent>();
+
+    /// <summary>
+    /// Gets or sets the vector embedding for the issue title.
+    /// Uses text-embedding-3-small model (1536 dimensions).
+    /// </summary>
+    public Vector? TitleEmbedding { get; set; }
+
+    /// <summary>
+    /// Gets or sets the vector embedding for the issue body.
+    /// Uses text-embedding-3-small model (1536 dimensions).
+    /// </summary>
+    public Vector? BodyEmbedding { get; set; }
+
+    /// <summary>
+    /// Gets or sets when the embeddings were last generated.
+    /// Null if embeddings have never been generated.
+    /// </summary>
+    public DateTime? EmbeddingGeneratedAt { get; set; }
 }

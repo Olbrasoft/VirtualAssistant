@@ -37,4 +37,11 @@ public interface IGitHubSyncService
     /// <param name="ct">Cancellation token.</param>
     /// <returns>Tuple of (repositories synced, total issues synced).</returns>
     Task<(int ReposSynced, int IssuesSynced)> SyncAllAsync(string owner, CancellationToken ct = default);
+
+    /// <summary>
+    /// Generates embeddings for all issues that don't have them yet.
+    /// </summary>
+    /// <param name="ct">Cancellation token.</param>
+    /// <returns>Number of issues with embeddings generated.</returns>
+    Task<int> GenerateMissingEmbeddingsAsync(CancellationToken ct = default);
 }

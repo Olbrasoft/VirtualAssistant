@@ -1,3 +1,5 @@
+using Pgvector.EntityFrameworkCore;
+
 namespace VirtualAssistant.Data.EntityFrameworkCore;
 
 /// <summary>
@@ -5,8 +7,12 @@ namespace VirtualAssistant.Data.EntityFrameworkCore;
 /// </summary>
 public class VirtualAssistantDbContext : DbContext
 {
+    private readonly bool _isInMemory;
+
     public VirtualAssistantDbContext(DbContextOptions<VirtualAssistantDbContext> options) : base(options)
     {
+        // Detect InMemory database from options extensions (more reliable than Database.ProviderName)
+        _isInMemory = options.Extensions.Any(e => e.GetType().Name.Contains("InMemory"));
     }
 
     /// <summary>
@@ -52,8 +58,21 @@ public class VirtualAssistantDbContext : DbContext
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {
         base.OnModelCreating(modelBuilder);
-        
+
+        if (!_isInMemory)
+        {
+            // Enable pgvector extension (only for PostgreSQL)
+            modelBuilder.HasPostgresExtension("vector");
+        }
+
         // Apply all configurations from assembly
         modelBuilder.ApplyConfigurationsFromAssembly(typeof(VirtualAssistantDbContext).Assembly);
+
+        if (_isInMemory)
+        {
+            // For InMemory testing, ignore vector properties AFTER configurations are applied
+            modelBuilder.Entity<GitHubIssue>().Ignore(e => e.TitleEmbedding);
+            modelBuilder.Entity<GitHubIssue>().Ignore(e => e.BodyEmbedding);
+        }
     }
 }

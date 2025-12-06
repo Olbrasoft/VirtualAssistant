@@ -479,5 +479,29 @@ public class Program
             var status = syncBackgroundService.GetStatus();
             return Results.Ok(status);
         });
+
+        // POST /api/github/embeddings - generate embeddings for issues without them
+        app.MapPost("/api/github/embeddings", async (
+            IGitHubSyncService syncService,
+            ILogger<Program> logger) =>
+        {
+            logger.LogInformation("Embedding generation requested");
+
+            try
+            {
+                var count = await syncService.GenerateMissingEmbeddingsAsync();
+                logger.LogInformation("Generated embeddings for {Count} issues", count);
+                return Results.Ok(new
+                {
+                    success = true,
+                    embeddingsGenerated = count
+                });
+            }
+            catch (Exception ex)
+            {
+                logger.LogError(ex, "Error generating embeddings");
+                return Results.Problem($"Embedding generation failed: {ex.Message}");
+            }
+        });
     }
 }
