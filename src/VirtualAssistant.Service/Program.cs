@@ -6,6 +6,7 @@ using Olbrasoft.VirtualAssistant.Voice;
 using Olbrasoft.VirtualAssistant.Voice.Audio;
 using Olbrasoft.VirtualAssistant.Voice.Services;
 using Olbrasoft.VirtualAssistant.Service.Tray;
+using Olbrasoft.VirtualAssistant.Service.Services;
 using Olbrasoft.VirtualAssistant.Service.Workers;
 using Olbrasoft.VirtualAssistant.Voice.Similarity;
 using OpenCode.DotnetClient;
@@ -13,6 +14,7 @@ using VirtualAssistant.Data.EntityFrameworkCore;
 using VirtualAssistant.GitHub;
 using VirtualAssistant.GitHub.Services;
 using VirtualAssistant.Core;
+using VirtualAssistant.Core.Services;
 using System.Text.Json.Serialization;
 
 namespace Olbrasoft.VirtualAssistant.Service;
@@ -269,6 +271,9 @@ public class Program
 
         // TTS Service for text-to-speech
         builder.Services.AddSingleton<TtsService>();
+
+        // TTS Notification Service (wrapper for Core → Voice dependency inversion)
+        builder.Services.AddSingleton<ITtsNotificationService, TtsNotificationService>();
 
         // Background workers
         builder.Services.AddHostedService<KeyboardMonitorWorker>();

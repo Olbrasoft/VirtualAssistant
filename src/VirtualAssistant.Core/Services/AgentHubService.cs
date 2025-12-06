@@ -9,18 +9,22 @@ namespace VirtualAssistant.Core.Services;
 
 /// <summary>
 /// Implementation of agent message hub for inter-agent communication.
+/// Includes TTS notifications for incoming messages.
 /// </summary>
 public class AgentHubService : IAgentHubService
 {
     private readonly VirtualAssistantDbContext _dbContext;
     private readonly ILogger<AgentHubService> _logger;
+    private readonly ITtsNotificationService _ttsNotificationService;
 
     public AgentHubService(
         VirtualAssistantDbContext dbContext,
-        ILogger<AgentHubService> logger)
+        ILogger<AgentHubService> logger,
+        ITtsNotificationService ttsNotificationService)
     {
         _dbContext = dbContext;
         _logger = logger;
+        _ttsNotificationService = ttsNotificationService;
     }
 
     public async Task<int> SendAsync(AgentMessageDto message, CancellationToken ct = default)
@@ -51,6 +55,14 @@ public class AgentHubService : IAgentHubService
         _logger.LogInformation(
             "Message sent: {Id} from {Source} to {Target}, type={Type}, requiresApproval={RequiresApproval}",
             entity.Id, entity.SourceAgent, entity.TargetAgent, entity.MessageType, entity.RequiresApproval);
+
+        // Notify user via TTS
+        var notificationText = BuildNotificationText(message);
+        if (!string.IsNullOrEmpty(notificationText))
+        {
+            _logger.LogInformation("Sending TTS notification: {Text}", notificationText);
+            await _ttsNotificationService.SpeakAsync(notificationText, source: "assistant", ct);
+        }
 
         return entity.Id;
     }
@@ -177,5 +189,34 @@ public class AgentHubService : IAgentHubService
             DeliveredAt = entity.DeliveredAt,
             ProcessedAt = entity.ProcessedAt
         };
+    }
+
+    /// <summary>
+    /// Builds a Czech notification text based on message type.
+    /// Returns null for messages that should not trigger notifications.
+    /// </summary>
+    private static string? BuildNotificationText(AgentMessageDto message)
+    {
+        return message.MessageType?.ToLowerInvariant() switch
+        {
+            "completion" => "Claude dokončil úkol.",
+            "task" when message.RequiresApproval => "Mám úkol pro Clauda. Schválíš odeslání?",
+            "task" => $"Nový úkol pro {message.TargetAgent}.",
+            "review_result" => $"{message.SourceAgent} zkontroloval kód.",
+            "question" => $"Otázka od {message.SourceAgent}: {TruncateForTts(message.Content, 100)}",
+            "error" => $"Chyba od {message.SourceAgent}.",
+            "status" => null, // Don't announce status updates
+            _ => $"Zpráva od {message.SourceAgent} pro {message.TargetAgent}."
+        };
+    }
+
+    /// <summary>
+    /// Truncates text for TTS to avoid overly long speech.
+    /// </summary>
+    private static string TruncateForTts(string text, int maxLength)
+    {
+        if (string.IsNullOrEmpty(text) || text.Length <= maxLength)
+            return text;
+        return text[..maxLength] + "...";
     }
 }
