@@ -472,5 +472,12 @@ public class Program
                 return Results.Problem($"Sync failed: {ex.Message}");
             }
         });
+
+        // GitHub Sync status/health endpoint
+        app.MapGet("/api/github/sync/status", (GitHubSyncBackgroundService syncBackgroundService) =>
+        {
+            var status = syncBackgroundService.GetStatus();
+            return Results.Ok(status);
+        });
     }
 }

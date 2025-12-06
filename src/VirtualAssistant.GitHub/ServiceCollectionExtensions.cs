@@ -1,5 +1,6 @@
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
+using Microsoft.Extensions.DependencyInjection.Extensions;
 using VirtualAssistant.GitHub.Configuration;
 using VirtualAssistant.GitHub.Services;
 
@@ -26,6 +27,11 @@ public static class ServiceCollectionExtensions
 
         // Register sync service
         services.AddScoped<IGitHubSyncService, GitHubSyncService>();
+
+        // Register background sync service as singleton (hosted services must be singletons)
+        // Also expose as GitHubSyncBackgroundService for health check access
+        services.AddSingleton<GitHubSyncBackgroundService>();
+        services.AddHostedService(sp => sp.GetRequiredService<GitHubSyncBackgroundService>());
 
         return services;
     }

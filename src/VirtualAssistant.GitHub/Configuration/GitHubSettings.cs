@@ -20,4 +20,16 @@ public class GitHubSettings
     /// Gets or sets the default GitHub owner (user or organization) to sync.
     /// </summary>
     public string Owner { get; set; } = string.Empty;
+
+    /// <summary>
+    /// Gets or sets whether scheduled automatic sync is enabled.
+    /// Default: true
+    /// </summary>
+    public bool EnableScheduledSync { get; set; } = true;
+
+    /// <summary>
+    /// Gets or sets the interval between automatic syncs in minutes.
+    /// Default: 60 (every hour)
+    /// </summary>
+    public int SyncIntervalMinutes { get; set; } = 60;
 }

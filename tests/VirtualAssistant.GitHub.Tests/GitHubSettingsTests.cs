@@ -12,7 +12,7 @@ public class GitHubSettingsTests
     }
 
     [Fact]
-    public void DefaultValues_AreEmptyStrings()
+    public void DefaultValues_AreCorrect()
     {
         // Arrange
         var settings = new GitHubSettings();
@@ -20,6 +20,8 @@ public class GitHubSettingsTests
         // Assert
         Assert.Equal(string.Empty, settings.Token);
         Assert.Equal(string.Empty, settings.Owner);
+        Assert.True(settings.EnableScheduledSync);
+        Assert.Equal(60, settings.SyncIntervalMinutes);
     }
 
     [Fact]
@@ -29,11 +31,15 @@ public class GitHubSettingsTests
         var settings = new GitHubSettings
         {
             Token = "ghp_test123",
-            Owner = "TestOwner"
+            Owner = "TestOwner",
+            EnableScheduledSync = false,
+            SyncIntervalMinutes = 30
         };
 
         // Assert
         Assert.Equal("ghp_test123", settings.Token);
         Assert.Equal("TestOwner", settings.Owner);
+        Assert.False(settings.EnableScheduledSync);
+        Assert.Equal(30, settings.SyncIntervalMinutes);
     }
 }
