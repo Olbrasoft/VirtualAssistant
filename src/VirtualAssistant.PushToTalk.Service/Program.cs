@@ -7,6 +7,7 @@ using Olbrasoft.VirtualAssistant.PushToTalk.Service.Services;
 using Olbrasoft.VirtualAssistant.PushToTalk.Service.Tray;
 using Olbrasoft.VirtualAssistant.PushToTalk.TextInput;
 using Olbrasoft.VirtualAssistant.Voice.Services;
+using VirtualAssistant.Data.EntityFrameworkCore;
 
 // Disambiguate types that exist in multiple namespaces
 using PttManualMuteService = Olbrasoft.VirtualAssistant.PushToTalk.Service.Services.ManualMuteService;
@@ -102,6 +103,11 @@ builder.Services.AddSingleton<TranscriptionTrayService>();
 
 // HTTP client for TTS stop functionality
 builder.Services.AddHttpClient<DictationWorker>();
+
+// Database (PostgreSQL)
+var connectionString = builder.Configuration.GetConnectionString("VirtualAssistant")
+    ?? throw new InvalidOperationException("Connection string 'VirtualAssistant' not found.");
+builder.Services.AddVirtualAssistantData(connectionString);
 
 // Register worker
 builder.Services.AddHostedService<DictationWorker>();

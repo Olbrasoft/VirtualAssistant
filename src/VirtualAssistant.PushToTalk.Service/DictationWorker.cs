@@ -1,6 +1,7 @@
 using Olbrasoft.VirtualAssistant.Core.Speech;
 using Olbrasoft.VirtualAssistant.PushToTalk.Service.Services;
 using Olbrasoft.VirtualAssistant.PushToTalk.TextInput;
+using VirtualAssistant.Data;
 
 namespace Olbrasoft.VirtualAssistant.PushToTalk.Service;
 
@@ -38,6 +39,7 @@ public class DictationWorker : BackgroundService
     private readonly ManualMuteService _manualMuteService;
     private readonly ITranscriptionHistory _transcriptionHistory;
     private readonly TypingSoundPlayer _typingSoundPlayer;
+    private readonly IServiceScopeFactory _scopeFactory;
     private bool _isRecording;
     private bool _isTranscribing;
     private DateTime? _recordingStartTime;
@@ -73,7 +75,8 @@ public class DictationWorker : BackgroundService
         HttpClient httpClient,
         ManualMuteService manualMuteService,
         ITranscriptionHistory transcriptionHistory,
-        TypingSoundPlayer typingSoundPlayer)
+        TypingSoundPlayer typingSoundPlayer,
+        IServiceScopeFactory scopeFactory)
     {
         _logger = logger ?? throw new ArgumentNullException(nameof(logger));
         _configuration = configuration ?? throw new ArgumentNullException(nameof(configuration));
@@ -86,6 +89,7 @@ public class DictationWorker : BackgroundService
         _manualMuteService = manualMuteService ?? throw new ArgumentNullException(nameof(manualMuteService));
         _transcriptionHistory = transcriptionHistory ?? throw new ArgumentNullException(nameof(transcriptionHistory));
         _typingSoundPlayer = typingSoundPlayer ?? throw new ArgumentNullException(nameof(typingSoundPlayer));
+        _scopeFactory = scopeFactory ?? throw new ArgumentNullException(nameof(scopeFactory));
 
         // Load configuration
         var triggerKeyName = _configuration.GetValue<string>("PushToTalkDictation:TriggerKey", "CapsLock");
@@ -334,6 +338,12 @@ public class DictationWorker : BackgroundService
                     // Save to history before typing (allows repeat if pasted to wrong window)
                     _transcriptionHistory.SaveText(transcription.Text);
                     _logger.LogDebug("Transcription saved to history");
+
+                    // Save to database (fire-and-forget to not block typing)
+                    var durationMs = _recordingStartTime.HasValue
+                        ? (int)(DateTime.UtcNow - _recordingStartTime.Value).TotalMilliseconds
+                        : (int?)null;
+                    _ = SaveTranscriptionToDatabaseAsync(transcription.Text, null, durationMs);
 
                     // Type transcribed text
                     await _textTyper.TypeTextAsync(transcription.Text);
@@ -631,6 +641,25 @@ public class DictationWorker : BackgroundService
         }
         
         return null;
+    }
+
+    /// <summary>
+    /// Saves transcription to the database asynchronously.
+    /// Uses a scoped service to avoid DbContext lifetime issues.
+    /// </summary>
+    private async Task SaveTranscriptionToDatabaseAsync(string text, string? sourceApp, int? durationMs)
+    {
+        try
+        {
+            using var scope = _scopeFactory.CreateScope();
+            var repository = scope.ServiceProvider.GetRequiredService<ITranscriptionRepository>();
+            await repository.SaveTranscriptionAsync(text, sourceApp, durationMs);
+            _logger.LogDebug("Transcription saved to database");
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Failed to save transcription to database");
+        }
     }
 
     public override async Task StopAsync(CancellationToken cancellationToken)
