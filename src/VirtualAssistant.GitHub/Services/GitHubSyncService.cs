@@ -33,11 +33,16 @@ public class GitHubSyncService : IGitHubSyncService
         if (!string.IsNullOrWhiteSpace(token))
         {
             _gitHubClient.Credentials = new Credentials(token);
-            _logger.LogInformation("GitHub client configured with authentication token");
+            // Log only partial token for security (first 4 chars + last 4 chars)
+            var maskedToken = token.Length > 8
+                ? $"{token[..4]}...{token[^4..]}"
+                : "****";
+            _logger.LogInformation("GitHub client configured with authentication token: {MaskedToken}", maskedToken);
         }
         else
         {
-            _logger.LogWarning("GitHub client running without authentication - rate limited to 60 requests/hour");
+            _logger.LogWarning("GitHub client running without authentication - rate limited to 60 requests/hour. " +
+                "Configure GitHub:Token in appsettings.json for 5000 requests/hour.");
         }
     }
 
@@ -200,8 +205,12 @@ public class GitHubSyncService : IGitHubSyncService
 
     private async Task<GitHubRepository> UpsertRepositoryAsync(Repository repo, CancellationToken ct)
     {
-        var existingRepo = await _dbContext.GitHubRepositories
-            .FirstOrDefaultAsync(r => r.FullName == repo.FullName, ct);
+        // IMPORTANT: Check local change tracker FIRST, then database
+        // This prevents duplicate key errors when adding multiple repos before SaveChanges
+        var existingRepo = _dbContext.GitHubRepositories.Local
+            .FirstOrDefault(r => r.FullName == repo.FullName)
+            ?? await _dbContext.GitHubRepositories
+                .FirstOrDefaultAsync(r => r.FullName == repo.FullName, ct);
 
         if (existingRepo == null)
         {
@@ -277,10 +286,18 @@ public class GitHubSyncService : IGitHubSyncService
 
     private async Task UpsertIssueAsync(int repositoryId, Issue issue, CancellationToken ct)
     {
-        var existingIssue = await _dbContext.GitHubIssues
-            .Include(i => i.Agents)
-            .FirstOrDefaultAsync(
-                i => i.RepositoryId == repositoryId && i.IssueNumber == issue.Number, ct);
+        // IMPORTANT: Check local change tracker FIRST, then database
+        // This prevents duplicate key errors when adding multiple issues before SaveChanges
+        var existingIssue = _dbContext.GitHubIssues.Local
+            .FirstOrDefault(i => i.RepositoryId == repositoryId && i.IssueNumber == issue.Number);
+
+        if (existingIssue == null)
+        {
+            existingIssue = await _dbContext.GitHubIssues
+                .Include(i => i.Agents)
+                .FirstOrDefaultAsync(
+                    i => i.RepositoryId == repositoryId && i.IssueNumber == issue.Number, ct);
+        }
 
         if (existingIssue == null)
         {
