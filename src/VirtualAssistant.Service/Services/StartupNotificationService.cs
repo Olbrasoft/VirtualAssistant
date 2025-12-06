@@ -28,7 +28,7 @@ public sealed class StartupNotificationService : IHostedService
 
         try
         {
-            await _ttsService.SpeakAsync("Systém nastartován", source: null, cancellationToken);
+            await _ttsService.SpeakAsync("Systém nastartován, vše v pořádku", source: null, cancellationToken);
         }
         catch (Exception ex)
         {
