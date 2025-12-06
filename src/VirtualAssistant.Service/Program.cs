@@ -402,7 +402,6 @@ public class Program
             ILogger<Program> logger) =>
         {
             logger.LogInformation("GitHub sync requested for {Owner}/{Repo}", owner, repo);
-            Console.WriteLine($"\u001b[94;1m🔄 GitHub Sync: {owner}/{repo}\u001b[0m");
 
             try
             {
@@ -410,10 +409,11 @@ public class Program
 
                 if (!repoSynced)
                 {
+                    logger.LogWarning("Repository {Owner}/{Repo} not found", owner, repo);
                     return Results.NotFound(new { error = $"Repository {owner}/{repo} not found" });
                 }
 
-                Console.WriteLine($"\u001b[92;1m✅ Synced: 1 repo, {issuesSynced} issues\u001b[0m");
+                logger.LogInformation("Synced repository {Owner}/{Repo}: {IssueCount} issues", owner, repo, issuesSynced);
                 return Results.Ok(new
                 {
                     success = true,
@@ -435,13 +435,13 @@ public class Program
             ILogger<Program> logger) =>
         {
             logger.LogInformation("GitHub sync requested for all repos of {Owner}", owner);
-            Console.WriteLine($"\u001b[94;1m🔄 GitHub Sync All: {owner}\u001b[0m");
 
             try
             {
                 var (reposSynced, issuesSynced) = await syncService.SyncAllAsync(owner);
 
-                Console.WriteLine($"\u001b[92;1m✅ Synced: {reposSynced} repos, {issuesSynced} issues\u001b[0m");
+                logger.LogInformation("Synced all repositories for {Owner}: {RepoCount} repos, {IssueCount} issues",
+                    owner, reposSynced, issuesSynced);
                 return Results.Ok(new
                 {
                     success = true,

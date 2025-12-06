@@ -44,23 +44,46 @@ public class GitHubSyncService : IGitHubSyncService
     /// <inheritdoc />
     public async Task<int> SyncRepositoriesAsync(string owner, CancellationToken ct = default)
     {
+        ArgumentException.ThrowIfNullOrWhiteSpace(owner);
+
         _logger.LogInformation("Starting repository sync for owner: {Owner}", owner);
 
-        var repos = await _gitHubClient.Repository.GetAllForUser(owner);
-        _logger.LogInformation("Found {Count} repositories for {Owner}", repos.Count, owner);
-
-        var syncedCount = 0;
-        foreach (var repo in repos)
+        try
         {
-            ct.ThrowIfCancellationRequested();
-            await UpsertRepositoryAsync(repo, ct);
-            syncedCount++;
+            var repos = await _gitHubClient.Repository.GetAllForUser(owner);
+            _logger.LogInformation("Found {Count} repositories for {Owner}", repos.Count, owner);
+
+            var syncedCount = 0;
+            foreach (var repo in repos)
+            {
+                ct.ThrowIfCancellationRequested();
+                await UpsertRepositoryAsync(repo, ct);
+                syncedCount++;
+            }
+
+            await _dbContext.SaveChangesAsync(ct);
+            _logger.LogInformation("Synced {Count} repositories for {Owner}", syncedCount, owner);
+
+            return syncedCount;
         }
-
-        await _dbContext.SaveChangesAsync(ct);
-        _logger.LogInformation("Synced {Count} repositories for {Owner}", syncedCount, owner);
-
-        return syncedCount;
+        catch (RateLimitExceededException ex)
+        {
+            _logger.LogError(ex,
+                "GitHub API rate limit exceeded. Reset at {ResetTime}. Limit: {Limit}, Remaining: {Remaining}",
+                ex.Reset, ex.Limit, ex.Remaining);
+            throw;
+        }
+        catch (NotFoundException)
+        {
+            _logger.LogWarning("GitHub user/organization '{Owner}' not found", owner);
+            return 0;
+        }
+        catch (ApiException ex)
+        {
+            _logger.LogError(ex, "GitHub API error during repository sync for {Owner}: {Message}",
+                owner, ex.Message);
+            throw;
+        }
     }
 
     /// <inheritdoc />
@@ -82,6 +105,9 @@ public class GitHubSyncService : IGitHubSyncService
     public async Task<(bool RepoSynced, int IssuesSynced)> SyncRepositoryAsync(
         string owner, string repoName, CancellationToken ct = default)
     {
+        ArgumentException.ThrowIfNullOrWhiteSpace(owner);
+        ArgumentException.ThrowIfNullOrWhiteSpace(repoName);
+
         _logger.LogInformation("Syncing repository: {Owner}/{Repo}", owner, repoName);
 
         try
@@ -93,10 +119,23 @@ public class GitHubSyncService : IGitHubSyncService
             var issuesSynced = await SyncIssuesForRepositoryAsync(dbRepo, ct);
             return (true, issuesSynced);
         }
+        catch (RateLimitExceededException ex)
+        {
+            _logger.LogError(ex,
+                "GitHub API rate limit exceeded. Reset at {ResetTime}. Limit: {Limit}, Remaining: {Remaining}",
+                ex.Reset, ex.Limit, ex.Remaining);
+            throw;
+        }
         catch (NotFoundException)
         {
             _logger.LogWarning("Repository {Owner}/{Repo} not found on GitHub", owner, repoName);
             return (false, 0);
+        }
+        catch (ApiException ex)
+        {
+            _logger.LogError(ex, "GitHub API error during sync for {Owner}/{Repo}: {Message}",
+                owner, repoName, ex.Message);
+            throw;
         }
     }
 
@@ -104,27 +143,59 @@ public class GitHubSyncService : IGitHubSyncService
     public async Task<(int ReposSynced, int IssuesSynced)> SyncAllAsync(
         string owner, CancellationToken ct = default)
     {
+        ArgumentException.ThrowIfNullOrWhiteSpace(owner);
+
         _logger.LogInformation("Starting full sync for owner: {Owner}", owner);
 
-        var reposSynced = await SyncRepositoriesAsync(owner, ct);
-
-        var totalIssuesSynced = 0;
-        var repositories = await _dbContext.GitHubRepositories
-            .Where(r => r.Owner == owner)
-            .ToListAsync(ct);
-
-        foreach (var repo in repositories)
+        try
         {
-            ct.ThrowIfCancellationRequested();
-            var issuesSynced = await SyncIssuesForRepositoryAsync(repo, ct);
-            totalIssuesSynced += issuesSynced;
+            var reposSynced = await SyncRepositoriesAsync(owner, ct);
+
+            var totalIssuesSynced = 0;
+            var repositories = await _dbContext.GitHubRepositories
+                .Where(r => r.Owner == owner)
+                .ToListAsync(ct);
+
+            foreach (var repo in repositories)
+            {
+                ct.ThrowIfCancellationRequested();
+                try
+                {
+                    var issuesSynced = await SyncIssuesForRepositoryAsync(repo, ct);
+                    totalIssuesSynced += issuesSynced;
+                }
+                catch (RateLimitExceededException)
+                {
+                    _logger.LogWarning(
+                        "Rate limit hit during issue sync for {Repo}. Partial sync completed: {Repos} repos, {Issues} issues",
+                        repo.FullName, reposSynced, totalIssuesSynced);
+                    throw;
+                }
+                catch (ApiException ex)
+                {
+                    _logger.LogError(ex, "Error syncing issues for {Repo}, continuing with next repository",
+                        repo.FullName);
+                    // Continue with next repository instead of failing entire sync
+                }
+            }
+
+            _logger.LogInformation(
+                "Full sync completed for {Owner}: {Repos} repos, {Issues} issues",
+                owner, reposSynced, totalIssuesSynced);
+
+            return (reposSynced, totalIssuesSynced);
         }
-
-        _logger.LogInformation(
-            "Full sync completed for {Owner}: {Repos} repos, {Issues} issues",
-            owner, reposSynced, totalIssuesSynced);
-
-        return (reposSynced, totalIssuesSynced);
+        catch (RateLimitExceededException)
+        {
+            // Already logged in inner methods
+            throw;
+        }
+        catch (ApiException ex)
+        {
+            _logger.LogError(ex, "GitHub API error during full sync for {Owner}: {Message}",
+                owner, ex.Message);
+            throw;
+        }
     }
 
     private async Task<GitHubRepository> UpsertRepositoryAsync(Repository repo, CancellationToken ct)
