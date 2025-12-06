@@ -39,6 +39,11 @@ public class VirtualAssistantDbContext : DbContext
     /// </summary>
     public DbSet<GitHubIssue> GitHubIssues => Set<GitHubIssue>();
 
+    /// <summary>
+    /// Gets or sets the GitHubIssueAgents DbSet for many-to-many relationship.
+    /// </summary>
+    public DbSet<GitHubIssueAgent> GitHubIssueAgents => Set<GitHubIssueAgent>();
+
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {
         base.OnModelCreating(modelBuilder);

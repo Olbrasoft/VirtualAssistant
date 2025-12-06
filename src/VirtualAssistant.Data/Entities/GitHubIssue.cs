@@ -56,4 +56,10 @@ public class GitHubIssue : BaseEnity
     /// Gets or sets the navigation property to the repository.
     /// </summary>
     public GitHubRepository Repository { get; set; } = null!;
+
+    /// <summary>
+    /// Gets or sets the collection of agent assignments for this issue.
+    /// Supports multiple agents: claude, opencode, user.
+    /// </summary>
+    public ICollection<GitHubIssueAgent> Agents { get; set; } = new List<GitHubIssueAgent>();
 }
