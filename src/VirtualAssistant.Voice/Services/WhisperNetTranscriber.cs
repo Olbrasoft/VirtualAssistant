@@ -150,11 +150,18 @@ public class WhisperNetTranscriber : ISpeechTranscriber
                     if (!string.IsNullOrWhiteSpace(segment.Text))
                     {
                         segments.Add(segment.Text.Trim());
-                        _logger.LogDebug("Segment: {Start} -> {End}: {Text}", 
+                        _logger.LogDebug("Segment: {Start} -> {End}: {Text}",
                             segment.Start, segment.End, segment.Text);
                     }
                 }
                 _logger.LogDebug("Whisper processing completed, {Count} segments found", segments.Count);
+            }
+            catch (Exception) when (cancellationToken.IsCancellationRequested)
+            {
+                // When cancelled, Whisper.net throws WhisperProcessingException instead of OperationCanceledException
+                // Re-throw as OperationCanceledException so callers can properly handle cancellation
+                _logger.LogInformation("Whisper processing cancelled by user");
+                throw new OperationCanceledException(cancellationToken);
             }
             catch (Exception procEx)
             {
