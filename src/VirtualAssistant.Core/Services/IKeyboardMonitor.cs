@@ -38,7 +38,14 @@ public interface IKeyboardMonitor : IDisposable
 /// </summary>
 public class KeyEventArgs : EventArgs
 {
+    /// <summary>
+    /// Gets the key code of the pressed or released key.
+    /// </summary>
     public KeyCode Key { get; init; }
+
+    /// <summary>
+    /// Gets a value indicating whether the key is pressed (true) or released (false).
+    /// </summary>
     public bool IsPressed { get; init; }
 }
 
@@ -47,9 +54,18 @@ public class KeyEventArgs : EventArgs
 /// </summary>
 public enum KeyCode
 {
+    /// <summary>Unknown or unsupported key.</summary>
     Unknown = 0,
+
+    /// <summary>Escape key (key code 1).</summary>
+    Escape = 1,
+
+    /// <summary>Caps Lock key (key code 58).</summary>
     CapsLock = 58,
-    ScrollLock = 70,
+
+    /// <summary>Num Lock key (key code 69).</summary>
     NumLock = 69,
-    Escape = 1
+
+    /// <summary>Scroll Lock key (key code 70).</summary>
+    ScrollLock = 70
 }

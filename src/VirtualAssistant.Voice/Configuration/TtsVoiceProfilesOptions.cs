@@ -20,7 +20,7 @@ public class TtsVoiceProfilesOptions
         ["default"] = new("cs-CZ-AntoninNeural", "+20%", "+0%", "+0Hz"),
 
         // OpenCode - faster, higher pitch (energetic)
-        ["opencode"] = new("cs-CZ-AntoninNeural", "+40%", "+0%", "+3st"),
+        ["opencode"] = new("cs-CZ-AntoninNeural", "+25%", "+0%", "+3st"),
 
         // Claude Code - deeper voice, slower (authoritative)
         ["claudecode"] = new("cs-CZ-AntoninNeural", "+5%", "+0%", "-5st"),

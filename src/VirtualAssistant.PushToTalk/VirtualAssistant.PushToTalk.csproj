@@ -6,6 +6,8 @@
     <Nullable>enable</Nullable>
     <RootNamespace>Olbrasoft.VirtualAssistant.PushToTalk</RootNamespace>
     <AssemblyName>Olbrasoft.VirtualAssistant.PushToTalk</AssemblyName>
+    <GenerateDocumentationFile>true</GenerateDocumentationFile>
+    <NoWarn>$(NoWarn);1591</NoWarn>
   </PropertyGroup>
 
   <ItemGroup>

@@ -25,34 +25,68 @@ public interface ILlmRouterService
 }
 
 /// <summary>
-/// Result from LLM Router.
+/// Result from LLM Router containing routing decision and associated data.
 /// </summary>
 public class LlmRouterResult
 {
+    /// <summary>
+    /// Gets a value indicating whether the routing was successful.
+    /// </summary>
     public bool Success { get; init; }
+
+    /// <summary>
+    /// Gets the routing action determined by the LLM.
+    /// </summary>
     public LlmRouterAction Action { get; init; }
+
+    /// <summary>
+    /// Gets the confidence score of the routing decision (0.0 to 1.0).
+    /// </summary>
     public float Confidence { get; init; }
+
+    /// <summary>
+    /// Gets the reason for the routing decision.
+    /// </summary>
     public string? Reason { get; init; }
+
+    /// <summary>
+    /// Gets the response text to speak via TTS (when Action is Respond).
+    /// </summary>
     public string? Response { get; init; }
+
+    /// <summary>
+    /// Gets the command to send to OpenCode (when Action is OpenCode).
+    /// </summary>
     public string? CommandForOpenCode { get; init; }
+
+    /// <summary>
+    /// Gets the bash command to execute (when Action is Bash).
+    /// </summary>
     public string? BashCommand { get; init; }
     
     /// <summary>
-    /// Title for the note (when Action is SaveNote).
+    /// Gets the title for the note (when Action is SaveNote).
     /// </summary>
     public string? NoteTitle { get; init; }
-    
+
     /// <summary>
-    /// Content for the note (when Action is SaveNote).
+    /// Gets the content for the note (when Action is SaveNote).
     /// </summary>
     public string? NoteContent { get; init; }
-    
+
     /// <summary>
-    /// Topic of the discussion (when Action is StartDiscussion).
+    /// Gets the topic of the discussion (when Action is StartDiscussion).
     /// </summary>
     public string? DiscussionTopic { get; init; }
     
+    /// <summary>
+    /// Gets the response time in milliseconds.
+    /// </summary>
     public int ResponseTimeMs { get; init; }
+
+    /// <summary>
+    /// Gets the error message if routing failed.
+    /// </summary>
     public string? ErrorMessage { get; init; }
     
     /// <summary>
@@ -66,6 +100,11 @@ public class LlmRouterResult
     /// </summary>
     public string? ProviderName { get; init; }
 
+    /// <summary>
+    /// Creates a result for ignored input.
+    /// </summary>
+    /// <param name="reason">The reason for ignoring the input.</param>
+    /// <returns>A new <see cref="LlmRouterResult"/> with Action set to Ignore.</returns>
     public static LlmRouterResult Ignored(string reason) => new()
     {
         Success = true,
@@ -75,6 +114,12 @@ public class LlmRouterResult
         ResponseTimeMs = 0
     };
 
+    /// <summary>
+    /// Creates a result for a routing error.
+    /// </summary>
+    /// <param name="message">The error message.</param>
+    /// <param name="responseTimeMs">The response time in milliseconds.</param>
+    /// <returns>A new <see cref="LlmRouterResult"/> indicating failure.</returns>
     public static LlmRouterResult Error(string message, int responseTimeMs) => new()
     {
         Success = false,
