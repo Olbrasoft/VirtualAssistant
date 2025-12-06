@@ -5,7 +5,7 @@ set -e
 # Builds and deploys VirtualAssistant Service
 
 PROJECT_PATH="/home/jirka/Olbrasoft/VirtualAssistant"
-DEPLOY_TARGET="/home/jirka/virtual-assistant"
+DEPLOY_TARGET="/home/jirka/virtual-assistant/main"
 SERVICE_NAME="virtual-assistant.service"
 LOG_SERVICE_NAME="virtual-assistant-logs.service"
 
