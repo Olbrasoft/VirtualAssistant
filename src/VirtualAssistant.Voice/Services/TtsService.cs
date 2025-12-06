@@ -165,15 +165,32 @@ public sealed class TtsService : IDisposable
     private async Task SpeakDirectAsync(string text, string? source, CancellationToken cancellationToken)
     {
         var voiceConfig = GetVoiceConfig(source);
-        
+
         await _playbackLock.WaitAsync(cancellationToken);
         try
         {
+            // CRITICAL: Check lock AGAIN before any playback - user may have started recording
+            if (File.Exists(_micLockFile))
+            {
+                _messageQueue.Enqueue((text, source));
+                _logger.LogInformation("🎤 Lock detected in SpeakDirect - queuing: {Text}", text);
+                return;
+            }
+
             // Check cache first
             var cacheFile = GetCacheFilePath(text, voiceConfig);
             if (File.Exists(cacheFile))
             {
                 _logger.LogDebug("Playing from cache: {Text} (source: {Source})", text, source ?? "default");
+
+                // Check lock before playback
+                if (File.Exists(_micLockFile))
+                {
+                    _messageQueue.Enqueue((text, source));
+                    _logger.LogInformation("🎤 Lock detected before cache playback - queuing: {Text}", text);
+                    return;
+                }
+
                 await PlayAudioAsync(cacheFile, cancellationToken);
                 return;
             }
@@ -190,6 +207,14 @@ public sealed class TtsService : IDisposable
 
             // Save to cache
             await File.WriteAllBytesAsync(cacheFile, audioData, cancellationToken);
+
+            // CRITICAL: Check lock AGAIN before playing - generation may have taken time
+            if (File.Exists(_micLockFile))
+            {
+                _messageQueue.Enqueue((text, source));
+                _logger.LogInformation("🎤 Lock detected after generation - queuing: {Text}", text);
+                return;
+            }
 
             // Play audio
             await PlayAudioAsync(cacheFile, cancellationToken);
@@ -360,7 +385,49 @@ public sealed class TtsService : IDisposable
         try
         {
             process.Start();
-            await process.WaitForExitAsync(cancellationToken);
+
+            // Monitor for speech lock while playing - check every 50ms
+            while (!process.HasExited)
+            {
+                // Check if user started recording (CapsLock pressed)
+                if (File.Exists(_micLockFile))
+                {
+                    _logger.LogInformation("🛑 Speech lock detected during playback - killing ffplay");
+                    try
+                    {
+                        process.Kill();
+                    }
+                    catch
+                    {
+                        // Process may have exited already
+                    }
+                    break;
+                }
+
+                // Wait 50ms before next check, or until process exits
+                try
+                {
+                    await Task.Delay(50, cancellationToken);
+                }
+                catch (OperationCanceledException)
+                {
+                    try
+                    {
+                        process.Kill();
+                    }
+                    catch
+                    {
+                        // Ignore
+                    }
+                    throw;
+                }
+            }
+
+            // Ensure process has exited
+            if (!process.HasExited)
+            {
+                await process.WaitForExitAsync(cancellationToken);
+            }
         }
         finally
         {
