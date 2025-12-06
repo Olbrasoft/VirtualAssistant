@@ -280,6 +280,9 @@ public class Program
         builder.Services.AddHostedService<KeyboardMonitorWorker>();
         builder.Services.AddHostedService<ContinuousListenerWorker>();
 
+        // Startup notification (Phase 1: simple "Systém nastartován")
+        builder.Services.AddHostedService<StartupNotificationService>();
+
         // Add controllers for API endpoints
         builder.Services.AddControllers();
     }
