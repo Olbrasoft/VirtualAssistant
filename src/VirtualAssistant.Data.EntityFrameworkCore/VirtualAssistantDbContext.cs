@@ -60,6 +60,21 @@ public class VirtualAssistantDbContext : DbContext
     /// </summary>
     public DbSet<AgentMessageLog> AgentMessageLogs => Set<AgentMessageLog>();
 
+    /// <summary>
+    /// Gets or sets the Agents DbSet for registered agent workers.
+    /// </summary>
+    public DbSet<Agent> Agents => Set<Agent>();
+
+    /// <summary>
+    /// Gets or sets the AgentTasks DbSet for inter-agent task queue.
+    /// </summary>
+    public DbSet<AgentTask> AgentTasks => Set<AgentTask>();
+
+    /// <summary>
+    /// Gets or sets the AgentTaskSends DbSet for task delivery logs.
+    /// </summary>
+    public DbSet<AgentTaskSend> AgentTaskSends => Set<AgentTaskSend>();
+
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {
         base.OnModelCreating(modelBuilder);
