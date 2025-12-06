@@ -10,6 +10,8 @@ using Olbrasoft.VirtualAssistant.Service.Workers;
 using Olbrasoft.VirtualAssistant.Voice.Similarity;
 using OpenCode.DotnetClient;
 using VirtualAssistant.Data.EntityFrameworkCore;
+using VirtualAssistant.GitHub;
+using VirtualAssistant.GitHub.Services;
 using System.Text.Json.Serialization;
 
 namespace Olbrasoft.VirtualAssistant.Service;
@@ -210,6 +212,9 @@ public class Program
             ?? throw new InvalidOperationException("Connection string 'VirtualAssistantDb' not found.");
         builder.Services.AddVirtualAssistantData(connectionString);
 
+        // Register GitHub sync services
+        builder.Services.AddGitHubServices(builder.Configuration);
+
         // String similarity for echo cancellation
         builder.Services.AddSingleton<IStringSimilarity, LevenshteinSimilarity>();
 
@@ -386,6 +391,70 @@ public class Program
         app.MapGet("/api/mute", () =>
         {
             return Results.Ok(new { muted = muteService.IsMuted });
+        });
+
+        // GitHub Sync endpoints
+        // POST /api/github/sync/{owner}/{repo} - sync single repository
+        app.MapPost("/api/github/sync/{owner}/{repo}", async (
+            string owner,
+            string repo,
+            IGitHubSyncService syncService,
+            ILogger<Program> logger) =>
+        {
+            logger.LogInformation("GitHub sync requested for {Owner}/{Repo}", owner, repo);
+            Console.WriteLine($"\u001b[94;1m🔄 GitHub Sync: {owner}/{repo}\u001b[0m");
+
+            try
+            {
+                var (repoSynced, issuesSynced) = await syncService.SyncRepositoryAsync(owner, repo);
+
+                if (!repoSynced)
+                {
+                    return Results.NotFound(new { error = $"Repository {owner}/{repo} not found" });
+                }
+
+                Console.WriteLine($"\u001b[92;1m✅ Synced: 1 repo, {issuesSynced} issues\u001b[0m");
+                return Results.Ok(new
+                {
+                    success = true,
+                    repository = $"{owner}/{repo}",
+                    issuesSynced
+                });
+            }
+            catch (Exception ex)
+            {
+                logger.LogError(ex, "Error syncing {Owner}/{Repo}", owner, repo);
+                return Results.Problem($"Sync failed: {ex.Message}");
+            }
+        });
+
+        // POST /api/github/sync/{owner} - sync all repositories for owner
+        app.MapPost("/api/github/sync/{owner}", async (
+            string owner,
+            IGitHubSyncService syncService,
+            ILogger<Program> logger) =>
+        {
+            logger.LogInformation("GitHub sync requested for all repos of {Owner}", owner);
+            Console.WriteLine($"\u001b[94;1m🔄 GitHub Sync All: {owner}\u001b[0m");
+
+            try
+            {
+                var (reposSynced, issuesSynced) = await syncService.SyncAllAsync(owner);
+
+                Console.WriteLine($"\u001b[92;1m✅ Synced: {reposSynced} repos, {issuesSynced} issues\u001b[0m");
+                return Results.Ok(new
+                {
+                    success = true,
+                    owner,
+                    repositoriesSynced = reposSynced,
+                    issuesSynced
+                });
+            }
+            catch (Exception ex)
+            {
+                logger.LogError(ex, "Error syncing all repos for {Owner}", owner);
+                return Results.Problem($"Sync failed: {ex.Message}");
+            }
         });
     }
 }
