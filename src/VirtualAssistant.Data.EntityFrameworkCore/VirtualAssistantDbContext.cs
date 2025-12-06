@@ -29,6 +29,16 @@ public class VirtualAssistantDbContext : DbContext
     /// </summary>
     public DbSet<SystemStartup> SystemStartups => Set<SystemStartup>();
 
+    /// <summary>
+    /// Gets or sets the GitHubRepositories DbSet.
+    /// </summary>
+    public DbSet<GitHubRepository> GitHubRepositories => Set<GitHubRepository>();
+
+    /// <summary>
+    /// Gets or sets the GitHubIssues DbSet.
+    /// </summary>
+    public DbSet<GitHubIssue> GitHubIssues => Set<GitHubIssue>();
+
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {
         base.OnModelCreating(modelBuilder);
