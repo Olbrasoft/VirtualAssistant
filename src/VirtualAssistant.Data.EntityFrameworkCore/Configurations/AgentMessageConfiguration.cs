@@ -68,8 +68,8 @@ public class AgentMessageConfiguration : IEntityTypeConfiguration<AgentMessage>
             .HasColumnName("phase")
             .HasConversion<string>()
             .HasMaxLength(20)
-            .IsRequired()
-            .HasDefaultValue(MessagePhase.Complete);
+            .IsRequired();
+            // Note: Database has default 'Complete' from migration, but we always set Phase explicitly in code
 
         builder.Property(m => m.ParentMessageId)
             .HasColumnName("parent_message_id");

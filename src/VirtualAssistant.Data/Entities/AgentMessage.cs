@@ -66,8 +66,9 @@ public class AgentMessage : BaseEnity
 
     /// <summary>
     /// Phase of the message in a task workflow (Start, Progress, Complete).
+    /// Must be explicitly set - no C# default to ensure EF Core always sends the value.
     /// </summary>
-    public MessagePhase Phase { get; set; } = MessagePhase.Complete;
+    public MessagePhase Phase { get; set; }
 
     /// <summary>
     /// Reference to parent message (for linking Progress/Complete to Start).

@@ -46,6 +46,7 @@ public class AgentHubService : IAgentHubService
                 ? JsonSerializer.Serialize(message.Metadata)
                 : null,
             RequiresApproval = message.RequiresApproval,
+            Phase = MessagePhase.Complete, // Regular messages are standalone (not part of task workflow)
             Status = "pending",
             CreatedAt = DateTime.UtcNow
         };
@@ -54,8 +55,8 @@ public class AgentHubService : IAgentHubService
         await _dbContext.SaveChangesAsync(ct);
 
         _logger.LogInformation(
-            "Message sent: {Id} from {Source} to {Target}, type={Type}, requiresApproval={RequiresApproval}",
-            entity.Id, entity.SourceAgent, entity.TargetAgent, entity.MessageType, entity.RequiresApproval);
+            "Message sent: {Id} from {Source} to {Target}, type={Type}, phase={Phase}, requiresApproval={RequiresApproval}",
+            entity.Id, entity.SourceAgent, entity.TargetAgent, entity.MessageType, entity.Phase, entity.RequiresApproval);
 
         // Notify user via TTS
         var notificationText = BuildNotificationText(message);
