@@ -163,10 +163,35 @@ public class AgentHubService : IAgentHubService
         return messages.Select(MapToDto).ToList();
     }
 
-    public async Task<int> StartTaskAsync(string sourceAgent, string content, string? targetAgent = null, CancellationToken ct = default)
+    public async Task<int> StartTaskAsync(string sourceAgent, string content, string? targetAgent = null, string? sessionId = null, CancellationToken ct = default)
     {
         ArgumentException.ThrowIfNullOrWhiteSpace(sourceAgent);
         ArgumentException.ThrowIfNullOrWhiteSpace(content);
+
+        // Check for duplicate Start if sessionId is provided
+        if (!string.IsNullOrEmpty(sessionId))
+        {
+            var existingStart = await _dbContext.AgentMessages
+                .Where(m => m.SessionId == sessionId)
+                .Where(m => m.Phase == MessagePhase.Start)
+                .Where(m => m.ParentMessageId == null) // Root Start message
+                .FirstOrDefaultAsync(ct);
+
+            if (existingStart != null)
+            {
+                // Log the duplicate attempt
+                await LogMessageErrorAsync(sourceAgent, "error",
+                    $"Duplicate Start rejected for session {sessionId}",
+                    new { sessionId, existingStartId = existingStart.Id, content }, ct);
+
+                _logger.LogWarning(
+                    "Duplicate Start rejected: session {SessionId} already has Start message {StartId}",
+                    sessionId, existingStart.Id);
+
+                throw new InvalidOperationException(
+                    $"Session '{sessionId}' already has a Start message (ID: {existingStart.Id}). Only one Start is allowed per session.");
+            }
+        }
 
         var entity = new AgentMessage
         {
@@ -175,6 +200,7 @@ public class AgentHubService : IAgentHubService
             MessageType = "task",
             Content = content,
             Phase = MessagePhase.Start,
+            SessionId = sessionId,
             Status = "active",
             CreatedAt = DateTime.UtcNow
         };
@@ -183,8 +209,8 @@ public class AgentHubService : IAgentHubService
         await _dbContext.SaveChangesAsync(ct);
 
         _logger.LogInformation(
-            "Task started: {Id} by {Source}, content: {Content}",
-            entity.Id, sourceAgent, content);
+            "Task started: {Id} by {Source}, session: {Session}, content: {Content}",
+            entity.Id, sourceAgent, sessionId ?? "(none)", content);
 
         // Notify user via TTS (batched and humanized if service available)
         if (_batchingService != null)
@@ -203,6 +229,31 @@ public class AgentHubService : IAgentHubService
         }
 
         return entity.Id;
+    }
+
+    /// <summary>
+    /// Logs a message error to the agent_message_logs table.
+    /// </summary>
+    private async Task LogMessageErrorAsync(string sourceAgent, string level, string message, object? context, CancellationToken ct)
+    {
+        try
+        {
+            var log = new AgentMessageLog
+            {
+                SourceAgent = sourceAgent,
+                Level = level,
+                Message = message,
+                Context = context != null ? JsonSerializer.Serialize(context) : null,
+                CreatedAt = DateTime.UtcNow
+            };
+
+            _dbContext.AgentMessageLogs.Add(log);
+            await _dbContext.SaveChangesAsync(ct);
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Failed to log message error: {Message}", message);
+        }
     }
 
     public async Task SendProgressAsync(int parentMessageId, string content, CancellationToken ct = default)
@@ -357,6 +408,7 @@ public class AgentHubService : IAgentHubService
             DeliveredAt = entity.DeliveredAt,
             ProcessedAt = entity.ProcessedAt,
             Phase = entity.Phase,
+            SessionId = entity.SessionId,
             ParentMessageId = entity.ParentMessageId
         };
     }

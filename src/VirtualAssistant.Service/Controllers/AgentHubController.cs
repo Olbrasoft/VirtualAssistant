@@ -242,19 +242,32 @@ public class AgentHubController : ControllerBase
     [HttpPost("start")]
     [ProducesResponseType(typeof(StartTaskResponse), StatusCodes.Status201Created)]
     [ProducesResponseType(typeof(ErrorResponse), StatusCodes.Status400BadRequest)]
+    [ProducesResponseType(typeof(ErrorResponse), StatusCodes.Status409Conflict)]
     public async Task<ActionResult<StartTaskResponse>> StartTask(
         [FromBody] StartTaskRequest request,
         CancellationToken ct)
     {
         try
         {
-            var id = await _hubService.StartTaskAsync(request.SourceAgent, request.Content, request.TargetAgent, ct);
-            _logger.LogInformation("Task {Id} started by {Source}", id, request.SourceAgent);
+            var id = await _hubService.StartTaskAsync(
+                request.SourceAgent,
+                request.Content,
+                request.TargetAgent,
+                request.SessionId,
+                ct);
+
+            _logger.LogInformation("Task {Id} started by {Source}, session: {Session}",
+                id, request.SourceAgent, request.SessionId ?? "(none)");
 
             return CreatedAtAction(
                 nameof(GetTaskHistory),
                 new { taskId = id },
                 new StartTaskResponse { MessageId = id });
+        }
+        catch (InvalidOperationException ex) when (ex.Message.Contains("already has a Start"))
+        {
+            _logger.LogWarning(ex, "Duplicate Start rejected for session {Session}", request.SessionId);
+            return Conflict(new ErrorResponse { Error = ex.Message });
         }
         catch (ArgumentException ex)
         {
@@ -407,6 +420,12 @@ public class StartTaskRequest
     /// Optional target agent.
     /// </summary>
     public string? TargetAgent { get; set; }
+
+    /// <summary>
+    /// Optional session identifier for tracking related messages.
+    /// Only one Start is allowed per session.
+    /// </summary>
+    public string? SessionId { get; set; }
 }
 
 /// <summary>

@@ -67,13 +67,16 @@ public interface IAgentHubService
 
     /// <summary>
     /// Start a new task and return its message ID for tracking.
+    /// Only one Start is allowed per session (if sessionId is provided).
     /// </summary>
     /// <param name="sourceAgent">Agent starting the task</param>
     /// <param name="content">Task description</param>
     /// <param name="targetAgent">Optional target agent</param>
+    /// <param name="sessionId">Optional session identifier (prevents duplicate starts)</param>
     /// <param name="ct">Cancellation token</param>
     /// <returns>ID of the start message (used as parent for progress/complete)</returns>
-    Task<int> StartTaskAsync(string sourceAgent, string content, string? targetAgent = null, CancellationToken ct = default);
+    /// <exception cref="InvalidOperationException">Thrown if session already has a Start message</exception>
+    Task<int> StartTaskAsync(string sourceAgent, string content, string? targetAgent = null, string? sessionId = null, CancellationToken ct = default);
 
     /// <summary>
     /// Send a progress update for an ongoing task.

@@ -55,6 +55,11 @@ public class VirtualAssistantDbContext : DbContext
     /// </summary>
     public DbSet<AgentMessage> AgentMessages => Set<AgentMessage>();
 
+    /// <summary>
+    /// Gets or sets the AgentMessageLogs DbSet for hub message logging.
+    /// </summary>
+    public DbSet<AgentMessageLog> AgentMessageLogs => Set<AgentMessageLog>();
+
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {
         base.OnModelCreating(modelBuilder);

@@ -71,6 +71,12 @@ public class AgentMessage : BaseEnity
     public MessagePhase Phase { get; set; }
 
     /// <summary>
+    /// Session identifier for tracking related messages across a workflow.
+    /// Optional - allows grouping messages by session.
+    /// </summary>
+    public string? SessionId { get; set; }
+
+    /// <summary>
     /// Reference to parent message (for linking Progress/Complete to Start).
     /// </summary>
     public int? ParentMessageId { get; set; }

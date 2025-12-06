@@ -26,6 +26,11 @@ public class AgentMessageDto
     public MessagePhase Phase { get; set; } = MessagePhase.Complete;
 
     /// <summary>
+    /// Session identifier for tracking related messages.
+    /// </summary>
+    public string? SessionId { get; set; }
+
+    /// <summary>
     /// Reference to parent message ID (for Progress/Complete messages).
     /// </summary>
     public int? ParentMessageId { get; set; }

@@ -71,6 +71,10 @@ public class AgentMessageConfiguration : IEntityTypeConfiguration<AgentMessage>
             .IsRequired();
             // Note: Database has default 'Complete' from migration, but we always set Phase explicitly in code
 
+        builder.Property(m => m.SessionId)
+            .HasColumnName("session_id")
+            .HasMaxLength(100);
+
         builder.Property(m => m.ParentMessageId)
             .HasColumnName("parent_message_id");
 
@@ -100,5 +104,9 @@ public class AgentMessageConfiguration : IEntityTypeConfiguration<AgentMessage>
         // Index for finding active tasks (Start phase without Complete)
         builder.HasIndex(m => new { m.SourceAgent, m.Phase })
             .HasDatabaseName("ix_agent_messages_source_phase");
+
+        // Index for querying messages by session
+        builder.HasIndex(m => m.SessionId)
+            .HasDatabaseName("ix_agent_messages_session");
     }
 }
