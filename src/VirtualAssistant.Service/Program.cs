@@ -273,10 +273,16 @@ public class Program
         // Background workers
         builder.Services.AddHostedService<KeyboardMonitorWorker>();
         builder.Services.AddHostedService<ContinuousListenerWorker>();
+
+        // Add controllers for API endpoints
+        builder.Services.AddControllers();
     }
 
     private static void ConfigureEndpoints(WebApplication app)
     {
+        // Map controller endpoints
+        app.MapControllers();
+
         var speechTracker = app.Services.GetRequiredService<AssistantSpeechTrackerService>();
 
         // Called by TTS MCP server when it starts speaking
