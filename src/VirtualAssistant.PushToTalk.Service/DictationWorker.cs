@@ -351,6 +351,10 @@ public class DictationWorker : BackgroundService
                 catch (OperationCanceledException)
                 {
                     _logger.LogInformation("Transcription cancelled by user (Escape key pressed)");
+
+                    // Play tear paper sound to indicate cancellation
+                    _ = Task.Run(async () => await _typingSoundPlayer.PlayTearPaperAsync());
+
                     await _pttNotifier.NotifyTranscriptionFailedAsync("Transcription cancelled");
                 }
                 finally
@@ -363,6 +367,10 @@ public class DictationWorker : BackgroundService
             else
             {
                 _logger.LogWarning("No audio data recorded");
+
+                // Play tear paper sound to indicate nothing was recorded
+                _ = Task.Run(async () => await _typingSoundPlayer.PlayTearPaperAsync());
+
                 await _pttNotifier.NotifyTranscriptionFailedAsync("No audio data recorded");
             }
         }
