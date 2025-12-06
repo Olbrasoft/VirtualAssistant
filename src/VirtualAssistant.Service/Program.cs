@@ -276,6 +276,10 @@ public class Program
         // TTS Notification Service (wrapper for Core → Voice dependency inversion)
         builder.Services.AddSingleton<ITtsNotificationService, TtsNotificationService>();
 
+        // Notification humanization and batching services
+        builder.Services.AddSingleton<IHumanizationService, HumanizationService>();
+        builder.Services.AddSingleton<INotificationBatchingService, NotificationBatchingService>();
+
         // Background workers
         builder.Services.AddHostedService<KeyboardMonitorWorker>();
         builder.Services.AddHostedService<ContinuousListenerWorker>();
