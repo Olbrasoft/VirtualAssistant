@@ -118,7 +118,7 @@ public partial class AgentTaskService : IAgentTaskService
         var task = await GetTaskEntityAsync(taskId, ct)
             ?? throw new KeyNotFoundException($"Task {taskId} not found");
 
-        if (task.Status is not ("pending" or "approved"))
+        if (task.Status is not ("pending" or "approved" or "notified"))
         {
             throw new InvalidOperationException($"Cannot cancel task with status '{task.Status}'");
         }
@@ -271,6 +271,116 @@ public partial class AgentTaskService : IAgentTaskService
             taskId, deliveryMethod);
     }
 
+    public async Task MarkNotifiedAsync(int taskId, CancellationToken ct = default)
+    {
+        var task = await GetTaskEntityAsync(taskId, ct)
+            ?? throw new KeyNotFoundException($"Task {taskId} not found");
+
+        if (task.Status is not ("pending" or "approved"))
+        {
+            throw new InvalidOperationException($"Cannot notify task with status '{task.Status}'");
+        }
+
+        task.Status = "notified";
+        task.NotifiedAt = DateTime.UtcNow;
+        await _dbContext.SaveChangesAsync(ct);
+
+        _logger.LogInformation("Task {Id} marked as notified", taskId);
+    }
+
+    public async Task<IReadOnlyList<AgentTaskDto>> GetNotifiedTasksAsync(string agentName, CancellationToken ct = default)
+    {
+        ArgumentException.ThrowIfNullOrWhiteSpace(agentName);
+
+        var agent = await GetAgentByNameAsync(agentName, ct);
+        if (agent == null)
+        {
+            return [];
+        }
+
+        var tasks = await _dbContext.AgentTasks
+            .Include(t => t.CreatedByAgent)
+            .Include(t => t.TargetAgent)
+            .Where(t => t.TargetAgentId == agent.Id)
+            .Where(t => t.Status == "notified")
+            .OrderBy(t => t.NotifiedAt)
+            .ToListAsync(ct);
+
+        return tasks.Select(t => MapToDto(t, t.CreatedByAgent?.Name, t.TargetAgent?.Name)).ToList();
+    }
+
+    public async Task<string> AcceptTaskAsync(int taskId, CancellationToken ct = default)
+    {
+        var task = await _dbContext.AgentTasks
+            .Include(t => t.CreatedByAgent)
+            .Include(t => t.TargetAgent)
+            .FirstOrDefaultAsync(t => t.Id == taskId, ct)
+            ?? throw new KeyNotFoundException($"Task {taskId} not found");
+
+        if (task.Status != "notified")
+        {
+            throw new InvalidOperationException($"Cannot accept task with status '{task.Status}'. Task must be in 'notified' status.");
+        }
+
+        // Build the prompt
+        var prompt = BuildTaskPrompt(task);
+
+        // Mark task as sent (via pull-based delivery)
+        task.Status = "sent";
+        task.SentAt = DateTime.UtcNow;
+
+        // Log the delivery
+        if (task.TargetAgentId.HasValue)
+        {
+            var sendLog = new AgentTaskSend
+            {
+                TaskId = taskId,
+                AgentId = task.TargetAgentId.Value,
+                SentAt = DateTime.UtcNow,
+                DeliveryMethod = "pull_api",
+                Response = "Task accepted via API"
+            };
+            _dbContext.AgentTaskSends.Add(sendLog);
+        }
+
+        await _dbContext.SaveChangesAsync(ct);
+
+        _logger.LogInformation("Task {Id} accepted by {Agent} via pull API", taskId, task.TargetAgent?.Name);
+
+        return prompt;
+    }
+
+    private static string BuildTaskPrompt(AgentTask task)
+    {
+        return task.TargetAgent?.Name.ToLowerInvariant() switch
+        {
+            "claude" => $"""
+                Nový úkol k implementaci:
+                {task.Summary}
+
+                Issue: {task.GithubIssueUrl}
+
+                Přečti si issue pro detaily, implementuj, otestuj, nasaď.
+                """,
+
+            "opencode" => $"""
+                Claude dokončil implementaci:
+                {task.Summary}
+
+                Issue: {task.GithubIssueUrl}
+
+                Otestuj funkčnost s uživatelem. Pokud je potřeba restart služby, požádej uživatele.
+                """,
+
+            _ => $"""
+                Nový úkol:
+                {task.Summary}
+
+                Issue: {task.GithubIssueUrl}
+                """
+        };
+    }
+
     private async Task<Agent?> GetAgentByNameAsync(string name, CancellationToken ct)
     {
         return await _dbContext.Agents
@@ -305,6 +415,7 @@ public partial class AgentTaskService : IAgentTaskService
             Result = entity.Result,
             CreatedAt = entity.CreatedAt,
             ApprovedAt = entity.ApprovedAt,
+            NotifiedAt = entity.NotifiedAt,
             SentAt = entity.SentAt,
             CompletedAt = entity.CompletedAt
         };

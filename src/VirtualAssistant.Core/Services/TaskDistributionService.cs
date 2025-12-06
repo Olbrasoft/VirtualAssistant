@@ -86,6 +86,51 @@ public class TaskDistributionService : BackgroundService
             return;
         }
 
+        var targetAgentLower = task.TargetAgent.ToLowerInvariant();
+
+        // OpenCode uses pull-based delivery: only notify, don't auto-send
+        if (targetAgentLower == "opencode")
+        {
+            await NotifyAgentAsync(task, taskService, ttsService, ct);
+            return;
+        }
+
+        // Claude and other agents use push-based delivery: auto-send via hub
+        await PushTaskToAgentAsync(task, taskService, hubService, ttsService, ct);
+    }
+
+    /// <summary>
+    /// Notify agent about pending task (pull-based delivery for OpenCode).
+    /// Agent must call AcceptTask to receive the task prompt.
+    /// </summary>
+    private async Task NotifyAgentAsync(
+        AgentTaskDto task,
+        IAgentTaskService taskService,
+        ITtsNotificationService ttsService,
+        CancellationToken ct)
+    {
+        // Mark task as notified
+        await taskService.MarkNotifiedAsync(task.Id, ct);
+
+        // Notify user via TTS
+        var notification = $"Máš nový úkol od Clauda: issue {task.GithubIssueNumber}.";
+        await ttsService.SpeakAsync(notification, source: "assistant", ct);
+
+        _logger.LogInformation(
+            "Task {TaskId} notified to {Agent} (pull-based delivery)",
+            task.Id, task.TargetAgent);
+    }
+
+    /// <summary>
+    /// Push task directly to agent via hub (for Claude and other agents).
+    /// </summary>
+    private async Task PushTaskToAgentAsync(
+        AgentTaskDto task,
+        IAgentTaskService taskService,
+        IAgentHubService hubService,
+        ITtsNotificationService ttsService,
+        CancellationToken ct)
+    {
         // Build the prompt based on target agent
         var prompt = BuildTaskPrompt(task);
 
@@ -94,7 +139,7 @@ public class TaskDistributionService : BackgroundService
         var messageId = await hubService.StartTaskAsync(
             sourceAgent: "virtualassistant",
             content: prompt,
-            targetAgent: task.TargetAgent,
+            targetAgent: task.TargetAgent!,
             sessionId: sessionId,
             ct: ct);
 
@@ -106,13 +151,7 @@ public class TaskDistributionService : BackgroundService
             ct);
 
         // Notify user via TTS
-        var notification = task.TargetAgent.ToLowerInvariant() switch
-        {
-            "claude" => $"Posílám úkol Claudovi: issue {task.GithubIssueNumber}.",
-            "opencode" => $"Posílám úkol OpenCode: issue {task.GithubIssueNumber}.",
-            _ => $"Posílám úkol pro {task.TargetAgent}."
-        };
-
+        var notification = $"Posílám úkol Claudovi: issue {task.GithubIssueNumber}.";
         await ttsService.SpeakAsync(notification, source: "assistant", ct);
 
         _logger.LogInformation(
@@ -131,15 +170,6 @@ public class TaskDistributionService : BackgroundService
                 Issue: {task.GithubIssueUrl}
 
                 Přečti si issue pro detaily, implementuj, otestuj, nasaď.
-                """,
-
-            "opencode" => $"""
-                Claude dokončil implementaci:
-                {task.Summary}
-
-                Issue: {task.GithubIssueUrl}
-
-                Otestuj funkčnost s uživatelem. Pokud je potřeba restart služby, požádej uživatele.
                 """,
 
             _ => $"""

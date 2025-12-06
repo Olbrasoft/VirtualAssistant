@@ -93,4 +93,29 @@ public interface IAgentTaskService
     /// <param name="response">Response from delivery</param>
     /// <param name="ct">Cancellation token</param>
     Task MarkSentAsync(int taskId, string deliveryMethod, string? response = null, CancellationToken ct = default);
+
+    /// <summary>
+    /// Mark task as notified (agent was notified but hasn't pulled the task yet).
+    /// Used for pull-based delivery (e.g., OpenCode).
+    /// </summary>
+    /// <param name="taskId">Task ID</param>
+    /// <param name="ct">Cancellation token</param>
+    Task MarkNotifiedAsync(int taskId, CancellationToken ct = default);
+
+    /// <summary>
+    /// Get tasks that have been notified to an agent but not yet pulled.
+    /// </summary>
+    /// <param name="agentName">Agent name</param>
+    /// <param name="ct">Cancellation token</param>
+    /// <returns>List of notified tasks</returns>
+    Task<IReadOnlyList<AgentTaskDto>> GetNotifiedTasksAsync(string agentName, CancellationToken ct = default);
+
+    /// <summary>
+    /// Accept a notified task and send it via hub.
+    /// Called when agent is ready to receive the task.
+    /// </summary>
+    /// <param name="taskId">Task ID</param>
+    /// <param name="ct">Cancellation token</param>
+    /// <returns>The task prompt content</returns>
+    Task<string> AcceptTaskAsync(int taskId, CancellationToken ct = default);
 }

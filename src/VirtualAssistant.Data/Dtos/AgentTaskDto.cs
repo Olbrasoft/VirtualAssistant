@@ -36,7 +36,7 @@ public class AgentTaskDto
     public string? TargetAgent { get; set; }
 
     /// <summary>
-    /// Task status: "pending", "approved", "sent", "completed", "cancelled".
+    /// Task status: "pending", "approved", "notified", "sent", "completed", "cancelled".
     /// </summary>
     public string Status { get; set; } = "pending";
 
@@ -59,6 +59,11 @@ public class AgentTaskDto
     /// When the user approved the task.
     /// </summary>
     public DateTime? ApprovedAt { get; set; }
+
+    /// <summary>
+    /// When the agent was notified about the task (for pull-based delivery).
+    /// </summary>
+    public DateTime? NotifiedAt { get; set; }
 
     /// <summary>
     /// When the task was sent to the target agent.

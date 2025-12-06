@@ -241,6 +241,51 @@ public class TaskQueueController : ControllerBase
         var tasks = await _taskService.GetReadyToSendAsync(ct);
         return Ok(tasks);
     }
+
+    /// <summary>
+    /// Get notified tasks for a specific agent (pull-based delivery).
+    /// Returns tasks that have been notified to the agent but not yet accepted.
+    /// </summary>
+    /// <param name="agent">Agent name</param>
+    /// <param name="ct">Cancellation token</param>
+    /// <returns>List of notified tasks</returns>
+    [HttpGet("notified/{agent}")]
+    [ProducesResponseType(typeof(IEnumerable<AgentTaskDto>), StatusCodes.Status200OK)]
+    public async Task<ActionResult<IEnumerable<AgentTaskDto>>> GetNotifiedTasks(string agent, CancellationToken ct)
+    {
+        var tasks = await _taskService.GetNotifiedTasksAsync(agent, ct);
+        return Ok(tasks);
+    }
+
+    /// <summary>
+    /// Accept a notified task and receive the task prompt (pull-based delivery).
+    /// Called by agent when ready to process a previously notified task.
+    /// After accepting, the task transitions to 'sent' status via hub.
+    /// </summary>
+    /// <param name="taskId">Task ID</param>
+    /// <param name="ct">Cancellation token</param>
+    /// <returns>Task prompt content</returns>
+    [HttpPost("{taskId:int}/accept")]
+    [ProducesResponseType(typeof(TaskAcceptResponse), StatusCodes.Status200OK)]
+    [ProducesResponseType(typeof(ErrorResponse), StatusCodes.Status400BadRequest)]
+    [ProducesResponseType(typeof(ErrorResponse), StatusCodes.Status404NotFound)]
+    public async Task<ActionResult<TaskAcceptResponse>> AcceptTask(int taskId, CancellationToken ct)
+    {
+        try
+        {
+            var prompt = await _taskService.AcceptTaskAsync(taskId, ct);
+            _logger.LogInformation("Task {Id} accepted", taskId);
+            return Ok(new TaskAcceptResponse { TaskId = taskId, Prompt = prompt });
+        }
+        catch (KeyNotFoundException ex)
+        {
+            return NotFound(new ErrorResponse { Error = ex.Message });
+        }
+        catch (InvalidOperationException ex)
+        {
+            return BadRequest(new ErrorResponse { Error = ex.Message });
+        }
+    }
 }
 
 /// <summary>
@@ -268,4 +313,20 @@ public class AgentIdleResponse
     /// Whether the agent is idle.
     /// </summary>
     public bool IsIdle { get; set; }
+}
+
+/// <summary>
+/// Response model for accepting a task.
+/// </summary>
+public class TaskAcceptResponse
+{
+    /// <summary>
+    /// Task ID that was accepted.
+    /// </summary>
+    public int TaskId { get; set; }
+
+    /// <summary>
+    /// The task prompt content for the agent to process.
+    /// </summary>
+    public string Prompt { get; set; } = string.Empty;
 }
