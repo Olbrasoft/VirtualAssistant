@@ -59,9 +59,11 @@ public class RepeatTextIntentService : IRepeatTextIntentService
 
     /// <summary>
     /// Phrases that indicate clipboard/repeat intent.
+    /// Includes common Whisper transcription variants.
     /// </summary>
     private static readonly string[] TargetPhrases =
     [
+        // Standard phrases
         "vrať mi to do schránky",
         "vrať to do schránky",
         "dej to do schránky",
@@ -69,13 +71,23 @@ public class RepeatTextIntentService : IRepeatTextIntentService
         "vrať mi to",
         "dej mi to zpátky",
         "znovu do schránky",
-        "opakuj do schránky"
+        "opakuj do schránky",
+        // Short variants (better for fuzzy matching)
+        "do schránky",
+        "schránka",
+        // Common Whisper misrecognitions
+        "bred mi to do schránky",
+        "vrech mi to do schránky",
+        "rektor schránky",
+        "vraťte do schránky",
+        "vrátněte do schránky"
     ];
 
     /// <summary>
-    /// Minimum similarity threshold (0.85 = 85%).
+    /// Minimum similarity threshold (0.65 = 65%).
+    /// Lowered to accommodate Whisper transcription errors.
     /// </summary>
-    private const double SimilarityThreshold = 0.85;
+    private const double SimilarityThreshold = 0.65;
 
     public RepeatTextIntentService(
         ILogger<RepeatTextIntentService> logger,
