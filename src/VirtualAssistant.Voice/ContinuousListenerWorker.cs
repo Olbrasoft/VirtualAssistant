@@ -69,22 +69,7 @@ public class ContinuousListenerWorker : BackgroundService
         "kencel"  // Possible Whisper transcription variant
     };
 
-    // Dynamic TTS responses for clipboard confirmation (Issue #68)
-    private static readonly string[] ClipboardConfirmationPhrases =
-    [
-        "Text je ve schránce.",
-        "Máš to ve schránce.",
-        "Zkopírováno.",
-        "Hotovo, text je připravený.",
-        "Je to tam.",
-        "Schránka je připravena.",
-        "Text zkopírován.",
-        "Připraveno k vložení.",
-        "Máš to.",
-        "V pohodě, je to ve schránce."
-    ];
-    
-    private static readonly Random _phraseRandom = new();
+
 
     public ContinuousListenerWorker(
         ILogger<ContinuousListenerWorker> logger,
@@ -585,8 +570,8 @@ public class ContinuousListenerWorker : BackgroundService
                 
                 Console.WriteLine($"\u001b[92;1m✓ Text copied to clipboard: \"{result?.Text?.Substring(0, Math.Min(50, result?.Text?.Length ?? 0))}...\"\u001b[0m");
                 
-                // TTS confirmation with random phrase (Issue #68)
-                var phrase = ClipboardConfirmationPhrases[_phraseRandom.Next(ClipboardConfirmationPhrases.Length)];
+                // TTS confirmation with random phrase (Issue #68, #115)
+                var phrase = _repeatTextIntent.GetRandomClipboardResponse();
                 await _ttsService.SpeakAsync(phrase, source: null, cancellationToken);
             }
             else if (response.StatusCode == System.Net.HttpStatusCode.NotFound)

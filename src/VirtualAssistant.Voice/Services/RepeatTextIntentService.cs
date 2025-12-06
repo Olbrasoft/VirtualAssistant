@@ -1,16 +1,12 @@
 using System.Diagnostics;
-using System.Net.Http.Json;
-using System.Text;
-using System.Text.Json;
-using System.Text.Json.Serialization;
-using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.Logging;
+using Olbrasoft.VirtualAssistant.Voice.Similarity;
 
 namespace Olbrasoft.VirtualAssistant.Voice.Services;
 
 /// <summary>
-/// Service for detecting "repeat last text" intent using LLM.
-/// Uses Mistral API for fast, simple intent detection.
+/// Service for detecting "repeat last text" intent using fuzzy string matching.
+/// No LLM calls - fast, deterministic, works offline.
 /// </summary>
 public interface IRepeatTextIntentService
 {
@@ -21,6 +17,11 @@ public interface IRepeatTextIntentService
     /// <param name="cancellationToken">Cancellation token</param>
     /// <returns>True if user wants to repeat text, false otherwise</returns>
     Task<RepeatTextIntentResult> DetectIntentAsync(string inputText, CancellationToken cancellationToken = default);
+
+    /// <summary>
+    /// Gets a random response message for clipboard confirmation.
+    /// </summary>
+    string GetRandomClipboardResponse();
 }
 
 /// <summary>
@@ -46,208 +47,121 @@ public record RepeatTextIntentResult
 }
 
 /// <summary>
-/// Implementation using Mistral API for intent detection.
+/// Implementation using fuzzy string matching for intent detection.
+/// Matches against known phrases like "vrať mi to do schránky".
 /// </summary>
 public class RepeatTextIntentService : IRepeatTextIntentService
 {
     private readonly ILogger<RepeatTextIntentService> _logger;
-    private readonly HttpClient _httpClient;
+    private readonly IStringSimilarity _similarity;
     private readonly IPromptLoader _promptLoader;
-    private readonly string _model;
+    private readonly string[] _clipboardResponses;
+
+    /// <summary>
+    /// Phrases that indicate clipboard/repeat intent.
+    /// </summary>
+    private static readonly string[] TargetPhrases =
+    [
+        "vrať mi to do schránky",
+        "vrať to do schránky",
+        "dej to do schránky",
+        "zkopíruj to do schránky",
+        "vrať mi to",
+        "dej mi to zpátky",
+        "znovu do schránky",
+        "opakuj do schránky"
+    ];
+
+    /// <summary>
+    /// Minimum similarity threshold (0.85 = 85%).
+    /// </summary>
+    private const double SimilarityThreshold = 0.85;
 
     public RepeatTextIntentService(
         ILogger<RepeatTextIntentService> logger,
-        HttpClient httpClient,
-        IConfiguration configuration,
+        IStringSimilarity similarity,
         IPromptLoader promptLoader)
     {
         _logger = logger;
-        _httpClient = httpClient;
+        _similarity = similarity;
         _promptLoader = promptLoader;
 
-        // Use fast model for simple intent detection
-        _model = configuration["RepeatTextIntent:Model"] ?? "mistral-small-latest";
+        // Load clipboard responses from prompt file
+        try
+        {
+            var responsesContent = _promptLoader.LoadPrompt("ClipboardResponses");
+            _clipboardResponses = responsesContent
+                .Split('\n', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries)
+                .Where(line => !string.IsNullOrWhiteSpace(line))
+                .ToArray();
 
-        // Configure HTTP client for Mistral API
-        var apiKey = Environment.GetEnvironmentVariable("MISTRAL_API_KEY")
-                  ?? configuration["MistralRouter:ApiKey"]
-                  ?? "";
-
-        _httpClient.BaseAddress = new Uri("https://api.mistral.ai/v1/");
-        _httpClient.DefaultRequestHeaders.Add("Authorization", $"Bearer {apiKey}");
-        _httpClient.Timeout = TimeSpan.FromSeconds(10); // Fast timeout for intent detection
-
-        var hasKey = !string.IsNullOrEmpty(apiKey);
-        _logger.LogInformation("RepeatTextIntentService initialized with model {Model}, API key: {HasKey}",
-            _model, hasKey ? "configured" : "MISSING");
+            _logger.LogInformation(
+                "RepeatTextIntentService initialized with fuzzy matching (threshold: {Threshold}%), {ResponseCount} responses loaded",
+                SimilarityThreshold * 100,
+                _clipboardResponses.Length);
+        }
+        catch (FileNotFoundException)
+        {
+            _logger.LogWarning("ClipboardResponses.md not found, using default responses");
+            _clipboardResponses = ["Hotovo.", "Ok, je to tam.", "Zkopírováno."];
+        }
     }
 
-    public async Task<RepeatTextIntentResult> DetectIntentAsync(string inputText, CancellationToken cancellationToken = default)
+    public Task<RepeatTextIntentResult> DetectIntentAsync(string inputText, CancellationToken cancellationToken = default)
     {
         if (string.IsNullOrWhiteSpace(inputText))
         {
-            return RepeatTextIntentResult.NotRepeat("Empty input");
+            return Task.FromResult(RepeatTextIntentResult.NotRepeat("Empty input"));
         }
 
         var stopwatch = Stopwatch.StartNew();
 
-        try
+        var normalizedInput = inputText.Trim().ToLowerInvariant();
+
+        // Find best matching phrase
+        var bestMatch = TargetPhrases
+            .Select(phrase => new
+            {
+                Phrase = phrase,
+                Similarity = _similarity.Similarity(normalizedInput, phrase)
+            })
+            .MaxBy(x => x.Similarity);
+
+        stopwatch.Stop();
+        var elapsedMs = (int)stopwatch.ElapsedMilliseconds;
+
+        if (bestMatch != null && bestMatch.Similarity >= SimilarityThreshold)
         {
-            // Load prompt template
-            string systemPrompt;
-            try
-            {
-                systemPrompt = _promptLoader.LoadPrompt("RepeatTextIntent");
-            }
-            catch (FileNotFoundException)
-            {
-                _logger.LogError("RepeatTextIntent prompt not found");
-                return RepeatTextIntentResult.Error("Prompt not found");
-            }
+            _logger.LogInformation(
+                "Repeat text intent DETECTED: '{Input}' matches '{Phrase}' with {Similarity:P0} similarity ({ElapsedMs}ms)",
+                inputText, bestMatch.Phrase, bestMatch.Similarity, elapsedMs);
 
-            var userMessage = $"Analyzuj text: \"{inputText}\"";
-
-            var request = new LlmRequest
-            {
-                Model = _model,
-                Messages =
-                [
-                    new LlmMessage { Role = "system", Content = systemPrompt },
-                    new LlmMessage { Role = "user", Content = userMessage }
-                ],
-                Temperature = 0.1f, // Low temperature for deterministic responses
-                MaxTokens = 128 // Short response expected
-            };
-
-            _logger.LogDebug("Checking repeat text intent for: {Input}", inputText);
-
-            var requestJson = JsonSerializer.Serialize(request);
-            using var requestContent = new StringContent(requestJson, Encoding.UTF8, "application/json");
-            var response = await _httpClient.PostAsync("chat/completions", requestContent, cancellationToken);
-
-            if (response.StatusCode == System.Net.HttpStatusCode.TooManyRequests)
-            {
-                stopwatch.Stop();
-                _logger.LogWarning("Rate limited during intent detection");
-                // On rate limit, assume it's not a repeat intent to allow normal flow
-                return RepeatTextIntentResult.NotRepeat("Rate limited - defaulting to normal flow", (int)stopwatch.ElapsedMilliseconds);
-            }
-
-            response.EnsureSuccessStatusCode();
-
-            var llmResponse = await response.Content.ReadFromJsonAsync<LlmResponse>(cancellationToken: cancellationToken);
-            stopwatch.Stop();
-
-            var content = llmResponse?.Choices?.FirstOrDefault()?.Message?.Content;
-            if (string.IsNullOrEmpty(content))
-            {
-                _logger.LogWarning("Empty response from LLM during intent detection");
-                return RepeatTextIntentResult.NotRepeat("Empty LLM response", (int)stopwatch.ElapsedMilliseconds);
-            }
-
-            // Parse JSON response
-            return ParseResponse(content, (int)stopwatch.ElapsedMilliseconds);
+            return Task.FromResult(RepeatTextIntentResult.Repeat(
+                (float)bestMatch.Similarity,
+                $"Matches '{bestMatch.Phrase}'",
+                elapsedMs));
         }
-        catch (TaskCanceledException)
+
+        _logger.LogDebug(
+            "No repeat intent: '{Input}' best match '{Phrase}' with {Similarity:P0} (threshold: {Threshold:P0}, {ElapsedMs}ms)",
+            inputText,
+            bestMatch?.Phrase ?? "none",
+            bestMatch?.Similarity ?? 0,
+            SimilarityThreshold,
+            elapsedMs);
+
+        return Task.FromResult(RepeatTextIntentResult.NotRepeat(
+            bestMatch != null ? $"Best match '{bestMatch.Phrase}' at {bestMatch.Similarity:P0}" : "No match",
+            elapsedMs));
+    }
+
+    public string GetRandomClipboardResponse()
+    {
+        if (_clipboardResponses.Length == 0)
         {
-            stopwatch.Stop();
-            _logger.LogWarning("Intent detection timed out");
-            return RepeatTextIntentResult.NotRepeat("Timeout", (int)stopwatch.ElapsedMilliseconds);
+            return "Hotovo.";
         }
-        catch (Exception ex)
-        {
-            stopwatch.Stop();
-            _logger.LogError(ex, "Error during intent detection");
-            // On error, default to normal flow
-            return RepeatTextIntentResult.NotRepeat($"Error: {ex.Message}", (int)stopwatch.ElapsedMilliseconds);
-        }
+
+        return _clipboardResponses[Random.Shared.Next(_clipboardResponses.Length)];
     }
-
-    private RepeatTextIntentResult ParseResponse(string content, int responseTimeMs)
-    {
-        try
-        {
-            // Clean up content - remove markdown code blocks if present
-            var json = content.Trim();
-            if (json.StartsWith("```"))
-            {
-                var lines = json.Split('\n');
-                json = string.Join("\n", lines.Skip(1).TakeWhile(l => !l.StartsWith("```")));
-            }
-
-            var parsed = JsonSerializer.Deserialize<RepeatTextIntentResponseDto>(json, new JsonSerializerOptions
-            {
-                PropertyNameCaseInsensitive = true
-            });
-
-            if (parsed == null)
-            {
-                return RepeatTextIntentResult.NotRepeat("Failed to parse JSON", responseTimeMs);
-            }
-
-            if (parsed.IsRepeatTextIntent)
-            {
-                return RepeatTextIntentResult.Repeat(parsed.Confidence, parsed.Reason, responseTimeMs);
-            }
-
-            return RepeatTextIntentResult.NotRepeat(parsed.Reason, responseTimeMs);
-        }
-        catch (JsonException ex)
-        {
-            _logger.LogWarning(ex, "Failed to parse intent response: {Content}", content);
-            return RepeatTextIntentResult.NotRepeat($"JSON parse error: {ex.Message}", responseTimeMs);
-        }
-    }
-
-    #region DTOs
-
-    private class LlmRequest
-    {
-        [JsonPropertyName("model")]
-        public required string Model { get; set; }
-
-        [JsonPropertyName("messages")]
-        public required LlmMessage[] Messages { get; set; }
-
-        [JsonPropertyName("temperature")]
-        public float Temperature { get; set; }
-
-        [JsonPropertyName("max_tokens")]
-        public int MaxTokens { get; set; }
-    }
-
-    private class LlmMessage
-    {
-        [JsonPropertyName("role")]
-        public required string Role { get; set; }
-
-        [JsonPropertyName("content")]
-        public required string Content { get; set; }
-    }
-
-    private class LlmResponse
-    {
-        [JsonPropertyName("choices")]
-        public LlmChoice[]? Choices { get; set; }
-    }
-
-    private class LlmChoice
-    {
-        [JsonPropertyName("message")]
-        public LlmMessage? Message { get; set; }
-    }
-
-    private class RepeatTextIntentResponseDto
-    {
-        [JsonPropertyName("is_repeat_text_intent")]
-        public bool IsRepeatTextIntent { get; set; }
-
-        [JsonPropertyName("confidence")]
-        public float Confidence { get; set; }
-
-        [JsonPropertyName("reason")]
-        public string? Reason { get; set; }
-    }
-
-    #endregion
 }
