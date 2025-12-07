@@ -545,6 +545,146 @@ public class AgentHubController : ControllerBase
             return BadRequest(new ErrorResponse { Error = $"Clipboard operation failed: {ex.Message}" });
         }
     }
+
+    /// <summary>
+    /// Queue a task for another agent.
+    /// Simplified endpoint for MCP tool usage - no header required.
+    /// </summary>
+    /// <param name="request">Task details</param>
+    /// <param name="ct">Cancellation token</param>
+    /// <returns>Task ID and confirmation</returns>
+    /// <response code="200">Task queued successfully</response>
+    /// <response code="400">Invalid request data</response>
+    [HttpPost("send-task")]
+    [ProducesResponseType(typeof(SendTaskResponse), StatusCodes.Status200OK)]
+    [ProducesResponseType(typeof(ErrorResponse), StatusCodes.Status400BadRequest)]
+    public async Task<ActionResult<SendTaskResponse>> SendTask(
+        [FromBody] SendTaskRequest request,
+        CancellationToken ct)
+    {
+        // Validate required fields
+        if (string.IsNullOrWhiteSpace(request.SourceAgent))
+        {
+            return BadRequest(new ErrorResponse { Error = "source_agent is required" });
+        }
+
+        if (string.IsNullOrWhiteSpace(request.TargetAgent))
+        {
+            return BadRequest(new ErrorResponse { Error = "target_agent is required" });
+        }
+
+        if (string.IsNullOrWhiteSpace(request.Content))
+        {
+            return BadRequest(new ErrorResponse { Error = "content is required" });
+        }
+
+        try
+        {
+            // Build GitHub issue URL from short format if provided
+            var githubIssueUrl = string.Empty;
+            if (!string.IsNullOrWhiteSpace(request.GithubIssue))
+            {
+                // Convert "#123" or "123" to full URL
+                var issueNumber = request.GithubIssue.TrimStart('#');
+                if (int.TryParse(issueNumber, out _))
+                {
+                    githubIssueUrl = $"https://github.com/Olbrasoft/VirtualAssistant/issues/{issueNumber}";
+                }
+            }
+
+            // Create the task using existing service
+            var createRequest = new CreateTaskRequest
+            {
+                GithubIssueUrl = githubIssueUrl,
+                Summary = request.Content,
+                TargetAgent = request.TargetAgent,
+                RequiresApproval = request.Priority?.ToLowerInvariant() != "high" // High priority = no approval needed
+            };
+
+            var task = await _taskService.CreateTaskAsync(request.SourceAgent, createRequest, ct);
+
+            _logger.LogInformation(
+                "Task {TaskId} queued from {Source} to {Target}, issue: {Issue}",
+                task.Id, request.SourceAgent, request.TargetAgent, request.GithubIssue ?? "(none)");
+
+            return Ok(new SendTaskResponse
+            {
+                Success = true,
+                TaskId = task.Id,
+                Message = $"Task queued for {request.TargetAgent}"
+            });
+        }
+        catch (InvalidOperationException ex)
+        {
+            _logger.LogWarning(ex, "Failed to create task from {Source} to {Target}",
+                request.SourceAgent, request.TargetAgent);
+            return BadRequest(new ErrorResponse { Error = ex.Message });
+        }
+        catch (ArgumentException ex)
+        {
+            _logger.LogWarning(ex, "Invalid task request");
+            return BadRequest(new ErrorResponse { Error = ex.Message });
+        }
+    }
+}
+
+/// <summary>
+/// Request model for send task endpoint.
+/// </summary>
+public class SendTaskRequest
+{
+    /// <summary>
+    /// Source agent name (who is sending the task).
+    /// </summary>
+    [System.Text.Json.Serialization.JsonPropertyName("source_agent")]
+    public string SourceAgent { get; set; } = string.Empty;
+
+    /// <summary>
+    /// Target agent name (who should receive the task).
+    /// </summary>
+    [System.Text.Json.Serialization.JsonPropertyName("target_agent")]
+    public string TargetAgent { get; set; } = string.Empty;
+
+    /// <summary>
+    /// Task content/description.
+    /// </summary>
+    [System.Text.Json.Serialization.JsonPropertyName("content")]
+    public string Content { get; set; } = string.Empty;
+
+    /// <summary>
+    /// Optional GitHub issue reference (e.g., "#123" or "123").
+    /// </summary>
+    [System.Text.Json.Serialization.JsonPropertyName("github_issue")]
+    public string? GithubIssue { get; set; }
+
+    /// <summary>
+    /// Optional priority: "normal" (default) or "high".
+    /// High priority tasks skip approval.
+    /// </summary>
+    [System.Text.Json.Serialization.JsonPropertyName("priority")]
+    public string? Priority { get; set; }
+}
+
+/// <summary>
+/// Response model for send task endpoint.
+/// </summary>
+public class SendTaskResponse
+{
+    /// <summary>
+    /// Whether the task was queued successfully.
+    /// </summary>
+    public bool Success { get; set; }
+
+    /// <summary>
+    /// ID of the created task.
+    /// </summary>
+    [System.Text.Json.Serialization.JsonPropertyName("task_id")]
+    public int TaskId { get; set; }
+
+    /// <summary>
+    /// Confirmation message.
+    /// </summary>
+    public string Message { get; set; } = string.Empty;
 }
 
 /// <summary>
