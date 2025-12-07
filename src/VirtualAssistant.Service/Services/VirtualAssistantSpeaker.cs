@@ -11,16 +11,13 @@ namespace Olbrasoft.VirtualAssistant.Service.Services;
 public class VirtualAssistantSpeaker : IVirtualAssistantSpeaker
 {
     private readonly TtsService _ttsService;
-    private readonly IWorkspaceDetectionService _workspaceService;
     private readonly ILogger<VirtualAssistantSpeaker> _logger;
 
     public VirtualAssistantSpeaker(
         TtsService ttsService,
-        IWorkspaceDetectionService workspaceService,
         ILogger<VirtualAssistantSpeaker> logger)
     {
         _ttsService = ttsService;
-        _workspaceService = workspaceService;
         _logger = logger;
     }
 
@@ -32,27 +29,7 @@ public class VirtualAssistantSpeaker : IVirtualAssistantSpeaker
             return;
         }
 
-        // If agent name is provided, check workspace
-        if (!string.IsNullOrEmpty(agentName))
-        {
-            var isOnSameWorkspace = await _workspaceService.IsUserOnAgentWorkspaceAsync(agentName, ct);
-
-            if (isOnSameWorkspace)
-            {
-                _logger.LogInformation(
-                    "Skipping TTS for agent {Agent} - user is on same workspace. Text: {Text}",
-                    agentName, TruncateText(text, 50));
-                return;
-            }
-
-            _logger.LogDebug(
-                "Speaking for agent {Agent} - user is on different workspace. Text: {Text}",
-                agentName, TruncateText(text, 50));
-        }
-        else
-        {
-            _logger.LogDebug("Speaking without agent context. Text: {Text}", TruncateText(text, 50));
-        }
+        _logger.LogDebug("Speaking text: {Text}", TruncateText(text, 50));
 
         // Use "assistant" as the voice source for all VirtualAssistant speech
         await _ttsService.SpeakAsync(text, source: "assistant", ct);
