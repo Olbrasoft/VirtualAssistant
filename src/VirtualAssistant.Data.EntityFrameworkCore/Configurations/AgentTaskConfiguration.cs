@@ -60,6 +60,9 @@ public class AgentTaskConfiguration : IEntityTypeConfiguration<AgentTask>
         builder.Property(t => t.CompletedAt)
             .HasColumnName("completed_at");
 
+        builder.Property(t => t.NotifiedAt)
+            .HasColumnName("notified_at");
+
         // Relationships
         builder.HasOne(t => t.CreatedByAgent)
             .WithMany(a => a.CreatedTasks)

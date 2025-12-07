@@ -12,7 +12,7 @@ namespace VirtualAssistant.Data.EntityFrameworkCore.Migrations
         protected override void Up(MigrationBuilder migrationBuilder)
         {
             migrationBuilder.AddColumn<DateTime>(
-                name: "NotifiedAt",
+                name: "notified_at",
                 table: "agent_tasks",
                 type: "timestamp with time zone",
                 nullable: true);
@@ -22,7 +22,7 @@ namespace VirtualAssistant.Data.EntityFrameworkCore.Migrations
         protected override void Down(MigrationBuilder migrationBuilder)
         {
             migrationBuilder.DropColumn(
-                name: "NotifiedAt",
+                name: "notified_at",
                 table: "agent_tasks");
         }
     }

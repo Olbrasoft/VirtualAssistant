@@ -261,7 +261,8 @@ namespace VirtualAssistant.Data.EntityFrameworkCore.Migrations
                         .HasColumnName("github_issue_url");
 
                     b.Property<DateTime?>("NotifiedAt")
-                        .HasColumnType("timestamp with time zone");
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("notified_at");
 
                     b.Property<bool>("RequiresApproval")
                         .ValueGeneratedOnAdd()
