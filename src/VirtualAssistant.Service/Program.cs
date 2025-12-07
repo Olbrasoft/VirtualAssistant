@@ -342,12 +342,12 @@ public class Program
             logger.LogInformation("TTS Notify received from {Source}: {Text}", request.Source ?? "default", request.Text);
 
             // Speak the text asynchronously (fire and forget for quick response)
-            // No agent name = always speak (external notification)
+            // Pass source as agentName for workspace-aware TTS (skip if user is on agent's workspace)
             _ = Task.Run(async () =>
             {
                 try
                 {
-                    await speaker.SpeakAsync(request.Text, agentName: null);
+                    await speaker.SpeakAsync(request.Text, agentName: request.Source);
                 }
                 catch (Exception ex)
                 {
