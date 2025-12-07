@@ -276,8 +276,8 @@ public class Program
         // Workspace detection for smart TTS notifications
         builder.Services.AddSingleton<IWorkspaceDetectionService, WorkspaceDetectionService>();
 
-        // TTS Notification Service (wrapper for Core → Voice dependency inversion)
-        builder.Services.AddSingleton<ITtsNotificationService, TtsNotificationService>();
+        // VirtualAssistantSpeaker - single entry point for all TTS operations
+        builder.Services.AddSingleton<IVirtualAssistantSpeaker, VirtualAssistantSpeaker>();
 
         // Notification humanization and batching services
         builder.Services.AddSingleton<IHumanizationService, HumanizationService>();
@@ -331,7 +331,7 @@ public class Program
 
         // TTS Notify endpoint - receives text from OpenCode plugin and speaks it
         // Source parameter allows different AI clients to have distinct voices
-        app.MapPost("/api/tts/notify", async (TtsNotifyRequest request, TtsService ttsService, ILogger<Program> logger) =>
+        app.MapPost("/api/tts/notify", async (TtsNotifyRequest request, IVirtualAssistantSpeaker speaker, ILogger<Program> logger) =>
         {
             // Debug: log raw source value directly to console
             Console.WriteLine($"\u001b[93;1m🔍 DEBUG: Source='{request.Source}', IsNull={request.Source == null}\u001b[0m");
@@ -340,20 +340,21 @@ public class Program
             var sourceInfo = string.IsNullOrEmpty(request.Source) ? "" : $" [{request.Source}]";
             Console.WriteLine($"\u001b[96;1m📩 TTS Notify{sourceInfo}: \"{request.Text}\"\u001b[0m");
             logger.LogInformation("TTS Notify received from {Source}: {Text}", request.Source ?? "default", request.Text);
-            
+
             // Speak the text asynchronously (fire and forget for quick response)
+            // No agent name = always speak (external notification)
             _ = Task.Run(async () =>
             {
                 try
                 {
-                    await ttsService.SpeakAsync(request.Text, request.Source);
+                    await speaker.SpeakAsync(request.Text, agentName: null);
                 }
                 catch (Exception ex)
                 {
                     logger.LogError(ex, "Error speaking text: {Text}", request.Text);
                 }
             });
-            
+
             var actualSource = request.Source ?? "NOT_SET";
             return Results.Ok(new { success = true, message = "Notification received", text = request.Text, source = actualSource, sourceWasNull = request.Source == null });
         });

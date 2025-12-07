@@ -49,7 +49,7 @@ public class TaskDistributionService : BackgroundService
         using var scope = _scopeFactory.CreateScope();
         var taskService = scope.ServiceProvider.GetRequiredService<IAgentTaskService>();
         var hubService = scope.ServiceProvider.GetRequiredService<IAgentHubService>();
-        var ttsService = scope.ServiceProvider.GetRequiredService<ITtsNotificationService>();
+        var speaker = scope.ServiceProvider.GetRequiredService<IVirtualAssistantSpeaker>();
 
         var readyTasks = await taskService.GetReadyToSendAsync(ct);
 
@@ -64,7 +64,7 @@ public class TaskDistributionService : BackgroundService
         {
             try
             {
-                await SendTaskToAgentAsync(task, taskService, hubService, ttsService, ct);
+                await SendTaskToAgentAsync(task, taskService, hubService, speaker, ct);
             }
             catch (Exception ex)
             {
@@ -77,7 +77,7 @@ public class TaskDistributionService : BackgroundService
         AgentTaskDto task,
         IAgentTaskService taskService,
         IAgentHubService hubService,
-        ITtsNotificationService ttsService,
+        IVirtualAssistantSpeaker speaker,
         CancellationToken ct)
     {
         if (string.IsNullOrEmpty(task.TargetAgent))
@@ -91,12 +91,12 @@ public class TaskDistributionService : BackgroundService
         // OpenCode uses pull-based delivery: only notify, don't auto-send
         if (targetAgentLower == "opencode")
         {
-            await NotifyAgentAsync(task, taskService, ttsService, ct);
+            await NotifyAgentAsync(task, taskService, speaker, ct);
             return;
         }
 
         // Claude and other agents use push-based delivery: auto-send via hub
-        await PushTaskToAgentAsync(task, taskService, hubService, ttsService, ct);
+        await PushTaskToAgentAsync(task, taskService, hubService, speaker, ct);
     }
 
     /// <summary>
@@ -106,7 +106,7 @@ public class TaskDistributionService : BackgroundService
     private async Task NotifyAgentAsync(
         AgentTaskDto task,
         IAgentTaskService taskService,
-        ITtsNotificationService ttsService,
+        IVirtualAssistantSpeaker speaker,
         CancellationToken ct)
     {
         // Mark task as notified
@@ -114,7 +114,7 @@ public class TaskDistributionService : BackgroundService
 
         // Notify user via TTS (skip if user is on same workspace as OpenCode)
         var notification = $"Máš nový úkol od Clauda: issue {task.GithubIssueNumber}.";
-        await ttsService.SpeakIfNotOnAgentWorkspaceAsync(notification, "opencode", source: "assistant", ct: ct);
+        await speaker.SpeakAsync(notification, "opencode", ct);
 
         _logger.LogInformation(
             "Task {TaskId} notified to {Agent} (pull-based delivery)",
@@ -128,7 +128,7 @@ public class TaskDistributionService : BackgroundService
         AgentTaskDto task,
         IAgentTaskService taskService,
         IAgentHubService hubService,
-        ITtsNotificationService ttsService,
+        IVirtualAssistantSpeaker speaker,
         CancellationToken ct)
     {
         // Build the prompt based on target agent
@@ -152,7 +152,7 @@ public class TaskDistributionService : BackgroundService
 
         // Notify user via TTS (skip if user is on same workspace as Claude)
         var notification = $"Posílám úkol Claudovi: issue {task.GithubIssueNumber}.";
-        await ttsService.SpeakIfNotOnAgentWorkspaceAsync(notification, "claude", source: "assistant", ct: ct);
+        await speaker.SpeakAsync(notification, "claude", ct);
 
         _logger.LogInformation(
             "Task {TaskId} sent to {Agent}, hub message {MessageId}",

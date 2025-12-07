@@ -12,7 +12,7 @@ public class NotificationBatchingService : INotificationBatchingService, IDispos
 {
     private readonly ILogger<NotificationBatchingService> _logger;
     private readonly IHumanizationService _humanizationService;
-    private readonly ITtsNotificationService _ttsService;
+    private readonly IVirtualAssistantSpeaker _speaker;
 
     private readonly ConcurrentQueue<AgentNotification> _pendingNotifications = new();
     private readonly object _timerLock = new();
@@ -27,11 +27,11 @@ public class NotificationBatchingService : INotificationBatchingService, IDispos
     public NotificationBatchingService(
         ILogger<NotificationBatchingService> logger,
         IHumanizationService humanizationService,
-        ITtsNotificationService ttsService)
+        IVirtualAssistantSpeaker speaker)
     {
         _logger = logger;
         _humanizationService = humanizationService;
-        _ttsService = ttsService;
+        _speaker = speaker;
 
         _logger.LogInformation("NotificationBatchingService initialized with {WindowMs}ms batch window", BatchWindowMs);
     }
@@ -98,10 +98,11 @@ public class NotificationBatchingService : INotificationBatchingService, IDispos
                 return;
             }
 
-            // Speak the humanized text
-            await _ttsService.SpeakAsync(humanizedText, source: "assistant");
+            // Speak the humanized text (with workspace detection)
+            var agentName = notifications.FirstOrDefault()?.Agent;
+            await _speaker.SpeakAsync(humanizedText, agentName);
 
-            _logger.LogInformation("Notification batch processed and spoken: {Text}", humanizedText);
+            _logger.LogInformation("Notification batch processed: {Text}", humanizedText);
         }
         catch (Exception ex)
         {

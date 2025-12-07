@@ -1,6 +1,6 @@
 using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Logging;
-using Olbrasoft.VirtualAssistant.Voice.Services;
+using VirtualAssistant.Core.Services;
 
 namespace Olbrasoft.VirtualAssistant.Service.Services;
 
@@ -10,12 +10,12 @@ namespace Olbrasoft.VirtualAssistant.Service.Services;
 /// </summary>
 public sealed class StartupNotificationService : IHostedService
 {
-    private readonly TtsService _ttsService;
+    private readonly IVirtualAssistantSpeaker _speaker;
     private readonly ILogger<StartupNotificationService> _logger;
 
-    public StartupNotificationService(TtsService ttsService, ILogger<StartupNotificationService> logger)
+    public StartupNotificationService(IVirtualAssistantSpeaker speaker, ILogger<StartupNotificationService> logger)
     {
-        _ttsService = ttsService;
+        _speaker = speaker;
         _logger = logger;
     }
 
@@ -28,7 +28,8 @@ public sealed class StartupNotificationService : IHostedService
 
         try
         {
-            await _ttsService.SpeakAsync("Systém nastartován, vše v pořádku", source: null, cancellationToken);
+            // No agent name = always speak (startup notification)
+            await _speaker.SpeakAsync("Systém nastartován, vše v pořádku", agentName: null, cancellationToken);
         }
         catch (Exception ex)
         {

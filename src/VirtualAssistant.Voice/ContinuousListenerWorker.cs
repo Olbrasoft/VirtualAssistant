@@ -6,7 +6,9 @@ using Olbrasoft.VirtualAssistant.Core.Configuration;
 using Olbrasoft.VirtualAssistant.Core.Enums;
 using Olbrasoft.VirtualAssistant.Core.Services;
 using Olbrasoft.VirtualAssistant.Core.TextInput;
+using Olbrasoft.VirtualAssistant.Voice.Audio;
 using Olbrasoft.VirtualAssistant.Voice.Services;
+using VirtualAssistant.Core.Services;
 using KeyCode = Olbrasoft.VirtualAssistant.Core.Services.KeyCode;
 
 namespace Olbrasoft.VirtualAssistant.Voice;
@@ -30,7 +32,7 @@ public class ContinuousListenerWorker : BackgroundService
     private readonly IManualMuteService? _muteService;
     private readonly AssistantSpeechTrackerService _speechTracker;
     private readonly IRepeatTextIntentService _repeatTextIntent;
-    private readonly TtsService _ttsService;
+    private readonly IVirtualAssistantSpeaker _speaker;
     private readonly HttpClient _httpClient;
     private readonly IKeyboardMonitor? _keyboardMonitor;
 
@@ -81,7 +83,7 @@ public class ContinuousListenerWorker : BackgroundService
         IOptions<ContinuousListenerOptions> options,
         AssistantSpeechTrackerService speechTracker,
         IRepeatTextIntentService repeatTextIntent,
-        TtsService ttsService,
+        IVirtualAssistantSpeaker speaker,
         HttpClient httpClient,
         IManualMuteService? muteService = null,
         IKeyboardMonitor? keyboardMonitor = null)
@@ -95,7 +97,7 @@ public class ContinuousListenerWorker : BackgroundService
         _options = options.Value;
         _speechTracker = speechTracker;
         _repeatTextIntent = repeatTextIntent;
-        _ttsService = ttsService;
+        _speaker = speaker;
         _httpClient = httpClient;
         _muteService = muteService;
         _keyboardMonitor = keyboardMonitor;
@@ -572,24 +574,24 @@ public class ContinuousListenerWorker : BackgroundService
                 
                 // TTS confirmation with random phrase (Issue #68, #115)
                 var phrase = _repeatTextIntent.GetRandomClipboardResponse();
-                await _ttsService.SpeakAsync(phrase, source: null, cancellationToken);
+                await _speaker.SpeakAsync(phrase, agentName: null, cancellationToken);
             }
             else if (response.StatusCode == System.Net.HttpStatusCode.NotFound)
             {
                 Console.WriteLine($"\u001b[93;1m⚠ No text in history\u001b[0m");
-                await _ttsService.SpeakAsync("Žádný text v historii.", source: null, cancellationToken);
+                await _speaker.SpeakAsync("Žádný text v historii.", agentName: null, cancellationToken);
             }
             else
             {
                 Console.WriteLine($"\u001b[91;1m✗ PTT repeat failed: {response.StatusCode}\u001b[0m");
-                await _ttsService.SpeakAsync("Nepodařilo se získat text.", source: null, cancellationToken);
+                await _speaker.SpeakAsync("Nepodařilo se získat text.", agentName: null, cancellationToken);
             }
         }
         catch (HttpRequestException ex)
         {
             _logger.LogError(ex, "Failed to call PTT repeat endpoint");
             Console.WriteLine($"\u001b[91;1m✗ PTT service unavailable: {ex.Message}\u001b[0m");
-            await _ttsService.SpeakAsync("Služba není dostupná.", source: null, cancellationToken);
+            await _speaker.SpeakAsync("Služba není dostupná.", agentName: null, cancellationToken);
         }
         catch (Exception ex)
         {
