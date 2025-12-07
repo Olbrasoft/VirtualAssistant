@@ -61,12 +61,13 @@ public class AgentHubService : IAgentHubService
             "Message sent: {Id} from {Source} to {Target}, type={Type}, phase={Phase}, requiresApproval={RequiresApproval}",
             entity.Id, entity.SourceAgent, entity.TargetAgent, entity.MessageType, entity.Phase, entity.RequiresApproval);
 
-        // Notify user via TTS
+        // Notify user via TTS (skip if user is on same workspace as target agent)
         var notificationText = BuildNotificationText(message);
         if (!string.IsNullOrEmpty(notificationText))
         {
             _logger.LogInformation("Sending TTS notification: {Text}", notificationText);
-            await _ttsNotificationService.SpeakAsync(notificationText, source: "assistant", ct);
+            await _ttsNotificationService.SpeakIfNotOnAgentWorkspaceAsync(
+                notificationText, message.TargetAgent ?? "unknown", source: "assistant", ct: ct);
         }
 
         return entity.Id;
@@ -224,8 +225,8 @@ public class AgentHubService : IAgentHubService
         }
         else
         {
-            await _ttsNotificationService.SpeakAsync(
-                $"{sourceAgent} začíná pracovat.", source: "assistant", ct);
+            await _ttsNotificationService.SpeakIfNotOnAgentWorkspaceAsync(
+                $"{sourceAgent} začíná pracovat.", sourceAgent, source: "assistant", ct: ct);
         }
 
         return entity.Id;
@@ -335,8 +336,8 @@ public class AgentHubService : IAgentHubService
         }
         else
         {
-            await _ttsNotificationService.SpeakAsync(
-                $"{parent.SourceAgent} dokončil úkol.", source: "assistant", ct);
+            await _ttsNotificationService.SpeakIfNotOnAgentWorkspaceAsync(
+                $"{parent.SourceAgent} dokončil úkol.", parent.SourceAgent, source: "assistant", ct: ct);
         }
     }
 

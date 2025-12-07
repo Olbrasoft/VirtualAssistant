@@ -273,6 +273,9 @@ public class Program
         builder.Services.AddSingleton<ITtsProvider, EdgeTtsProvider>();
         builder.Services.AddSingleton<TtsService>();
 
+        // Workspace detection for smart TTS notifications
+        builder.Services.AddSingleton<IWorkspaceDetectionService, WorkspaceDetectionService>();
+
         // TTS Notification Service (wrapper for Core → Voice dependency inversion)
         builder.Services.AddSingleton<ITtsNotificationService, TtsNotificationService>();
 

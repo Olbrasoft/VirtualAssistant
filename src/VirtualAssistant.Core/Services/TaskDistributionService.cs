@@ -112,9 +112,9 @@ public class TaskDistributionService : BackgroundService
         // Mark task as notified
         await taskService.MarkNotifiedAsync(task.Id, ct);
 
-        // Notify user via TTS
+        // Notify user via TTS (skip if user is on same workspace as OpenCode)
         var notification = $"Máš nový úkol od Clauda: issue {task.GithubIssueNumber}.";
-        await ttsService.SpeakAsync(notification, source: "assistant", ct);
+        await ttsService.SpeakIfNotOnAgentWorkspaceAsync(notification, "opencode", source: "assistant", ct: ct);
 
         _logger.LogInformation(
             "Task {TaskId} notified to {Agent} (pull-based delivery)",
@@ -150,9 +150,9 @@ public class TaskDistributionService : BackgroundService
             response: $"Message ID: {messageId}",
             ct);
 
-        // Notify user via TTS
+        // Notify user via TTS (skip if user is on same workspace as Claude)
         var notification = $"Posílám úkol Claudovi: issue {task.GithubIssueNumber}.";
-        await ttsService.SpeakAsync(notification, source: "assistant", ct);
+        await ttsService.SpeakIfNotOnAgentWorkspaceAsync(notification, "claude", source: "assistant", ct: ct);
 
         _logger.LogInformation(
             "Task {TaskId} sent to {Agent}, hub message {MessageId}",
