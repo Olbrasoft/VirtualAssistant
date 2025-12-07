@@ -329,17 +329,15 @@ public class Program
         // Health check
         app.MapGet("/health", () => Results.Ok("OK"));
 
-        // TTS Notify endpoint - receives text from OpenCode plugin and speaks it
+        // TTS Notify/Speak endpoint - receives text from OpenCode plugin and speaks it
         // Source parameter allows different AI clients to have distinct voices
-        app.MapPost("/api/tts/notify", async (TtsNotifyRequest request, IVirtualAssistantSpeaker speaker, ILogger<Program> logger) =>
+        // Both /api/tts/notify and /api/tts/speak are supported (speak is alias for notify)
+        async Task<IResult> HandleTtsSpeak(TtsNotifyRequest request, IVirtualAssistantSpeaker speaker, ILogger<Program> logger)
         {
-            // Debug: log raw source value directly to console
-            Console.WriteLine($"\u001b[93;1m🔍 DEBUG: Source='{request.Source}', IsNull={request.Source == null}\u001b[0m");
-            
             // Cyan output for received notification
             var sourceInfo = string.IsNullOrEmpty(request.Source) ? "" : $" [{request.Source}]";
-            Console.WriteLine($"\u001b[96;1m📩 TTS Notify{sourceInfo}: \"{request.Text}\"\u001b[0m");
-            logger.LogInformation("TTS Notify received from {Source}: {Text}", request.Source ?? "default", request.Text);
+            Console.WriteLine($"\u001b[96;1m📩 TTS Speak{sourceInfo}: \"{request.Text}\"\u001b[0m");
+            logger.LogInformation("TTS Speak received from {Source}: {Text}", request.Source ?? "default", request.Text);
 
             // Speak the text asynchronously (fire and forget for quick response)
             // Pass source as agentName for workspace-aware TTS (skip if user is on agent's workspace)
@@ -356,8 +354,11 @@ public class Program
             });
 
             var actualSource = request.Source ?? "NOT_SET";
-            return Results.Ok(new { success = true, message = "Notification received", text = request.Text, source = actualSource, sourceWasNull = request.Source == null });
-        });
+            return Results.Ok(new { success = true, message = "Text queued for speech", text = request.Text, source = actualSource });
+        }
+
+        app.MapPost("/api/tts/notify", HandleTtsSpeak);
+        app.MapPost("/api/tts/speak", HandleTtsSpeak);
 
         // TTS Queue status endpoint - returns current queue count
         app.MapGet("/api/tts/queue", (TtsService ttsService) =>
