@@ -1,3 +1,4 @@
+using System.Diagnostics;
 using Microsoft.AspNetCore.Mvc;
 using VirtualAssistant.Core.Services;
 using VirtualAssistant.Data.Dtos;
@@ -14,16 +15,22 @@ namespace Olbrasoft.VirtualAssistant.Service.Controllers;
 public class AgentHubController : ControllerBase
 {
     private readonly IAgentHubService _hubService;
+    private readonly IAgentTaskService _taskService;
     private readonly ILogger<AgentHubController> _logger;
 
     /// <summary>
     /// Initializes a new instance of the AgentHubController.
     /// </summary>
     /// <param name="hubService">The agent hub service</param>
+    /// <param name="taskService">The agent task service</param>
     /// <param name="logger">The logger</param>
-    public AgentHubController(IAgentHubService hubService, ILogger<AgentHubController> logger)
+    public AgentHubController(
+        IAgentHubService hubService,
+        IAgentTaskService taskService,
+        ILogger<AgentHubController> logger)
     {
         _hubService = hubService;
+        _taskService = taskService;
         _logger = logger;
     }
 
@@ -399,6 +406,224 @@ public class AgentHubController : ControllerBase
             return NotFound(new ErrorResponse { Error = ex.Message });
         }
     }
+
+    /// <summary>
+    /// Fetch the oldest pending task for an agent and mark it as sent.
+    /// Used for pull-based task delivery (e.g., OpenCode fetching tasks from Claude).
+    /// </summary>
+    /// <param name="agent">Agent identifier (e.g., "opencode")</param>
+    /// <param name="ct">Cancellation token</param>
+    /// <returns>Task content or null if no pending tasks</returns>
+    /// <response code="200">Task fetched successfully or no tasks available</response>
+    /// <response code="400">Invalid agent identifier</response>
+    [HttpGet("fetch-task/{agent}")]
+    [ProducesResponseType(typeof(FetchTaskResponse), StatusCodes.Status200OK)]
+    [ProducesResponseType(typeof(ErrorResponse), StatusCodes.Status400BadRequest)]
+    public async Task<ActionResult<FetchTaskResponse>> FetchTask(
+        string agent,
+        CancellationToken ct)
+    {
+        try
+        {
+            // Get notified tasks for this agent (oldest first)
+            var notifiedTasks = await _taskService.GetNotifiedTasksAsync(agent, ct);
+
+            if (notifiedTasks.Count == 0)
+            {
+                _logger.LogDebug("No pending tasks for agent {Agent}", agent);
+                return Ok(new FetchTaskResponse
+                {
+                    Success = true,
+                    Task = null,
+                    Message = "No pending tasks"
+                });
+            }
+
+            // Get the oldest task
+            var oldestTask = notifiedTasks[0];
+
+            // Accept the task (marks as sent and returns the prompt)
+            var content = await _taskService.AcceptTaskAsync(oldestTask.Id, ct);
+
+            _logger.LogInformation(
+                "Task {TaskId} fetched by {Agent}, issue #{Issue}",
+                oldestTask.Id, agent, oldestTask.GithubIssueNumber);
+
+            return Ok(new FetchTaskResponse
+            {
+                Success = true,
+                Task = new FetchedTaskInfo
+                {
+                    Id = oldestTask.Id,
+                    FromAgent = oldestTask.CreatedByAgent ?? "unknown",
+                    Content = content,
+                    CreatedAt = oldestTask.CreatedAt,
+                    GithubIssue = oldestTask.GithubIssueNumber.HasValue
+                        ? $"#{oldestTask.GithubIssueNumber}"
+                        : null
+                }
+            });
+        }
+        catch (ArgumentException ex)
+        {
+            _logger.LogWarning(ex, "Invalid agent identifier: {Agent}", agent);
+            return BadRequest(new ErrorResponse { Error = ex.Message });
+        }
+        catch (KeyNotFoundException ex)
+        {
+            _logger.LogWarning(ex, "Task not found while fetching for {Agent}", agent);
+            return BadRequest(new ErrorResponse { Error = ex.Message });
+        }
+        catch (InvalidOperationException ex)
+        {
+            _logger.LogWarning(ex, "Cannot accept task for {Agent}", agent);
+            return BadRequest(new ErrorResponse { Error = ex.Message });
+        }
+    }
+
+    /// <summary>
+    /// Copy content to system clipboard using xclip.
+    /// </summary>
+    /// <param name="request">Clipboard request with content</param>
+    /// <param name="ct">Cancellation token</param>
+    /// <response code="200">Content copied to clipboard</response>
+    /// <response code="400">Invalid request or clipboard operation failed</response>
+    [HttpPost("clipboard")]
+    [ProducesResponseType(typeof(ClipboardResponse), StatusCodes.Status200OK)]
+    [ProducesResponseType(typeof(ErrorResponse), StatusCodes.Status400BadRequest)]
+    public async Task<ActionResult<ClipboardResponse>> ToClipboard(
+        [FromBody] ClipboardRequest request,
+        CancellationToken ct)
+    {
+        if (string.IsNullOrEmpty(request.Content))
+        {
+            return BadRequest(new ErrorResponse { Error = "Content cannot be empty" });
+        }
+
+        try
+        {
+            using var process = new Process
+            {
+                StartInfo = new ProcessStartInfo
+                {
+                    FileName = "xclip",
+                    Arguments = "-selection clipboard",
+                    RedirectStandardInput = true,
+                    RedirectStandardError = true,
+                    UseShellExecute = false,
+                    CreateNoWindow = true
+                }
+            };
+
+            process.Start();
+            await process.StandardInput.WriteAsync(request.Content);
+            process.StandardInput.Close();
+
+            using var cts = CancellationTokenSource.CreateLinkedTokenSource(ct);
+            cts.CancelAfter(TimeSpan.FromSeconds(5));
+
+            await process.WaitForExitAsync(cts.Token);
+
+            if (process.ExitCode != 0)
+            {
+                var error = await process.StandardError.ReadToEndAsync(ct);
+                _logger.LogWarning("xclip failed with exit code {Code}: {Error}", process.ExitCode, error);
+                return BadRequest(new ErrorResponse { Error = $"Clipboard operation failed: {error}" });
+            }
+
+            _logger.LogInformation("Content copied to clipboard ({Length} chars)", request.Content.Length);
+
+            return Ok(new ClipboardResponse
+            {
+                Success = true,
+                Message = "Content copied to clipboard"
+            });
+        }
+        catch (Exception ex) when (ex is not OperationCanceledException)
+        {
+            _logger.LogError(ex, "Failed to copy to clipboard");
+            return BadRequest(new ErrorResponse { Error = $"Clipboard operation failed: {ex.Message}" });
+        }
+    }
+}
+
+/// <summary>
+/// Response model for fetch task endpoint.
+/// </summary>
+public class FetchTaskResponse
+{
+    /// <summary>
+    /// Whether the operation was successful.
+    /// </summary>
+    public bool Success { get; set; }
+
+    /// <summary>
+    /// The fetched task, or null if no tasks available.
+    /// </summary>
+    public FetchedTaskInfo? Task { get; set; }
+
+    /// <summary>
+    /// Optional message (e.g., "No pending tasks").
+    /// </summary>
+    public string? Message { get; set; }
+}
+
+/// <summary>
+/// Information about a fetched task.
+/// </summary>
+public class FetchedTaskInfo
+{
+    /// <summary>
+    /// Task ID.
+    /// </summary>
+    public int Id { get; set; }
+
+    /// <summary>
+    /// Agent that created this task.
+    /// </summary>
+    public string FromAgent { get; set; } = string.Empty;
+
+    /// <summary>
+    /// Task content/prompt.
+    /// </summary>
+    public string Content { get; set; } = string.Empty;
+
+    /// <summary>
+    /// When the task was created.
+    /// </summary>
+    public DateTime CreatedAt { get; set; }
+
+    /// <summary>
+    /// GitHub issue reference (e.g., "#184").
+    /// </summary>
+    public string? GithubIssue { get; set; }
+}
+
+/// <summary>
+/// Request model for clipboard operation.
+/// </summary>
+public class ClipboardRequest
+{
+    /// <summary>
+    /// Content to copy to clipboard.
+    /// </summary>
+    public string Content { get; set; } = string.Empty;
+}
+
+/// <summary>
+/// Response model for clipboard operation.
+/// </summary>
+public class ClipboardResponse
+{
+    /// <summary>
+    /// Whether the operation was successful.
+    /// </summary>
+    public bool Success { get; set; }
+
+    /// <summary>
+    /// Status message.
+    /// </summary>
+    public string Message { get; set; } = string.Empty;
 }
 
 /// <summary>
