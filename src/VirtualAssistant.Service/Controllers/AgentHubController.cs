@@ -640,9 +640,11 @@ public class AgentHubController : ControllerBase
                 "Executing Claude headless mode for task {TaskId}, issue #{IssueNumber}",
                 result.TaskId, result.GithubIssueNumber);
 
-            // Capture values for closure
+            // Capture values for closure BEFORE entering Task.Run
+            // HttpContext becomes null after the HTTP request completes
             var taskId = result.TaskId;
             var responseId = agentResponse.Id;
+            var serviceProvider = HttpContext.RequestServices;
 
             // Execute Claude in headless mode (fire and forget - runs in background)
             // We use Task.Run to not block the response
@@ -653,7 +655,7 @@ public class AgentHubController : ControllerBase
                     var claudeResult = await _claudeService.ExecuteAsync(prompt);
 
                     // Update AgentResponse and AgentTask with results
-                    using var scope = HttpContext.RequestServices.CreateScope();
+                    using var scope = serviceProvider.CreateScope();
                     var db = scope.ServiceProvider.GetRequiredService<VirtualAssistantDbContext>();
 
                     var response = await db.AgentResponses.FindAsync(responseId);
@@ -690,6 +692,24 @@ public class AgentHubController : ControllerBase
                 catch (Exception ex)
                 {
                     _logger.LogError(ex, "Error executing Claude for task {TaskId}", taskId);
+
+                    // Mark AgentResponse as completed even on exception so agent doesn't stay "busy" forever
+                    try
+                    {
+                        using var scope = serviceProvider.CreateScope();
+                        var db = scope.ServiceProvider.GetRequiredService<VirtualAssistantDbContext>();
+                        var response = await db.AgentResponses.FindAsync(responseId);
+                        if (response != null)
+                        {
+                            response.Status = AgentResponseStatus.Completed;
+                            response.CompletedAt = DateTime.UtcNow;
+                            await db.SaveChangesAsync();
+                        }
+                    }
+                    catch (Exception innerEx)
+                    {
+                        _logger.LogError(innerEx, "Failed to mark AgentResponse {ResponseId} as completed after error", responseId);
+                    }
                 }
             }, CancellationToken.None);
 
