@@ -109,6 +109,9 @@ var connectionString = builder.Configuration.GetConnectionString("VirtualAssista
     ?? throw new InvalidOperationException("Connection string 'VirtualAssistant' not found.");
 builder.Services.AddVirtualAssistantData(connectionString);
 
+// Bluetooth mouse monitor (remote push-to-talk trigger)
+builder.Services.AddSingleton<BluetoothMouseMonitor>();
+
 // Register worker
 builder.Services.AddHostedService<DictationWorker>();
 
@@ -180,6 +183,11 @@ var trayLogger = _app.Services.GetRequiredService<ILogger<TranscriptionTrayServi
 var typingSoundPlayer = _app.Services.GetRequiredService<TypingSoundPlayer>();
 _trayService = new TranscriptionTrayService(trayLogger, pttNotifier, typingSoundPlayer);
 
+// Start Bluetooth mouse monitor (remote push-to-talk trigger)
+BluetoothMouseMonitor? _bluetoothMouseMonitor = _app.Services.GetRequiredService<BluetoothMouseMonitor>();
+_ = _bluetoothMouseMonitor.StartMonitoringAsync(_cts!.Token);
+Console.WriteLine("Bluetooth mouse monitor started (LEFT=CapsLock, RIGHT=ESC)");
+
 try
 {
     // Initialize tray (must be on main thread for GTK)
@@ -236,6 +244,7 @@ catch (Exception ex)
 }
 finally
 {
+    _bluetoothMouseMonitor?.Dispose();
     _trayService?.Dispose();
     _app?.DisposeAsync().AsTask().Wait();
     _cts?.Dispose();

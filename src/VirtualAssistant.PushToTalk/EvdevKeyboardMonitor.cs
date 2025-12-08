@@ -483,6 +483,14 @@ os.close(fd)
     }
 
     /// <inheritdoc/>
+    public void RaiseKeyReleasedEvent(KeyCode key)
+    {
+        var eventArgs = new KeyEventArgs(key, (ushort)key, DateTime.UtcNow);
+        _logger.LogInformation("Raising programmatic KeyReleased event: {Key}", key);
+        KeyReleased?.Invoke(this, eventArgs);
+    }
+
+    /// <inheritdoc/>
     public void Dispose()
     {
         if (_disposed)

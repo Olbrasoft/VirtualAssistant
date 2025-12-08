@@ -347,30 +347,39 @@ public class BluetoothMouseMonitor : IDisposable
             _logger.LogDebug("Mouse button pressed: {Button}", button);
             ButtonPressed?.Invoke(this, eventArgs);
 
-            // LEFT button press -> simulate CapsLock (toggle recording)
+            // LEFT button press -> toggle CapsLock (toggle recording)
             if (button == MouseButton.Left)
             {
-                _logger.LogInformation("LEFT button pressed - simulating CapsLock key press");
+                _logger.LogInformation("LEFT button pressed - toggling CapsLock");
                 try
                 {
+                    // First, simulate key press to toggle LED state
                     await _keyboardMonitor.SimulateKeyPressAsync(KeyCode.CapsLock);
+
+                    // Small delay to let LED state update
+                    await Task.Delay(100);
+
+                    // Then raise event to notify DictationWorker
+                    // (SimulateKeyPressAsync only changes LED, doesn't trigger evdev events)
+                    _keyboardMonitor.RaiseKeyReleasedEvent(KeyCode.CapsLock);
                 }
                 catch (Exception ex)
                 {
-                    _logger.LogError(ex, "Failed to simulate CapsLock key press");
+                    _logger.LogError(ex, "Failed to toggle CapsLock");
                 }
             }
-            // RIGHT button press -> simulate ESC (cancel transcription)
+            // RIGHT button press -> send ESC (cancel transcription)
             else if (button == MouseButton.Right)
             {
-                _logger.LogInformation("RIGHT button pressed - simulating ESC key press");
+                _logger.LogInformation("RIGHT button pressed - sending ESC to cancel transcription");
                 try
                 {
-                    await _keyboardMonitor.SimulateKeyPressAsync(KeyCode.Escape);
+                    // ESC doesn't need LED toggle, just raise the event
+                    _keyboardMonitor.RaiseKeyReleasedEvent(KeyCode.Escape);
                 }
                 catch (Exception ex)
                 {
-                    _logger.LogError(ex, "Failed to simulate ESC key press");
+                    _logger.LogError(ex, "Failed to send ESC event");
                 }
             }
         }
