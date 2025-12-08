@@ -347,7 +347,7 @@ public class BluetoothMouseMonitor : IDisposable
             _logger.LogDebug("Mouse button pressed: {Button}", button);
             ButtonPressed?.Invoke(this, eventArgs);
 
-            // LEFT button press -> simulate CapsLock
+            // LEFT button press -> simulate CapsLock (toggle recording)
             if (button == MouseButton.Left)
             {
                 _logger.LogInformation("LEFT button pressed - simulating CapsLock key press");
@@ -358,6 +358,19 @@ public class BluetoothMouseMonitor : IDisposable
                 catch (Exception ex)
                 {
                     _logger.LogError(ex, "Failed to simulate CapsLock key press");
+                }
+            }
+            // RIGHT button press -> simulate ESC (cancel transcription)
+            else if (button == MouseButton.Right)
+            {
+                _logger.LogInformation("RIGHT button pressed - simulating ESC key press");
+                try
+                {
+                    await _keyboardMonitor.SimulateKeyPressAsync(KeyCode.Escape);
+                }
+                catch (Exception ex)
+                {
+                    _logger.LogError(ex, "Failed to simulate ESC key press");
                 }
             }
         }
