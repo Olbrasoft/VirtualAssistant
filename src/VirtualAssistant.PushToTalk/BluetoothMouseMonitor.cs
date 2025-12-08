@@ -1,21 +1,25 @@
-using System.Diagnostics;
 using System.Runtime.InteropServices;
-using System.Text.RegularExpressions;
 using Microsoft.Extensions.Logging;
 
 namespace Olbrasoft.VirtualAssistant.PushToTalk;
 
 /// <summary>
-/// Monitors Bluetooth mouse button events and simulates CapsLock key press.
+/// Monitors Bluetooth mouse button events and executes configured actions.
 /// Uses EVIOCGRAB to grab device exclusively - events won't propagate to system.
 /// Designed for Microsoft BluetoothMouse3600 used as a remote push-to-talk trigger.
 /// </summary>
+/// <remarks>
+/// Button mappings:
+/// - LEFT: Single=CapsLock, Double=ESC, Triple=Command
+/// - RIGHT: Single=None, Double=Ctrl+Shift+V, Triple=Ctrl+C
+/// - MIDDLE: Enter
+/// </remarks>
 public class BluetoothMouseMonitor : IDisposable
 {
     private readonly ILogger<BluetoothMouseMonitor> _logger;
     private readonly IKeyboardMonitor _keyboardMonitor;
+    private readonly IInputDeviceDiscovery _deviceDiscovery;
     private readonly string _deviceNamePattern;
-    private readonly string? _leftTripleClickCommand;
 
     private FileStream? _deviceStream;
     private bool _isMonitoring;
@@ -24,42 +28,19 @@ public class BluetoothMouseMonitor : IDisposable
     private Task? _reconnectTask;
     private CancellationTokenSource? _cts;
 
+    // Button click handlers
+    private readonly ButtonClickHandler _leftButtonHandler;
+    private readonly ButtonClickHandler _rightButtonHandler;
+
     // P/Invoke for ioctl to grab/ungrab the device
     [DllImport("libc", SetLastError = true)]
     private static extern int ioctl(int fd, uint request, int value);
-
-    // EVIOCGRAB ioctl code (from linux/input.h)
-    // _IOW('E', 0x90, int) = 0x40044590
-    private const uint EVIOCGRAB = 0x40044590;
-
-    // Linux input_event structure (24 bytes on 64-bit)
-    private const int InputEventSize = 24;
-    private const ushort EV_KEY = 0x01;
-    private const ushort BTN_LEFT = 272;   // 0x110
-    private const ushort BTN_RIGHT = 273;  // 0x111
-    private const ushort BTN_MIDDLE = 274; // 0x112
-    private const int KEY_PRESS = 1;
-    private const int KEY_RELEASE = 0;
-
-    // Reconnect settings
-    private const int ReconnectIntervalMs = 2000;
-    private const int MaxReconnectAttempts = int.MaxValue; // Keep trying forever
-
-    // Multi-click detection for LEFT and RIGHT buttons
-    private const int ClickThresholdMs = 400;  // Max time between clicks for multi-click
-    private const int ClickDebounceMs = 50;    // Min time between clicks (debounce)
-    private DateTime _lastLeftClickTime = DateTime.MinValue;
-    private DateTime _lastRightClickTime = DateTime.MinValue;
-    private int _leftClickCount = 0;   // Track consecutive left clicks for triple-click
-    private int _rightClickCount = 0;  // Track consecutive right clicks for triple-click
-    private CancellationTokenSource? _leftClickTimerCts;
-    private CancellationTokenSource? _rightClickTimerCts;
 
     /// <summary>
     /// Initializes a new instance of the <see cref="BluetoothMouseMonitor"/> class.
     /// </summary>
     /// <param name="logger">Logger instance.</param>
-    /// <param name="keyboardMonitor">Keyboard monitor for simulating CapsLock key press.</param>
+    /// <param name="keyboardMonitor">Keyboard monitor for simulating key presses.</param>
     /// <param name="deviceNamePattern">Device name pattern to search for (default: "BluetoothMouse3600").</param>
     /// <param name="leftTripleClickCommand">Command to execute on LEFT triple-click (optional).</param>
     public BluetoothMouseMonitor(
@@ -67,11 +48,44 @@ public class BluetoothMouseMonitor : IDisposable
         IKeyboardMonitor keyboardMonitor,
         string deviceNamePattern = "BluetoothMouse3600",
         string? leftTripleClickCommand = null)
+        : this(logger, keyboardMonitor, new InputDeviceDiscovery(), deviceNamePattern, leftTripleClickCommand)
+    {
+    }
+
+    /// <summary>
+    /// Initializes a new instance of the <see cref="BluetoothMouseMonitor"/> class with dependency injection.
+    /// </summary>
+    internal BluetoothMouseMonitor(
+        ILogger<BluetoothMouseMonitor> logger,
+        IKeyboardMonitor keyboardMonitor,
+        IInputDeviceDiscovery deviceDiscovery,
+        string deviceNamePattern,
+        string? leftTripleClickCommand)
     {
         _logger = logger ?? throw new ArgumentNullException(nameof(logger));
         _keyboardMonitor = keyboardMonitor ?? throw new ArgumentNullException(nameof(keyboardMonitor));
+        _deviceDiscovery = deviceDiscovery ?? throw new ArgumentNullException(nameof(deviceDiscovery));
         _deviceNamePattern = deviceNamePattern;
-        _leftTripleClickCommand = leftTripleClickCommand;
+
+        // Configure LEFT button: Single=CapsLock, Double=ESC, Triple=Command
+        _leftButtonHandler = new ButtonClickHandler(
+            "LEFT",
+            new KeyPressAction(_keyboardMonitor, KeyCode.CapsLock, "CapsLock (toggle recording)"),
+            new KeyPressAction(_keyboardMonitor, KeyCode.Escape, "ESC (cancel transcription)", raiseReleaseEvent: true),
+            string.IsNullOrEmpty(leftTripleClickCommand)
+                ? NoAction.Instance
+                : new ShellCommandAction(leftTripleClickCommand, $"Command: {leftTripleClickCommand}"),
+            logger,
+            maxClickCount: 3);
+
+        // Configure RIGHT button: Single=None, Double=Ctrl+Shift+V, Triple=Ctrl+C
+        _rightButtonHandler = new ButtonClickHandler(
+            "RIGHT",
+            NoAction.Instance,
+            new KeyComboWithTwoModifiersAction(_keyboardMonitor, KeyCode.LeftControl, KeyCode.LeftShift, KeyCode.V, "Ctrl+Shift+V (terminal paste)"),
+            new KeyComboAction(_keyboardMonitor, KeyCode.LeftControl, KeyCode.C, "Ctrl+C (copy)"),
+            logger,
+            maxClickCount: 3);
     }
 
     /// <summary>
@@ -112,7 +126,6 @@ public class BluetoothMouseMonitor : IDisposable
         _cts = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
         _isMonitoring = true;
 
-        // Start the reconnect task that handles initial connection and reconnection
         _reconnectTask = Task.Run(() => ReconnectLoopAsync(_cts.Token), _cts.Token);
 
         _logger.LogInformation("Bluetooth mouse monitoring started (looking for {Pattern})", _deviceNamePattern);
@@ -135,7 +148,6 @@ public class BluetoothMouseMonitor : IDisposable
             _isMonitoring = false;
             _cts?.Cancel();
 
-            // Wait for reconnect task to complete
             if (_reconnectTask != null)
             {
                 try
@@ -149,7 +161,6 @@ public class BluetoothMouseMonitor : IDisposable
             }
 
             CloseDevice();
-
             _logger.LogInformation("Bluetooth mouse monitoring stopped");
         }
         catch (Exception ex)
@@ -163,32 +174,29 @@ public class BluetoothMouseMonitor : IDisposable
     {
         int attempts = 0;
 
-        while (_isMonitoring && !cancellationToken.IsCancellationRequested && attempts < MaxReconnectAttempts)
+        while (_isMonitoring && !cancellationToken.IsCancellationRequested)
         {
             try
             {
-                var devicePath = FindBluetoothMouse();
+                var devicePath = _deviceDiscovery.FindMouseDevice(_deviceNamePattern);
 
                 if (devicePath == null)
                 {
-                    if (attempts == 0 || attempts % 30 == 0) // Log every minute (30 * 2s)
+                    if (attempts == 0 || attempts % EvdevConstants.LogIntervalAttempts == 0)
                     {
                         _logger.LogInformation("Bluetooth mouse '{Pattern}' not found, waiting for connection...", _deviceNamePattern);
                     }
                     attempts++;
-                    await Task.Delay(ReconnectIntervalMs, cancellationToken);
+                    await Task.Delay(EvdevConstants.DefaultReconnectIntervalMs, cancellationToken);
                     continue;
                 }
 
-                attempts = 0; // Reset attempts on successful find
+                attempts = 0;
 
-                if (await TryOpenDeviceAsync(devicePath, cancellationToken))
+                if (await TryOpenDeviceAsync(devicePath))
                 {
                     _logger.LogInformation("Connected to Bluetooth mouse: {DevicePath}", devicePath);
-
-                    // Monitor until disconnection or cancellation
                     await MonitorEventsAsync(cancellationToken);
-
                     _logger.LogWarning("Bluetooth mouse disconnected, will attempt reconnection...");
                     CloseDevice();
                 }
@@ -201,12 +209,12 @@ public class BluetoothMouseMonitor : IDisposable
             {
                 _logger.LogError(ex, "Error in Bluetooth mouse reconnect loop");
                 CloseDevice();
-                await Task.Delay(ReconnectIntervalMs, cancellationToken);
+                await Task.Delay(EvdevConstants.DefaultReconnectIntervalMs, cancellationToken);
             }
         }
     }
 
-    private async Task<bool> TryOpenDeviceAsync(string devicePath, CancellationToken cancellationToken)
+    private Task<bool> TryOpenDeviceAsync(string devicePath)
     {
         try
         {
@@ -215,14 +223,12 @@ public class BluetoothMouseMonitor : IDisposable
                 FileMode.Open,
                 FileAccess.Read,
                 FileShare.ReadWrite,
-                bufferSize: InputEventSize,
+                bufferSize: EvdevConstants.InputEventSize,
                 useAsync: false);
 
-            // Get the file descriptor for ioctl
             int fd = (int)_deviceStream.SafeFileHandle.DangerousGetHandle();
+            int result = ioctl(fd, EvdevConstants.EVIOCGRAB, 1);
 
-            // GRAB the device exclusively - this prevents events from propagating to system!
-            int result = ioctl(fd, EVIOCGRAB, 1);
             if (result == 0)
             {
                 _deviceGrabbed = true;
@@ -235,57 +241,57 @@ public class BluetoothMouseMonitor : IDisposable
                 _deviceGrabbed = false;
             }
 
-            return true;
+            return Task.FromResult(true);
         }
         catch (UnauthorizedAccessException ex)
         {
             _logger.LogError(ex, "Permission denied. Add user to 'input' group: sudo usermod -a -G input $USER");
-            return false;
+            return Task.FromResult(false);
         }
         catch (FileNotFoundException)
         {
             _logger.LogDebug("Device not found: {DevicePath}", devicePath);
-            return false;
+            return Task.FromResult(false);
         }
         catch (Exception ex)
         {
             _logger.LogError(ex, "Failed to open device: {DevicePath}", devicePath);
-            return false;
+            return Task.FromResult(false);
         }
     }
 
     private void CloseDevice()
     {
-        if (_deviceStream != null)
+        if (_deviceStream == null)
+            return;
+
+        try
         {
-            try
+            if (_deviceGrabbed)
             {
-                if (_deviceGrabbed)
-                {
-                    int fd = (int)_deviceStream.SafeFileHandle.DangerousGetHandle();
-                    ioctl(fd, EVIOCGRAB, 0); // Ungrab
-                    _deviceGrabbed = false;
-                    _logger.LogDebug("Device ungrabbed");
-                }
+                int fd = (int)_deviceStream.SafeFileHandle.DangerousGetHandle();
+                ioctl(fd, EvdevConstants.EVIOCGRAB, 0);
+                _deviceGrabbed = false;
+                _logger.LogDebug("Device ungrabbed");
             }
-            catch (Exception ex)
-            {
-                _logger.LogWarning(ex, "Error ungrabbing device");
-            }
-
-            try
-            {
-                _deviceStream.Dispose();
-            }
-            catch { }
-
-            _deviceStream = null;
         }
+        catch (Exception ex)
+        {
+            _logger.LogWarning(ex, "Error ungrabbing device");
+        }
+
+        try
+        {
+            _deviceStream.Dispose();
+        }
+        catch { }
+
+        _deviceStream = null;
     }
 
     private async Task MonitorEventsAsync(CancellationToken cancellationToken)
     {
-        var buffer = new byte[InputEventSize];
+        var buffer = new byte[EvdevConstants.InputEventSize];
 
         try
         {
@@ -294,22 +300,21 @@ public class BluetoothMouseMonitor : IDisposable
                 int bytesRead;
                 try
                 {
-                    bytesRead = _deviceStream.Read(buffer, 0, InputEventSize);
+                    bytesRead = _deviceStream.Read(buffer, 0, EvdevConstants.InputEventSize);
                 }
                 catch (IOException)
                 {
-                    // Device disconnected
                     _logger.LogDebug("IOException during read - device likely disconnected");
                     break;
                 }
 
-                if (bytesRead != InputEventSize)
+                if (bytesRead != EvdevConstants.InputEventSize)
                 {
                     _logger.LogWarning("Incomplete event data received: {BytesRead} bytes", bytesRead);
                     break;
                 }
 
-                await ParseAndHandleEventAsync(buffer);
+                await HandleEventAsync(buffer);
             }
         }
         catch (OperationCanceledException)
@@ -322,285 +327,47 @@ public class BluetoothMouseMonitor : IDisposable
         }
     }
 
-    private async Task ParseAndHandleEventAsync(byte[] buffer)
+    private async Task HandleEventAsync(byte[] buffer)
     {
-        // Skip timeval (first 16 bytes)
-        int offset = 16;
+        var (type, code, value) = ParseInputEvent(buffer);
 
-        // Read type (2 bytes)
-        ushort type = BitConverter.ToUInt16(buffer, offset);
-        offset += 2;
-
-        // Read code (2 bytes) - button code
-        ushort code = BitConverter.ToUInt16(buffer, offset);
-        offset += 2;
-
-        // Read value (4 bytes) - 0=release, 1=press
-        int value = BitConverter.ToInt32(buffer, offset);
-
-        // Only process button events
-        if (type != EV_KEY)
+        if (type != EvdevConstants.EV_KEY)
             return;
 
-        // Only process press and release (not repeat)
-        if (value != KEY_PRESS && value != KEY_RELEASE)
+        if (value != EvdevConstants.KEY_PRESS && value != EvdevConstants.KEY_RELEASE)
             return;
 
         var button = code switch
         {
-            BTN_LEFT => MouseButton.Left,
-            BTN_RIGHT => MouseButton.Right,
-            BTN_MIDDLE => MouseButton.Middle,
+            EvdevConstants.BTN_LEFT => MouseButton.Left,
+            EvdevConstants.BTN_RIGHT => MouseButton.Right,
+            EvdevConstants.BTN_MIDDLE => MouseButton.Middle,
             _ => MouseButton.Unknown
         };
 
         if (button == MouseButton.Unknown)
             return;
 
-        var eventArgs = new MouseButtonEventArgs(button, code, value == KEY_PRESS, DateTime.UtcNow);
+        var eventArgs = new MouseButtonEventArgs(button, code, value == EvdevConstants.KEY_PRESS, DateTime.UtcNow);
 
-        if (value == KEY_PRESS)
+        if (value == EvdevConstants.KEY_PRESS)
         {
             _logger.LogDebug("Mouse button pressed: {Button}", button);
             ButtonPressed?.Invoke(this, eventArgs);
 
-            // LEFT button press - multi-click detection
-            // Single click → CapsLock (toggle recording)
-            // Double click → ESC (cancel transcription)
-            // Triple click → run configured command (focus OpenCode)
-            if (button == MouseButton.Left)
+            switch (button)
             {
-                var now = DateTime.UtcNow;
-                var timeSinceLastClick = (now - _lastLeftClickTime).TotalMilliseconds;
+                case MouseButton.Left:
+                    _leftButtonHandler.RegisterClick();
+                    break;
 
-                // Check if this click is within the threshold window
-                if (timeSinceLastClick <= ClickThresholdMs && timeSinceLastClick > ClickDebounceMs)
-                {
-                    _leftClickCount++;
-                    _lastLeftClickTime = now;
-                    _logger.LogDebug("LEFT click {Count} recorded", _leftClickCount);
+                case MouseButton.Right:
+                    _rightButtonHandler.RegisterClick();
+                    break;
 
-                    // Cancel any pending action timer
-                    _leftClickTimerCts?.Cancel();
-
-                    if (_leftClickCount >= 3)
-                    {
-                        // Triple-click - execute configured command immediately
-                        _leftClickCount = 0;
-                        _lastLeftClickTime = DateTime.MinValue;
-
-                        if (!string.IsNullOrEmpty(_leftTripleClickCommand))
-                        {
-                            _logger.LogInformation("LEFT TRIPLE-CLICK - executing command: {Command}", _leftTripleClickCommand);
-                            try
-                            {
-                                var process = new Process
-                                {
-                                    StartInfo = new ProcessStartInfo
-                                    {
-                                        FileName = "/bin/bash",
-                                        Arguments = $"-c \"{_leftTripleClickCommand}\"",
-                                        UseShellExecute = false,
-                                        CreateNoWindow = true
-                                    }
-                                };
-                                process.Start();
-                            }
-                            catch (Exception ex)
-                            {
-                                _logger.LogError(ex, "Failed to execute triple-click command");
-                            }
-                        }
-                        else
-                        {
-                            _logger.LogDebug("LEFT TRIPLE-CLICK - no command configured");
-                        }
-                    }
-                    else
-                    {
-                        // Wait for potential next click
-                        _leftClickTimerCts = new CancellationTokenSource();
-                        var timerCts = _leftClickTimerCts;
-                        var clickCount = _leftClickCount;
-
-                        _ = Task.Run(async () =>
-                        {
-                            try
-                            {
-                                await Task.Delay(ClickThresholdMs, timerCts.Token);
-
-                                // Timer expired - execute action based on click count
-                                if (clickCount == 1)
-                                {
-                                    _logger.LogInformation("LEFT SINGLE-CLICK - toggling CapsLock (start/stop recording)");
-                                    await _keyboardMonitor.SimulateKeyPressAsync(KeyCode.CapsLock);
-                                    await Task.Delay(100);
-                                    _keyboardMonitor.RaiseKeyReleasedEvent(KeyCode.CapsLock);
-                                }
-                                else if (clickCount == 2)
-                                {
-                                    _logger.LogInformation("LEFT DOUBLE-CLICK - simulating ESC (cancel transcription)");
-                                    await _keyboardMonitor.SimulateKeyPressAsync(KeyCode.Escape);
-                                    _keyboardMonitor.RaiseKeyReleasedEvent(KeyCode.Escape);
-                                }
-
-                                _leftClickCount = 0;
-                            }
-                            catch (OperationCanceledException)
-                            {
-                                // Cancelled by next click - expected
-                            }
-                            catch (Exception ex)
-                            {
-                                _logger.LogError(ex, "Failed to execute LEFT click action");
-                            }
-                        });
-                    }
-                }
-                else
-                {
-                    // First click or timeout - start new sequence
-                    _leftClickCount = 1;
-                    _lastLeftClickTime = now;
-                    _leftClickTimerCts?.Cancel();
-                    _leftClickTimerCts = new CancellationTokenSource();
-                    var timerCts = _leftClickTimerCts;
-
-                    _logger.LogDebug("LEFT click 1 recorded (new sequence)");
-
-                    _ = Task.Run(async () =>
-                    {
-                        try
-                        {
-                            await Task.Delay(ClickThresholdMs, timerCts.Token);
-
-                            // Single click - CapsLock
-                            _logger.LogInformation("LEFT SINGLE-CLICK - toggling CapsLock (start/stop recording)");
-                            await _keyboardMonitor.SimulateKeyPressAsync(KeyCode.CapsLock);
-                            await Task.Delay(100);
-                            _keyboardMonitor.RaiseKeyReleasedEvent(KeyCode.CapsLock);
-                            _leftClickCount = 0;
-                        }
-                        catch (OperationCanceledException)
-                        {
-                            // Cancelled by next click - expected
-                        }
-                        catch (Exception ex)
-                        {
-                            _logger.LogError(ex, "Failed to toggle CapsLock on single-click");
-                        }
-                    });
-                }
-            }
-            // RIGHT button press - multi-click detection
-            // Single click → nothing
-            // Double click → Ctrl+Shift+V (paste to terminal)
-            // Triple click → Ctrl+C (copy)
-            else if (button == MouseButton.Right)
-            {
-                var now = DateTime.UtcNow;
-                var timeSinceLastClick = (now - _lastRightClickTime).TotalMilliseconds;
-
-                // Check if this click is within the threshold window
-                if (timeSinceLastClick <= ClickThresholdMs && timeSinceLastClick > ClickDebounceMs)
-                {
-                    _rightClickCount++;
-                    _lastRightClickTime = now;
-                    _logger.LogDebug("RIGHT click {Count} recorded", _rightClickCount);
-
-                    // Cancel any pending action timer
-                    _rightClickTimerCts?.Cancel();
-
-                    if (_rightClickCount >= 3)
-                    {
-                        // Triple-click - execute Ctrl+C immediately
-                        _rightClickCount = 0;
-                        _lastRightClickTime = DateTime.MinValue;
-
-                        _logger.LogInformation("RIGHT TRIPLE-CLICK - simulating Ctrl+C (copy)");
-                        try
-                        {
-                            await _keyboardMonitor.SimulateKeyComboAsync(KeyCode.LeftControl, KeyCode.C);
-                        }
-                        catch (Exception ex)
-                        {
-                            _logger.LogError(ex, "Failed to simulate Ctrl+C on triple-click");
-                        }
-                    }
-                    else
-                    {
-                        // Wait for potential next click
-                        _rightClickTimerCts = new CancellationTokenSource();
-                        var timerCts = _rightClickTimerCts;
-                        var clickCount = _rightClickCount;
-
-                        _ = Task.Run(async () =>
-                        {
-                            try
-                            {
-                                await Task.Delay(ClickThresholdMs, timerCts.Token);
-
-                                // Timer expired - execute action based on click count
-                                if (clickCount == 2)
-                                {
-                                    _logger.LogInformation("RIGHT DOUBLE-CLICK - simulating Ctrl+Shift+V (terminal paste)");
-                                    await _keyboardMonitor.SimulateKeyComboAsync(KeyCode.LeftControl, KeyCode.LeftShift, KeyCode.V);
-                                }
-                                // Single click = no action
-
-                                _rightClickCount = 0;
-                            }
-                            catch (OperationCanceledException)
-                            {
-                                // Cancelled by next click - expected
-                            }
-                            catch (Exception ex)
-                            {
-                                _logger.LogError(ex, "Failed to execute RIGHT click action");
-                            }
-                        });
-                    }
-                }
-                else
-                {
-                    // First click or timeout - start new sequence
-                    _rightClickCount = 1;
-                    _lastRightClickTime = now;
-                    _rightClickTimerCts?.Cancel();
-                    _rightClickTimerCts = new CancellationTokenSource();
-                    var timerCts = _rightClickTimerCts;
-
-                    _logger.LogDebug("RIGHT click 1 recorded (new sequence)");
-
-                    _ = Task.Run(async () =>
-                    {
-                        try
-                        {
-                            await Task.Delay(ClickThresholdMs, timerCts.Token);
-                            // Single click timeout - no action
-                            _rightClickCount = 0;
-                        }
-                        catch (OperationCanceledException)
-                        {
-                            // Cancelled by next click - expected
-                        }
-                    });
-                }
-            }
-            // MIDDLE button press -> simulate Enter key (confirm/send in active window)
-            else if (button == MouseButton.Middle)
-            {
-                _logger.LogInformation("MIDDLE button pressed - simulating Enter key press");
-                try
-                {
-                    // Simulate physical Enter key press via uinput
-                    // This sends Enter to the active window (e.g., to send message in chat)
-                    await _keyboardMonitor.SimulateKeyPressAsync(KeyCode.Enter);
-                }
-                catch (Exception ex)
-                {
-                    _logger.LogError(ex, "Failed to simulate Enter key press");
-                }
+                case MouseButton.Middle:
+                    await HandleMiddleButtonAsync();
+                    break;
             }
         }
         else
@@ -610,52 +377,29 @@ public class BluetoothMouseMonitor : IDisposable
         }
     }
 
-    private string? FindBluetoothMouse()
+    private async Task HandleMiddleButtonAsync()
     {
-        const string devicesPath = "/proc/bus/input/devices";
-        if (!File.Exists(devicesPath))
-            return null;
-
+        _logger.LogInformation("MIDDLE button pressed - simulating Enter key press");
         try
         {
-            var content = File.ReadAllText(devicesPath);
-            var sections = content.Split("\n\n", StringSplitOptions.RemoveEmptyEntries);
-
-            foreach (var section in sections)
-            {
-                // Check if this device matches our pattern
-                if (!section.Contains(_deviceNamePattern, StringComparison.OrdinalIgnoreCase))
-                    continue;
-
-                // Must be a mouse (have "mouse" in handlers or name)
-                if (!section.Contains("mouse", StringComparison.OrdinalIgnoreCase) &&
-                    !section.Contains("Mouse", StringComparison.Ordinal))
-                    continue;
-
-                // Find the event handler
-                foreach (var line in section.Split('\n'))
-                {
-                    if (line.StartsWith("H: Handlers="))
-                    {
-                        var match = Regex.Match(line, @"event(\d+)");
-                        if (match.Success)
-                        {
-                            var eventPath = $"/dev/input/event{match.Groups[1].Value}";
-                            if (File.Exists(eventPath))
-                            {
-                                return eventPath;
-                            }
-                        }
-                    }
-                }
-            }
+            await _keyboardMonitor.SimulateKeyPressAsync(KeyCode.Enter);
         }
         catch (Exception ex)
         {
-            _logger.LogError(ex, "Error parsing /proc/bus/input/devices");
+            _logger.LogError(ex, "Failed to simulate Enter key press");
         }
+    }
 
-        return null;
+    private static (ushort type, ushort code, int value) ParseInputEvent(byte[] buffer)
+    {
+        int offset = EvdevConstants.TimevalOffset;
+        ushort type = BitConverter.ToUInt16(buffer, offset);
+        offset += 2;
+        ushort code = BitConverter.ToUInt16(buffer, offset);
+        offset += 2;
+        int value = BitConverter.ToInt32(buffer, offset);
+
+        return (type, code, value);
     }
 
     /// <inheritdoc/>
@@ -669,6 +413,8 @@ public class BluetoothMouseMonitor : IDisposable
             StopMonitoringAsync().GetAwaiter().GetResult();
         }
 
+        _leftButtonHandler.Dispose();
+        _rightButtonHandler.Dispose();
         _cts?.Dispose();
         CloseDevice();
 
@@ -683,9 +429,9 @@ public class BluetoothMouseMonitor : IDisposable
 public enum MouseButton
 {
     Unknown = 0,
-    Left = 272,    // BTN_LEFT
-    Right = 273,   // BTN_RIGHT
-    Middle = 274   // BTN_MIDDLE
+    Left = EvdevConstants.BTN_LEFT,
+    Right = EvdevConstants.BTN_RIGHT,
+    Middle = EvdevConstants.BTN_MIDDLE
 }
 
 /// <summary>

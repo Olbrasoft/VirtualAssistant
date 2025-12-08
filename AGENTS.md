@@ -185,6 +185,85 @@ Configuration is in `appsettings.json`:
 }
 ```
 
+## PushToTalk Module Architecture
+
+The PushToTalk module provides dedicated mouse-based input for voice assistant control. It monitors specific mouse devices (Bluetooth and USB mice) and translates button clicks into keyboard shortcuts or commands.
+
+### SOLID Design Principles Applied
+
+The module follows SOLID principles with clear separation of concerns:
+
+```
+VirtualAssistant.PushToTalk/
+├── Constants & Configuration
+│   └── EvdevConstants.cs           # Linux evdev constants (no magic numbers)
+├── Device Discovery
+│   ├── IInputDeviceDiscovery.cs    # Interface for device discovery
+│   └── InputDeviceDiscovery.cs     # /proc/bus/input/devices parser
+├── Click Detection
+│   ├── IMultiClickDetector.cs      # Interface + ClickResult enum
+│   └── MultiClickDetector.cs       # Thread-safe multi-click timing
+├── Button Actions (Strategy Pattern)
+│   └── IButtonAction.cs            # Interface + implementations:
+│       ├── KeyPressAction          # Single key press
+│       ├── KeyComboAction          # Two-key combo (Ctrl+C)
+│       ├── KeyComboWithTwoModifiersAction  # Three-key combo (Ctrl+Shift+V)
+│       ├── ShellCommandAction      # Shell command execution
+│       └── NoAction                # Null object pattern
+├── Button Handler
+│   └── ButtonClickHandler.cs       # Combines detection + action execution
+└── Mouse Monitors
+    ├── BluetoothMouseMonitor.cs    # Microsoft BluetoothMouse3600
+    └── UsbMouseMonitor.cs          # USB Optical Mouse (secondary)
+```
+
+### Class Responsibilities
+
+| Class | Single Responsibility |
+|-------|----------------------|
+| `EvdevConstants` | Centralized Linux evdev constants |
+| `InputDeviceDiscovery` | Parse /proc/bus/input/devices to find mice |
+| `MultiClickDetector` | Detect single/double/triple clicks with timing |
+| `ButtonClickHandler` | Map click results to button actions |
+| `IButtonAction` implementations | Execute specific keyboard/command actions |
+| `BluetoothMouseMonitor` | Monitor BT mouse, delegate to handlers |
+| `UsbMouseMonitor` | Monitor USB mouse, delegate to handlers |
+
+### Button Mappings
+
+**Bluetooth Mouse (BluetoothMouse3600):**
+| Button | Single Click | Double Click | Triple Click |
+|--------|--------------|--------------|--------------|
+| LEFT | CapsLock (recording) | ESC (cancel) | Command (configurable) |
+| RIGHT | None | Ctrl+Shift+V (paste) | Ctrl+C (copy) |
+| MIDDLE | Enter | - | - |
+
+**USB Mouse (USB Optical Mouse):**
+| Button | Single Click | Double Click | Triple Click |
+|--------|--------------|--------------|--------------|
+| LEFT | CapsLock (recording) | ESC (cancel) | - |
+| RIGHT | None | Ctrl+Shift+V (paste) | Ctrl+C (copy) |
+
+### Key Design Decisions
+
+1. **EVIOCGRAB**: Device is grabbed exclusively - events don't propagate to system
+2. **Strategy Pattern**: Button actions are pluggable via `IButtonAction`
+3. **Null Object**: `NoAction.Instance` instead of null checks
+4. **Dependency Injection**: All dependencies injected for testability
+5. **Automatic Reconnection**: Monitors reconnect when device disconnects
+
+### Testing
+
+```bash
+# Run PushToTalk tests
+dotnet test tests/VirtualAssistant.PushToTalk.Tests/
+
+# Test coverage includes:
+# - MultiClickDetectorTests (timing, events, disposal)
+# - EvdevConstantsTests (constant values verification)
+# - ButtonActionTests (all action types)
+```
+
 ## Troubleshooting
 
 ### 404 on API Endpoints

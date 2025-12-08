@@ -1,20 +1,26 @@
 using System.Runtime.InteropServices;
-using System.Text.RegularExpressions;
 using Microsoft.Extensions.Logging;
 
 namespace Olbrasoft.VirtualAssistant.PushToTalk;
 
 /// <summary>
-/// Monitors USB Optical Mouse button events and simulates key presses.
+/// Monitors USB Optical Mouse button events and executes configured actions.
 /// Uses EVIOCGRAB to grab device exclusively - events won't propagate to system.
 /// Designed for Logitech USB Optical Mouse used as a secondary push-to-talk trigger.
-/// NOTE: Does NOT grab Logitech G203 LIGHTSYNC Gaming Mouse (main mouse).
 /// </summary>
+/// <remarks>
+/// Button mappings:
+/// - LEFT: Single=CapsLock, Double=ESC
+/// - RIGHT: Single=None, Double=Ctrl+Shift+V, Triple=Ctrl+C
+/// NOTE: Does NOT grab Logitech G203 LIGHTSYNC Gaming Mouse (main mouse).
+/// </remarks>
 public class UsbMouseMonitor : IDisposable
 {
     private readonly ILogger<UsbMouseMonitor> _logger;
     private readonly IKeyboardMonitor _keyboardMonitor;
+    private readonly IInputDeviceDiscovery _deviceDiscovery;
     private readonly string _deviceNamePattern;
+    private readonly string[] _excludedDevices;
 
     private FileStream? _deviceStream;
     private bool _isMonitoring;
@@ -23,48 +29,66 @@ public class UsbMouseMonitor : IDisposable
     private Task? _reconnectTask;
     private CancellationTokenSource? _cts;
 
+    // Button click handlers
+    private readonly ButtonClickHandler _leftButtonHandler;
+    private readonly ButtonClickHandler _rightButtonHandler;
+
+    /// <summary>
+    /// Default device to exclude (main mouse).
+    /// </summary>
+    public const string DefaultExcludedDevice = "G203 LIGHTSYNC";
+
     // P/Invoke for ioctl to grab/ungrab the device
     [DllImport("libc", SetLastError = true)]
     private static extern int ioctl(int fd, uint request, int value);
 
-    // EVIOCGRAB ioctl code (from linux/input.h)
-    private const uint EVIOCGRAB = 0x40044590;
-
-    // Linux input_event structure (24 bytes on 64-bit)
-    private const int InputEventSize = 24;
-    private const ushort EV_KEY = 0x01;
-    private const ushort BTN_LEFT = 272;   // 0x110
-    private const ushort BTN_RIGHT = 273;  // 0x111
-    private const int KEY_PRESS = 1;
-    private const int KEY_RELEASE = 0;
-
-    // Reconnect settings
-    private const int ReconnectIntervalMs = 2000;
-    private const int MaxReconnectAttempts = int.MaxValue;
-
-    // Multi-click detection for LEFT and RIGHT buttons
-    private const int ClickThresholdMs = 400;
-    private const int ClickDebounceMs = 50;
-    private DateTime _lastLeftClickTime = DateTime.MinValue;
-    private DateTime _lastRightClickTime = DateTime.MinValue;
-    private int _rightClickCount = 0;
-    private CancellationTokenSource? _singleClickTimerCts;
-    private CancellationTokenSource? _rightClickTimerCts;
-
-    // Device to exclude (main mouse)
-    private const string ExcludedDevice = "G203 LIGHTSYNC";
-
     /// <summary>
     /// Initializes a new instance of the <see cref="UsbMouseMonitor"/> class.
     /// </summary>
+    /// <param name="logger">Logger instance.</param>
+    /// <param name="keyboardMonitor">Keyboard monitor for simulating key presses.</param>
+    /// <param name="deviceNamePattern">Device name pattern to search for (default: "USB Optical Mouse").</param>
     public UsbMouseMonitor(
         ILogger<UsbMouseMonitor> logger,
         IKeyboardMonitor keyboardMonitor,
         string deviceNamePattern = "USB Optical Mouse")
+        : this(logger, keyboardMonitor, new InputDeviceDiscovery(), deviceNamePattern, [DefaultExcludedDevice])
+    {
+    }
+
+    /// <summary>
+    /// Initializes a new instance of the <see cref="UsbMouseMonitor"/> class with dependency injection.
+    /// </summary>
+    internal UsbMouseMonitor(
+        ILogger<UsbMouseMonitor> logger,
+        IKeyboardMonitor keyboardMonitor,
+        IInputDeviceDiscovery deviceDiscovery,
+        string deviceNamePattern,
+        string[] excludedDevices)
     {
         _logger = logger ?? throw new ArgumentNullException(nameof(logger));
         _keyboardMonitor = keyboardMonitor ?? throw new ArgumentNullException(nameof(keyboardMonitor));
+        _deviceDiscovery = deviceDiscovery ?? throw new ArgumentNullException(nameof(deviceDiscovery));
         _deviceNamePattern = deviceNamePattern;
+        _excludedDevices = excludedDevices;
+
+        // Configure LEFT button: Single=CapsLock, Double=ESC (no triple-click)
+        _leftButtonHandler = new ButtonClickHandler(
+            "USB LEFT",
+            new KeyPressAction(_keyboardMonitor, KeyCode.CapsLock, "CapsLock (toggle recording)"),
+            new KeyPressAction(_keyboardMonitor, KeyCode.Escape, "ESC (cancel transcription)", raiseReleaseEvent: true),
+            NoAction.Instance, // No triple-click action for USB mouse
+            logger,
+            maxClickCount: 2);
+
+        // Configure RIGHT button: Single=None, Double=Ctrl+Shift+V, Triple=Ctrl+C
+        _rightButtonHandler = new ButtonClickHandler(
+            "USB RIGHT",
+            NoAction.Instance,
+            new KeyComboWithTwoModifiersAction(_keyboardMonitor, KeyCode.LeftControl, KeyCode.LeftShift, KeyCode.V, "Ctrl+Shift+V (terminal paste)"),
+            new KeyComboAction(_keyboardMonitor, KeyCode.LeftControl, KeyCode.C, "Ctrl+C (copy)"),
+            logger,
+            maxClickCount: 3);
     }
 
     /// <summary>
@@ -90,6 +114,7 @@ public class UsbMouseMonitor : IDisposable
     /// <summary>
     /// Starts monitoring USB mouse button events.
     /// </summary>
+    /// <param name="cancellationToken">Cancellation token.</param>
     public async Task StartMonitoringAsync(CancellationToken cancellationToken = default)
     {
         if (_disposed)
@@ -134,11 +159,11 @@ public class UsbMouseMonitor : IDisposable
                 }
                 catch (OperationCanceledException)
                 {
+                    // Expected during shutdown
                 }
             }
 
             CloseDevice();
-
             _logger.LogInformation("USB mouse monitoring stopped");
         }
         catch (Exception ex)
@@ -152,31 +177,29 @@ public class UsbMouseMonitor : IDisposable
     {
         int attempts = 0;
 
-        while (_isMonitoring && !cancellationToken.IsCancellationRequested && attempts < MaxReconnectAttempts)
+        while (_isMonitoring && !cancellationToken.IsCancellationRequested)
         {
             try
             {
-                var devicePath = FindUsbMouse();
+                var devicePath = _deviceDiscovery.FindMouseDevice(_deviceNamePattern, _excludedDevices);
 
                 if (devicePath == null)
                 {
-                    if (attempts == 0 || attempts % 30 == 0)
+                    if (attempts == 0 || attempts % EvdevConstants.LogIntervalAttempts == 0)
                     {
                         _logger.LogInformation("USB mouse '{Pattern}' not found, waiting for connection...", _deviceNamePattern);
                     }
                     attempts++;
-                    await Task.Delay(ReconnectIntervalMs, cancellationToken);
+                    await Task.Delay(EvdevConstants.DefaultReconnectIntervalMs, cancellationToken);
                     continue;
                 }
 
                 attempts = 0;
 
-                if (await TryOpenDeviceAsync(devicePath, cancellationToken))
+                if (await TryOpenDeviceAsync(devicePath))
                 {
                     _logger.LogInformation("Connected to USB mouse: {DevicePath}", devicePath);
-
                     await MonitorEventsAsync(cancellationToken);
-
                     _logger.LogWarning("USB mouse disconnected, will attempt reconnection...");
                     CloseDevice();
                 }
@@ -189,12 +212,12 @@ public class UsbMouseMonitor : IDisposable
             {
                 _logger.LogError(ex, "Error in USB mouse reconnect loop");
                 CloseDevice();
-                await Task.Delay(ReconnectIntervalMs, cancellationToken);
+                await Task.Delay(EvdevConstants.DefaultReconnectIntervalMs, cancellationToken);
             }
         }
     }
 
-    private async Task<bool> TryOpenDeviceAsync(string devicePath, CancellationToken cancellationToken)
+    private Task<bool> TryOpenDeviceAsync(string devicePath)
     {
         try
         {
@@ -203,12 +226,12 @@ public class UsbMouseMonitor : IDisposable
                 FileMode.Open,
                 FileAccess.Read,
                 FileShare.ReadWrite,
-                bufferSize: InputEventSize,
+                bufferSize: EvdevConstants.InputEventSize,
                 useAsync: false);
 
             int fd = (int)_deviceStream.SafeFileHandle.DangerousGetHandle();
+            int result = ioctl(fd, EvdevConstants.EVIOCGRAB, 1);
 
-            int result = ioctl(fd, EVIOCGRAB, 1);
             if (result == 0)
             {
                 _deviceGrabbed = true;
@@ -221,57 +244,57 @@ public class UsbMouseMonitor : IDisposable
                 _deviceGrabbed = false;
             }
 
-            return true;
+            return Task.FromResult(true);
         }
         catch (UnauthorizedAccessException ex)
         {
             _logger.LogError(ex, "Permission denied. Add user to 'input' group: sudo usermod -a -G input $USER");
-            return false;
+            return Task.FromResult(false);
         }
         catch (FileNotFoundException)
         {
             _logger.LogDebug("Device not found: {DevicePath}", devicePath);
-            return false;
+            return Task.FromResult(false);
         }
         catch (Exception ex)
         {
             _logger.LogError(ex, "Failed to open device: {DevicePath}", devicePath);
-            return false;
+            return Task.FromResult(false);
         }
     }
 
     private void CloseDevice()
     {
-        if (_deviceStream != null)
+        if (_deviceStream == null)
+            return;
+
+        try
         {
-            try
+            if (_deviceGrabbed)
             {
-                if (_deviceGrabbed)
-                {
-                    int fd = (int)_deviceStream.SafeFileHandle.DangerousGetHandle();
-                    ioctl(fd, EVIOCGRAB, 0);
-                    _deviceGrabbed = false;
-                    _logger.LogDebug("Device ungrabbed");
-                }
+                int fd = (int)_deviceStream.SafeFileHandle.DangerousGetHandle();
+                ioctl(fd, EvdevConstants.EVIOCGRAB, 0);
+                _deviceGrabbed = false;
+                _logger.LogDebug("Device ungrabbed");
             }
-            catch (Exception ex)
-            {
-                _logger.LogWarning(ex, "Error ungrabbing device");
-            }
-
-            try
-            {
-                _deviceStream.Dispose();
-            }
-            catch { }
-
-            _deviceStream = null;
         }
+        catch (Exception ex)
+        {
+            _logger.LogWarning(ex, "Error ungrabbing device");
+        }
+
+        try
+        {
+            _deviceStream.Dispose();
+        }
+        catch { }
+
+        _deviceStream = null;
     }
 
     private async Task MonitorEventsAsync(CancellationToken cancellationToken)
     {
-        var buffer = new byte[InputEventSize];
+        var buffer = new byte[EvdevConstants.InputEventSize];
 
         try
         {
@@ -280,7 +303,7 @@ public class UsbMouseMonitor : IDisposable
                 int bytesRead;
                 try
                 {
-                    bytesRead = _deviceStream.Read(buffer, 0, InputEventSize);
+                    bytesRead = _deviceStream.Read(buffer, 0, EvdevConstants.InputEventSize);
                 }
                 catch (IOException)
                 {
@@ -288,13 +311,13 @@ public class UsbMouseMonitor : IDisposable
                     break;
                 }
 
-                if (bytesRead != InputEventSize)
+                if (bytesRead != EvdevConstants.InputEventSize)
                 {
                     _logger.LogWarning("Incomplete event data received: {BytesRead} bytes", bytesRead);
                     break;
                 }
 
-                await ParseAndHandleEventAsync(buffer);
+                await HandleEventAsync(buffer);
             }
         }
         catch (OperationCanceledException)
@@ -307,183 +330,42 @@ public class UsbMouseMonitor : IDisposable
         }
     }
 
-    private async Task ParseAndHandleEventAsync(byte[] buffer)
+    private Task HandleEventAsync(byte[] buffer)
     {
-        int offset = 16;
-        ushort type = BitConverter.ToUInt16(buffer, offset);
-        offset += 2;
-        ushort code = BitConverter.ToUInt16(buffer, offset);
-        offset += 2;
-        int value = BitConverter.ToInt32(buffer, offset);
+        var (type, code, value) = ParseInputEvent(buffer);
 
-        if (type != EV_KEY)
-            return;
+        if (type != EvdevConstants.EV_KEY)
+            return Task.CompletedTask;
 
-        if (value != KEY_PRESS && value != KEY_RELEASE)
-            return;
+        if (value != EvdevConstants.KEY_PRESS && value != EvdevConstants.KEY_RELEASE)
+            return Task.CompletedTask;
 
         var button = code switch
         {
-            BTN_LEFT => MouseButton.Left,
-            BTN_RIGHT => MouseButton.Right,
+            EvdevConstants.BTN_LEFT => MouseButton.Left,
+            EvdevConstants.BTN_RIGHT => MouseButton.Right,
             _ => MouseButton.Unknown
         };
 
         if (button == MouseButton.Unknown)
-            return;
+            return Task.CompletedTask;
 
-        var eventArgs = new MouseButtonEventArgs(button, code, value == KEY_PRESS, DateTime.UtcNow);
+        var eventArgs = new MouseButtonEventArgs(button, code, value == EvdevConstants.KEY_PRESS, DateTime.UtcNow);
 
-        if (value == KEY_PRESS)
+        if (value == EvdevConstants.KEY_PRESS)
         {
             _logger.LogDebug("USB mouse button pressed: {Button}", button);
             ButtonPressed?.Invoke(this, eventArgs);
 
-            // LEFT button press - double-click detection
-            if (button == MouseButton.Left)
+            switch (button)
             {
-                var now = DateTime.UtcNow;
-                var timeSinceLastClick = (now - _lastLeftClickTime).TotalMilliseconds;
+                case MouseButton.Left:
+                    _leftButtonHandler.RegisterClick();
+                    break;
 
-                if (timeSinceLastClick <= ClickThresholdMs && timeSinceLastClick > ClickDebounceMs)
-                {
-                    _singleClickTimerCts?.Cancel();
-                    _singleClickTimerCts = null;
-                    _lastLeftClickTime = DateTime.MinValue;
-
-                    _logger.LogInformation("USB LEFT DOUBLE-CLICK - simulating ESC (cancel transcription)");
-                    try
-                    {
-                        await _keyboardMonitor.SimulateKeyPressAsync(KeyCode.Escape);
-                        _keyboardMonitor.RaiseKeyReleasedEvent(KeyCode.Escape);
-                    }
-                    catch (Exception ex)
-                    {
-                        _logger.LogError(ex, "Failed to simulate ESC on double-click");
-                    }
-                }
-                else
-                {
-                    _lastLeftClickTime = now;
-                    _singleClickTimerCts?.Cancel();
-                    _singleClickTimerCts = new CancellationTokenSource();
-                    var timerCts = _singleClickTimerCts;
-
-                    _ = Task.Run(async () =>
-                    {
-                        try
-                        {
-                            await Task.Delay(ClickThresholdMs, timerCts.Token);
-                            _logger.LogInformation("USB LEFT SINGLE-CLICK - toggling CapsLock (start/stop recording)");
-                            await _keyboardMonitor.SimulateKeyPressAsync(KeyCode.CapsLock);
-                            await Task.Delay(100);
-                            _keyboardMonitor.RaiseKeyReleasedEvent(KeyCode.CapsLock);
-                        }
-                        catch (OperationCanceledException)
-                        {
-                            _logger.LogDebug("Single-click action cancelled (double-click detected)");
-                        }
-                        catch (Exception ex)
-                        {
-                            _logger.LogError(ex, "Failed to toggle CapsLock on single-click");
-                        }
-                    });
-                }
-            }
-            // RIGHT button press - multi-click detection
-            // Single click → nothing
-            // Double click → Ctrl+Shift+V (paste to terminal)
-            // Triple click → Ctrl+C (copy)
-            else if (button == MouseButton.Right)
-            {
-                var now = DateTime.UtcNow;
-                var timeSinceLastClick = (now - _lastRightClickTime).TotalMilliseconds;
-
-                // Check if this click is within the threshold window
-                if (timeSinceLastClick <= ClickThresholdMs && timeSinceLastClick > ClickDebounceMs)
-                {
-                    _rightClickCount++;
-                    _lastRightClickTime = now;
-                    _logger.LogDebug("USB RIGHT click {Count} recorded", _rightClickCount);
-
-                    // Cancel any pending action timer
-                    _rightClickTimerCts?.Cancel();
-
-                    if (_rightClickCount >= 3)
-                    {
-                        // Triple-click - execute Ctrl+C immediately
-                        _rightClickCount = 0;
-                        _lastRightClickTime = DateTime.MinValue;
-
-                        _logger.LogInformation("USB RIGHT TRIPLE-CLICK - simulating Ctrl+C (copy)");
-                        try
-                        {
-                            await _keyboardMonitor.SimulateKeyComboAsync(KeyCode.LeftControl, KeyCode.C);
-                        }
-                        catch (Exception ex)
-                        {
-                            _logger.LogError(ex, "Failed to simulate Ctrl+C on triple-click");
-                        }
-                    }
-                    else
-                    {
-                        // Wait for potential next click
-                        _rightClickTimerCts = new CancellationTokenSource();
-                        var timerCts = _rightClickTimerCts;
-                        var clickCount = _rightClickCount;
-
-                        _ = Task.Run(async () =>
-                        {
-                            try
-                            {
-                                await Task.Delay(ClickThresholdMs, timerCts.Token);
-
-                                // Timer expired - execute action based on click count
-                                if (clickCount == 2)
-                                {
-                                    _logger.LogInformation("USB RIGHT DOUBLE-CLICK - simulating Ctrl+Shift+V (terminal paste)");
-                                    await _keyboardMonitor.SimulateKeyComboAsync(KeyCode.LeftControl, KeyCode.LeftShift, KeyCode.V);
-                                }
-                                // Single click = no action
-
-                                _rightClickCount = 0;
-                            }
-                            catch (OperationCanceledException)
-                            {
-                                // Cancelled by next click - expected
-                            }
-                            catch (Exception ex)
-                            {
-                                _logger.LogError(ex, "Failed to execute USB RIGHT click action");
-                            }
-                        });
-                    }
-                }
-                else
-                {
-                    // First click or timeout - start new sequence
-                    _rightClickCount = 1;
-                    _lastRightClickTime = now;
-                    _rightClickTimerCts?.Cancel();
-                    _rightClickTimerCts = new CancellationTokenSource();
-                    var timerCts = _rightClickTimerCts;
-
-                    _logger.LogDebug("USB RIGHT click 1 recorded (new sequence)");
-
-                    _ = Task.Run(async () =>
-                    {
-                        try
-                        {
-                            await Task.Delay(ClickThresholdMs, timerCts.Token);
-                            // Single click timeout - no action
-                            _rightClickCount = 0;
-                        }
-                        catch (OperationCanceledException)
-                        {
-                            // Cancelled by next click - expected
-                        }
-                    });
-                }
+                case MouseButton.Right:
+                    _rightButtonHandler.RegisterClick();
+                    break;
             }
         }
         else
@@ -491,55 +373,20 @@ public class UsbMouseMonitor : IDisposable
             _logger.LogDebug("USB mouse button released: {Button}", button);
             ButtonReleased?.Invoke(this, eventArgs);
         }
+
+        return Task.CompletedTask;
     }
 
-    private string? FindUsbMouse()
+    private static (ushort type, ushort code, int value) ParseInputEvent(byte[] buffer)
     {
-        const string devicesPath = "/proc/bus/input/devices";
-        if (!File.Exists(devicesPath))
-            return null;
+        int offset = EvdevConstants.TimevalOffset;
+        ushort type = BitConverter.ToUInt16(buffer, offset);
+        offset += 2;
+        ushort code = BitConverter.ToUInt16(buffer, offset);
+        offset += 2;
+        int value = BitConverter.ToInt32(buffer, offset);
 
-        try
-        {
-            var content = File.ReadAllText(devicesPath);
-            var sections = content.Split("\n\n", StringSplitOptions.RemoveEmptyEntries);
-
-            foreach (var section in sections)
-            {
-                // Skip excluded device (main mouse)
-                if (section.Contains(ExcludedDevice, StringComparison.OrdinalIgnoreCase))
-                    continue;
-
-                if (!section.Contains(_deviceNamePattern, StringComparison.OrdinalIgnoreCase))
-                    continue;
-
-                if (!section.Contains("mouse", StringComparison.OrdinalIgnoreCase) &&
-                    !section.Contains("Mouse", StringComparison.Ordinal))
-                    continue;
-
-                foreach (var line in section.Split('\n'))
-                {
-                    if (line.StartsWith("H: Handlers="))
-                    {
-                        var match = Regex.Match(line, @"event(\d+)");
-                        if (match.Success)
-                        {
-                            var eventPath = $"/dev/input/event{match.Groups[1].Value}";
-                            if (File.Exists(eventPath))
-                            {
-                                return eventPath;
-                            }
-                        }
-                    }
-                }
-            }
-        }
-        catch (Exception ex)
-        {
-            _logger.LogError(ex, "Error parsing /proc/bus/input/devices");
-        }
-
-        return null;
+        return (type, code, value);
     }
 
     /// <inheritdoc/>
@@ -553,6 +400,8 @@ public class UsbMouseMonitor : IDisposable
             StopMonitoringAsync().GetAwaiter().GetResult();
         }
 
+        _leftButtonHandler.Dispose();
+        _rightButtonHandler.Dispose();
         _cts?.Dispose();
         CloseDevice();
 
