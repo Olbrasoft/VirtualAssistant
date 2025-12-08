@@ -94,7 +94,7 @@ public sealed class TtsProviderChain : ITtsProviderChain
             // Check if provider is registered
             if (!_providers.TryGetValue(providerName, out var provider))
             {
-                _logger.LogDebug("Provider '{Name}' not found in registered providers", providerName);
+                _logger.LogWarning("Provider '{Name}' configured but not registered - skipping", providerName);
                 continue;
             }
 
