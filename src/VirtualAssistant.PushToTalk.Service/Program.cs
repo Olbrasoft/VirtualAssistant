@@ -112,6 +112,9 @@ builder.Services.AddVirtualAssistantData(connectionString);
 // Bluetooth mouse monitor (remote push-to-talk trigger)
 builder.Services.AddSingleton<BluetoothMouseMonitor>();
 
+// USB Optical Mouse monitor (secondary push-to-talk trigger)
+builder.Services.AddSingleton<UsbMouseMonitor>();
+
 // Register worker
 builder.Services.AddHostedService<DictationWorker>();
 
@@ -188,6 +191,11 @@ BluetoothMouseMonitor? _bluetoothMouseMonitor = _app.Services.GetRequiredService
 _ = _bluetoothMouseMonitor.StartMonitoringAsync(_cts!.Token);
 Console.WriteLine("Bluetooth mouse monitor started (LEFT=CapsLock, 2xLEFT=ESC, RIGHT=Ctrl+C, MIDDLE=Enter)");
 
+// Start USB Optical Mouse monitor (secondary push-to-talk trigger)
+UsbMouseMonitor? _usbMouseMonitor = _app.Services.GetRequiredService<UsbMouseMonitor>();
+_ = _usbMouseMonitor.StartMonitoringAsync(_cts!.Token);
+Console.WriteLine("USB mouse monitor started (LEFT=CapsLock, 2xLEFT=ESC, RIGHT=Ctrl+C)");
+
 try
 {
     // Initialize tray (must be on main thread for GTK)
@@ -245,6 +253,7 @@ catch (Exception ex)
 finally
 {
     _bluetoothMouseMonitor?.Dispose();
+    _usbMouseMonitor?.Dispose();
     _trayService?.Dispose();
     _app?.DisposeAsync().AsTask().Wait();
     _cts?.Dispose();
