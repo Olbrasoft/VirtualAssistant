@@ -314,6 +314,10 @@ public class Program
         builder.Services.AddSingleton<ITtsProvider, HttpEdgeTtsProvider>();
         builder.Services.AddSingleton<TtsService>();
 
+        // Piper TTS configuration (offline fallback)
+        builder.Services.Configure<Olbrasoft.VirtualAssistant.Voice.Configuration.PiperTtsOptions>(
+            builder.Configuration.GetSection(Olbrasoft.VirtualAssistant.Voice.Configuration.PiperTtsOptions.SectionName));
+
         // Workspace detection for smart TTS notifications
         builder.Services.AddSingleton<IWorkspaceDetectionService, WorkspaceDetectionService>();
 
@@ -373,7 +377,7 @@ public class Program
         // TTS Notify/Speak endpoint - receives text from OpenCode plugin and speaks it
         // Tries EdgeTTS first, falls back to Piper when Microsoft service is unavailable
         // Both /api/tts/notify and /api/tts/speak are supported (speak is alias for notify)
-        const string PiperModelPath = "/home/jirka/virtual-assistant/piper-voices/cs/cs_CZ-jirka-medium.onnx";
+        var piperOptions = app.Services.GetRequiredService<IOptions<Olbrasoft.VirtualAssistant.Voice.Configuration.PiperTtsOptions>>().Value;
 
         // Helper: Check if CapsLock LED is ON (user is recording)
         static bool IsCapsLockOn()
@@ -478,13 +482,29 @@ public class Program
                     Console.WriteLine("\u001b[93m⚠ EdgeTTS failed, using Piper\u001b[0m");
                     try
                     {
+                        // Get Piper voice profile based on source (default if not found)
+                        var profileKey = request.Source ?? "default";
+                        if (!piperOptions.Profiles.TryGetValue(profileKey, out var piperProfile))
+                        {
+                            piperOptions.Profiles.TryGetValue("default", out piperProfile);
+                            piperProfile ??= new Olbrasoft.VirtualAssistant.Voice.Configuration.PiperVoiceConfig();
+                        }
+
                         var tempWav = System.IO.Path.Combine(System.IO.Path.GetTempPath(), $"tts_{Guid.NewGuid():N}.wav");
+                        var piperArgs = $"--model \"{piperOptions.ModelPath}\" --output_file \"{tempWav}\" " +
+                            $"--length-scale {piperProfile.LengthScale.ToString(System.Globalization.CultureInfo.InvariantCulture)} " +
+                            $"--noise-scale {piperProfile.NoiseScale.ToString(System.Globalization.CultureInfo.InvariantCulture)} " +
+                            $"--noise-w-scale {piperProfile.NoiseWScale.ToString(System.Globalization.CultureInfo.InvariantCulture)} " +
+                            $"--sentence-silence {piperProfile.SentenceSilence.ToString(System.Globalization.CultureInfo.InvariantCulture)} " +
+                            $"--volume {piperProfile.Volume.ToString(System.Globalization.CultureInfo.InvariantCulture)} " +
+                            $"--speaker {piperProfile.Speaker}";
+
                         var piperProcess = new System.Diagnostics.Process
                         {
                             StartInfo = new System.Diagnostics.ProcessStartInfo
                             {
                                 FileName = "piper",
-                                Arguments = $"--model \"{PiperModelPath}\" --output_file \"{tempWav}\"",
+                                Arguments = piperArgs,
                                 RedirectStandardInput = true,
                                 RedirectStandardOutput = true,
                                 RedirectStandardError = true,
