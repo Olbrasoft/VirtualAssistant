@@ -78,7 +78,12 @@ public class LlmRouterResult
     /// Gets the topic of the discussion (when Action is StartDiscussion).
     /// </summary>
     public string? DiscussionTopic { get; init; }
-    
+
+    /// <summary>
+    /// Gets the target agent for task dispatch (when Action is DispatchTask).
+    /// </summary>
+    public string? TargetAgent { get; init; }
+
     /// <summary>
     /// Gets the response time in milliseconds.
     /// </summary>

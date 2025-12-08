@@ -39,6 +39,9 @@ public class ContinuousListenerWorker : BackgroundService
     // PTT Service endpoint for repeat text
     private const string PttRepeatEndpoint = "http://localhost:5050/api/ptt/repeat";
 
+    // VirtualAssistant Service endpoint for task dispatch
+    private const string TaskDispatchEndpoint = "http://localhost:5055/api/hub/dispatch-task";
+
     // State machine
     private enum State { Waiting, Recording, Muted }
     private State _state; // Initialized in constructor based on StartMuted config
@@ -487,6 +490,10 @@ public class ContinuousListenerWorker : BackgroundService
                     Console.WriteLine($"\u001b[96;1m💬 Discussion mode not implemented in this version\u001b[0m");
                     break;
 
+                case LlmRouterAction.DispatchTask:
+                    await HandleDispatchTaskActionAsync(routerResult.TargetAgent ?? "claude", cancellationToken);
+                    break;
+
                 case LlmRouterAction.Ignore:
                     // Already logged above
                     break;
@@ -604,6 +611,84 @@ public class ContinuousListenerWorker : BackgroundService
     /// Response from PTT repeat endpoint.
     /// </summary>
     private record PttRepeatResponse(string? Text, string? Message);
+
+    /// <summary>
+    /// Handles task dispatch request - sends task to target agent and speaks confirmation.
+    /// </summary>
+    private async Task HandleDispatchTaskActionAsync(string targetAgent, CancellationToken cancellationToken)
+    {
+        try
+        {
+            Console.WriteLine($"\u001b[95;1m📤 Dispatching task to {targetAgent}...\u001b[0m");
+
+            var requestBody = new { agent = targetAgent };
+            var response = await _httpClient.PostAsJsonAsync(TaskDispatchEndpoint, requestBody, cancellationToken);
+
+            if (response.IsSuccessStatusCode)
+            {
+                var result = await response.Content.ReadFromJsonAsync<DispatchTaskResponse>(cancellationToken: cancellationToken);
+
+                if (result?.Success == true)
+                {
+                    var issueInfo = result.GithubIssueNumber.HasValue
+                        ? $" (issue #{result.GithubIssueNumber})"
+                        : "";
+                    Console.WriteLine($"\u001b[92;1m✓ Task dispatched to {targetAgent}{issueInfo}\u001b[0m");
+                    if (!string.IsNullOrEmpty(result.Summary))
+                    {
+                        Console.WriteLine($"\u001b[92;1m   └─ {result.Summary}\u001b[0m");
+                    }
+
+                    // TTS confirmation
+                    var ttsMessage = result.GithubIssueNumber.HasValue
+                        ? $"Posílám úkol číslo {result.GithubIssueNumber}."
+                        : "Úkol odeslán.";
+                    await _speaker.SpeakAsync(ttsMessage, agentName: null, cancellationToken);
+                }
+                else
+                {
+                    Console.WriteLine($"\u001b[93;1m⚠ {result?.Message ?? "Unknown error"}\u001b[0m");
+
+                    // TTS notification based on reason
+                    var ttsMessage = result?.Reason switch
+                    {
+                        "agent_busy" => $"{targetAgent} je zaneprázdněný.",
+                        "no_pending_tasks" => "Žádné čekající úkoly.",
+                        _ => result?.Message ?? "Nepodařilo se odeslat úkol."
+                    };
+                    await _speaker.SpeakAsync(ttsMessage, agentName: null, cancellationToken);
+                }
+            }
+            else
+            {
+                Console.WriteLine($"\u001b[91;1m✗ Dispatch failed: {response.StatusCode}\u001b[0m");
+                await _speaker.SpeakAsync("Chyba při odesílání úkolu.", agentName: null, cancellationToken);
+            }
+        }
+        catch (HttpRequestException ex)
+        {
+            _logger.LogError(ex, "Failed to call dispatch task endpoint");
+            Console.WriteLine($"\u001b[91;1m✗ Service unavailable: {ex.Message}\u001b[0m");
+            await _speaker.SpeakAsync("Služba není dostupná.", agentName: null, cancellationToken);
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Error handling dispatch task request");
+            Console.WriteLine($"\u001b[91;1m✗ Error: {ex.Message}\u001b[0m");
+        }
+    }
+
+    /// <summary>
+    /// Response from dispatch task endpoint.
+    /// </summary>
+    private record DispatchTaskResponse(
+        bool Success,
+        string? Reason,
+        string? Message,
+        int? TaskId,
+        int? GithubIssueNumber,
+        string? GithubIssueUrl,
+        string? Summary);
 
     private void ResetToWaiting()
     {

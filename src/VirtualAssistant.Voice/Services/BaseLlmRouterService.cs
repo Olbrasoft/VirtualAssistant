@@ -267,6 +267,7 @@ Pouze pokud uzivatel explicitne rika ""konec diskuze"" nebo ""ukoncit diskuzi"",
                 "savenote" => LlmRouterAction.SaveNote,
                 "start_discussion" => LlmRouterAction.StartDiscussion,
                 "end_discussion" => LlmRouterAction.EndDiscussion,
+                "dispatch_task" => LlmRouterAction.DispatchTask,
                 // Bash actions are now redirected to OpenCode
                 "bash" => LlmRouterAction.OpenCode,
                 _ => LlmRouterAction.Ignore
@@ -295,6 +296,7 @@ Pouze pokud uzivatel explicitne rika ""konec diskuze"" nebo ""ukoncit diskuzi"",
                 NoteTitle = parsed.NoteTitle,
                 NoteContent = parsed.NoteContent,
                 DiscussionTopic = parsed.DiscussionTopic,
+                TargetAgent = parsed.TargetAgent ?? "claude", // Default to claude
                 ResponseTimeMs = responseTimeMs,
                 Success = true
             };
@@ -397,6 +399,9 @@ Pouze pokud uzivatel explicitne rika ""konec diskuze"" nebo ""ukoncit diskuzi"",
 
         [JsonPropertyName("discussion_topic")]
         public string? DiscussionTopic { get; set; }
+
+        [JsonPropertyName("target_agent")]
+        public string? TargetAgent { get; set; }
     }
 
     #endregion

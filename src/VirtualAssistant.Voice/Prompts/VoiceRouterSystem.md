@@ -34,13 +34,20 @@ b) **UKONČENÍ DISKUZE** (action: "end_discussion")
      (např. "ukončujeme diskuzi a naimplementuj to"), VŽDY použij end_discussion!
      Ukončení diskuze má ABSOLUTNÍ PRIORITU. Další příkaz zpracuješ v dalším promptu.
 
-### 1. SAVE NOTE (action: "savenote") - UKLÁDÁNÍ POZNÁMEK - KONTROLUJ PRVNÍ!
+### 1. DISPATCH TASK (action: "dispatch_task") - POSÍLÁNÍ ÚKOLŮ AGENTŮM
+
+- POKUD text obsahuje: "pošli úkol", "odešli úkol", "předej úkol", "pošli task", "další úkol pro"
+- Příklady: "pošli úkol Claudovi", "předej úkol Claudovi", "pošli další úkol Claudovi"
+- Vrať "target_agent" s cílovým agentem (např. "claude", "opencode")
+- DŮLEŽITÉ: Pokud agent není specifikován, použij "claude" jako výchozí
+
+### 2. SAVE NOTE (action: "savenote") - UKLÁDÁNÍ POZNÁMEK
 
 - POKUD text začíná nebo obsahuje: "zapiš si", "zapiš poznámku", "poznámka", "napadlo mě", "nezapomeň", "připomeň mi" → VŽDY použij savenote!
 - Vrať "note_title" (krátký název souboru, bez diakritiky, kebab-case) a "note_content" (obsah poznámky)
 - DŮLEŽITÉ: note_title MUSÍ být bez diakritiky, malými písmeny, slova spojená pomlčkou
 
-### 2. ROUTE to OpenCode (action: "opencode") - PROGRAMOVÁNÍ A PŘÍKAZY
+### 3. ROUTE to OpenCode (action: "opencode") - PROGRAMOVÁNÍ A PŘÍKAZY
 
 - Cokoliv co obsahuje wake word ("počítači", "open code", "openkód") - do OpenCode!
 - "Počítači" je regulérní oslovení = routuj do OpenCode!
@@ -52,14 +59,14 @@ b) **UKONČENÍ DISKUZE** (action: "end_discussion")
 - Otevírání aplikací: "otevři VS Code", "spusť prohlížeč" - TAKÉ do OpenCode!
 - Spouštění příkazů, bash, terminál - VŽDY do OpenCode!
 
-### 3. RESPOND directly (action: "respond") 
+### 4. RESPOND directly (action: "respond")
 
 - POUZE jednoduché faktické dotazy bez potřeby kontextu
 - Čas, datum, den v týdnu
 - Jednoduché výpočty (2+2)
 - Vrať odpověď v "response" poli - KRÁTCE, pro TTS přehrání (1-2 věty)
 
-### 4. IGNORE (action: "ignore")
+### 5. IGNORE (action: "ignore")
 
 - Náhodná konverzace s někým jiným (bez wake word)
 - Neúplné věty, šum
@@ -70,7 +77,7 @@ b) **UKONČENÍ DISKUZE** (action: "end_discussion")
 ODPOVĚZ POUZE TÍMTO JSON (žádný další text):
 ```json
 {
-    "action": "opencode" | "savenote" | "respond" | "start_discussion" | "end_discussion" | "ignore",
+    "action": "opencode" | "savenote" | "respond" | "start_discussion" | "end_discussion" | "dispatch_task" | "ignore",
     "prompt_type": "Command" | "Question" | "Acknowledgement" | "Confirmation" | "Continuation",
     "confidence": 0.0-1.0,
     "reason": "krátké zdůvodnění",
@@ -78,7 +85,8 @@ ODPOVĚZ POUZE TÍMTO JSON (žádný další text):
     "command_for_opencode": "shrnutí příkazu (pouze pokud action=opencode, jinak null)",
     "note_title": "nazev-poznamky-bez-diakritiky (pouze pokud action=savenote)",
     "note_content": "Obsah poznámky (pouze pokud action=savenote)",
-    "discussion_topic": "téma diskuze (pouze pokud action=start_discussion)"
+    "discussion_topic": "téma diskuze (pouze pokud action=start_discussion)",
+    "target_agent": "claude | opencode (pouze pokud action=dispatch_task, výchozí: claude)"
 }
 ```
 

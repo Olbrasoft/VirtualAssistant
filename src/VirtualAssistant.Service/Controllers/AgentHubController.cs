@@ -672,11 +672,47 @@ public class AgentHubController : ControllerBase
                 "Task {TaskId} marked as {Status} by agent",
                 taskId, status);
 
+            // Auto-dispatch: If task completed successfully and auto_dispatch is enabled (default: true)
+            // try to dispatch the next pending task to the same agent
+            DispatchTaskResult? nextTaskResult = null;
+            var autoDispatch = request.AutoDispatch ?? true; // Default to true
+
+            if (autoDispatch && status == "completed")
+            {
+                // Find the original task to get target agent
+                var completedTask = await _taskService.GetTaskAsync(taskId.Value, ct);
+                var targetAgent = completedTask?.TargetAgent ?? "claude";
+
+                _logger.LogInformation("Auto-dispatch enabled, checking for next task for {Agent}", targetAgent);
+
+                // Try to dispatch next task
+                nextTaskResult = await _taskService.DispatchTaskAsync(targetAgent, null, null, ct);
+
+                if (nextTaskResult.Success)
+                {
+                    _logger.LogInformation(
+                        "Auto-dispatched task {TaskId} (issue #{IssueNumber}) to {Agent}",
+                        nextTaskResult.TaskId, nextTaskResult.GithubIssueNumber, targetAgent);
+                }
+                else
+                {
+                    _logger.LogInformation(
+                        "Auto-dispatch: {Reason}",
+                        nextTaskResult.Reason ?? "No pending tasks");
+                }
+            }
+
             return Ok(new CompleteTaskApiResponse
             {
                 Success = true,
                 TaskId = taskId.Value,
-                Message = $"Task marked as {status}"
+                Message = $"Task marked as {status}",
+                NextTask = nextTaskResult?.Success == true ? new NextTaskInfo
+                {
+                    TaskId = nextTaskResult.TaskId!.Value,
+                    GithubIssueNumber = nextTaskResult.GithubIssueNumber,
+                    Summary = nextTaskResult.Summary
+                } : null
             });
         }
         catch (KeyNotFoundException ex)
@@ -1166,6 +1202,13 @@ public class CompleteTaskApiRequest
     /// </summary>
     [System.Text.Json.Serialization.JsonPropertyName("status")]
     public string? Status { get; set; }
+
+    /// <summary>
+    /// Whether to automatically dispatch the next pending task after completion.
+    /// Default: true.
+    /// </summary>
+    [System.Text.Json.Serialization.JsonPropertyName("auto_dispatch")]
+    public bool? AutoDispatch { get; set; }
 }
 
 /// <summary>
@@ -1188,6 +1231,35 @@ public class CompleteTaskApiResponse
     /// Confirmation message.
     /// </summary>
     public string Message { get; set; } = string.Empty;
+
+    /// <summary>
+    /// Information about the next task that was auto-dispatched (if any).
+    /// </summary>
+    [System.Text.Json.Serialization.JsonPropertyName("next_task")]
+    public NextTaskInfo? NextTask { get; set; }
+}
+
+/// <summary>
+/// Information about an auto-dispatched task.
+/// </summary>
+public class NextTaskInfo
+{
+    /// <summary>
+    /// Task ID of the next task.
+    /// </summary>
+    [System.Text.Json.Serialization.JsonPropertyName("task_id")]
+    public int TaskId { get; set; }
+
+    /// <summary>
+    /// GitHub issue number (if associated).
+    /// </summary>
+    [System.Text.Json.Serialization.JsonPropertyName("github_issue_number")]
+    public int? GithubIssueNumber { get; set; }
+
+    /// <summary>
+    /// Task summary/description.
+    /// </summary>
+    public string? Summary { get; set; }
 }
 
 /// <summary>
