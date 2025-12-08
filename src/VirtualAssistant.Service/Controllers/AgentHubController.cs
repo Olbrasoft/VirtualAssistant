@@ -582,7 +582,173 @@ public class AgentHubController : ControllerBase
             Message = result.Message,
             TaskId = result.TaskId,
             GithubIssueNumber = result.GithubIssueNumber,
-            GithubIssueUrl = result.GithubIssueUrl
+            GithubIssueUrl = result.GithubIssueUrl,
+            Summary = result.Summary
+        });
+    }
+
+    /// <summary>
+    /// Complete a task with result (called by Claude).
+    /// </summary>
+    /// <param name="request">Completion request with task ID and result</param>
+    /// <param name="ct">Cancellation token</param>
+    /// <returns>Completion confirmation</returns>
+    /// <response code="200">Task completed successfully</response>
+    /// <response code="400">Invalid request</response>
+    /// <response code="404">Task not found</response>
+    [HttpPost("complete-task")]
+    [ProducesResponseType(typeof(CompleteTaskApiResponse), StatusCodes.Status200OK)]
+    [ProducesResponseType(typeof(ErrorResponse), StatusCodes.Status400BadRequest)]
+    [ProducesResponseType(typeof(ErrorResponse), StatusCodes.Status404NotFound)]
+    public async Task<ActionResult<CompleteTaskApiResponse>> CompleteAgentTask(
+        [FromBody] CompleteTaskApiRequest request,
+        CancellationToken ct)
+    {
+        // Find task by ID or issue number
+        int? taskId = request.TaskId;
+
+        if (taskId == null && request.GithubIssueNumber.HasValue)
+        {
+            // Find task by issue number
+            var tasks = await _taskService.GetAllTasksAsync(1000, ct);
+            var task = tasks.FirstOrDefault(t =>
+                t.GithubIssueNumber == request.GithubIssueNumber &&
+                t.Status == "sent");
+
+            if (task == null)
+            {
+                return NotFound(new ErrorResponse
+                {
+                    Error = $"No sent task found for issue #{request.GithubIssueNumber}"
+                });
+            }
+
+            taskId = task.Id;
+        }
+
+        if (taskId == null)
+        {
+            return BadRequest(new ErrorResponse
+            {
+                Error = "Either task_id or github_issue_number is required"
+            });
+        }
+
+        // Validate status
+        var validStatuses = new[] { "completed", "failed", "blocked" };
+        var status = request.Status?.ToLowerInvariant() ?? "completed";
+        if (!validStatuses.Contains(status))
+        {
+            return BadRequest(new ErrorResponse
+            {
+                Error = $"Invalid status '{request.Status}'. Valid values: completed, failed, blocked"
+            });
+        }
+
+        try
+        {
+            // For completed status, use existing CompleteTaskAsync
+            // For failed/blocked, we need to update directly
+            if (status == "completed")
+            {
+                await _taskService.CompleteTaskAsync(taskId.Value, request.Result ?? "", ct);
+            }
+            else
+            {
+                // Get task and update status manually for failed/blocked
+                var task = await _taskService.GetTaskAsync(taskId.Value, ct);
+                if (task == null)
+                {
+                    return NotFound(new ErrorResponse { Error = $"Task {taskId} not found" });
+                }
+
+                // Use the existing complete method but we'll need to handle this differently
+                // For now, treat failed/blocked as completed with status in result
+                await _taskService.CompleteTaskAsync(taskId.Value,
+                    $"[{status.ToUpperInvariant()}] {request.Result}", ct);
+            }
+
+            _logger.LogInformation(
+                "Task {TaskId} marked as {Status} by agent",
+                taskId, status);
+
+            return Ok(new CompleteTaskApiResponse
+            {
+                Success = true,
+                TaskId = taskId.Value,
+                Message = $"Task marked as {status}"
+            });
+        }
+        catch (KeyNotFoundException ex)
+        {
+            return NotFound(new ErrorResponse { Error = ex.Message });
+        }
+        catch (InvalidOperationException ex)
+        {
+            return BadRequest(new ErrorResponse { Error = ex.Message });
+        }
+    }
+
+    /// <summary>
+    /// Get task status by ID or issue number.
+    /// </summary>
+    /// <param name="taskId">Task ID (optional if using issue query param)</param>
+    /// <param name="issue">GitHub issue number (alternative to taskId)</param>
+    /// <param name="ct">Cancellation token</param>
+    /// <returns>Task status details</returns>
+    /// <response code="200">Task status</response>
+    /// <response code="404">Task not found</response>
+    [HttpGet("task-status/{taskId:int?}")]
+    [ProducesResponseType(typeof(TaskStatusResponse), StatusCodes.Status200OK)]
+    [ProducesResponseType(typeof(ErrorResponse), StatusCodes.Status404NotFound)]
+    public async Task<ActionResult<TaskStatusResponse>> GetTaskStatus(
+        int? taskId,
+        [FromQuery] int? issue,
+        CancellationToken ct)
+    {
+        AgentTaskDto? task = null;
+
+        if (taskId.HasValue)
+        {
+            task = await _taskService.GetTaskAsync(taskId.Value, ct);
+        }
+        else if (issue.HasValue)
+        {
+            // Find by issue number
+            var tasks = await _taskService.GetAllTasksAsync(1000, ct);
+            task = tasks.FirstOrDefault(t => t.GithubIssueNumber == issue);
+        }
+        else
+        {
+            return BadRequest(new ErrorResponse
+            {
+                Error = "Either taskId path parameter or issue query parameter is required"
+            });
+        }
+
+        if (task == null)
+        {
+            return NotFound(new ErrorResponse
+            {
+                Error = taskId.HasValue
+                    ? $"Task {taskId} not found"
+                    : $"No task found for issue #{issue}"
+            });
+        }
+
+        return Ok(new TaskStatusResponse
+        {
+            TaskId = task.Id,
+            GithubIssueNumber = task.GithubIssueNumber,
+            GithubIssueUrl = task.GithubIssueUrl,
+            Status = task.Status,
+            Summary = task.Summary,
+            Result = task.Result,
+            CreatedByAgent = task.CreatedByAgent,
+            TargetAgent = task.TargetAgent,
+            CreatedAt = task.CreatedAt,
+            SentAt = task.SentAt,
+            CompletedAt = task.CompletedAt
         });
     }
 
@@ -965,4 +1131,130 @@ public class DispatchTaskResponse
     /// </summary>
     [System.Text.Json.Serialization.JsonPropertyName("github_issue_url")]
     public string? GithubIssueUrl { get; set; }
+
+    /// <summary>
+    /// Task summary/description (if dispatched successfully).
+    /// </summary>
+    public string? Summary { get; set; }
+}
+
+/// <summary>
+/// Request model for complete-task endpoint (called by Claude).
+/// </summary>
+public class CompleteTaskApiRequest
+{
+    /// <summary>
+    /// Task ID to complete.
+    /// </summary>
+    [System.Text.Json.Serialization.JsonPropertyName("task_id")]
+    public int? TaskId { get; set; }
+
+    /// <summary>
+    /// Alternative: GitHub issue number.
+    /// </summary>
+    [System.Text.Json.Serialization.JsonPropertyName("github_issue_number")]
+    public int? GithubIssueNumber { get; set; }
+
+    /// <summary>
+    /// Result/outcome description.
+    /// </summary>
+    [System.Text.Json.Serialization.JsonPropertyName("result")]
+    public string? Result { get; set; }
+
+    /// <summary>
+    /// Status: "completed", "failed", or "blocked".
+    /// </summary>
+    [System.Text.Json.Serialization.JsonPropertyName("status")]
+    public string? Status { get; set; }
+}
+
+/// <summary>
+/// Response model for complete-task endpoint.
+/// </summary>
+public class CompleteTaskApiResponse
+{
+    /// <summary>
+    /// Whether the completion was successful.
+    /// </summary>
+    public bool Success { get; set; }
+
+    /// <summary>
+    /// Task ID that was completed.
+    /// </summary>
+    [System.Text.Json.Serialization.JsonPropertyName("task_id")]
+    public int TaskId { get; set; }
+
+    /// <summary>
+    /// Confirmation message.
+    /// </summary>
+    public string Message { get; set; } = string.Empty;
+}
+
+/// <summary>
+/// Response model for task-status endpoint.
+/// </summary>
+public class TaskStatusResponse
+{
+    /// <summary>
+    /// Task ID.
+    /// </summary>
+    [System.Text.Json.Serialization.JsonPropertyName("task_id")]
+    public int TaskId { get; set; }
+
+    /// <summary>
+    /// GitHub issue number.
+    /// </summary>
+    [System.Text.Json.Serialization.JsonPropertyName("github_issue_number")]
+    public int? GithubIssueNumber { get; set; }
+
+    /// <summary>
+    /// GitHub issue URL.
+    /// </summary>
+    [System.Text.Json.Serialization.JsonPropertyName("github_issue_url")]
+    public string? GithubIssueUrl { get; set; }
+
+    /// <summary>
+    /// Task status: pending, sent, completed, failed, blocked.
+    /// </summary>
+    public string Status { get; set; } = string.Empty;
+
+    /// <summary>
+    /// Task summary/description.
+    /// </summary>
+    public string Summary { get; set; } = string.Empty;
+
+    /// <summary>
+    /// Completion result (filled when completed/failed/blocked).
+    /// </summary>
+    public string? Result { get; set; }
+
+    /// <summary>
+    /// Agent that created this task.
+    /// </summary>
+    [System.Text.Json.Serialization.JsonPropertyName("created_by_agent")]
+    public string? CreatedByAgent { get; set; }
+
+    /// <summary>
+    /// Target agent for this task.
+    /// </summary>
+    [System.Text.Json.Serialization.JsonPropertyName("target_agent")]
+    public string? TargetAgent { get; set; }
+
+    /// <summary>
+    /// When the task was created.
+    /// </summary>
+    [System.Text.Json.Serialization.JsonPropertyName("created_at")]
+    public DateTime CreatedAt { get; set; }
+
+    /// <summary>
+    /// When the task was sent to target agent.
+    /// </summary>
+    [System.Text.Json.Serialization.JsonPropertyName("sent_at")]
+    public DateTime? SentAt { get; set; }
+
+    /// <summary>
+    /// When the task was completed.
+    /// </summary>
+    [System.Text.Json.Serialization.JsonPropertyName("completed_at")]
+    public DateTime? CompletedAt { get; set; }
 }

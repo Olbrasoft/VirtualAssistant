@@ -505,7 +505,7 @@ public partial class AgentTaskService : IAgentTaskService
             "Task {TaskId} dispatched to {Agent}, issue #{Issue}",
             task.Id, targetAgent, task.GithubIssueNumber);
 
-        return DispatchTaskResult.Dispatched(task.Id, task.GithubIssueNumber, task.GithubIssueUrl);
+        return DispatchTaskResult.Dispatched(task.Id, task.GithubIssueNumber, task.GithubIssueUrl, task.Summary);
     }
 
     [GeneratedRegex(@"/issues/(\d+)")]

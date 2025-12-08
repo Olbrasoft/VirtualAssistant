@@ -37,9 +37,14 @@ public class DispatchTaskResult
     public string? GithubIssueUrl { get; set; }
 
     /// <summary>
+    /// Task summary/description (if dispatched successfully).
+    /// </summary>
+    public string? Summary { get; set; }
+
+    /// <summary>
     /// Create a success result.
     /// </summary>
-    public static DispatchTaskResult Dispatched(int taskId, int? issueNumber, string? issueUrl)
+    public static DispatchTaskResult Dispatched(int taskId, int? issueNumber, string? issueUrl, string? summary)
     {
         return new DispatchTaskResult
         {
@@ -47,7 +52,8 @@ public class DispatchTaskResult
             TaskId = taskId,
             GithubIssueNumber = issueNumber,
             GithubIssueUrl = issueUrl,
-            Message = "Task dispatched successfully"
+            Summary = summary,
+            Message = "Task dispatched to Claude"
         };
     }
 
