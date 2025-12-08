@@ -14,11 +14,20 @@ namespace Olbrasoft.VirtualAssistant.Service.Services;
 public class ClaudeDispatchService : IClaudeDispatchService
 {
     private readonly ILogger<ClaudeDispatchService> _logger;
+    private readonly IHttpClientFactory _httpClientFactory;
     private readonly string _defaultWorkingDirectory;
 
-    public ClaudeDispatchService(ILogger<ClaudeDispatchService> logger)
+    /// <summary>
+    /// Default timeout for Claude execution (30 minutes).
+    /// </summary>
+    public static readonly TimeSpan DefaultTimeout = TimeSpan.FromMinutes(30);
+
+    public ClaudeDispatchService(
+        ILogger<ClaudeDispatchService> logger,
+        IHttpClientFactory httpClientFactory)
     {
         _logger = logger;
+        _httpClientFactory = httpClientFactory;
         // Default to VirtualAssistant source directory
         _defaultWorkingDirectory = Path.Combine(
             Environment.GetFolderPath(Environment.SpecialFolder.UserProfile),
@@ -34,6 +43,10 @@ public class ClaudeDispatchService : IClaudeDispatchService
         _logger.LogInformation(
             "Executing Claude headless mode in {Directory}: {Prompt}",
             dir, prompt.Length > 100 ? prompt[..100] + "..." : prompt);
+
+        // Create timeout cancellation
+        using var timeoutCts = new CancellationTokenSource(DefaultTimeout);
+        using var linkedCts = CancellationTokenSource.CreateLinkedTokenSource(ct, timeoutCts.Token);
 
         try
         {
@@ -73,7 +86,7 @@ public class ClaudeDispatchService : IClaudeDispatchService
             process.BeginOutputReadLine();
             process.BeginErrorReadLine();
 
-            await process.WaitForExitAsync(ct);
+            await process.WaitForExitAsync(linkedCts.Token);
 
             var output = outputBuilder.ToString().Trim();
             var error = errorBuilder.ToString().Trim();
@@ -85,11 +98,25 @@ public class ClaudeDispatchService : IClaudeDispatchService
                 _logger.LogError(
                     "Claude execution failed with exit code {Code}: {Error}",
                     process.ExitCode, error);
+                await NotifyErrorAsync($"Claude selhal s kódem {process.ExitCode}");
                 return ClaudeExecutionResult.Failed(error, process.ExitCode);
             }
 
             // Parse JSON output
-            return ParseClaudeOutput(output);
+            var result = ParseClaudeOutput(output);
+
+            if (!result.Success)
+            {
+                await NotifyErrorAsync($"Claude chyba: {result.Error}");
+            }
+
+            return result;
+        }
+        catch (OperationCanceledException) when (timeoutCts.IsCancellationRequested)
+        {
+            _logger.LogError("Claude execution timed out after {Timeout}", DefaultTimeout);
+            await NotifyErrorAsync($"Claude timeout po {DefaultTimeout.TotalMinutes} minutách");
+            return ClaudeExecutionResult.Failed($"Timeout after {DefaultTimeout.TotalMinutes} minutes", -1);
         }
         catch (OperationCanceledException)
         {
@@ -99,7 +126,29 @@ public class ClaudeDispatchService : IClaudeDispatchService
         catch (Exception ex)
         {
             _logger.LogError(ex, "Failed to execute Claude command");
+            await NotifyErrorAsync($"Claude selhání: {ex.Message}");
             return ClaudeExecutionResult.Failed(ex.Message);
+        }
+    }
+
+    /// <summary>
+    /// Sends TTS notification for errors.
+    /// </summary>
+    private async Task NotifyErrorAsync(string message)
+    {
+        try
+        {
+            var client = _httpClientFactory.CreateClient();
+            var content = new StringContent(
+                JsonSerializer.Serialize(new { text = message, source = "claude" }),
+                Encoding.UTF8,
+                "application/json");
+
+            await client.PostAsync("http://localhost:5055/api/tts/notify", content);
+        }
+        catch (Exception ex)
+        {
+            _logger.LogWarning(ex, "Failed to send TTS error notification");
         }
     }
 

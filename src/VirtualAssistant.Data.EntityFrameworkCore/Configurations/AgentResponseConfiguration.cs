@@ -31,6 +31,15 @@ public class AgentResponseConfiguration : IEntityTypeConfiguration<AgentResponse
         builder.Property(ar => ar.CompletedAt)
             .HasColumnName("completed_at");
 
+        builder.Property(ar => ar.AgentTaskId)
+            .HasColumnName("agent_task_id");
+
+        // Relationship to AgentTask
+        builder.HasOne(ar => ar.AgentTask)
+            .WithMany()
+            .HasForeignKey(ar => ar.AgentTaskId)
+            .OnDelete(DeleteBehavior.SetNull);
+
         // Index for querying by agent name
         builder.HasIndex(ar => ar.AgentName)
             .HasDatabaseName("ix_agent_responses_agent_name");

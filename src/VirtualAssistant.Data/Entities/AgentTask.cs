@@ -79,11 +79,6 @@ public class AgentTask : BaseEnity
     public DateTime? SentAt { get; set; }
 
     /// <summary>
-    /// When the target agent confirmed receipt and started working (e.g., Claude acknowledged).
-    /// </summary>
-    public DateTime? StartedAt { get; set; }
-
-    /// <summary>
     /// When the task was completed.
     /// </summary>
     public DateTime? CompletedAt { get; set; }

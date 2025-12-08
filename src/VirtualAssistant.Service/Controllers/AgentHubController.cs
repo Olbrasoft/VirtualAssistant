@@ -2,6 +2,9 @@ using System.Diagnostics;
 using Microsoft.AspNetCore.Mvc;
 using VirtualAssistant.Core.Services;
 using VirtualAssistant.Data.Dtos;
+using VirtualAssistant.Data.Entities;
+using VirtualAssistant.Data.EntityFrameworkCore;
+using VirtualAssistant.Data.Enums;
 
 namespace Olbrasoft.VirtualAssistant.Service.Controllers;
 
@@ -17,6 +20,7 @@ public class AgentHubController : ControllerBase
     private readonly IAgentHubService _hubService;
     private readonly IAgentTaskService _taskService;
     private readonly IClaudeDispatchService _claudeService;
+    private readonly VirtualAssistantDbContext _dbContext;
     private readonly ILogger<AgentHubController> _logger;
 
     /// <summary>
@@ -25,16 +29,19 @@ public class AgentHubController : ControllerBase
     /// <param name="hubService">The agent hub service</param>
     /// <param name="taskService">The agent task service</param>
     /// <param name="claudeService">The Claude dispatch service</param>
+    /// <param name="dbContext">The database context</param>
     /// <param name="logger">The logger</param>
     public AgentHubController(
         IAgentHubService hubService,
         IAgentTaskService taskService,
         IClaudeDispatchService claudeService,
+        VirtualAssistantDbContext dbContext,
         ILogger<AgentHubController> logger)
     {
         _hubService = hubService;
         _taskService = taskService;
         _claudeService = claudeService;
+        _dbContext = dbContext;
         _logger = logger;
     }
 
@@ -597,8 +604,27 @@ public class AgentHubController : ControllerBase
 
         // Step 2: Only execute Claude if target is claude
         string? sessionId = null;
+        int? agentResponseId = null;
+
         if (targetAgent.Equals("claude", StringComparison.OrdinalIgnoreCase))
         {
+            // Create AgentResponse record to track agent status (linked to task)
+            var agentResponse = new AgentResponse
+            {
+                AgentName = "claude",
+                Status = AgentResponseStatus.InProgress,
+                StartedAt = DateTime.UtcNow,
+                AgentTaskId = result.TaskId
+            };
+
+            _dbContext.AgentResponses.Add(agentResponse);
+            await _dbContext.SaveChangesAsync(ct);
+            agentResponseId = agentResponse.Id;
+
+            _logger.LogInformation(
+                "Created AgentResponse {ResponseId} for task {TaskId}",
+                agentResponse.Id, result.TaskId);
+
             // Build the prompt for Claude
             var prompt = $"""
                 Nový úkol k implementaci:
@@ -614,6 +640,10 @@ public class AgentHubController : ControllerBase
                 "Executing Claude headless mode for task {TaskId}, issue #{IssueNumber}",
                 result.TaskId, result.GithubIssueNumber);
 
+            // Capture values for closure
+            var taskId = result.TaskId;
+            var responseId = agentResponse.Id;
+
             // Execute Claude in headless mode (fire and forget - runs in background)
             // We use Task.Run to not block the response
             _ = Task.Run(async () =>
@@ -622,25 +652,44 @@ public class AgentHubController : ControllerBase
                 {
                     var claudeResult = await _claudeService.ExecuteAsync(prompt);
 
-                    if (claudeResult.Success)
-                    {
-                        _logger.LogInformation(
-                            "Claude started processing task {TaskId}, session: {SessionId}",
-                            result.TaskId, claudeResult.SessionId);
+                    // Update AgentResponse and AgentTask with results
+                    using var scope = HttpContext.RequestServices.CreateScope();
+                    var db = scope.ServiceProvider.GetRequiredService<VirtualAssistantDbContext>();
 
-                        // Update task with session ID (would need to inject DbContext here)
-                        // For now, just log it - the session tracking is for future enhancement
+                    var response = await db.AgentResponses.FindAsync(responseId);
+                    if (response != null)
+                    {
+                        response.Status = claudeResult.Success
+                            ? AgentResponseStatus.Completed
+                            : AgentResponseStatus.Completed; // Mark completed even on error (agent is no longer busy)
+                        response.CompletedAt = DateTime.UtcNow;
+                        await db.SaveChangesAsync();
                     }
-                    else
+
+                    if (claudeResult.Success && !string.IsNullOrEmpty(claudeResult.SessionId))
+                    {
+                        // Update task with Claude session ID
+                        var task = await db.AgentTasks.FindAsync(taskId);
+                        if (task != null)
+                        {
+                            task.ClaudeSessionId = claudeResult.SessionId;
+                            await db.SaveChangesAsync();
+                        }
+
+                        _logger.LogInformation(
+                            "Claude completed task {TaskId}, session: {SessionId}",
+                            taskId, claudeResult.SessionId);
+                    }
+                    else if (!claudeResult.Success)
                     {
                         _logger.LogError(
                             "Claude execution failed for task {TaskId}: {Error}",
-                            result.TaskId, claudeResult.Error);
+                            taskId, claudeResult.Error);
                     }
                 }
                 catch (Exception ex)
                 {
-                    _logger.LogError(ex, "Error executing Claude for task {TaskId}", result.TaskId);
+                    _logger.LogError(ex, "Error executing Claude for task {TaskId}", taskId);
                 }
             }, CancellationToken.None);
 

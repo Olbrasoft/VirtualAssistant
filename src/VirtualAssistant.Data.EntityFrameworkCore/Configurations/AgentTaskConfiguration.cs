@@ -57,9 +57,6 @@ public class AgentTaskConfiguration : IEntityTypeConfiguration<AgentTask>
         builder.Property(t => t.SentAt)
             .HasColumnName("sent_at");
 
-        builder.Property(t => t.StartedAt)
-            .HasColumnName("started_at");
-
         builder.Property(t => t.CompletedAt)
             .HasColumnName("completed_at");
 
