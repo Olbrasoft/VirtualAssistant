@@ -41,6 +41,25 @@ public partial class AgentTaskService : IAgentTaskService
         // Extract issue number from URL
         var issueNumber = ExtractIssueNumber(request.GithubIssueUrl);
 
+        // Check for existing task with same issue number
+        if (issueNumber.HasValue)
+        {
+            var existingTask = await _dbContext.AgentTasks
+                .Include(t => t.CreatedByAgent)
+                .Include(t => t.TargetAgent)
+                .FirstOrDefaultAsync(t => t.GithubIssueNumber == issueNumber.Value, ct);
+
+            if (existingTask != null)
+            {
+                _logger.LogInformation(
+                    "Task for issue #{Issue} already exists with ID {Id}, status: {Status}",
+                    issueNumber, existingTask.Id, existingTask.Status);
+
+                throw new InvalidOperationException(
+                    $"Task for issue #{issueNumber} already exists (ID: {existingTask.Id}, status: {existingTask.Status})");
+            }
+        }
+
         var entity = new AgentTask
         {
             GithubIssueUrl = request.GithubIssueUrl,

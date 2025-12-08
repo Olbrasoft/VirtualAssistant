@@ -86,6 +86,8 @@ public class AgentTaskConfiguration : IEntityTypeConfiguration<AgentTask>
             .HasDatabaseName("ix_agent_tasks_target_status");
 
         builder.HasIndex(t => t.GithubIssueNumber)
-            .HasDatabaseName("ix_agent_tasks_issue_number");
+            .HasDatabaseName("ix_agent_tasks_github_issue_number_unique")
+            .IsUnique()
+            .HasFilter("github_issue_number IS NOT NULL");
     }
 }
