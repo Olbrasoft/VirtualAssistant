@@ -35,6 +35,7 @@ public class BluetoothMouseMonitor : IDisposable
     private const ushort EV_KEY = 0x01;
     private const ushort BTN_LEFT = 272;   // 0x110
     private const ushort BTN_RIGHT = 273;  // 0x111
+    private const ushort BTN_MIDDLE = 274; // 0x112
     private const int KEY_PRESS = 1;
     private const int KEY_RELEASE = 0;
 
@@ -334,6 +335,7 @@ public class BluetoothMouseMonitor : IDisposable
         {
             BTN_LEFT => MouseButton.Left,
             BTN_RIGHT => MouseButton.Right,
+            BTN_MIDDLE => MouseButton.Middle,
             _ => MouseButton.Unknown
         };
 
@@ -380,6 +382,20 @@ public class BluetoothMouseMonitor : IDisposable
                 catch (Exception ex)
                 {
                     _logger.LogError(ex, "Failed to send ESC event");
+                }
+            }
+            // MIDDLE button press -> send Enter (confirm)
+            else if (button == MouseButton.Middle)
+            {
+                _logger.LogInformation("MIDDLE button pressed - sending Enter to confirm");
+                try
+                {
+                    // Enter doesn't need LED toggle, just raise the event
+                    _keyboardMonitor.RaiseKeyReleasedEvent(KeyCode.Enter);
+                }
+                catch (Exception ex)
+                {
+                    _logger.LogError(ex, "Failed to send Enter event");
                 }
             }
         }
