@@ -133,4 +133,20 @@ public interface IAgentTaskService
         int? githubIssueNumber = null,
         string? githubIssueUrl = null,
         CancellationToken ct = default);
+
+    /// <summary>
+    /// Find task by GitHub issue number.
+    /// </summary>
+    /// <param name="githubIssueNumber">GitHub issue number</param>
+    /// <param name="ct">Cancellation token</param>
+    /// <returns>Task DTO or null if not found</returns>
+    Task<AgentTaskDto?> GetTaskByIssueNumberAsync(int githubIssueNumber, CancellationToken ct = default);
+
+    /// <summary>
+    /// Reopen a completed/sent/cancelled task (set status to pending, clear timestamps).
+    /// </summary>
+    /// <param name="taskId">Task ID</param>
+    /// <param name="ct">Cancellation token</param>
+    /// <returns>Previous status before reopening</returns>
+    Task<string> ReopenTaskAsync(int taskId, CancellationToken ct = default);
 }

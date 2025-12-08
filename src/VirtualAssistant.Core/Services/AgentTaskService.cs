@@ -528,6 +528,48 @@ public partial class AgentTaskService : IAgentTaskService
         return DispatchTaskResult.Dispatched(task.Id, task.GithubIssueNumber, task.GithubIssueUrl, task.Summary);
     }
 
+    public async Task<AgentTaskDto?> GetTaskByIssueNumberAsync(int githubIssueNumber, CancellationToken ct = default)
+    {
+        var task = await _dbContext.AgentTasks
+            .Include(t => t.CreatedByAgent)
+            .Include(t => t.TargetAgent)
+            .FirstOrDefaultAsync(t => t.GithubIssueNumber == githubIssueNumber, ct);
+
+        return task != null
+            ? MapToDto(task, task.CreatedByAgent?.Name, task.TargetAgent?.Name)
+            : null;
+    }
+
+    public async Task<string> ReopenTaskAsync(int taskId, CancellationToken ct = default)
+    {
+        var task = await GetTaskEntityAsync(taskId, ct)
+            ?? throw new KeyNotFoundException($"Task {taskId} not found");
+
+        var previousStatus = task.Status;
+
+        if (previousStatus == "pending")
+        {
+            throw new InvalidOperationException("Task is already pending");
+        }
+
+        // Clear timestamps and set status to pending
+        task.Status = "pending";
+        task.CompletedAt = null;
+        task.SentAt = null;
+        task.NotifiedAt = null;
+        task.ApprovedAt = null;
+        task.Result = null;
+        task.ClaudeSessionId = null;
+
+        await _dbContext.SaveChangesAsync(ct);
+
+        _logger.LogInformation(
+            "Task {TaskId} reopened, previous status: {PreviousStatus}",
+            taskId, previousStatus);
+
+        return previousStatus;
+    }
+
     [GeneratedRegex(@"/issues/(\d+)")]
     private static partial Regex IssueNumberRegex();
 }
