@@ -1,0 +1,31 @@
+{
+  "name": "opencode-task-manager-plugin",
+  "version": "1.0.0",
+  "description": "OpenCode plugin for managing tasks with VirtualAssistant",
+  "type": "module",
+  "main": "dist/index.js",
+  "types": "dist/index.d.ts",
+  "scripts": {
+    "build": "tsc",
+    "deploy": "npm run build && cp dist/index.js ~/.config/opencode/plugin/task-manager.js",
+    "watch": "tsc --watch",
+    "clean": "rm -rf dist"
+  },
+  "keywords": [
+    "opencode",
+    "plugin",
+    "task-manager",
+    "virtual-assistant"
+  ],
+  "author": "Olbrasoft",
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/Olbrasoft/VirtualAssistant.git"
+  },
+  "devDependencies": {
+    "@opencode-ai/plugin": "latest",
+    "@types/node": "^24.10.1",
+    "typescript": "^5.0.0"
+  }
+}
