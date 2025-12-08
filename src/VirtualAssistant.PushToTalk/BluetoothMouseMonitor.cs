@@ -43,10 +43,11 @@ public class BluetoothMouseMonitor : IDisposable
     private const int ReconnectIntervalMs = 2000;
     private const int MaxReconnectAttempts = int.MaxValue; // Keep trying forever
 
-    // Double-click detection for LEFT button
+    // Double-click detection for LEFT and RIGHT buttons
     private const int DoubleClickThresholdMs = 400;  // Max time between clicks for double-click
     private const int DoubleClickDebounceMs = 50;    // Min time between clicks (debounce)
     private DateTime _lastLeftClickTime = DateTime.MinValue;
+    private DateTime _lastRightClickTime = DateTime.MinValue;
     private CancellationTokenSource? _singleClickTimerCts;
 
     /// <summary>
@@ -419,18 +420,35 @@ public class BluetoothMouseMonitor : IDisposable
                     });
                 }
             }
-            // RIGHT button press -> simulate Ctrl+C (clear prompt in active window)
+            // RIGHT button press - double-click detection (safety for destructive Ctrl+C)
+            // Single click → nothing (just record time)
+            // Double click → Ctrl+C (clear prompt)
             else if (button == MouseButton.Right)
             {
-                _logger.LogInformation("RIGHT button pressed - simulating Ctrl+C (clear prompt)");
-                try
+                var now = DateTime.UtcNow;
+                var timeSinceLastClick = (now - _lastRightClickTime).TotalMilliseconds;
+
+                // Check for double-click (within threshold and after debounce)
+                if (timeSinceLastClick <= DoubleClickThresholdMs && timeSinceLastClick > DoubleClickDebounceMs)
                 {
-                    // Simulate Ctrl+C key combo via uinput (sends to active window)
-                    await _keyboardMonitor.SimulateKeyComboAsync(KeyCode.LeftControl, KeyCode.C);
+                    // Double-click detected - execute Ctrl+C
+                    _lastRightClickTime = DateTime.MinValue; // Reset to prevent triple-click
+
+                    _logger.LogInformation("RIGHT DOUBLE-CLICK - simulating Ctrl+C (clear prompt)");
+                    try
+                    {
+                        await _keyboardMonitor.SimulateKeyComboAsync(KeyCode.LeftControl, KeyCode.C);
+                    }
+                    catch (Exception ex)
+                    {
+                        _logger.LogError(ex, "Failed to simulate Ctrl+C on double-click");
+                    }
                 }
-                catch (Exception ex)
+                else
                 {
-                    _logger.LogError(ex, "Failed to simulate Ctrl+C");
+                    // Single click - just record time, do nothing else
+                    _lastRightClickTime = now;
+                    _logger.LogDebug("RIGHT single-click recorded (double-click within {Threshold}ms for Ctrl+C)", DoubleClickThresholdMs);
                 }
             }
             // MIDDLE button press -> simulate Enter key (confirm/send in active window)

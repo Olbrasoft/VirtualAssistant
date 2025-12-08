@@ -42,10 +42,11 @@ public class UsbMouseMonitor : IDisposable
     private const int ReconnectIntervalMs = 2000;
     private const int MaxReconnectAttempts = int.MaxValue;
 
-    // Double-click detection for LEFT button
+    // Double-click detection for LEFT and RIGHT buttons
     private const int DoubleClickThresholdMs = 400;
     private const int DoubleClickDebounceMs = 50;
     private DateTime _lastLeftClickTime = DateTime.MinValue;
+    private DateTime _lastRightClickTime = DateTime.MinValue;
     private CancellationTokenSource? _singleClickTimerCts;
 
     // Device to exclude (main mouse)
@@ -387,17 +388,35 @@ public class UsbMouseMonitor : IDisposable
                     });
                 }
             }
-            // RIGHT button press -> simulate Ctrl+C
+            // RIGHT button press - double-click detection (safety for destructive Ctrl+C)
+            // Single click → nothing (just record time)
+            // Double click → Ctrl+C (clear prompt)
             else if (button == MouseButton.Right)
             {
-                _logger.LogInformation("USB RIGHT button pressed - simulating Ctrl+C (clear prompt)");
-                try
+                var now = DateTime.UtcNow;
+                var timeSinceLastClick = (now - _lastRightClickTime).TotalMilliseconds;
+
+                // Check for double-click (within threshold and after debounce)
+                if (timeSinceLastClick <= DoubleClickThresholdMs && timeSinceLastClick > DoubleClickDebounceMs)
                 {
-                    await _keyboardMonitor.SimulateKeyComboAsync(KeyCode.LeftControl, KeyCode.C);
+                    // Double-click detected - execute Ctrl+C
+                    _lastRightClickTime = DateTime.MinValue; // Reset to prevent triple-click
+
+                    _logger.LogInformation("USB RIGHT DOUBLE-CLICK - simulating Ctrl+C (clear prompt)");
+                    try
+                    {
+                        await _keyboardMonitor.SimulateKeyComboAsync(KeyCode.LeftControl, KeyCode.C);
+                    }
+                    catch (Exception ex)
+                    {
+                        _logger.LogError(ex, "Failed to simulate Ctrl+C on double-click");
+                    }
                 }
-                catch (Exception ex)
+                else
                 {
-                    _logger.LogError(ex, "Failed to simulate Ctrl+C");
+                    // Single click - just record time, do nothing else
+                    _lastRightClickTime = now;
+                    _logger.LogDebug("USB RIGHT single-click recorded (double-click within {Threshold}ms for Ctrl+C)", DoubleClickThresholdMs);
                 }
             }
         }
