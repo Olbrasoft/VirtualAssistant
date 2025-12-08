@@ -118,4 +118,19 @@ public interface IAgentTaskService
     /// <param name="ct">Cancellation token</param>
     /// <returns>The task prompt content</returns>
     Task<string> AcceptTaskAsync(int taskId, CancellationToken ct = default);
+
+    /// <summary>
+    /// Dispatch a task to an agent if they are available.
+    /// Checks agent availability, finds pending task, and marks as sent.
+    /// </summary>
+    /// <param name="targetAgent">Target agent name (e.g., "claude")</param>
+    /// <param name="githubIssueNumber">Optional specific issue number</param>
+    /// <param name="githubIssueUrl">Optional specific issue URL</param>
+    /// <param name="ct">Cancellation token</param>
+    /// <returns>Dispatch result with success status and task details</returns>
+    Task<DispatchTaskResult> DispatchTaskAsync(
+        string targetAgent,
+        int? githubIssueNumber = null,
+        string? githubIssueUrl = null,
+        CancellationToken ct = default);
 }

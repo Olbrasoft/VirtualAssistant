@@ -416,6 +416,98 @@ public partial class AgentTaskService : IAgentTaskService
         };
     }
 
+    public async Task<DispatchTaskResult> DispatchTaskAsync(
+        string targetAgent,
+        int? githubIssueNumber = null,
+        string? githubIssueUrl = null,
+        CancellationToken ct = default)
+    {
+        ArgumentException.ThrowIfNullOrWhiteSpace(targetAgent);
+
+        // 1. Check if target agent is available
+        var isIdle = await IsAgentIdleAsync(targetAgent, ct);
+        if (!isIdle)
+        {
+            _logger.LogInformation("Dispatch rejected: {Agent} is busy", targetAgent);
+            return DispatchTaskResult.AgentBusy(targetAgent);
+        }
+
+        // 2. Get the target agent entity
+        var agent = await GetAgentByNameAsync(targetAgent, ct);
+        if (agent == null)
+        {
+            _logger.LogWarning("Dispatch failed: Agent '{Agent}' not found", targetAgent);
+            return DispatchTaskResult.NoPendingTasks(targetAgent);
+        }
+
+        // 3. Find pending task
+        AgentTask? task = null;
+
+        // Extract issue number from URL if provided
+        if (githubIssueNumber == null && !string.IsNullOrWhiteSpace(githubIssueUrl))
+        {
+            githubIssueNumber = ExtractIssueNumber(githubIssueUrl);
+        }
+
+        if (githubIssueNumber.HasValue)
+        {
+            // Find specific task by issue number
+            task = await _dbContext.AgentTasks
+                .Include(t => t.CreatedByAgent)
+                .Include(t => t.TargetAgent)
+                .Where(t => t.TargetAgentId == agent.Id)
+                .Where(t => t.GithubIssueNumber == githubIssueNumber.Value)
+                .Where(t => t.Status == "pending" || t.Status == "approved")
+                .FirstOrDefaultAsync(ct);
+
+            if (task == null)
+            {
+                _logger.LogInformation("Dispatch failed: No pending task for issue #{Issue}", githubIssueNumber);
+                return DispatchTaskResult.TaskNotFound(githubIssueNumber.Value);
+            }
+        }
+        else
+        {
+            // Find first pending task for agent
+            task = await _dbContext.AgentTasks
+                .Include(t => t.CreatedByAgent)
+                .Include(t => t.TargetAgent)
+                .Where(t => t.TargetAgentId == agent.Id)
+                .Where(t => t.Status == "pending" || t.Status == "approved")
+                .OrderBy(t => t.CreatedAt)
+                .FirstOrDefaultAsync(ct);
+
+            if (task == null)
+            {
+                _logger.LogInformation("Dispatch failed: No pending tasks for {Agent}", targetAgent);
+                return DispatchTaskResult.NoPendingTasks(targetAgent);
+            }
+        }
+
+        // 4. Mark task as sent
+        task.Status = "sent";
+        task.SentAt = DateTime.UtcNow;
+
+        // Log the delivery
+        var sendLog = new AgentTaskSend
+        {
+            TaskId = task.Id,
+            AgentId = agent.Id,
+            SentAt = DateTime.UtcNow,
+            DeliveryMethod = "dispatch_api",
+            Response = "Task dispatched via /api/hub/dispatch-task"
+        };
+
+        _dbContext.AgentTaskSends.Add(sendLog);
+        await _dbContext.SaveChangesAsync(ct);
+
+        _logger.LogInformation(
+            "Task {TaskId} dispatched to {Agent}, issue #{Issue}",
+            task.Id, targetAgent, task.GithubIssueNumber);
+
+        return DispatchTaskResult.Dispatched(task.Id, task.GithubIssueNumber, task.GithubIssueUrl);
+    }
+
     [GeneratedRegex(@"/issues/(\d+)")]
     private static partial Regex IssueNumberRegex();
 }

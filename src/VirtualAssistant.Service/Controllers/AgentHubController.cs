@@ -547,6 +547,46 @@ public class AgentHubController : ControllerBase
     }
 
     /// <summary>
+    /// Dispatch a task to an agent (typically Claude).
+    /// Checks if agent is available and sends first pending task.
+    /// </summary>
+    /// <param name="request">Optional dispatch parameters</param>
+    /// <param name="ct">Cancellation token</param>
+    /// <returns>Dispatch result</returns>
+    /// <response code="200">Dispatch result (success or failure reason)</response>
+    [HttpPost("dispatch-task")]
+    [ProducesResponseType(typeof(DispatchTaskResponse), StatusCodes.Status200OK)]
+    public async Task<ActionResult<DispatchTaskResponse>> DispatchTask(
+        [FromBody] DispatchTaskRequest? request,
+        CancellationToken ct)
+    {
+        // Default to Claude if no target specified
+        var targetAgent = request?.TargetAgent ?? "claude";
+
+        _logger.LogInformation(
+            "Dispatch request for {Agent}, issue: {IssueNumber}/{IssueUrl}",
+            targetAgent,
+            request?.GithubIssueNumber?.ToString() ?? "(none)",
+            request?.GithubIssueUrl ?? "(none)");
+
+        var result = await _taskService.DispatchTaskAsync(
+            targetAgent,
+            request?.GithubIssueNumber,
+            request?.GithubIssueUrl,
+            ct);
+
+        return Ok(new DispatchTaskResponse
+        {
+            Success = result.Success,
+            Reason = result.Reason,
+            Message = result.Message,
+            TaskId = result.TaskId,
+            GithubIssueNumber = result.GithubIssueNumber,
+            GithubIssueUrl = result.GithubIssueUrl
+        });
+    }
+
+    /// <summary>
     /// Queue a task for another agent.
     /// Simplified endpoint for MCP tool usage - no header required.
     /// </summary>
@@ -861,4 +901,68 @@ public class ErrorResponse
     /// Error message.
     /// </summary>
     public string Error { get; set; } = string.Empty;
+}
+
+/// <summary>
+/// Request model for dispatch task endpoint.
+/// </summary>
+public class DispatchTaskRequest
+{
+    /// <summary>
+    /// Target agent (default: "claude").
+    /// </summary>
+    [System.Text.Json.Serialization.JsonPropertyName("target_agent")]
+    public string? TargetAgent { get; set; }
+
+    /// <summary>
+    /// Optional specific GitHub issue number.
+    /// </summary>
+    [System.Text.Json.Serialization.JsonPropertyName("github_issue_number")]
+    public int? GithubIssueNumber { get; set; }
+
+    /// <summary>
+    /// Optional specific GitHub issue URL.
+    /// </summary>
+    [System.Text.Json.Serialization.JsonPropertyName("github_issue_url")]
+    public string? GithubIssueUrl { get; set; }
+}
+
+/// <summary>
+/// Response model for dispatch task endpoint.
+/// </summary>
+public class DispatchTaskResponse
+{
+    /// <summary>
+    /// Whether the dispatch was successful.
+    /// </summary>
+    public bool Success { get; set; }
+
+    /// <summary>
+    /// Reason for failure (if not successful).
+    /// Values: "agent_busy", "no_pending_tasks", "task_not_found"
+    /// </summary>
+    public string? Reason { get; set; }
+
+    /// <summary>
+    /// Human-readable message.
+    /// </summary>
+    public string Message { get; set; } = string.Empty;
+
+    /// <summary>
+    /// Task ID (if dispatched successfully).
+    /// </summary>
+    [System.Text.Json.Serialization.JsonPropertyName("task_id")]
+    public int? TaskId { get; set; }
+
+    /// <summary>
+    /// GitHub issue number (if dispatched successfully).
+    /// </summary>
+    [System.Text.Json.Serialization.JsonPropertyName("github_issue_number")]
+    public int? GithubIssueNumber { get; set; }
+
+    /// <summary>
+    /// GitHub issue URL (if dispatched successfully).
+    /// </summary>
+    [System.Text.Json.Serialization.JsonPropertyName("github_issue_url")]
+    public string? GithubIssueUrl { get; set; }
 }
