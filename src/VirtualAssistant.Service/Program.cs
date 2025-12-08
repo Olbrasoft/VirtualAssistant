@@ -4,6 +4,7 @@ using Olbrasoft.VirtualAssistant.Core.Services;
 using Olbrasoft.VirtualAssistant.Core.TextInput;
 using Olbrasoft.VirtualAssistant.Voice;
 using Olbrasoft.VirtualAssistant.Voice.Audio;
+using Olbrasoft.VirtualAssistant.Voice.Configuration;
 using Olbrasoft.VirtualAssistant.Voice.Services;
 using Olbrasoft.VirtualAssistant.Service.Tray;
 using Olbrasoft.VirtualAssistant.Service.Services;
@@ -307,16 +308,27 @@ public class Program
             return new EvdevKeyboardMonitor(logger, options.Value.KeyboardDevice);
         });
 
-        // TTS Provider and Service for text-to-speech
-        // Use HTTP provider to call local EdgeTTS server (port 5555)
+        // TTS Provider Chain Configuration
+        builder.Services.Configure<TtsProviderChainOptions>(
+            builder.Configuration.GetSection(TtsProviderChainOptions.SectionName));
         builder.Services.Configure<HttpEdgeTtsOptions>(
             builder.Configuration.GetSection(HttpEdgeTtsOptions.SectionName));
-        builder.Services.AddSingleton<ITtsProvider, HttpEdgeTtsProvider>();
-        builder.Services.AddSingleton<TtsService>();
-
-        // Piper TTS configuration (offline fallback)
+        builder.Services.Configure<VoiceRssOptions>(
+            builder.Configuration.GetSection(VoiceRssOptions.SectionName));
+        builder.Services.Configure<GoogleTtsOptions>(
+            builder.Configuration.GetSection(GoogleTtsOptions.SectionName));
         builder.Services.Configure<Olbrasoft.VirtualAssistant.Voice.Configuration.PiperTtsOptions>(
             builder.Configuration.GetSection(Olbrasoft.VirtualAssistant.Voice.Configuration.PiperTtsOptions.SectionName));
+
+        // Register all TTS providers
+        builder.Services.AddSingleton<ITtsProvider, HttpEdgeTtsProvider>();
+        builder.Services.AddSingleton<ITtsProvider, VoiceRssProvider>();
+        builder.Services.AddSingleton<ITtsProvider, GoogleTtsProvider>();
+        builder.Services.AddSingleton<ITtsProvider, PiperTtsProvider>();
+
+        // TTS Provider Chain with circuit breaker
+        builder.Services.AddSingleton<ITtsProviderChain, TtsProviderChain>();
+        builder.Services.AddSingleton<TtsService>();
 
         // Workspace detection for smart TTS notifications
         builder.Services.AddSingleton<IWorkspaceDetectionService, WorkspaceDetectionService>();
@@ -375,9 +387,10 @@ public class Program
         app.MapGet("/health", () => Results.Ok("OK"));
 
         // TTS Notify/Speak endpoint - receives text from OpenCode plugin and speaks it
-        // Tries EdgeTTS first, falls back to Piper when Microsoft service is unavailable
+        // Uses TtsProviderChain with circuit breaker: EdgeTTS → VoiceRSS → gTTS → Piper
         // Both /api/tts/notify and /api/tts/speak are supported (speak is alias for notify)
-        var piperOptions = app.Services.GetRequiredService<IOptions<Olbrasoft.VirtualAssistant.Voice.Configuration.PiperTtsOptions>>().Value;
+        var ttsProviderChain = app.Services.GetRequiredService<ITtsProviderChain>();
+        var voiceProfilesOptions = app.Services.GetRequiredService<IOptions<TtsVoiceProfilesOptions>>().Value;
 
         // Helper: Check if CapsLock LED is ON (user is recording)
         static bool IsCapsLockOn()
@@ -425,144 +438,103 @@ public class Program
             }
         }
 
-        async Task<IResult> HandleTtsSpeak(TtsNotifyRequest request, IHttpClientFactory httpClientFactory, ILogger<Program> logger)
+        async Task<IResult> HandleTtsSpeak(TtsNotifyRequest request, ILogger<Program> logger)
         {
             var sourceInfo = string.IsNullOrEmpty(request.Source) ? "" : $" [{request.Source}]";
             Console.WriteLine($"\u001b[96;1m📩 TTS Speak{sourceInfo}: \"{request.Text}\"\u001b[0m");
             logger.LogInformation("TTS Speak received from {Source}: {Text}", request.Source ?? "default", request.Text);
 
             var text = request.Text;
+            var source = request.Source ?? "default";
 
-            // Try EdgeTTS first, then fall back to Piper
+            // Process TTS asynchronously (fire and forget for quick API response)
             _ = Task.Run(async () =>
             {
-                bool edgeTtsSuccess = false;
                 try
-                {
-                    var client = httpClientFactory.CreateClient();
-                    client.Timeout = TimeSpan.FromSeconds(10);
-                    var ttsRequest = new
-                    {
-                        text,
-                        voice = "cs-CZ-AntoninNeural",
-                        rate = "+5%",
-                        volume = "+0%",
-                        pitch = "-5st"
-                    };
-                    var content = new StringContent(
-                        System.Text.Json.JsonSerializer.Serialize(ttsRequest),
-                        System.Text.Encoding.UTF8,
-                        "application/json");
-                    var response = await client.PostAsync("http://localhost:5555/api/speech/speak", content);
-                    if (response.IsSuccessStatusCode)
-                    {
-                        var responseText = await response.Content.ReadAsStringAsync();
-                        if (!responseText.Contains("\"success\":false") && !responseText.Contains("Failed"))
-                        {
-                            edgeTtsSuccess = true;
-                            Console.WriteLine("\u001b[92m✓ EdgeTTS\u001b[0m");
-                        }
-                    }
-                }
-                catch (Exception ex)
-                {
-                    logger.LogWarning(ex, "EdgeTTS failed");
-                }
-
-                // Fallback to Piper if EdgeTTS failed
-                if (!edgeTtsSuccess)
                 {
                     // Check CapsLock before starting - if user is recording, skip
                     if (IsCapsLockOn())
                     {
-                        Console.WriteLine("\u001b[93m⚠ EdgeTTS failed, Piper skipped (CapsLock ON - recording)\u001b[0m");
+                        Console.WriteLine("\u001b[93m⚠ TTS skipped (CapsLock ON - recording)\u001b[0m");
                         return;
                     }
 
-                    Console.WriteLine("\u001b[93m⚠ EdgeTTS failed, using Piper\u001b[0m");
+                    // Get voice config for this source
+                    if (!voiceProfilesOptions.Profiles.TryGetValue(source, out var voiceConfig))
+                    {
+                        voiceProfilesOptions.Profiles.TryGetValue("default", out voiceConfig);
+                        voiceConfig ??= new VoiceConfig("cs-CZ-AntoninNeural", "+20%", "+0%", "+0Hz");
+                    }
+
+                    // Use provider chain with circuit breaker
+                    var (audio, providerUsed) = await ttsProviderChain.SynthesizeAsync(text, voiceConfig, source);
+
+                    if (audio == null || audio.Length == 0)
+                    {
+                        Console.WriteLine("\u001b[91m✗ All TTS providers failed\u001b[0m");
+                        return;
+                    }
+
+                    // EdgeTTS-HTTP plays audio server-side (returns empty array)
+                    if (providerUsed == "EdgeTTS-HTTP" && audio.Length == 0)
+                    {
+                        Console.WriteLine($"\u001b[92m✓ {providerUsed}\u001b[0m");
+                        return;
+                    }
+
+                    // Check CapsLock again before playing
+                    if (IsCapsLockOn())
+                    {
+                        Console.WriteLine($"\u001b[93m⚠ {providerUsed} generated, but CapsLock ON - not playing\u001b[0m");
+                        return;
+                    }
+
+                    // Save audio to temp file and play
+                    var isWav = providerUsed == "PiperTTS";
+                    var tempFile = Path.Combine(Path.GetTempPath(), $"tts_{Guid.NewGuid():N}.{(isWav ? "wav" : "mp3")}");
                     try
                     {
-                        // Get Piper voice profile based on source (default if not found)
-                        var profileKey = request.Source ?? "default";
-                        if (!piperOptions.Profiles.TryGetValue(profileKey, out var piperProfile))
-                        {
-                            piperOptions.Profiles.TryGetValue("default", out piperProfile);
-                            piperProfile ??= new Olbrasoft.VirtualAssistant.Voice.Configuration.PiperVoiceConfig();
-                        }
+                        await File.WriteAllBytesAsync(tempFile, audio);
 
-                        var tempWav = System.IO.Path.Combine(System.IO.Path.GetTempPath(), $"tts_{Guid.NewGuid():N}.wav");
-                        var piperArgs = $"--model \"{piperOptions.ModelPath}\" --output_file \"{tempWav}\" " +
-                            $"--length-scale {piperProfile.LengthScale.ToString(System.Globalization.CultureInfo.InvariantCulture)} " +
-                            $"--noise-scale {piperProfile.NoiseScale.ToString(System.Globalization.CultureInfo.InvariantCulture)} " +
-                            $"--noise-w-scale {piperProfile.NoiseWScale.ToString(System.Globalization.CultureInfo.InvariantCulture)} " +
-                            $"--sentence-silence {piperProfile.SentenceSilence.ToString(System.Globalization.CultureInfo.InvariantCulture)} " +
-                            $"--volume {piperProfile.Volume.ToString(System.Globalization.CultureInfo.InvariantCulture)} " +
-                            $"--speaker {piperProfile.Speaker}";
-
-                        var piperProcess = new System.Diagnostics.Process
+                        // Use aplay for WAV, mpv/ffplay for MP3
+                        var playerProcess = new System.Diagnostics.Process
                         {
                             StartInfo = new System.Diagnostics.ProcessStartInfo
                             {
-                                FileName = "piper",
-                                Arguments = piperArgs,
-                                RedirectStandardInput = true,
-                                RedirectStandardOutput = true,
-                                RedirectStandardError = true,
+                                FileName = isWav ? "aplay" : "ffplay",
+                                Arguments = isWav ? tempFile : $"-nodisp -autoexit \"{tempFile}\"",
                                 UseShellExecute = false,
                                 CreateNoWindow = true
                             }
                         };
-                        piperProcess.Start();
-                        await piperProcess.StandardInput.WriteLineAsync(text);
-                        piperProcess.StandardInput.Close();
-                        await piperProcess.WaitForExitAsync();
+                        playerProcess.Start();
 
-                        if (piperProcess.ExitCode == 0)
+                        // Poll during playback - stop if CapsLock pressed
+                        while (!playerProcess.HasExited)
                         {
-                            // Check CapsLock again before playing
                             if (IsCapsLockOn())
                             {
-                                Console.WriteLine("\u001b[93m⚠ Piper generated, but CapsLock ON - not playing\u001b[0m");
-                                try { System.IO.File.Delete(tempWav); } catch { }
-                                return;
+                                Console.WriteLine($"\u001b[91m🛑 CapsLock pressed - stopping {providerUsed} playback\u001b[0m");
+                                try { playerProcess.Kill(entireProcessTree: true); } catch { }
+                                break;
                             }
-
-                            var aplayProcess = new System.Diagnostics.Process
-                            {
-                                StartInfo = new System.Diagnostics.ProcessStartInfo
-                                {
-                                    FileName = "aplay",
-                                    Arguments = tempWav,
-                                    UseShellExecute = false,
-                                    CreateNoWindow = true
-                                }
-                            };
-                            aplayProcess.Start();
-
-                            // Poll during playback - stop if CapsLock pressed
-                            while (!aplayProcess.HasExited)
-                            {
-                                if (IsCapsLockOn())
-                                {
-                                    Console.WriteLine("\u001b[91m🛑 CapsLock pressed - stopping Piper playback\u001b[0m");
-                                    try { aplayProcess.Kill(entireProcessTree: true); } catch { }
-                                    break;
-                                }
-                                await Task.Delay(100); // Poll every 100ms
-                            }
-
-                            if (!aplayProcess.HasExited)
-                            {
-                                await aplayProcess.WaitForExitAsync();
-                            }
-                            Console.WriteLine("\u001b[92m✓ Piper TTS\u001b[0m");
+                            await Task.Delay(100); // Poll every 100ms
                         }
-                        try { System.IO.File.Delete(tempWav); } catch { }
+
+                        if (!playerProcess.HasExited)
+                        {
+                            await playerProcess.WaitForExitAsync();
+                        }
+                        Console.WriteLine($"\u001b[92m✓ {providerUsed}\u001b[0m");
                     }
-                    catch (Exception ex)
+                    finally
                     {
-                        logger.LogError(ex, "Piper TTS failed");
+                        try { if (File.Exists(tempFile)) File.Delete(tempFile); } catch { }
                     }
+                }
+                catch (Exception ex)
+                {
+                    logger.LogError(ex, "TTS processing failed");
                 }
             });
 
@@ -572,6 +544,20 @@ public class Program
 
         app.MapPost("/api/tts/notify", HandleTtsSpeak);
         app.MapPost("/api/tts/speak", HandleTtsSpeak);
+
+        // TTS Provider status endpoint - shows circuit breaker status
+        app.MapGet("/api/tts/providers", () =>
+        {
+            var statuses = ttsProviderChain.GetProvidersStatus();
+            return Results.Ok(new { providers = statuses });
+        });
+
+        // TTS Circuit breaker reset endpoint
+        app.MapPost("/api/tts/reset-circuit-breaker", (string? provider) =>
+        {
+            ttsProviderChain.ResetCircuitBreaker(provider);
+            return Results.Ok(new { success = true, message = provider != null ? $"Reset circuit breaker for {provider}" : "Reset all circuit breakers" });
+        });
 
         // TTS Queue status endpoint - returns current queue count
         app.MapGet("/api/tts/queue", (TtsService ttsService) =>
