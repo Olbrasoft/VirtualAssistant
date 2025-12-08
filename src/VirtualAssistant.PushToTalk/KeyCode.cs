@@ -74,5 +74,10 @@ public enum KeyCode
     /// <summary>
     /// C key.
     /// </summary>
-    C = 46
+    C = 46,
+
+    /// <summary>
+    /// V key.
+    /// </summary>
+    V = 47
 }

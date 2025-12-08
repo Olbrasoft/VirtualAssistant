@@ -43,12 +43,14 @@ public class BluetoothMouseMonitor : IDisposable
     private const int ReconnectIntervalMs = 2000;
     private const int MaxReconnectAttempts = int.MaxValue; // Keep trying forever
 
-    // Double-click detection for LEFT and RIGHT buttons
-    private const int DoubleClickThresholdMs = 400;  // Max time between clicks for double-click
-    private const int DoubleClickDebounceMs = 50;    // Min time between clicks (debounce)
+    // Multi-click detection for LEFT and RIGHT buttons
+    private const int ClickThresholdMs = 400;  // Max time between clicks for multi-click
+    private const int ClickDebounceMs = 50;    // Min time between clicks (debounce)
     private DateTime _lastLeftClickTime = DateTime.MinValue;
     private DateTime _lastRightClickTime = DateTime.MinValue;
+    private int _rightClickCount = 0;  // Track consecutive right clicks for triple-click
     private CancellationTokenSource? _singleClickTimerCts;
+    private CancellationTokenSource? _rightClickTimerCts;
 
     /// <summary>
     /// Initializes a new instance of the <see cref="BluetoothMouseMonitor"/> class.
@@ -365,7 +367,7 @@ public class BluetoothMouseMonitor : IDisposable
                 var timeSinceLastClick = (now - _lastLeftClickTime).TotalMilliseconds;
 
                 // Check for double-click (within threshold and after debounce)
-                if (timeSinceLastClick <= DoubleClickThresholdMs && timeSinceLastClick > DoubleClickDebounceMs)
+                if (timeSinceLastClick <= ClickThresholdMs && timeSinceLastClick > ClickDebounceMs)
                 {
                     // Double-click detected - cancel any pending single-click action
                     _singleClickTimerCts?.Cancel();
@@ -398,7 +400,7 @@ public class BluetoothMouseMonitor : IDisposable
                     {
                         try
                         {
-                            await Task.Delay(DoubleClickThresholdMs, timerCts.Token);
+                            await Task.Delay(ClickThresholdMs, timerCts.Token);
 
                             // If we get here, no second click happened - execute single-click action
                             _logger.LogInformation("LEFT SINGLE-CLICK - toggling CapsLock (start/stop recording)");
@@ -420,35 +422,99 @@ public class BluetoothMouseMonitor : IDisposable
                     });
                 }
             }
-            // RIGHT button press - double-click detection (safety for destructive Ctrl+C)
-            // Single click → nothing (just record time)
-            // Double click → Ctrl+C (clear prompt)
+            // RIGHT button press - multi-click detection
+            // Single click → nothing
+            // Double click → Ctrl+C (copy/clear)
+            // Triple click → Ctrl+V (paste)
             else if (button == MouseButton.Right)
             {
                 var now = DateTime.UtcNow;
                 var timeSinceLastClick = (now - _lastRightClickTime).TotalMilliseconds;
 
-                // Check for double-click (within threshold and after debounce)
-                if (timeSinceLastClick <= DoubleClickThresholdMs && timeSinceLastClick > DoubleClickDebounceMs)
+                // Check if this click is within the threshold window
+                if (timeSinceLastClick <= ClickThresholdMs && timeSinceLastClick > ClickDebounceMs)
                 {
-                    // Double-click detected - execute Ctrl+C
-                    _lastRightClickTime = DateTime.MinValue; // Reset to prevent triple-click
+                    _rightClickCount++;
+                    _lastRightClickTime = now;
+                    _logger.LogDebug("RIGHT click {Count} recorded", _rightClickCount);
 
-                    _logger.LogInformation("RIGHT DOUBLE-CLICK - simulating Ctrl+C (clear prompt)");
-                    try
+                    // Cancel any pending action timer
+                    _rightClickTimerCts?.Cancel();
+
+                    if (_rightClickCount >= 3)
                     {
-                        await _keyboardMonitor.SimulateKeyComboAsync(KeyCode.LeftControl, KeyCode.C);
+                        // Triple-click - execute Ctrl+V immediately
+                        _rightClickCount = 0;
+                        _lastRightClickTime = DateTime.MinValue;
+
+                        _logger.LogInformation("RIGHT TRIPLE-CLICK - simulating Ctrl+V (paste)");
+                        try
+                        {
+                            await _keyboardMonitor.SimulateKeyComboAsync(KeyCode.LeftControl, KeyCode.V);
+                        }
+                        catch (Exception ex)
+                        {
+                            _logger.LogError(ex, "Failed to simulate Ctrl+V on triple-click");
+                        }
                     }
-                    catch (Exception ex)
+                    else
                     {
-                        _logger.LogError(ex, "Failed to simulate Ctrl+C on double-click");
+                        // Wait for potential next click
+                        _rightClickTimerCts = new CancellationTokenSource();
+                        var timerCts = _rightClickTimerCts;
+                        var clickCount = _rightClickCount;
+
+                        _ = Task.Run(async () =>
+                        {
+                            try
+                            {
+                                await Task.Delay(ClickThresholdMs, timerCts.Token);
+
+                                // Timer expired - execute action based on click count
+                                if (clickCount == 2)
+                                {
+                                    _logger.LogInformation("RIGHT DOUBLE-CLICK - simulating Ctrl+C (copy)");
+                                    await _keyboardMonitor.SimulateKeyComboAsync(KeyCode.LeftControl, KeyCode.C);
+                                }
+                                // Single click = no action
+
+                                _rightClickCount = 0;
+                            }
+                            catch (OperationCanceledException)
+                            {
+                                // Cancelled by next click - expected
+                            }
+                            catch (Exception ex)
+                            {
+                                _logger.LogError(ex, "Failed to execute RIGHT click action");
+                            }
+                        });
                     }
                 }
                 else
                 {
-                    // Single click - just record time, do nothing else
+                    // First click or timeout - start new sequence
+                    _rightClickCount = 1;
                     _lastRightClickTime = now;
-                    _logger.LogDebug("RIGHT single-click recorded (double-click within {Threshold}ms for Ctrl+C)", DoubleClickThresholdMs);
+                    _rightClickTimerCts?.Cancel();
+                    _rightClickTimerCts = new CancellationTokenSource();
+                    var timerCts = _rightClickTimerCts;
+
+                    _logger.LogDebug("RIGHT click 1 recorded (new sequence)");
+
+                    _ = Task.Run(async () =>
+                    {
+                        try
+                        {
+                            await Task.Delay(ClickThresholdMs, timerCts.Token);
+                            // Single click timeout - no action
+                            _rightClickCount = 0;
+                        }
+                        catch (OperationCanceledException)
+                        {
+                            // Cancelled by next click - expected
+                        }
+                    });
                 }
             }
             // MIDDLE button press -> simulate Enter key (confirm/send in active window)
