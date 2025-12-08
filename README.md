@@ -329,13 +329,13 @@ Prompty jsou v `src/VirtualAssistant.Voice/Prompts/`:
 ## Deployment
 
 ```bash
-# Deploy hlavní služby
+# Deploy hlavní služby (POZOR: vždy do ROOT ~/virtual-assistant/, nikdy do subfolderů!)
 dotnet publish src/VirtualAssistant.Service/VirtualAssistant.Service.csproj \
-  -c Release -o ~/virtual-assistant/main --no-self-contained
+  -c Release -o ~/virtual-assistant --no-self-contained
 
 # Deploy Push-to-Talk služby
 dotnet publish src/VirtualAssistant.PushToTalk.Service/VirtualAssistant.PushToTalk.Service.csproj \
-  -c Release -o ~/virtual-assistant/push-to-talk --no-self-contained
+  -c Release -o ~/push-to-talk --no-self-contained
 
 # Systemd služby
 systemctl --user enable virtual-assistant.service
@@ -365,6 +365,35 @@ Voice router podporuje více LLM providerů s automatickým fallbackem při rate
 1. **Groq** (primární) – nejrychlejší, `llama-3.3-70b-versatile`
 2. **Cerebras** (fallback) – `llama-3.3-70b`
 3. **Mistral** (fallback) – `mistral-large-latest`
+
+## TTS (Text-to-Speech) Fallback
+
+Systém podporuje automatický fallback pro TTS:
+
+1. **EdgeTTS** (primární) – Microsoft Edge TTS přes `http://localhost:5555`
+2. **Piper TTS** (fallback) – lokální offline syntéza s českým hlasem `cs_CZ-jirka-medium`
+
+### Piper TTS Fallback
+
+Když EdgeTTS selže (např. Microsoft WebSocket problémy), automaticky se použije Piper:
+
+- Model: `/home/jirka/virtual-assistant/piper-voices/cs/cs_CZ-jirka-medium.onnx`
+- Respektuje CapsLock stav (stejný algoritmus jako EdgeTTS):
+  - Kontroluje před spuštěním syntézy
+  - Kontroluje po generování ale před přehráváním
+  - Polluje každých 100ms během přehrávání a okamžitě zastaví při stisku CapsLock
+
+### Instalace Piper
+
+```bash
+pipx install piper-tts
+
+# Stáhnout český model
+mkdir -p ~/virtual-assistant/piper-voices/cs
+cd ~/virtual-assistant/piper-voices/cs
+wget https://huggingface.co/rhasspy/piper-voices/resolve/main/cs/cs_CZ/jirka/medium/cs_CZ-jirka-medium.onnx
+wget https://huggingface.co/rhasspy/piper-voices/resolve/main/cs/cs_CZ/jirka/medium/cs_CZ-jirka-medium.onnx.json
+```
 
 ## Background Services
 
