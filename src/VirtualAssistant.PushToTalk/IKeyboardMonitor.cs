@@ -57,4 +57,12 @@ public interface IKeyboardMonitor : IDisposable
     /// </summary>
     /// <param name="key">The key to raise event for.</param>
     void RaiseKeyReleasedEvent(KeyCode key);
+
+    /// <summary>
+    /// Simulates a key combination (modifier + key) using uinput.
+    /// Used for keyboard shortcuts like Ctrl+C, Ctrl+V, etc.
+    /// </summary>
+    /// <param name="modifier">The modifier key (e.g., LeftControl, LeftShift).</param>
+    /// <param name="key">The key to press with the modifier.</param>
+    Task SimulateKeyComboAsync(KeyCode modifier, KeyCode key);
 }

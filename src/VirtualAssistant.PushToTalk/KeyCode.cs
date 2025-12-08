@@ -69,5 +69,10 @@ public enum KeyCode
     /// <summary>
     /// Enter/Return key.
     /// </summary>
-    Enter = 28
+    Enter = 28,
+
+    /// <summary>
+    /// C key.
+    /// </summary>
+    C = 46
 }

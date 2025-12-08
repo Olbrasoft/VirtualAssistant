@@ -43,6 +43,12 @@ public class BluetoothMouseMonitor : IDisposable
     private const int ReconnectIntervalMs = 2000;
     private const int MaxReconnectAttempts = int.MaxValue; // Keep trying forever
 
+    // Double-click detection for LEFT button
+    private const int DoubleClickThresholdMs = 400;  // Max time between clicks for double-click
+    private const int DoubleClickDebounceMs = 50;    // Min time between clicks (debounce)
+    private DateTime _lastLeftClickTime = DateTime.MinValue;
+    private CancellationTokenSource? _singleClickTimerCts;
+
     /// <summary>
     /// Initializes a new instance of the <see cref="BluetoothMouseMonitor"/> class.
     /// </summary>
@@ -349,42 +355,82 @@ public class BluetoothMouseMonitor : IDisposable
             _logger.LogDebug("Mouse button pressed: {Button}", button);
             ButtonPressed?.Invoke(this, eventArgs);
 
-            // LEFT button press -> toggle CapsLock (toggle recording)
+            // LEFT button press - double-click detection
+            // Single click → CapsLock (toggle recording)
+            // Double click → ESC (cancel transcription)
             if (button == MouseButton.Left)
             {
-                _logger.LogInformation("LEFT button pressed - toggling CapsLock");
-                try
+                var now = DateTime.UtcNow;
+                var timeSinceLastClick = (now - _lastLeftClickTime).TotalMilliseconds;
+
+                // Check for double-click (within threshold and after debounce)
+                if (timeSinceLastClick <= DoubleClickThresholdMs && timeSinceLastClick > DoubleClickDebounceMs)
                 {
-                    // First, simulate key press to toggle LED state
-                    await _keyboardMonitor.SimulateKeyPressAsync(KeyCode.CapsLock);
+                    // Double-click detected - cancel any pending single-click action
+                    _singleClickTimerCts?.Cancel();
+                    _singleClickTimerCts = null;
+                    _lastLeftClickTime = DateTime.MinValue; // Reset to prevent triple-click
 
-                    // Small delay to let LED state update
-                    await Task.Delay(100);
-
-                    // Then raise event to notify DictationWorker
-                    // (SimulateKeyPressAsync only changes LED, doesn't trigger evdev events)
-                    _keyboardMonitor.RaiseKeyReleasedEvent(KeyCode.CapsLock);
+                    _logger.LogInformation("LEFT DOUBLE-CLICK - simulating ESC (cancel transcription)");
+                    try
+                    {
+                        await _keyboardMonitor.SimulateKeyPressAsync(KeyCode.Escape);
+                        _keyboardMonitor.RaiseKeyReleasedEvent(KeyCode.Escape);
+                    }
+                    catch (Exception ex)
+                    {
+                        _logger.LogError(ex, "Failed to simulate ESC on double-click");
+                    }
                 }
-                catch (Exception ex)
+                else
                 {
-                    _logger.LogError(ex, "Failed to toggle CapsLock");
+                    // First click - schedule single-click action after delay
+                    _lastLeftClickTime = now;
+
+                    // Cancel any previous pending single-click
+                    _singleClickTimerCts?.Cancel();
+                    _singleClickTimerCts = new CancellationTokenSource();
+                    var timerCts = _singleClickTimerCts;
+
+                    // Schedule single-click action (CapsLock toggle) after double-click threshold
+                    _ = Task.Run(async () =>
+                    {
+                        try
+                        {
+                            await Task.Delay(DoubleClickThresholdMs, timerCts.Token);
+
+                            // If we get here, no second click happened - execute single-click action
+                            _logger.LogInformation("LEFT SINGLE-CLICK - toggling CapsLock (start/stop recording)");
+
+                            // Simulate key press to toggle LED state
+                            await _keyboardMonitor.SimulateKeyPressAsync(KeyCode.CapsLock);
+                            await Task.Delay(100);
+                            _keyboardMonitor.RaiseKeyReleasedEvent(KeyCode.CapsLock);
+                        }
+                        catch (OperationCanceledException)
+                        {
+                            // Cancelled by double-click - this is expected
+                            _logger.LogDebug("Single-click action cancelled (double-click detected)");
+                        }
+                        catch (Exception ex)
+                        {
+                            _logger.LogError(ex, "Failed to toggle CapsLock on single-click");
+                        }
+                    });
                 }
             }
-            // RIGHT button press -> simulate ESC key (cancel transcription + send to active window)
+            // RIGHT button press -> simulate Ctrl+C (clear prompt in active window)
             else if (button == MouseButton.Right)
             {
-                _logger.LogInformation("RIGHT button pressed - simulating ESC key press");
+                _logger.LogInformation("RIGHT button pressed - simulating Ctrl+C (clear prompt)");
                 try
                 {
-                    // Simulate physical ESC key press via uinput (sends to active window)
-                    await _keyboardMonitor.SimulateKeyPressAsync(KeyCode.Escape);
-
-                    // Also raise event to notify DictationWorker (to cancel transcription)
-                    _keyboardMonitor.RaiseKeyReleasedEvent(KeyCode.Escape);
+                    // Simulate Ctrl+C key combo via uinput (sends to active window)
+                    await _keyboardMonitor.SimulateKeyComboAsync(KeyCode.LeftControl, KeyCode.C);
                 }
                 catch (Exception ex)
                 {
-                    _logger.LogError(ex, "Failed to simulate ESC key press");
+                    _logger.LogError(ex, "Failed to simulate Ctrl+C");
                 }
             }
             // MIDDLE button press -> simulate Enter key (confirm/send in active window)
