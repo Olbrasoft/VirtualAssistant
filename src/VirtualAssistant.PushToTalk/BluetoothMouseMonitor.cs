@@ -384,18 +384,19 @@ public class BluetoothMouseMonitor : IDisposable
                     _logger.LogError(ex, "Failed to send ESC event");
                 }
             }
-            // MIDDLE button press -> send Enter (confirm)
+            // MIDDLE button press -> simulate Enter key (confirm/send in active window)
             else if (button == MouseButton.Middle)
             {
-                _logger.LogInformation("MIDDLE button pressed - sending Enter to confirm");
+                _logger.LogInformation("MIDDLE button pressed - simulating Enter key press");
                 try
                 {
-                    // Enter doesn't need LED toggle, just raise the event
-                    _keyboardMonitor.RaiseKeyReleasedEvent(KeyCode.Enter);
+                    // Simulate physical Enter key press via uinput
+                    // This sends Enter to the active window (e.g., to send message in chat)
+                    await _keyboardMonitor.SimulateKeyPressAsync(KeyCode.Enter);
                 }
                 catch (Exception ex)
                 {
-                    _logger.LogError(ex, "Failed to send Enter event");
+                    _logger.LogError(ex, "Failed to simulate Enter key press");
                 }
             }
         }
