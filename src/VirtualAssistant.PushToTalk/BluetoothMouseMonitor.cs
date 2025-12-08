@@ -370,18 +370,21 @@ public class BluetoothMouseMonitor : IDisposable
                     _logger.LogError(ex, "Failed to toggle CapsLock");
                 }
             }
-            // RIGHT button press -> send ESC (cancel transcription)
+            // RIGHT button press -> simulate ESC key (cancel transcription + send to active window)
             else if (button == MouseButton.Right)
             {
-                _logger.LogInformation("RIGHT button pressed - sending ESC to cancel transcription");
+                _logger.LogInformation("RIGHT button pressed - simulating ESC key press");
                 try
                 {
-                    // ESC doesn't need LED toggle, just raise the event
+                    // Simulate physical ESC key press via uinput (sends to active window)
+                    await _keyboardMonitor.SimulateKeyPressAsync(KeyCode.Escape);
+
+                    // Also raise event to notify DictationWorker (to cancel transcription)
                     _keyboardMonitor.RaiseKeyReleasedEvent(KeyCode.Escape);
                 }
                 catch (Exception ex)
                 {
-                    _logger.LogError(ex, "Failed to send ESC event");
+                    _logger.LogError(ex, "Failed to simulate ESC key press");
                 }
             }
             // MIDDLE button press -> simulate Enter key (confirm/send in active window)
