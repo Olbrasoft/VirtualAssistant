@@ -10,6 +10,7 @@ using Olbrasoft.VirtualAssistant.Service.Services;
 using Olbrasoft.VirtualAssistant.Service.Workers;
 using Olbrasoft.VirtualAssistant.Voice.Similarity;
 using OpenCode.DotnetClient;
+using Microsoft.EntityFrameworkCore;
 using VirtualAssistant.Data.EntityFrameworkCore;
 using VirtualAssistant.GitHub;
 using VirtualAssistant.GitHub.Services;
@@ -81,6 +82,38 @@ public class Program
         ConfigureServices(builder);
 
         _app = builder.Build();
+
+        // Apply pending database migrations automatically
+        using (var scope = _app.Services.CreateScope())
+        {
+            var dbContext = scope.ServiceProvider.GetRequiredService<VirtualAssistantDbContext>();
+            var logger = scope.ServiceProvider.GetRequiredService<ILogger<Program>>();
+
+            try
+            {
+                var pendingMigrations = dbContext.Database.GetPendingMigrations().ToList();
+                if (pendingMigrations.Count > 0)
+                {
+                    logger.LogInformation("Applying {Count} pending database migrations: {Migrations}",
+                        pendingMigrations.Count, string.Join(", ", pendingMigrations));
+                    Console.WriteLine($"📦 Applying {pendingMigrations.Count} pending migration(s)...");
+                }
+
+                dbContext.Database.Migrate();
+
+                if (pendingMigrations.Count > 0)
+                {
+                    logger.LogInformation("Database migrations applied successfully");
+                    Console.WriteLine("✅ Database migrations applied successfully");
+                }
+            }
+            catch (Exception ex)
+            {
+                logger.LogError(ex, "Failed to apply database migrations");
+                Console.WriteLine($"❌ Database migration failed: {ex.Message}");
+                throw;
+            }
+        }
 
         // Configure API endpoints
         ConfigureEndpoints(_app);
