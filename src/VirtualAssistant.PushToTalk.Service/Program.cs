@@ -189,12 +189,12 @@ _trayService = new TranscriptionTrayService(trayLogger, pttNotifier, typingSound
 // Start Bluetooth mouse monitor (remote push-to-talk trigger)
 BluetoothMouseMonitor? _bluetoothMouseMonitor = _app.Services.GetRequiredService<BluetoothMouseMonitor>();
 _ = _bluetoothMouseMonitor.StartMonitoringAsync(_cts!.Token);
-Console.WriteLine("Bluetooth mouse monitor started (LEFT=CapsLock, 2xLEFT=ESC, 2xRIGHT=Ctrl+C, 3xRIGHT=Ctrl+V, MIDDLE=Enter)");
+Console.WriteLine("Bluetooth mouse monitor started (LEFT=CapsLock, 2xLEFT=ESC, 2xRIGHT=Ctrl+V, 3xRIGHT=Ctrl+C, MIDDLE=Enter)");
 
 // Start USB Optical Mouse monitor (secondary push-to-talk trigger)
 UsbMouseMonitor? _usbMouseMonitor = _app.Services.GetRequiredService<UsbMouseMonitor>();
 _ = _usbMouseMonitor.StartMonitoringAsync(_cts!.Token);
-Console.WriteLine("USB mouse monitor started (LEFT=CapsLock, 2xLEFT=ESC, 2xRIGHT=Ctrl+C, 3xRIGHT=Ctrl+V)");
+Console.WriteLine("USB mouse monitor started (LEFT=CapsLock, 2xLEFT=ESC, 2xRIGHT=Ctrl+V, 3xRIGHT=Ctrl+C)");
 
 try
 {

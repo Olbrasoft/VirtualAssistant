@@ -424,8 +424,8 @@ public class BluetoothMouseMonitor : IDisposable
             }
             // RIGHT button press - multi-click detection
             // Single click → nothing
-            // Double click → Ctrl+C (copy/clear)
-            // Triple click → Ctrl+V (paste)
+            // Double click → Ctrl+V (paste)
+            // Triple click → Ctrl+C (copy)
             else if (button == MouseButton.Right)
             {
                 var now = DateTime.UtcNow;
@@ -443,18 +443,18 @@ public class BluetoothMouseMonitor : IDisposable
 
                     if (_rightClickCount >= 3)
                     {
-                        // Triple-click - execute Ctrl+V immediately
+                        // Triple-click - execute Ctrl+C immediately
                         _rightClickCount = 0;
                         _lastRightClickTime = DateTime.MinValue;
 
-                        _logger.LogInformation("RIGHT TRIPLE-CLICK - simulating Ctrl+V (paste)");
+                        _logger.LogInformation("RIGHT TRIPLE-CLICK - simulating Ctrl+C (copy)");
                         try
                         {
-                            await _keyboardMonitor.SimulateKeyComboAsync(KeyCode.LeftControl, KeyCode.V);
+                            await _keyboardMonitor.SimulateKeyComboAsync(KeyCode.LeftControl, KeyCode.C);
                         }
                         catch (Exception ex)
                         {
-                            _logger.LogError(ex, "Failed to simulate Ctrl+V on triple-click");
+                            _logger.LogError(ex, "Failed to simulate Ctrl+C on triple-click");
                         }
                     }
                     else
@@ -473,8 +473,8 @@ public class BluetoothMouseMonitor : IDisposable
                                 // Timer expired - execute action based on click count
                                 if (clickCount == 2)
                                 {
-                                    _logger.LogInformation("RIGHT DOUBLE-CLICK - simulating Ctrl+C (copy)");
-                                    await _keyboardMonitor.SimulateKeyComboAsync(KeyCode.LeftControl, KeyCode.C);
+                                    _logger.LogInformation("RIGHT DOUBLE-CLICK - simulating Ctrl+V (paste)");
+                                    await _keyboardMonitor.SimulateKeyComboAsync(KeyCode.LeftControl, KeyCode.V);
                                 }
                                 // Single click = no action
 
