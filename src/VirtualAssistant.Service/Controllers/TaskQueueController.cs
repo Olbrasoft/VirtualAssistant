@@ -1,6 +1,9 @@
 using Microsoft.AspNetCore.Mvc;
 using VirtualAssistant.Core.Services;
 using VirtualAssistant.Data.Dtos;
+using VirtualAssistant.Data.Entities;
+using VirtualAssistant.Data.EntityFrameworkCore;
+using VirtualAssistant.Data.Enums;
 
 namespace Olbrasoft.VirtualAssistant.Service.Controllers;
 
@@ -14,11 +17,19 @@ namespace Olbrasoft.VirtualAssistant.Service.Controllers;
 public class TaskQueueController : ControllerBase
 {
     private readonly IAgentTaskService _taskService;
+    private readonly IClaudeDispatchService _claudeDispatch;
+    private readonly VirtualAssistantDbContext _dbContext;
     private readonly ILogger<TaskQueueController> _logger;
 
-    public TaskQueueController(IAgentTaskService taskService, ILogger<TaskQueueController> logger)
+    public TaskQueueController(
+        IAgentTaskService taskService,
+        IClaudeDispatchService claudeDispatch,
+        VirtualAssistantDbContext dbContext,
+        ILogger<TaskQueueController> logger)
     {
         _taskService = taskService;
+        _claudeDispatch = claudeDispatch;
+        _dbContext = dbContext;
         _logger = logger;
     }
 
@@ -285,6 +296,133 @@ public class TaskQueueController : ControllerBase
         {
             return BadRequest(new ErrorResponse { Error = ex.Message });
         }
+    }
+
+    /// <summary>
+    /// Dispatch the first pending task to Claude via headless mode.
+    /// Checks if Claude is idle, finds pending task, and executes claude -p command.
+    /// </summary>
+    /// <param name="request">Optional: specific issue to dispatch</param>
+    /// <param name="ct">Cancellation token</param>
+    /// <returns>Dispatch result</returns>
+    [HttpPost("dispatch")]
+    [ProducesResponseType(typeof(DispatchTaskResult), StatusCodes.Status200OK)]
+    [ProducesResponseType(typeof(DispatchTaskResult), StatusCodes.Status409Conflict)]
+    public async Task<ActionResult<DispatchTaskResult>> DispatchTask(
+        [FromBody] DispatchTaskRequest? request = null,
+        CancellationToken ct = default)
+    {
+        const string targetAgent = "claude";
+
+        // 1. Find pending task and check if Claude is idle
+        var result = await _taskService.DispatchTaskAsync(
+            targetAgent,
+            request?.GithubIssueNumber,
+            request?.GithubIssueUrl,
+            ct);
+
+        if (!result.Success)
+        {
+            _logger.LogInformation("Dispatch rejected: {Reason}", result.Reason);
+            return result.Reason == "agent_busy"
+                ? Conflict(result)
+                : Ok(result);
+        }
+
+        // 2. Create AgentResponse record to track agent status (linked to task)
+        var agentResponse = new AgentResponse
+        {
+            AgentName = targetAgent,
+            Status = AgentResponseStatus.InProgress,
+            StartedAt = DateTime.UtcNow,
+            AgentTaskId = result.TaskId
+        };
+
+        _dbContext.AgentResponses.Add(agentResponse);
+        await _dbContext.SaveChangesAsync(ct);
+
+        var responseId = agentResponse.Id;
+
+        _logger.LogInformation(
+            "Task {TaskId} dispatched to Claude, AgentResponse {ResponseId} created",
+            result.TaskId, responseId);
+
+        // 3. Build prompt for Claude
+        var prompt = $"""
+            Implementuj GitHub issue #{result.GithubIssueNumber}:
+            {result.Summary}
+
+            Issue URL: {result.GithubIssueUrl}
+
+            Repozitář: ~/Olbrasoft/VirtualAssistant
+            Přečti si issue pro detaily, implementuj, otestuj, nasaď.
+            """;
+
+        // 4. Execute Claude in background (fire-and-forget)
+        var serviceProvider = HttpContext.RequestServices;
+        _ = Task.Run(async () =>
+        {
+            try
+            {
+                _logger.LogInformation("Starting Claude execution for task {TaskId}", result.TaskId);
+
+                var claudeResult = await _claudeDispatch.ExecuteAsync(prompt, ct: CancellationToken.None);
+
+                // Update AgentResponse and task with results
+                using var scope = serviceProvider.CreateScope();
+                var db = scope.ServiceProvider.GetRequiredService<VirtualAssistantDbContext>();
+
+                var response = await db.AgentResponses.FindAsync(responseId);
+                if (response != null)
+                {
+                    response.Status = AgentResponseStatus.Completed;
+                    response.CompletedAt = DateTime.UtcNow;
+                }
+
+                var task = await db.AgentTasks.FindAsync(result.TaskId);
+                if (task != null)
+                {
+                    task.ClaudeSessionId = claudeResult.SessionId;
+
+                    if (claudeResult.Success)
+                    {
+                        task.Status = "completed";
+                        task.CompletedAt = DateTime.UtcNow;
+                        task.Result = claudeResult.Result ?? "Completed";
+                    }
+                    else
+                    {
+                        task.Status = "completed";
+                        task.CompletedAt = DateTime.UtcNow;
+                        task.Result = $"Error: {claudeResult.Error}";
+                    }
+                }
+
+                await db.SaveChangesAsync();
+
+                _logger.LogInformation(
+                    "Claude execution completed for task {TaskId}, success: {Success}, session: {Session}",
+                    result.TaskId, claudeResult.Success, claudeResult.SessionId);
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(ex, "Claude execution failed for task {TaskId}", result.TaskId);
+
+                // Mark response as completed even on error
+                using var scope = serviceProvider.CreateScope();
+                var db = scope.ServiceProvider.GetRequiredService<VirtualAssistantDbContext>();
+
+                var response = await db.AgentResponses.FindAsync(responseId);
+                if (response != null)
+                {
+                    response.Status = AgentResponseStatus.Completed;
+                    response.CompletedAt = DateTime.UtcNow;
+                    await db.SaveChangesAsync();
+                }
+            }
+        });
+
+        return Ok(result);
     }
 }
 
