@@ -347,6 +347,10 @@ public class Program
         // Startup notification (Phase 1: simple "Systém nastartován")
         builder.Services.AddHostedService<StartupNotificationService>();
 
+        // Orphaned task detection (detects stuck tasks after restart, notifies human)
+        builder.Services.AddScoped<IOrphanedTaskService, OrphanedTaskService>();
+        builder.Services.AddHostedService<OrphanedTaskDetectionService>();
+
         // Add controllers for API endpoints
         builder.Services.AddControllers();
     }

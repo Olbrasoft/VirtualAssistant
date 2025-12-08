@@ -38,6 +38,9 @@ public static class ServiceCollectionExtensions
         // Register search service
         services.AddScoped<IGitHubSearchService, GitHubSearchService>();
 
+        // Register issue status service (for orphaned task detection)
+        services.AddScoped<IGitHubIssueStatusService, GitHubIssueStatusService>();
+
         // Register background sync service as singleton (hosted services must be singletons)
         // Also expose as GitHubSyncBackgroundService for health check access
         services.AddSingleton<GitHubSyncBackgroundService>();
