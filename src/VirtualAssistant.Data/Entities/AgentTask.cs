@@ -79,9 +79,20 @@ public class AgentTask : BaseEnity
     public DateTime? SentAt { get; set; }
 
     /// <summary>
+    /// When the target agent confirmed receipt and started working (e.g., Claude acknowledged).
+    /// </summary>
+    public DateTime? StartedAt { get; set; }
+
+    /// <summary>
     /// When the task was completed.
     /// </summary>
     public DateTime? CompletedAt { get; set; }
+
+    /// <summary>
+    /// Claude Code session ID from headless mode execution.
+    /// Used for potential multi-turn follow-up.
+    /// </summary>
+    public string? ClaudeSessionId { get; set; }
 
     /// <summary>
     /// Delivery logs for this task.

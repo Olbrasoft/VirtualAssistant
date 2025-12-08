@@ -57,11 +57,18 @@ public class AgentTaskConfiguration : IEntityTypeConfiguration<AgentTask>
         builder.Property(t => t.SentAt)
             .HasColumnName("sent_at");
 
+        builder.Property(t => t.StartedAt)
+            .HasColumnName("started_at");
+
         builder.Property(t => t.CompletedAt)
             .HasColumnName("completed_at");
 
         builder.Property(t => t.NotifiedAt)
             .HasColumnName("notified_at");
+
+        builder.Property(t => t.ClaudeSessionId)
+            .HasColumnName("claude_session_id")
+            .HasMaxLength(100);
 
         // Relationships
         builder.HasOne(t => t.CreatedByAgent)

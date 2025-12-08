@@ -32,8 +32,6 @@
     <Using Include="Microsoft.EntityFrameworkCore.Metadata.Builders" />
     <Using Include="VirtualAssistant.Data.Entities" />
     <Using Include="VirtualAssistant.Data.Dtos" />
-    <Using Include="VirtualAssistant.Data.Commands" />
-    <Using Include="VirtualAssistant.Data.Queries" />
     <Using Include="Olbrasoft.Mapping" />
     <Using Include="Olbrasoft.Mediation" />
     <Using Include="Olbrasoft.Data.Cqrs" />

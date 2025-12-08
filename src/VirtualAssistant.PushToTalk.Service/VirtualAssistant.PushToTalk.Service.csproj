@@ -8,6 +8,7 @@
     <UserSecretsId>dotnet-VirtualAssistant.PushToTalk.Service-20251204</UserSecretsId>
     <GenerateDocumentationFile>true</GenerateDocumentationFile>
     <NoWarn>$(NoWarn);1591</NoWarn>
+    <PublishDir>/home/jirka/virtual-assistant/push-to-talk/</PublishDir>
   </PropertyGroup>
 
   <ItemGroup>

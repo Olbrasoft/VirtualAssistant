@@ -71,7 +71,17 @@ public class AgentTaskDto
     public DateTime? SentAt { get; set; }
 
     /// <summary>
+    /// When the target agent confirmed receipt and started working.
+    /// </summary>
+    public DateTime? StartedAt { get; set; }
+
+    /// <summary>
     /// When the task was completed.
     /// </summary>
     public DateTime? CompletedAt { get; set; }
+
+    /// <summary>
+    /// Claude Code session ID from headless mode execution.
+    /// </summary>
+    public string? ClaudeSessionId { get; set; }
 }

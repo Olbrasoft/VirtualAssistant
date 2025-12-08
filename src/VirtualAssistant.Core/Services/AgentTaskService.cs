@@ -412,7 +412,9 @@ public partial class AgentTaskService : IAgentTaskService
             ApprovedAt = entity.ApprovedAt,
             NotifiedAt = entity.NotifiedAt,
             SentAt = entity.SentAt,
-            CompletedAt = entity.CompletedAt
+            StartedAt = entity.StartedAt,
+            CompletedAt = entity.CompletedAt,
+            ClaudeSessionId = entity.ClaudeSessionId
         };
     }
 

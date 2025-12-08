@@ -1,0 +1,21 @@
+[Unit]
+Description=Edge TTS WebSocket Server
+After=network.target
+
+[Service]
+Type=simple
+User=jirka
+WorkingDirectory=/home/jirka/virtual-assistant/edge-tts
+Environment="DOTNET_ROOT=/home/jirka/.dotnet"
+Environment="XDG_RUNTIME_DIR=/run/user/1000"
+Environment="PULSE_SERVER=unix:/run/user/1000/pulse/native"
+ExecStart=/home/jirka/.dotnet/dotnet /home/jirka/virtual-assistant/edge-tts/EdgeTtsWebSocketServer.dll
+Restart=on-failure
+RestartSec=5
+TimeoutStopSec=10
+StandardOutput=journal
+StandardError=journal
+SyslogIdentifier=edge-tts-server
+
+[Install]
+WantedBy=multi-user.target

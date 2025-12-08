@@ -16,6 +16,7 @@ public class AgentHubController : ControllerBase
 {
     private readonly IAgentHubService _hubService;
     private readonly IAgentTaskService _taskService;
+    private readonly IClaudeDispatchService _claudeService;
     private readonly ILogger<AgentHubController> _logger;
 
     /// <summary>
@@ -23,14 +24,17 @@ public class AgentHubController : ControllerBase
     /// </summary>
     /// <param name="hubService">The agent hub service</param>
     /// <param name="taskService">The agent task service</param>
+    /// <param name="claudeService">The Claude dispatch service</param>
     /// <param name="logger">The logger</param>
     public AgentHubController(
         IAgentHubService hubService,
         IAgentTaskService taskService,
+        IClaudeDispatchService claudeService,
         ILogger<AgentHubController> logger)
     {
         _hubService = hubService;
         _taskService = taskService;
+        _claudeService = claudeService;
         _logger = logger;
     }
 
@@ -548,7 +552,7 @@ public class AgentHubController : ControllerBase
 
     /// <summary>
     /// Dispatch a task to an agent (typically Claude).
-    /// Checks if agent is available and sends first pending task.
+    /// Checks if agent is available, finds pending task, and executes Claude Code in headless mode.
     /// </summary>
     /// <param name="request">Optional dispatch parameters</param>
     /// <param name="ct">Cancellation token</param>
@@ -569,21 +573,90 @@ public class AgentHubController : ControllerBase
             request?.GithubIssueNumber?.ToString() ?? "(none)",
             request?.GithubIssueUrl ?? "(none)");
 
+        // Step 1: Find and mark task as sent (existing logic)
         var result = await _taskService.DispatchTaskAsync(
             targetAgent,
             request?.GithubIssueNumber,
             request?.GithubIssueUrl,
             ct);
 
+        // If dispatch failed (no task, agent busy, etc.), return immediately
+        if (!result.Success)
+        {
+            return Ok(new DispatchTaskResponse
+            {
+                Success = false,
+                Reason = result.Reason,
+                Message = result.Message,
+                TaskId = result.TaskId,
+                GithubIssueNumber = result.GithubIssueNumber,
+                GithubIssueUrl = result.GithubIssueUrl,
+                Summary = result.Summary
+            });
+        }
+
+        // Step 2: Only execute Claude if target is claude
+        string? sessionId = null;
+        if (targetAgent.Equals("claude", StringComparison.OrdinalIgnoreCase))
+        {
+            // Build the prompt for Claude
+            var prompt = $"""
+                Nový úkol k implementaci:
+                {result.Summary}
+
+                Issue: {result.GithubIssueUrl}
+
+                Přečti si issue pro detaily, implementuj, otestuj, nasaď.
+                Po dokončení zavolej /api/hub/complete-task s výsledkem.
+                """;
+
+            _logger.LogInformation(
+                "Executing Claude headless mode for task {TaskId}, issue #{IssueNumber}",
+                result.TaskId, result.GithubIssueNumber);
+
+            // Execute Claude in headless mode (fire and forget - runs in background)
+            // We use Task.Run to not block the response
+            _ = Task.Run(async () =>
+            {
+                try
+                {
+                    var claudeResult = await _claudeService.ExecuteAsync(prompt);
+
+                    if (claudeResult.Success)
+                    {
+                        _logger.LogInformation(
+                            "Claude started processing task {TaskId}, session: {SessionId}",
+                            result.TaskId, claudeResult.SessionId);
+
+                        // Update task with session ID (would need to inject DbContext here)
+                        // For now, just log it - the session tracking is for future enhancement
+                    }
+                    else
+                    {
+                        _logger.LogError(
+                            "Claude execution failed for task {TaskId}: {Error}",
+                            result.TaskId, claudeResult.Error);
+                    }
+                }
+                catch (Exception ex)
+                {
+                    _logger.LogError(ex, "Error executing Claude for task {TaskId}", result.TaskId);
+                }
+            }, CancellationToken.None);
+
+            // Return immediately - Claude runs in background
+        }
+
         return Ok(new DispatchTaskResponse
         {
-            Success = result.Success,
-            Reason = result.Reason,
+            Success = true,
+            Reason = "dispatched",
             Message = result.Message,
             TaskId = result.TaskId,
             GithubIssueNumber = result.GithubIssueNumber,
             GithubIssueUrl = result.GithubIssueUrl,
-            Summary = result.Summary
+            Summary = result.Summary,
+            ClaudeSessionId = sessionId
         });
     }
 
@@ -1172,6 +1245,12 @@ public class DispatchTaskResponse
     /// Task summary/description (if dispatched successfully).
     /// </summary>
     public string? Summary { get; set; }
+
+    /// <summary>
+    /// Claude Code session ID (if Claude was invoked).
+    /// </summary>
+    [System.Text.Json.Serialization.JsonPropertyName("claude_session_id")]
+    public string? ClaudeSessionId { get; set; }
 }
 
 /// <summary>

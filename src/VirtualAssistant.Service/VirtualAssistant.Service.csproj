@@ -9,6 +9,7 @@
     <AllowUnsafeBlocks>true</AllowUnsafeBlocks>
     <GenerateDocumentationFile>true</GenerateDocumentationFile>
     <NoWarn>$(NoWarn);1591</NoWarn>
+    <PublishDir>/home/jirka/virtual-assistant/</PublishDir>
   </PropertyGroup>
 
   <ItemGroup>

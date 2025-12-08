@@ -254,6 +254,9 @@ public class Program
         // Register Core services (AgentHubService)
         builder.Services.AddCoreServices();
 
+        // Claude dispatch service for headless mode execution
+        builder.Services.AddSingleton<IClaudeDispatchService, ClaudeDispatchService>();
+
         // String similarity for echo cancellation
         builder.Services.AddSingleton<IStringSimilarity, LevenshteinSimilarity>();
 
