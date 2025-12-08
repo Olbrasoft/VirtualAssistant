@@ -8,10 +8,11 @@ public sealed class TtsProviderChainOptions
     public const string SectionName = "TtsProviderChain";
 
     /// <summary>
-    /// Ordered list of provider names to try (e.g., "EdgeTTS", "VoiceRSS", "GoogleTTS", "PiperTTS").
+    /// Ordered list of provider names to try (e.g., "EdgeTTS-HTTP", "GoogleTTS", "VoiceRSS", "PiperTTS").
     /// Providers are tried in order until one succeeds.
+    /// Default order: Edge (fastest) → Google (female) → VoiceRSS (male, rate limited) → Piper (offline).
     /// </summary>
-    public List<string> Providers { get; set; } = ["EdgeTTS-HTTP", "VoiceRSS", "GoogleTTS", "PiperTTS"];
+    public List<string> Providers { get; set; } = [];
 
     /// <summary>
     /// Circuit breaker settings.

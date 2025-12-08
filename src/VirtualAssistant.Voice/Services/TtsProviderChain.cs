@@ -72,8 +72,16 @@ public sealed class TtsProviderChain : ITtsProviderChain
         // Build provider dictionary by name
         _providers = providers.ToDictionary(p => p.Name, p => p, StringComparer.OrdinalIgnoreCase);
 
-        _logger.LogInformation("TTS provider chain initialized with {Count} providers: {Names}",
-            _providers.Count, string.Join(", ", _providers.Keys));
+        // If no providers configured in appsettings.json, use all registered providers
+        if (_options.Providers.Count == 0)
+        {
+            _options.Providers = ["EdgeTTS-HTTP", "GoogleTTS", "VoiceRSS", "PiperTTS"];
+            _logger.LogWarning("No TTS providers configured in appsettings.json, using default order");
+        }
+
+        // Log the configured order (from appsettings.json), not dictionary keys order
+        _logger.LogInformation("TTS provider chain initialized with {Count} providers in order: {Names}",
+            _options.Providers.Count, string.Join(" → ", _options.Providers));
 
         // Initialize states
         foreach (var name in _options.Providers)
