@@ -342,14 +342,16 @@ public class TaskQueueController : ControllerBase
         await _dbContext.SaveChangesAsync(ct);
 
         var responseId = agentResponse.Id;
+        var taskId = result.TaskId!.Value;
+        var issueNumber = result.GithubIssueNumber;
 
         _logger.LogInformation(
             "Task {TaskId} dispatched to Claude, AgentResponse {ResponseId} created",
-            result.TaskId, responseId);
+            taskId, responseId);
 
         // 3. Build prompt for Claude
         var prompt = $"""
-            Implementuj GitHub issue #{result.GithubIssueNumber}:
+            Implementuj GitHub issue #{issueNumber}:
             {result.Summary}
 
             Issue URL: {result.GithubIssueUrl}
@@ -364,65 +366,74 @@ public class TaskQueueController : ControllerBase
         {
             try
             {
-                _logger.LogInformation("Starting Claude execution for task {TaskId}", result.TaskId);
+                _logger.LogInformation("Starting Claude execution for task {TaskId}", taskId);
 
                 var claudeResult = await _claudeDispatch.ExecuteAsync(prompt, ct: CancellationToken.None);
 
-                // Update AgentResponse and task with results
-                using var scope = serviceProvider.CreateScope();
-                var db = scope.ServiceProvider.GetRequiredService<VirtualAssistantDbContext>();
-
-                var response = await db.AgentResponses.FindAsync(responseId);
-                if (response != null)
-                {
-                    response.Status = AgentResponseStatus.Completed;
-                    response.CompletedAt = DateTime.UtcNow;
-                }
-
-                var task = await db.AgentTasks.FindAsync(result.TaskId);
-                if (task != null)
-                {
-                    task.ClaudeSessionId = claudeResult.SessionId;
-
-                    if (claudeResult.Success)
-                    {
-                        task.Status = "completed";
-                        task.CompletedAt = DateTime.UtcNow;
-                        task.Result = claudeResult.Result ?? "Completed";
-                    }
-                    else
-                    {
-                        task.Status = "completed";
-                        task.CompletedAt = DateTime.UtcNow;
-                        task.Result = $"Error: {claudeResult.Error}";
-                    }
-                }
-
-                await db.SaveChangesAsync();
+                // Update database with results
+                await UpdateTaskCompletionAsync(
+                    serviceProvider, responseId, taskId,
+                    claudeResult.SessionId,
+                    claudeResult.Success ? "completed" : "failed",
+                    claudeResult.Success ? (claudeResult.Result ?? "Completed") : $"Error: {claudeResult.Error}");
 
                 _logger.LogInformation(
                     "Claude execution completed for task {TaskId}, success: {Success}, session: {Session}",
-                    result.TaskId, claudeResult.Success, claudeResult.SessionId);
+                    taskId, claudeResult.Success, claudeResult.SessionId);
+
+                // Send success notification
+                if (claudeResult.Success)
+                {
+                    await _claudeDispatch.NotifySuccessAsync($"Úkol číslo {issueNumber} byl dokončen.");
+                }
             }
             catch (Exception ex)
             {
-                _logger.LogError(ex, "Claude execution failed for task {TaskId}", result.TaskId);
+                _logger.LogError(ex, "Claude execution failed for task {TaskId}", taskId);
 
-                // Mark response as completed even on error
-                using var scope = serviceProvider.CreateScope();
-                var db = scope.ServiceProvider.GetRequiredService<VirtualAssistantDbContext>();
-
-                var response = await db.AgentResponses.FindAsync(responseId);
-                if (response != null)
-                {
-                    response.Status = AgentResponseStatus.Completed;
-                    response.CompletedAt = DateTime.UtcNow;
-                    await db.SaveChangesAsync();
-                }
+                // Mark as failed on exception
+                await UpdateTaskCompletionAsync(
+                    serviceProvider, responseId, taskId,
+                    sessionId: null,
+                    status: "failed",
+                    taskResult: $"Exception: {ex.Message}");
             }
         });
 
         return Ok(result);
+    }
+
+    /// <summary>
+    /// Updates task and response records after Claude execution.
+    /// </summary>
+    private static async Task UpdateTaskCompletionAsync(
+        IServiceProvider serviceProvider,
+        int responseId,
+        int taskId,
+        string? sessionId,
+        string status,
+        string taskResult)
+    {
+        using var scope = serviceProvider.CreateScope();
+        var db = scope.ServiceProvider.GetRequiredService<VirtualAssistantDbContext>();
+
+        var response = await db.AgentResponses.FindAsync(responseId);
+        if (response != null)
+        {
+            response.Status = AgentResponseStatus.Completed;
+            response.CompletedAt = DateTime.UtcNow;
+        }
+
+        var task = await db.AgentTasks.FindAsync(taskId);
+        if (task != null)
+        {
+            task.ClaudeSessionId = sessionId;
+            task.Status = status;
+            task.CompletedAt = DateTime.UtcNow;
+            task.Result = taskResult;
+        }
+
+        await db.SaveChangesAsync();
     }
 }
 

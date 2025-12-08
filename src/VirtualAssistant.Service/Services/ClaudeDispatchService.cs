@@ -3,6 +3,7 @@ using System.Text;
 using System.Text.Json;
 using System.Text.Json.Serialization;
 using Microsoft.Extensions.Logging;
+using Microsoft.Extensions.Options;
 using VirtualAssistant.Core.Services;
 
 namespace Olbrasoft.VirtualAssistant.Service.Services;
@@ -15,39 +16,34 @@ public class ClaudeDispatchService : IClaudeDispatchService
 {
     private readonly ILogger<ClaudeDispatchService> _logger;
     private readonly IHttpClientFactory _httpClientFactory;
-    private readonly string _defaultWorkingDirectory;
-
-    /// <summary>
-    /// Default timeout for Claude execution (30 minutes).
-    /// </summary>
-    public static readonly TimeSpan DefaultTimeout = TimeSpan.FromMinutes(30);
+    private readonly ClaudeDispatchOptions _options;
 
     public ClaudeDispatchService(
         ILogger<ClaudeDispatchService> logger,
-        IHttpClientFactory httpClientFactory)
+        IHttpClientFactory httpClientFactory,
+        IOptions<ClaudeDispatchOptions> options)
     {
         _logger = logger;
         _httpClientFactory = httpClientFactory;
-        // Default to VirtualAssistant source directory
-        _defaultWorkingDirectory = Path.Combine(
-            Environment.GetFolderPath(Environment.SpecialFolder.UserProfile),
-            "Olbrasoft", "VirtualAssistant");
+        _options = options.Value;
     }
 
     public async Task<ClaudeExecutionResult> ExecuteAsync(string prompt, string? workingDirectory = null, CancellationToken ct = default)
     {
         ArgumentException.ThrowIfNullOrWhiteSpace(prompt);
 
-        var dir = workingDirectory ?? _defaultWorkingDirectory;
+        var dir = workingDirectory ?? _options.GetExpandedWorkingDirectory();
+        var timeout = TimeSpan.FromMinutes(_options.TimeoutMinutes);
 
         _logger.LogInformation(
             "Executing Claude headless mode in {Directory}: {Prompt}",
             dir, prompt.Length > 100 ? prompt[..100] + "..." : prompt);
 
         // Create timeout cancellation
-        using var timeoutCts = new CancellationTokenSource(DefaultTimeout);
+        using var timeoutCts = new CancellationTokenSource(timeout);
         using var linkedCts = CancellationTokenSource.CreateLinkedTokenSource(ct, timeoutCts.Token);
 
+        Process? process = null;
         try
         {
             var startInfo = new ProcessStartInfo
@@ -61,7 +57,7 @@ public class ClaudeDispatchService : IClaudeDispatchService
                 CreateNoWindow = true
             };
 
-            using var process = new Process { StartInfo = startInfo };
+            process = new Process { StartInfo = startInfo };
 
             var outputBuilder = new StringBuilder();
             var errorBuilder = new StringBuilder();
@@ -114,13 +110,18 @@ public class ClaudeDispatchService : IClaudeDispatchService
         }
         catch (OperationCanceledException) when (timeoutCts.IsCancellationRequested)
         {
-            _logger.LogError("Claude execution timed out after {Timeout}", DefaultTimeout);
-            await NotifyErrorAsync($"Claude timeout po {DefaultTimeout.TotalMinutes} minutách");
-            return ClaudeExecutionResult.Failed($"Timeout after {DefaultTimeout.TotalMinutes} minutes", -1);
+            _logger.LogError("Claude execution timed out after {Timeout}", timeout);
+
+            // Kill the process on timeout
+            KillProcess(process);
+
+            await NotifyErrorAsync($"Claude timeout po {timeout.TotalMinutes} minutách");
+            return ClaudeExecutionResult.Failed($"Timeout after {timeout.TotalMinutes} minutes", -1);
         }
         catch (OperationCanceledException)
         {
             _logger.LogWarning("Claude execution was cancelled");
+            KillProcess(process);
             throw;
         }
         catch (Exception ex)
@@ -129,12 +130,54 @@ public class ClaudeDispatchService : IClaudeDispatchService
             await NotifyErrorAsync($"Claude selhání: {ex.Message}");
             return ClaudeExecutionResult.Failed(ex.Message);
         }
+        finally
+        {
+            process?.Dispose();
+        }
+    }
+
+    /// <summary>
+    /// Kills the process and its children.
+    /// </summary>
+    private void KillProcess(Process? process)
+    {
+        if (process == null || process.HasExited)
+            return;
+
+        try
+        {
+            _logger.LogWarning("Killing Claude process {Pid}", process.Id);
+            process.Kill(entireProcessTree: true);
+        }
+        catch (Exception ex)
+        {
+            _logger.LogWarning(ex, "Failed to kill Claude process");
+        }
     }
 
     /// <summary>
     /// Sends TTS notification for errors.
     /// </summary>
     private async Task NotifyErrorAsync(string message)
+    {
+        await NotifyAsync(message);
+    }
+
+    /// <summary>
+    /// Sends TTS notification for success.
+    /// </summary>
+    public async Task NotifySuccessAsync(string message)
+    {
+        if (_options.NotifyOnSuccess)
+        {
+            await NotifyAsync(message);
+        }
+    }
+
+    /// <summary>
+    /// Sends TTS notification.
+    /// </summary>
+    private async Task NotifyAsync(string message)
     {
         try
         {
@@ -144,11 +187,11 @@ public class ClaudeDispatchService : IClaudeDispatchService
                 Encoding.UTF8,
                 "application/json");
 
-            await client.PostAsync("http://localhost:5055/api/tts/notify", content);
+            await client.PostAsync(_options.TtsNotifyUrl, content);
         }
         catch (Exception ex)
         {
-            _logger.LogWarning(ex, "Failed to send TTS error notification");
+            _logger.LogWarning(ex, "Failed to send TTS notification");
         }
     }
 
@@ -251,12 +294,14 @@ public class ClaudeDispatchService : IClaudeDispatchService
 
     private static string EscapePrompt(string prompt)
     {
-        // Escape double quotes and backslashes for shell argument
+        // Escape special characters for shell argument
         return prompt
             .Replace("\\", "\\\\")
             .Replace("\"", "\\\"")
             .Replace("$", "\\$")
-            .Replace("`", "\\`");
+            .Replace("`", "\\`")
+            .Replace("\r", "")
+            .Replace("\n", "\\n");
     }
 
     /// <summary>

@@ -255,6 +255,8 @@ public class Program
         builder.Services.AddCoreServices();
 
         // Claude dispatch service for headless mode execution
+        builder.Services.Configure<ClaudeDispatchOptions>(
+            builder.Configuration.GetSection(ClaudeDispatchOptions.SectionName));
         builder.Services.AddSingleton<IClaudeDispatchService, ClaudeDispatchService>();
 
         // String similarity for echo cancellation

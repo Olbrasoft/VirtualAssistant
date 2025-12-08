@@ -20,6 +20,13 @@ public interface IClaudeDispatchService
     /// </summary>
     /// <returns>True if claude command is available</returns>
     Task<bool> IsClaudeAvailableAsync();
+
+    /// <summary>
+    /// Send TTS notification for successful completion.
+    /// Only sends if NotifyOnSuccess is enabled in configuration.
+    /// </summary>
+    /// <param name="message">Message to speak</param>
+    Task NotifySuccessAsync(string message);
 }
 
 /// <summary>
