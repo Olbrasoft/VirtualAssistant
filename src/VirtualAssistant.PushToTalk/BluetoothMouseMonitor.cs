@@ -1,3 +1,4 @@
+using System.Diagnostics;
 using System.Runtime.InteropServices;
 using System.Text.RegularExpressions;
 using Microsoft.Extensions.Logging;
@@ -14,6 +15,7 @@ public class BluetoothMouseMonitor : IDisposable
     private readonly ILogger<BluetoothMouseMonitor> _logger;
     private readonly IKeyboardMonitor _keyboardMonitor;
     private readonly string _deviceNamePattern;
+    private readonly string? _leftTripleClickCommand;
 
     private FileStream? _deviceStream;
     private bool _isMonitoring;
@@ -48,8 +50,9 @@ public class BluetoothMouseMonitor : IDisposable
     private const int ClickDebounceMs = 50;    // Min time between clicks (debounce)
     private DateTime _lastLeftClickTime = DateTime.MinValue;
     private DateTime _lastRightClickTime = DateTime.MinValue;
+    private int _leftClickCount = 0;   // Track consecutive left clicks for triple-click
     private int _rightClickCount = 0;  // Track consecutive right clicks for triple-click
-    private CancellationTokenSource? _singleClickTimerCts;
+    private CancellationTokenSource? _leftClickTimerCts;
     private CancellationTokenSource? _rightClickTimerCts;
 
     /// <summary>
@@ -58,14 +61,17 @@ public class BluetoothMouseMonitor : IDisposable
     /// <param name="logger">Logger instance.</param>
     /// <param name="keyboardMonitor">Keyboard monitor for simulating CapsLock key press.</param>
     /// <param name="deviceNamePattern">Device name pattern to search for (default: "BluetoothMouse3600").</param>
+    /// <param name="leftTripleClickCommand">Command to execute on LEFT triple-click (optional).</param>
     public BluetoothMouseMonitor(
         ILogger<BluetoothMouseMonitor> logger,
         IKeyboardMonitor keyboardMonitor,
-        string deviceNamePattern = "BluetoothMouse3600")
+        string deviceNamePattern = "BluetoothMouse3600",
+        string? leftTripleClickCommand = null)
     {
         _logger = logger ?? throw new ArgumentNullException(nameof(logger));
         _keyboardMonitor = keyboardMonitor ?? throw new ArgumentNullException(nameof(keyboardMonitor));
         _deviceNamePattern = deviceNamePattern;
+        _leftTripleClickCommand = leftTripleClickCommand;
     }
 
     /// <summary>
@@ -358,62 +364,126 @@ public class BluetoothMouseMonitor : IDisposable
             _logger.LogDebug("Mouse button pressed: {Button}", button);
             ButtonPressed?.Invoke(this, eventArgs);
 
-            // LEFT button press - double-click detection
+            // LEFT button press - multi-click detection
             // Single click → CapsLock (toggle recording)
             // Double click → ESC (cancel transcription)
+            // Triple click → run configured command (focus OpenCode)
             if (button == MouseButton.Left)
             {
                 var now = DateTime.UtcNow;
                 var timeSinceLastClick = (now - _lastLeftClickTime).TotalMilliseconds;
 
-                // Check for double-click (within threshold and after debounce)
+                // Check if this click is within the threshold window
                 if (timeSinceLastClick <= ClickThresholdMs && timeSinceLastClick > ClickDebounceMs)
                 {
-                    // Double-click detected - cancel any pending single-click action
-                    _singleClickTimerCts?.Cancel();
-                    _singleClickTimerCts = null;
-                    _lastLeftClickTime = DateTime.MinValue; // Reset to prevent triple-click
+                    _leftClickCount++;
+                    _lastLeftClickTime = now;
+                    _logger.LogDebug("LEFT click {Count} recorded", _leftClickCount);
 
-                    _logger.LogInformation("LEFT DOUBLE-CLICK - simulating ESC (cancel transcription)");
-                    try
+                    // Cancel any pending action timer
+                    _leftClickTimerCts?.Cancel();
+
+                    if (_leftClickCount >= 3)
                     {
-                        await _keyboardMonitor.SimulateKeyPressAsync(KeyCode.Escape);
-                        _keyboardMonitor.RaiseKeyReleasedEvent(KeyCode.Escape);
+                        // Triple-click - execute configured command immediately
+                        _leftClickCount = 0;
+                        _lastLeftClickTime = DateTime.MinValue;
+
+                        if (!string.IsNullOrEmpty(_leftTripleClickCommand))
+                        {
+                            _logger.LogInformation("LEFT TRIPLE-CLICK - executing command: {Command}", _leftTripleClickCommand);
+                            try
+                            {
+                                var process = new Process
+                                {
+                                    StartInfo = new ProcessStartInfo
+                                    {
+                                        FileName = "/bin/bash",
+                                        Arguments = $"-c \"{_leftTripleClickCommand}\"",
+                                        UseShellExecute = false,
+                                        CreateNoWindow = true
+                                    }
+                                };
+                                process.Start();
+                            }
+                            catch (Exception ex)
+                            {
+                                _logger.LogError(ex, "Failed to execute triple-click command");
+                            }
+                        }
+                        else
+                        {
+                            _logger.LogDebug("LEFT TRIPLE-CLICK - no command configured");
+                        }
                     }
-                    catch (Exception ex)
+                    else
                     {
-                        _logger.LogError(ex, "Failed to simulate ESC on double-click");
+                        // Wait for potential next click
+                        _leftClickTimerCts = new CancellationTokenSource();
+                        var timerCts = _leftClickTimerCts;
+                        var clickCount = _leftClickCount;
+
+                        _ = Task.Run(async () =>
+                        {
+                            try
+                            {
+                                await Task.Delay(ClickThresholdMs, timerCts.Token);
+
+                                // Timer expired - execute action based on click count
+                                if (clickCount == 1)
+                                {
+                                    _logger.LogInformation("LEFT SINGLE-CLICK - toggling CapsLock (start/stop recording)");
+                                    await _keyboardMonitor.SimulateKeyPressAsync(KeyCode.CapsLock);
+                                    await Task.Delay(100);
+                                    _keyboardMonitor.RaiseKeyReleasedEvent(KeyCode.CapsLock);
+                                }
+                                else if (clickCount == 2)
+                                {
+                                    _logger.LogInformation("LEFT DOUBLE-CLICK - simulating ESC (cancel transcription)");
+                                    await _keyboardMonitor.SimulateKeyPressAsync(KeyCode.Escape);
+                                    _keyboardMonitor.RaiseKeyReleasedEvent(KeyCode.Escape);
+                                }
+
+                                _leftClickCount = 0;
+                            }
+                            catch (OperationCanceledException)
+                            {
+                                // Cancelled by next click - expected
+                            }
+                            catch (Exception ex)
+                            {
+                                _logger.LogError(ex, "Failed to execute LEFT click action");
+                            }
+                        });
                     }
                 }
                 else
                 {
-                    // First click - schedule single-click action after delay
+                    // First click or timeout - start new sequence
+                    _leftClickCount = 1;
                     _lastLeftClickTime = now;
+                    _leftClickTimerCts?.Cancel();
+                    _leftClickTimerCts = new CancellationTokenSource();
+                    var timerCts = _leftClickTimerCts;
 
-                    // Cancel any previous pending single-click
-                    _singleClickTimerCts?.Cancel();
-                    _singleClickTimerCts = new CancellationTokenSource();
-                    var timerCts = _singleClickTimerCts;
+                    _logger.LogDebug("LEFT click 1 recorded (new sequence)");
 
-                    // Schedule single-click action (CapsLock toggle) after double-click threshold
                     _ = Task.Run(async () =>
                     {
                         try
                         {
                             await Task.Delay(ClickThresholdMs, timerCts.Token);
 
-                            // If we get here, no second click happened - execute single-click action
+                            // Single click - CapsLock
                             _logger.LogInformation("LEFT SINGLE-CLICK - toggling CapsLock (start/stop recording)");
-
-                            // Simulate key press to toggle LED state
                             await _keyboardMonitor.SimulateKeyPressAsync(KeyCode.CapsLock);
                             await Task.Delay(100);
                             _keyboardMonitor.RaiseKeyReleasedEvent(KeyCode.CapsLock);
+                            _leftClickCount = 0;
                         }
                         catch (OperationCanceledException)
                         {
-                            // Cancelled by double-click - this is expected
-                            _logger.LogDebug("Single-click action cancelled (double-click detected)");
+                            // Cancelled by next click - expected
                         }
                         catch (Exception ex)
                         {
@@ -424,7 +494,7 @@ public class BluetoothMouseMonitor : IDisposable
             }
             // RIGHT button press - multi-click detection
             // Single click → nothing
-            // Double click → Ctrl+V (paste)
+            // Double click → Ctrl+Shift+V (paste to terminal)
             // Triple click → Ctrl+C (copy)
             else if (button == MouseButton.Right)
             {
@@ -473,8 +543,8 @@ public class BluetoothMouseMonitor : IDisposable
                                 // Timer expired - execute action based on click count
                                 if (clickCount == 2)
                                 {
-                                    _logger.LogInformation("RIGHT DOUBLE-CLICK - simulating Ctrl+V (paste)");
-                                    await _keyboardMonitor.SimulateKeyComboAsync(KeyCode.LeftControl, KeyCode.V);
+                                    _logger.LogInformation("RIGHT DOUBLE-CLICK - simulating Ctrl+Shift+V (terminal paste)");
+                                    await _keyboardMonitor.SimulateKeyComboAsync(KeyCode.LeftControl, KeyCode.LeftShift, KeyCode.V);
                                 }
                                 // Single click = no action
 

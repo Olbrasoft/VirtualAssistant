@@ -392,7 +392,7 @@ public class UsbMouseMonitor : IDisposable
             }
             // RIGHT button press - multi-click detection
             // Single click → nothing
-            // Double click → Ctrl+V (paste)
+            // Double click → Ctrl+Shift+V (paste to terminal)
             // Triple click → Ctrl+C (copy)
             else if (button == MouseButton.Right)
             {
@@ -441,8 +441,8 @@ public class UsbMouseMonitor : IDisposable
                                 // Timer expired - execute action based on click count
                                 if (clickCount == 2)
                                 {
-                                    _logger.LogInformation("USB RIGHT DOUBLE-CLICK - simulating Ctrl+V (paste)");
-                                    await _keyboardMonitor.SimulateKeyComboAsync(KeyCode.LeftControl, KeyCode.V);
+                                    _logger.LogInformation("USB RIGHT DOUBLE-CLICK - simulating Ctrl+Shift+V (terminal paste)");
+                                    await _keyboardMonitor.SimulateKeyComboAsync(KeyCode.LeftControl, KeyCode.LeftShift, KeyCode.V);
                                 }
                                 // Single click = no action
 

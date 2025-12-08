@@ -65,4 +65,13 @@ public interface IKeyboardMonitor : IDisposable
     /// <param name="modifier">The modifier key (e.g., LeftControl, LeftShift).</param>
     /// <param name="key">The key to press with the modifier.</param>
     Task SimulateKeyComboAsync(KeyCode modifier, KeyCode key);
+
+    /// <summary>
+    /// Simulates a key combination with two modifiers (modifier1 + modifier2 + key) using uinput.
+    /// Used for keyboard shortcuts like Ctrl+Shift+V.
+    /// </summary>
+    /// <param name="modifier1">The first modifier key (e.g., LeftControl).</param>
+    /// <param name="modifier2">The second modifier key (e.g., LeftShift).</param>
+    /// <param name="key">The key to press with the modifiers.</param>
+    Task SimulateKeyComboAsync(KeyCode modifier1, KeyCode modifier2, KeyCode key);
 }

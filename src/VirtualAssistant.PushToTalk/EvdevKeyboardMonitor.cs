@@ -608,6 +608,135 @@ os.close(fd)
     }
 
     /// <inheritdoc/>
+    public async Task SimulateKeyComboAsync(KeyCode modifier1, KeyCode modifier2, KeyCode key)
+    {
+        try
+        {
+            _logger.LogInformation("Simulating key combo: {Modifier1}+{Modifier2}+{Key}", modifier1, modifier2, key);
+
+            const string uinputPath = "/dev/uinput";
+
+            if (!File.Exists(uinputPath))
+            {
+                _logger.LogError("uinput device not found at {Path}", uinputPath);
+                return;
+            }
+
+            var mod1Code = (int)modifier1;
+            var mod2Code = (int)modifier2;
+            var keyCode = (int)key;
+
+            // Python script to simulate key combo with two modifiers (e.g., Ctrl+Shift+V)
+            var script = $@"
+import os
+import time
+import struct
+import fcntl
+
+# uinput constants
+UI_SET_EVBIT = 0x40045564
+UI_SET_KEYBIT = 0x40045565
+UI_DEV_CREATE = 0x5501
+UI_DEV_DESTROY = 0x5502
+EV_KEY = 0x01
+EV_SYN = 0x00
+SYN_REPORT = 0x00
+
+# Open uinput
+fd = os.open('/dev/uinput', os.O_WRONLY | os.O_NONBLOCK)
+
+# Enable EV_KEY
+fcntl.ioctl(fd, UI_SET_EVBIT, EV_KEY)
+
+# Enable all keys
+fcntl.ioctl(fd, UI_SET_KEYBIT, {mod1Code})
+fcntl.ioctl(fd, UI_SET_KEYBIT, {mod2Code})
+fcntl.ioctl(fd, UI_SET_KEYBIT, {keyCode})
+
+# Create uinput device
+name = b'virtual-assistant-kbd'
+name = name + b'\x00' * (80 - len(name))
+user_dev = name + struct.pack('<HHHHI', 0x03, 0x1234, 0x5678, 0x0001, 0)
+user_dev = user_dev + b'\x00' * (4 * 64 * 4)
+
+os.write(fd, user_dev)
+fcntl.ioctl(fd, UI_DEV_CREATE)
+
+time.sleep(0.1)
+
+def send_event(fd, ev_type, code, value):
+    event = struct.pack('<QQHHi', 0, 0, ev_type, code, value)
+    os.write(fd, event)
+
+# Press modifier1
+send_event(fd, EV_KEY, {mod1Code}, 1)
+send_event(fd, EV_SYN, SYN_REPORT, 0)
+time.sleep(0.02)
+
+# Press modifier2
+send_event(fd, EV_KEY, {mod2Code}, 1)
+send_event(fd, EV_SYN, SYN_REPORT, 0)
+time.sleep(0.02)
+
+# Press key
+send_event(fd, EV_KEY, {keyCode}, 1)
+send_event(fd, EV_SYN, SYN_REPORT, 0)
+time.sleep(0.05)
+
+# Release key
+send_event(fd, EV_KEY, {keyCode}, 0)
+send_event(fd, EV_SYN, SYN_REPORT, 0)
+time.sleep(0.02)
+
+# Release modifier2
+send_event(fd, EV_KEY, {mod2Code}, 0)
+send_event(fd, EV_SYN, SYN_REPORT, 0)
+time.sleep(0.02)
+
+# Release modifier1
+send_event(fd, EV_KEY, {mod1Code}, 0)
+send_event(fd, EV_SYN, SYN_REPORT, 0)
+
+time.sleep(0.1)
+
+fcntl.ioctl(fd, UI_DEV_DESTROY)
+os.close(fd)
+";
+
+            var processInfo = new System.Diagnostics.ProcessStartInfo
+            {
+                FileName = "python3",
+                Arguments = $"-c \"{script.Replace("\"", "\\\"")}\"",
+                UseShellExecute = false,
+                RedirectStandardOutput = true,
+                RedirectStandardError = true,
+                CreateNoWindow = true
+            };
+
+            using var process = System.Diagnostics.Process.Start(processInfo);
+            if (process != null)
+            {
+                await process.WaitForExitAsync();
+                var stderr = await process.StandardError.ReadToEndAsync();
+
+                if (process.ExitCode != 0)
+                {
+                    _logger.LogError("Failed to simulate key combo. Exit code: {ExitCode}, Error: {Error}",
+                        process.ExitCode, stderr);
+                }
+                else
+                {
+                    _logger.LogInformation("Successfully simulated key combo: {Modifier1}+{Modifier2}+{Key}", modifier1, modifier2, key);
+                }
+            }
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Error simulating key combo: {Modifier1}+{Modifier2}+{Key}", modifier1, modifier2, key);
+        }
+    }
+
+    /// <inheritdoc/>
     public void Dispose()
     {
         if (_disposed)
