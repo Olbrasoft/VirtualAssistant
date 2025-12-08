@@ -178,33 +178,28 @@ public partial class AgentTaskService : IAgentTaskService
         ArgumentException.ThrowIfNullOrWhiteSpace(agentName);
 
         // An agent is idle if:
-        // 1. They have no messages at all (never started), OR
-        // 2. Their last Start message has a corresponding Complete message
+        // 1. They have no AgentResponse records (never started), OR
+        // 2. Their last AgentResponse has status = Completed
 
-        var lastStartMessage = await _dbContext.AgentMessages
-            .Where(m => m.SourceAgent == agentName)
-            .Where(m => m.Phase == MessagePhase.Start)
-            .OrderByDescending(m => m.CreatedAt)
+        var lastResponse = await _dbContext.AgentResponses
+            .Where(ar => ar.AgentName == agentName)
+            .OrderByDescending(ar => ar.StartedAt)
             .FirstOrDefaultAsync(ct);
 
-        if (lastStartMessage == null)
+        if (lastResponse == null)
         {
-            // No Start message ever - agent is considered idle
-            _logger.LogDebug("Agent {Agent} has no Start messages, considered idle", agentName);
+            // No responses ever - agent is considered idle
+            _logger.LogDebug("Agent {Agent} has no responses, considered idle", agentName);
             return true;
         }
 
-        // Check if there's a Complete message for this Start
-        var hasComplete = await _dbContext.AgentMessages
-            .Where(m => m.ParentMessageId == lastStartMessage.Id)
-            .Where(m => m.Phase == MessagePhase.Complete)
-            .AnyAsync(ct);
+        var isIdle = lastResponse.Status == AgentResponseStatus.Completed;
 
         _logger.LogDebug(
-            "Agent {Agent} last Start: {StartId}, has Complete: {HasComplete}",
-            agentName, lastStartMessage.Id, hasComplete);
+            "Agent {Agent} last response: {ResponseId}, status: {Status}, idle: {IsIdle}",
+            agentName, lastResponse.Id, lastResponse.Status, isIdle);
 
-        return hasComplete;
+        return isIdle;
     }
 
     public async Task<IReadOnlyList<AgentTaskDto>> GetReadyToSendAsync(CancellationToken ct = default)

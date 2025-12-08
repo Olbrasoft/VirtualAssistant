@@ -75,6 +75,12 @@ public class VirtualAssistantDbContext : DbContext
     /// </summary>
     public DbSet<AgentTaskSend> AgentTaskSends => Set<AgentTaskSend>();
 
+    /// <summary>
+    /// Gets or sets the AgentResponses DbSet for simplified agent status tracking.
+    /// One record per agent work session (monolog).
+    /// </summary>
+    public DbSet<AgentResponse> AgentResponses => Set<AgentResponse>();
+
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {
         base.OnModelCreating(modelBuilder);

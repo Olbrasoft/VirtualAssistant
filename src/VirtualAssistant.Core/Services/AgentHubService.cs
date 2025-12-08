@@ -168,49 +168,41 @@ public class AgentHubService : IAgentHubService
         ArgumentException.ThrowIfNullOrWhiteSpace(sourceAgent);
         ArgumentException.ThrowIfNullOrWhiteSpace(content);
 
-        // Check for duplicate Start if sessionId is provided
-        if (!string.IsNullOrEmpty(sessionId))
+        // Check if agent already has an InProgress response (shouldn't start new while another is active)
+        var existingInProgress = await _dbContext.AgentResponses
+            .Where(ar => ar.AgentName == sourceAgent)
+            .Where(ar => ar.Status == AgentResponseStatus.InProgress)
+            .FirstOrDefaultAsync(ct);
+
+        if (existingInProgress != null)
         {
-            var existingStart = await _dbContext.AgentMessages
-                .Where(m => m.SessionId == sessionId)
-                .Where(m => m.Phase == MessagePhase.Start)
-                .Where(m => m.ParentMessageId == null) // Root Start message
-                .FirstOrDefaultAsync(ct);
+            // Log the duplicate attempt
+            await LogMessageErrorAsync(sourceAgent, "error",
+                $"Duplicate Start rejected - agent already has InProgress response",
+                new { existingResponseId = existingInProgress.Id, content }, ct);
 
-            if (existingStart != null)
-            {
-                // Log the duplicate attempt
-                await LogMessageErrorAsync(sourceAgent, "error",
-                    $"Duplicate Start rejected for session {sessionId}",
-                    new { sessionId, existingStartId = existingStart.Id, content }, ct);
+            _logger.LogWarning(
+                "Duplicate Start rejected: agent {Agent} already has InProgress response {ResponseId}",
+                sourceAgent, existingInProgress.Id);
 
-                _logger.LogWarning(
-                    "Duplicate Start rejected: session {SessionId} already has Start message {StartId}",
-                    sessionId, existingStart.Id);
-
-                throw new InvalidOperationException(
-                    $"Session '{sessionId}' already has a Start message (ID: {existingStart.Id}). Only one Start is allowed per session.");
-            }
+            throw new InvalidOperationException(
+                $"Agent '{sourceAgent}' already has an InProgress response (ID: {existingInProgress.Id}). Complete it first.");
         }
 
-        var entity = new AgentMessage
+        // Create new AgentResponse with InProgress status
+        var entity = new AgentResponse
         {
-            SourceAgent = sourceAgent,
-            TargetAgent = targetAgent ?? string.Empty,
-            MessageType = "task",
-            Content = content,
-            Phase = MessagePhase.Start,
-            SessionId = sessionId,
-            Status = "active",
-            CreatedAt = DateTime.UtcNow
+            AgentName = sourceAgent,
+            Status = AgentResponseStatus.InProgress,
+            StartedAt = DateTime.UtcNow
         };
 
-        _dbContext.AgentMessages.Add(entity);
+        _dbContext.AgentResponses.Add(entity);
         await _dbContext.SaveChangesAsync(ct);
 
         _logger.LogInformation(
-            "Task started: {Id} by {Source}, session: {Session}, content: {Content}",
-            entity.Id, sourceAgent, sessionId ?? "(none)", content);
+            "Agent response started: {Id} by {Agent}, content: {Content}",
+            entity.Id, sourceAgent, content);
 
         // Notify user via TTS (batched and humanized if service available)
         if (_batchingService != null)
@@ -259,103 +251,101 @@ public class AgentHubService : IAgentHubService
     {
         ArgumentException.ThrowIfNullOrWhiteSpace(content);
 
-        var parent = await GetMessageOrThrowAsync(parentMessageId, ct);
+        // In the simplified AgentResponse model, we only track Start/Complete.
+        // Progress updates are logged but not stored separately.
+        // Verify the response exists and is still in progress.
+        var response = await _dbContext.AgentResponses.FindAsync([parentMessageId], ct);
 
-        if (parent.Phase != MessagePhase.Start)
+        if (response == null)
         {
-            throw new InvalidOperationException($"Cannot add progress to message with phase '{parent.Phase}'");
+            throw new KeyNotFoundException($"AgentResponse with ID {parentMessageId} not found");
         }
 
-        var entity = new AgentMessage
+        if (response.Status != AgentResponseStatus.InProgress)
         {
-            SourceAgent = parent.SourceAgent,
-            TargetAgent = parent.TargetAgent,
-            MessageType = "progress",
-            Content = content,
-            Phase = MessagePhase.Progress,
-            ParentMessageId = parentMessageId,
-            Status = "delivered",
-            CreatedAt = DateTime.UtcNow
-        };
+            throw new InvalidOperationException($"Cannot add progress to response with status '{response.Status}'");
+        }
 
-        _dbContext.AgentMessages.Add(entity);
-        await _dbContext.SaveChangesAsync(ct);
-
+        // Just log the progress, no DB storage needed
         _logger.LogInformation(
-            "Progress update: {Id} for task {ParentId}, content: {Content}",
-            entity.Id, parentMessageId, content);
+            "Progress update for agent {Agent} (response {Id}): {Content}",
+            response.AgentName, parentMessageId, content);
+
+        await Task.CompletedTask; // Ensure async signature is satisfied
     }
 
     public async Task CompleteTaskAsync(int parentMessageId, string summary, CancellationToken ct = default)
     {
         ArgumentException.ThrowIfNullOrWhiteSpace(summary);
 
-        var parent = await GetMessageOrThrowAsync(parentMessageId, ct);
+        // Find the AgentResponse by ID
+        var response = await _dbContext.AgentResponses.FindAsync([parentMessageId], ct);
 
-        if (parent.Phase != MessagePhase.Start)
+        if (response == null)
         {
-            throw new InvalidOperationException($"Cannot complete message with phase '{parent.Phase}'");
+            throw new KeyNotFoundException($"AgentResponse with ID {parentMessageId} not found");
         }
 
-        var entity = new AgentMessage
+        if (response.Status != AgentResponseStatus.InProgress)
         {
-            SourceAgent = parent.SourceAgent,
-            TargetAgent = parent.TargetAgent,
-            MessageType = "completion",
-            Content = summary,
-            Phase = MessagePhase.Complete,
-            ParentMessageId = parentMessageId,
-            Status = "processed",
-            CreatedAt = DateTime.UtcNow,
-            ProcessedAt = DateTime.UtcNow
-        };
+            throw new InvalidOperationException($"Cannot complete response with status '{response.Status}'");
+        }
 
-        _dbContext.AgentMessages.Add(entity);
-
-        // Update parent status to processed
-        parent.Status = "processed";
-        parent.ProcessedAt = DateTime.UtcNow;
+        // Update to Completed
+        response.Status = AgentResponseStatus.Completed;
+        response.CompletedAt = DateTime.UtcNow;
 
         await _dbContext.SaveChangesAsync(ct);
 
         _logger.LogInformation(
-            "Task completed: {Id} for task {ParentId}, summary: {Summary}",
-            entity.Id, parentMessageId, summary);
+            "Agent response completed: {Id} for agent {Agent}, summary: {Summary}",
+            response.Id, response.AgentName, summary);
 
         // Notify user via TTS (batched and humanized if service available)
         if (_batchingService != null)
         {
             _batchingService.QueueNotification(new AgentNotification
             {
-                Agent = parent.SourceAgent,
+                Agent = response.AgentName,
                 Type = "complete",
                 Content = summary
             });
         }
         else
         {
-            await _speaker.SpeakAsync($"{parent.SourceAgent} dokončil úkol.", parent.SourceAgent, ct);
+            await _speaker.SpeakAsync($"{response.AgentName} dokončil úkol.", response.AgentName, ct);
         }
     }
 
     public async Task<IReadOnlyList<AgentMessageDto>> GetActiveTasksAsync(string? sourceAgent = null, CancellationToken ct = default)
     {
-        var query = _dbContext.AgentMessages
-            .Where(m => m.Phase == MessagePhase.Start)
-            .Where(m => m.Status == "active");
+        var query = _dbContext.AgentResponses
+            .Where(ar => ar.Status == AgentResponseStatus.InProgress);
 
         if (!string.IsNullOrEmpty(sourceAgent))
         {
-            query = query.Where(m => m.SourceAgent == sourceAgent);
+            query = query.Where(ar => ar.AgentName == sourceAgent);
         }
 
-        var messages = await query
-            .OrderByDescending(m => m.CreatedAt)
+        var responses = await query
+            .OrderByDescending(ar => ar.StartedAt)
             .ToListAsync(ct);
 
-        _logger.LogDebug("Found {Count} active tasks for {Agent}", messages.Count, sourceAgent ?? "all agents");
+        _logger.LogDebug("Found {Count} active responses for {Agent}", responses.Count, sourceAgent ?? "all agents");
 
-        return messages.Select(MapToDto).ToList();
+        // Map AgentResponse to AgentMessageDto for backward compatibility
+        return responses.Select(ar => new AgentMessageDto
+        {
+            Id = ar.Id,
+            SourceAgent = ar.AgentName,
+            TargetAgent = string.Empty,
+            MessageType = "task",
+            Content = string.Empty,
+            Phase = MessagePhase.Start,
+            SessionId = null,
+            Status = "active",
+            CreatedAt = ar.StartedAt
+        }).ToList();
     }
 
     public async Task<IReadOnlyList<AgentMessageDto>> GetTaskHistoryAsync(int taskId, CancellationToken ct = default)
