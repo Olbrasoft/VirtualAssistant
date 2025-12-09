@@ -61,11 +61,18 @@ public class GitHubSyncService : IGitHubSyncService
             var repos = await _gitHubClient.Repository.GetAllForUser(owner);
             _logger.LogInformation("Found {Count} repositories for {Owner}", repos.Count, owner);
 
+            // OPTIMIZATION: Batch load all existing repos in ONE query (prevents N+1)
+            var repoFullNames = repos.Select(r => r.FullName).ToList();
+            var existingRepos = await _dbContext.GitHubRepositories
+                .Where(r => repoFullNames.Contains(r.FullName))
+                .ToDictionaryAsync(r => r.FullName, ct);
+            _logger.LogDebug("Batch loaded {Count} existing repositories", existingRepos.Count);
+
             var syncedCount = 0;
             foreach (var repo in repos)
             {
                 ct.ThrowIfCancellationRequested();
-                await UpsertRepositoryAsync(repo, ct);
+                UpsertRepositoryBatch(repo, existingRepos);
                 syncedCount++;
             }
 
@@ -206,16 +213,14 @@ public class GitHubSyncService : IGitHubSyncService
         }
     }
 
-    private async Task<GitHubRepository> UpsertRepositoryAsync(Repository repo, CancellationToken ct)
+    /// <summary>
+    /// Upserts a repository using pre-loaded batch dictionary (O(1) lookup).
+    /// </summary>
+    private GitHubRepository UpsertRepositoryBatch(
+        Repository repo,
+        Dictionary<string, GitHubRepository> existingRepos)
     {
-        // IMPORTANT: Check local change tracker FIRST, then database
-        // This prevents duplicate key errors when adding multiple repos before SaveChanges
-        var existingRepo = _dbContext.GitHubRepositories.Local
-            .FirstOrDefault(r => r.FullName == repo.FullName)
-            ?? await _dbContext.GitHubRepositories
-                .FirstOrDefaultAsync(r => r.FullName == repo.FullName, ct);
-
-        if (existingRepo == null)
+        if (!existingRepos.TryGetValue(repo.FullName, out var existingRepo))
         {
             existingRepo = new GitHubRepository
             {
@@ -230,6 +235,7 @@ public class GitHubSyncService : IGitHubSyncService
                 SyncedAt = DateTime.UtcNow
             };
             _dbContext.GitHubRepositories.Add(existingRepo);
+            existingRepos[repo.FullName] = existingRepo; // Add to cache for duplicates
             _logger.LogDebug("Added new repository: {FullName}", repo.FullName);
         }
         else
@@ -243,6 +249,21 @@ public class GitHubSyncService : IGitHubSyncService
         }
 
         return existingRepo;
+    }
+
+    /// <summary>
+    /// Upserts a single repository (used for single-repo sync).
+    /// </summary>
+    private async Task<GitHubRepository> UpsertRepositoryAsync(Repository repo, CancellationToken ct)
+    {
+        var existingRepo = await _dbContext.GitHubRepositories
+            .FirstOrDefaultAsync(r => r.FullName == repo.FullName, ct);
+
+        var repoDict = existingRepo != null
+            ? new Dictionary<string, GitHubRepository> { [repo.FullName] = existingRepo }
+            : new Dictionary<string, GitHubRepository>();
+
+        return UpsertRepositoryBatch(repo, repoDict);
     }
 
     private async Task<int> SyncIssuesForRepositoryAsync(GitHubRepository repository, CancellationToken ct)
@@ -266,18 +287,22 @@ public class GitHubSyncService : IGitHubSyncService
 
         _logger.LogInformation("Found {Count} issues in {Repo}", issues.Count, repository.FullName);
 
+        // Filter out pull requests first
+        var actualIssues = issues.Where(i => i.PullRequest == null).ToList();
+
+        // OPTIMIZATION: Batch load all existing issues in ONE query (prevents N+1)
+        var issueNumbers = actualIssues.Select(i => i.Number).ToList();
+        var existingIssues = await _dbContext.GitHubIssues
+            .Include(i => i.Agents)
+            .Where(i => i.RepositoryId == repository.Id && issueNumbers.Contains(i.IssueNumber))
+            .ToDictionaryAsync(i => i.IssueNumber, ct);
+        _logger.LogDebug("Batch loaded {Count} existing issues", existingIssues.Count);
+
         var syncedCount = 0;
-        foreach (var issue in issues)
+        foreach (var issue in actualIssues)
         {
             ct.ThrowIfCancellationRequested();
-
-            // Skip pull requests (they appear as issues in the API)
-            if (issue.PullRequest != null)
-            {
-                continue;
-            }
-
-            await UpsertIssueAsync(repository.Id, issue, ct);
+            UpsertIssueBatch(repository.Id, issue, existingIssues);
             syncedCount++;
         }
 
@@ -287,22 +312,15 @@ public class GitHubSyncService : IGitHubSyncService
         return syncedCount;
     }
 
-    private async Task UpsertIssueAsync(int repositoryId, Issue issue, CancellationToken ct)
+    /// <summary>
+    /// Upserts an issue using pre-loaded batch dictionary (O(1) lookup).
+    /// </summary>
+    private void UpsertIssueBatch(
+        int repositoryId,
+        Issue issue,
+        Dictionary<int, GitHubIssue> existingIssues)
     {
-        // IMPORTANT: Check local change tracker FIRST, then database
-        // This prevents duplicate key errors when adding multiple issues before SaveChanges
-        var existingIssue = _dbContext.GitHubIssues.Local
-            .FirstOrDefault(i => i.RepositoryId == repositoryId && i.IssueNumber == issue.Number);
-
-        if (existingIssue == null)
-        {
-            existingIssue = await _dbContext.GitHubIssues
-                .Include(i => i.Agents)
-                .FirstOrDefaultAsync(
-                    i => i.RepositoryId == repositoryId && i.IssueNumber == issue.Number, ct);
-        }
-
-        if (existingIssue == null)
+        if (!existingIssues.TryGetValue(issue.Number, out var existingIssue))
         {
             existingIssue = new GitHubIssue
             {
@@ -317,6 +335,7 @@ public class GitHubSyncService : IGitHubSyncService
                 SyncedAt = DateTime.UtcNow
             };
             _dbContext.GitHubIssues.Add(existingIssue);
+            existingIssues[issue.Number] = existingIssue; // Add to cache for duplicates
             _logger.LogDebug("Added new issue: #{Number} {Title}", issue.Number, issue.Title);
         }
         else
@@ -330,12 +349,15 @@ public class GitHubSyncService : IGitHubSyncService
             _logger.LogDebug("Updated issue: #{Number} {Title}", issue.Number, issue.Title);
         }
 
-        // Sync agent labels
-        await SyncIssueAgentsAsync(existingIssue, issue.Labels, ct);
+        // Sync agent labels (in-memory operation, no DB query)
+        SyncIssueAgentsBatch(existingIssue, issue.Labels);
     }
 
-    private async Task SyncIssueAgentsAsync(
-        GitHubIssue dbIssue, IReadOnlyList<Label> labels, CancellationToken ct)
+    /// <summary>
+    /// Syncs agent labels for an issue (in-memory, no database queries).
+    /// Agents collection is already loaded via Include().
+    /// </summary>
+    private void SyncIssueAgentsBatch(GitHubIssue dbIssue, IReadOnlyList<Label> labels)
     {
         // Extract agent labels (format: "agent:xxx")
         var agentLabels = labels
@@ -343,7 +365,7 @@ public class GitHubSyncService : IGitHubSyncService
             .Select(l => l.Name.Substring("agent:".Length).ToLowerInvariant())
             .ToHashSet();
 
-        // Get current agents from database
+        // Get current agents from in-memory collection
         var currentAgents = dbIssue.Agents.Select(a => a.Agent).ToHashSet();
 
         // Remove agents that are no longer labeled
