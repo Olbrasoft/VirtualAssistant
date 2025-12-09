@@ -114,7 +114,7 @@ public class TtsController : ControllerBase
             var tempWav = Path.Combine(Path.GetTempPath(), $"tts_{Guid.NewGuid():N}.wav");
 
             // Generate audio with Piper
-            var piperProcess = new Process
+            using var piperProcess = new Process
             {
                 StartInfo = new ProcessStartInfo
                 {
@@ -140,7 +140,7 @@ public class TtsController : ControllerBase
             }
 
             // Play audio with aplay
-            var aplayProcess = new Process
+            using var aplayProcess = new Process
             {
                 StartInfo = new ProcessStartInfo
                 {

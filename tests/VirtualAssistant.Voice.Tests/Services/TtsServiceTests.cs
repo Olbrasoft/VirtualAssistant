@@ -12,7 +12,7 @@ namespace VirtualAssistant.Voice.Tests.Services;
 public class TtsServiceTests : IDisposable
 {
     private readonly Mock<ILogger<TtsService>> _loggerMock;
-    private readonly Mock<IConfiguration> _configurationMock;
+    private readonly IConfiguration _configuration;
     private readonly Mock<ITtsProvider> _ttsProviderMock;
     private readonly TtsService _sut;
     private const string SpeechLockFilePath = "/tmp/speech-lock";
@@ -20,18 +20,24 @@ public class TtsServiceTests : IDisposable
     public TtsServiceTests()
     {
         _loggerMock = new Mock<ILogger<TtsService>>();
-        _configurationMock = new Mock<IConfiguration>();
         _ttsProviderMock = new Mock<ITtsProvider>();
 
         // Setup TTS provider mock
         _ttsProviderMock.Setup(x => x.Name).Returns("MockTtsProvider");
         _ttsProviderMock.Setup(x => x.IsAvailable).Returns(true);
 
-        // Setup empty configuration section (will use defaults from TtsVoiceProfilesOptions)
-        var sectionMock = new Mock<IConfigurationSection>();
-        _configurationMock.Setup(x => x.GetSection("TtsVoiceProfiles")).Returns(sectionMock.Object);
+        // Use real in-memory configuration (Bind() doesn't work with mocks)
+        _configuration = new ConfigurationBuilder()
+            .AddInMemoryCollection(new Dictionary<string, string?>
+            {
+                ["TtsVoice:Voice"] = "cs-CZ-AntoninNeural",
+                ["TtsVoice:Rate"] = "+10%",
+                ["TtsVoice:Volume"] = "+0%",
+                ["TtsVoice:Pitch"] = "+0Hz"
+            })
+            .Build();
 
-        _sut = new TtsService(_loggerMock.Object, _configurationMock.Object, _ttsProviderMock.Object);
+        _sut = new TtsService(_loggerMock.Object, _configuration, _ttsProviderMock.Object);
 
         // Ensure clean state - no lock file
         if (File.Exists(SpeechLockFilePath))
@@ -280,14 +286,20 @@ public class TtsServiceTests : IDisposable
     {
         // Arrange
         var logger = new Mock<ILogger<TtsService>>();
-        var configuration = new Mock<IConfiguration>();
-        var sectionMock = new Mock<IConfigurationSection>();
-        configuration.Setup(x => x.GetSection("TtsVoiceProfiles")).Returns(sectionMock.Object);
+        var configuration = new ConfigurationBuilder()
+            .AddInMemoryCollection(new Dictionary<string, string?>
+            {
+                ["TtsVoice:Voice"] = "cs-CZ-AntoninNeural",
+                ["TtsVoice:Rate"] = "+10%",
+                ["TtsVoice:Volume"] = "+0%",
+                ["TtsVoice:Pitch"] = "+0Hz"
+            })
+            .Build();
         var ttsProviderMock = new Mock<ITtsProvider>();
         ttsProviderMock.Setup(x => x.Name).Returns("MockTtsProvider");
         ttsProviderMock.Setup(x => x.IsAvailable).Returns(true);
 
-        var service = new TtsService(logger.Object, configuration.Object, ttsProviderMock.Object);
+        var service = new TtsService(logger.Object, configuration, ttsProviderMock.Object);
 
         // Act & Assert - multiple dispose calls should not throw
         service.Dispose();

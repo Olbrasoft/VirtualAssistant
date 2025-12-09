@@ -441,15 +441,16 @@ public class EdgeTtsService
         {
             // Notify ContinuousListener that we stopped speaking
             await NotifyListenerSpeechEndAsync();
-            
+
             // Mark assistant as NOT speaking AFTER playback
             await _assistantSpeechState.StopSpeakingAsync();
-            
+
             lock (_processLock)
             {
                 _currentPlaybackProcess = null;
             }
-            
+
+            process.Dispose();  // Prevent resource leak
             lockFile.Close();
             File.Delete(_speechLockFile);
         }

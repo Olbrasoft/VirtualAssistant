@@ -281,6 +281,7 @@ public sealed class TtsService : IDisposable
         finally
         {
             _currentPlaybackProcess = null;
+            process.Dispose();  // Prevent resource leak
         }
     }
 

@@ -220,7 +220,7 @@ public sealed class TtsService : IDisposable
 
     private async Task PlayAudioAsync(string audioFile)
     {
-        var process = new Process
+        using var process = new Process
         {
             StartInfo = new ProcessStartInfo
             {
