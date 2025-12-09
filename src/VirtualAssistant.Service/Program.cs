@@ -16,11 +16,20 @@ public class Program
     private static TrayIconService? _trayService;
     private static CancellationTokenSource? _cts;
     private static FileStream? _lockFile;
-    private const string LockFilePath = "/tmp/virtual-assistant.lock";
+    private static string _lockFilePath = "/tmp/virtual-assistant.lock"; // Default, overridden from config
 
     [STAThread]
     public static void Main(string[] args)
     {
+        // Load configuration early to get lock file path
+        var earlyConfig = new ConfigurationBuilder()
+            .AddJsonFile("appsettings.json", optional: true)
+            .AddEnvironmentVariables()
+            .Build();
+
+        _lockFilePath = earlyConfig["SystemPaths:VirtualAssistantLockFile"]
+            ?? "/tmp/virtual-assistant.lock";
+
         // Single instance check
         if (!TryAcquireSingleInstanceLock())
         {
@@ -147,7 +156,7 @@ public class Program
         try
         {
             _lockFile = new FileStream(
-                LockFilePath,
+                _lockFilePath,
                 FileMode.OpenOrCreate,
                 FileAccess.ReadWrite,
                 FileShare.None);
@@ -175,9 +184,9 @@ public class Program
             _lockFile?.Dispose();
             _lockFile = null;
 
-            if (File.Exists(LockFilePath))
+            if (File.Exists(_lockFilePath))
             {
-                File.Delete(LockFilePath);
+                File.Delete(_lockFilePath);
             }
         }
         catch

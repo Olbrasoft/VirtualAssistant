@@ -13,8 +13,18 @@ using VirtualAssistant.Data.EntityFrameworkCore;
 using PttManualMuteService = Olbrasoft.VirtualAssistant.PushToTalk.Service.Services.ManualMuteService;
 using PttEvdevKeyboardMonitor = Olbrasoft.VirtualAssistant.PushToTalk.EvdevKeyboardMonitor;
 
+// Load configuration early to get lock file paths
+var earlyConfig = new ConfigurationBuilder()
+    .AddJsonFile("appsettings.json", optional: true)
+    .AddEnvironmentVariables()
+    .Build();
+
+var lockFilePath = earlyConfig["SystemPaths:PushToTalkLockFile"]
+    ?? "/tmp/push-to-talk-dictation.lock";
+var speechLockFilePath = earlyConfig["SystemPaths:SpeechLockFile"]
+    ?? "/tmp/speech-lock";
+
 // Single instance lock
-const string LockFilePath = "/tmp/push-to-talk-dictation.lock";
 FileStream? _lockFile = null;
 
 // Single instance check - try to acquire exclusive lock
@@ -276,7 +286,7 @@ bool TryAcquireSingleInstanceLock()
     try
     {
         _lockFile = new FileStream(
-            LockFilePath,
+            lockFilePath,
             FileMode.OpenOrCreate,
             FileAccess.ReadWrite,
             FileShare.None);
@@ -307,9 +317,9 @@ void ReleaseSingleInstanceLock()
         _lockFile?.Dispose();
         _lockFile = null;
 
-        if (File.Exists(LockFilePath))
+        if (File.Exists(lockFilePath))
         {
-            File.Delete(LockFilePath);
+            File.Delete(lockFilePath);
         }
     }
     catch

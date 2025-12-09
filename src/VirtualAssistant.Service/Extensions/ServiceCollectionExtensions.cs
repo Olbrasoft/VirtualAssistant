@@ -135,6 +135,10 @@ public static class ServiceCollectionExtensions
         this IServiceCollection services,
         IConfiguration configuration)
     {
+        // System paths configuration (lock files, cache directories)
+        services.Configure<SystemPathsOptions>(
+            configuration.GetSection(SystemPathsOptions.SectionName));
+
         // TTS Provider Chain Configuration
         services.Configure<TtsProviderChainOptions>(
             configuration.GetSection(TtsProviderChainOptions.SectionName));
@@ -162,7 +166,11 @@ public static class ServiceCollectionExtensions
         services.AddSingleton<ITtsProviderChain, TtsProviderChain>();
 
         // TTS focused services (SRP compliant)
-        services.AddSingleton<ISpeechLockService, SpeechLockService>();
+        services.AddSingleton<ISpeechLockService>(sp =>
+        {
+            var options = sp.GetRequiredService<IOptions<SystemPathsOptions>>();
+            return new SpeechLockService(options.Value.SpeechLockFile);
+        });
         services.AddSingleton<ITtsQueueService, TtsQueueService>();
         services.AddSingleton<ITtsCacheService, TtsCacheService>();
         services.AddSingleton<IAudioPlaybackService, AudioPlaybackService>();

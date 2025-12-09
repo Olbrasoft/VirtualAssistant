@@ -58,11 +58,12 @@ public class DictationWorker : BackgroundService
     /// Allows canceling Whisper transcription when user presses Escape.
     /// </summary>
     private CancellationTokenSource? _transcriptionCts;
-    
+
     /// <summary>
     /// Path to the speech lock file. When this file exists, TTS should not speak.
+    /// Configurable via appsettings.json SystemPaths:SpeechLockFile.
     /// </summary>
-    private const string SpeechLockFilePath = "/tmp/speech-lock";
+    private readonly string _speechLockFilePath;
 
     public DictationWorker(
         ILogger<DictationWorker> logger,
@@ -96,6 +97,7 @@ public class DictationWorker : BackgroundService
         _triggerKey = Enum.Parse<KeyCode>(triggerKeyName);
         _ttsBaseUrl = _configuration.GetValue<string>("EdgeTts:BaseUrl", "http://localhost:5555");
         _virtualAssistantBaseUrl = _configuration.GetValue<string>("VirtualAssistant:BaseUrl", "http://localhost:5055");
+        _speechLockFilePath = _configuration.GetValue<string>("SystemPaths:SpeechLockFile") ?? "/tmp/speech-lock";
 
         _logger.LogWarning("=== NOTIFIER HASH: {Hash} ===", _pttNotifier.GetHashCode());
         _logger.LogInformation("Dictation worker initialized. Trigger key: {TriggerKey}", _triggerKey);
@@ -457,21 +459,21 @@ public class DictationWorker : BackgroundService
     {
         try
         {
-            File.WriteAllText(SpeechLockFilePath, "PushToTalk:Recording");
+            File.WriteAllText(_speechLockFilePath, "PushToTalk:Recording");
             
             // Verify the file was actually created
-            if (File.Exists(SpeechLockFilePath))
+            if (File.Exists(_speechLockFilePath))
             {
-                _logger.LogInformation("🔒 Speech lock file CREATED: {Path}", SpeechLockFilePath);
+                _logger.LogInformation("🔒 Speech lock file CREATED: {Path}", _speechLockFilePath);
             }
             else
             {
-                _logger.LogError("❌ Speech lock file NOT created despite no exception: {Path}", SpeechLockFilePath);
+                _logger.LogError("❌ Speech lock file NOT created despite no exception: {Path}", _speechLockFilePath);
             }
         }
         catch (Exception ex)
         {
-            _logger.LogError(ex, "❌ Failed to create speech lock file: {Path}", SpeechLockFilePath);
+            _logger.LogError(ex, "❌ Failed to create speech lock file: {Path}", _speechLockFilePath);
         }
     }
     
@@ -482,10 +484,10 @@ public class DictationWorker : BackgroundService
     {
         try
         {
-            if (File.Exists(SpeechLockFilePath))
+            if (File.Exists(_speechLockFilePath))
             {
-                File.Delete(SpeechLockFilePath);
-                _logger.LogInformation("🔓 Speech lock file DELETED: {Path}", SpeechLockFilePath);
+                File.Delete(_speechLockFilePath);
+                _logger.LogInformation("🔓 Speech lock file DELETED: {Path}", _speechLockFilePath);
             }
         }
         catch (Exception ex)
