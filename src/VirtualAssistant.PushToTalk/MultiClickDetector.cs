@@ -18,9 +18,9 @@ public class MultiClickDetector : IMultiClickDetector
     private bool _disposed;
 
     /// <summary>
-    /// Default click threshold in milliseconds.
+    /// Default click threshold in milliseconds (800ms for reliable triple-click detection).
     /// </summary>
-    public const int DefaultClickThresholdMs = 400;
+    public const int DefaultClickThresholdMs = 800;
 
     /// <summary>
     /// Default debounce time in milliseconds.

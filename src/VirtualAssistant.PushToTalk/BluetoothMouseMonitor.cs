@@ -10,9 +10,9 @@ namespace Olbrasoft.VirtualAssistant.PushToTalk;
 /// </summary>
 /// <remarks>
 /// Button mappings:
-/// - LEFT: Single=CapsLock, Double=ESC, Triple=Command
-/// - RIGHT: Single=None, Double=Ctrl+Shift+V, Triple=Ctrl+C
-/// - MIDDLE: Enter
+/// - LEFT: Single=CapsLock, Double=ESC, Triple=OpenCode
+/// - MIDDLE: Single=Enter, Double=Chrome, Triple=Ctrl+C
+/// - RIGHT: Single=None, Double=Ctrl+V, Triple=Claude
 /// </remarks>
 public class BluetoothMouseMonitor : IDisposable
 {
@@ -30,6 +30,7 @@ public class BluetoothMouseMonitor : IDisposable
 
     // Button click handlers
     private readonly ButtonClickHandler _leftButtonHandler;
+    private readonly ButtonClickHandler _middleButtonHandler;
     private readonly ButtonClickHandler _rightButtonHandler;
 
     // P/Invoke for ioctl to grab/ungrab the device
@@ -67,7 +68,7 @@ public class BluetoothMouseMonitor : IDisposable
         _deviceDiscovery = deviceDiscovery ?? throw new ArgumentNullException(nameof(deviceDiscovery));
         _deviceNamePattern = deviceNamePattern;
 
-        // Configure LEFT button: Single=CapsLock, Double=ESC, Triple=Command
+        // Configure LEFT button: Single=CapsLock, Double=ESC, Triple=OpenCode
         _leftButtonHandler = new ButtonClickHandler(
             "LEFT",
             new KeyPressAction(_keyboardMonitor, KeyCode.CapsLock, "CapsLock (toggle recording)"),
@@ -78,12 +79,21 @@ public class BluetoothMouseMonitor : IDisposable
             logger,
             maxClickCount: 3);
 
-        // Configure RIGHT button: Single=None, Double=Ctrl+Shift+V, Triple=Ctrl+C
+        // Configure MIDDLE button: Single=Enter, Double=Chrome, Triple=Ctrl+C
+        _middleButtonHandler = new ButtonClickHandler(
+            "MIDDLE",
+            new KeyPressAction(_keyboardMonitor, KeyCode.Enter, "Enter"),
+            new ShellCommandAction("~/.local/bin/focus-chrome.sh", "Focus Chrome"),
+            new KeyComboAction(_keyboardMonitor, KeyCode.LeftControl, KeyCode.C, "Ctrl+C (copy)"),
+            logger,
+            maxClickCount: 3);
+
+        // Configure RIGHT button: Single=None, Double=Ctrl+V, Triple=Claude
         _rightButtonHandler = new ButtonClickHandler(
             "RIGHT",
             NoAction.Instance,
-            new KeyComboWithTwoModifiersAction(_keyboardMonitor, KeyCode.LeftControl, KeyCode.LeftShift, KeyCode.V, "Ctrl+Shift+V (terminal paste)"),
-            new KeyComboAction(_keyboardMonitor, KeyCode.LeftControl, KeyCode.C, "Ctrl+C (copy)"),
+            new KeyComboAction(_keyboardMonitor, KeyCode.LeftControl, KeyCode.V, "Ctrl+V (paste)"),
+            new ShellCommandAction("~/.local/bin/focus-claude.sh", "Focus Claude"),
             logger,
             maxClickCount: 3);
     }
@@ -361,12 +371,12 @@ public class BluetoothMouseMonitor : IDisposable
                     _leftButtonHandler.RegisterClick();
                     break;
 
-                case MouseButton.Right:
-                    _rightButtonHandler.RegisterClick();
+                case MouseButton.Middle:
+                    _middleButtonHandler.RegisterClick();
                     break;
 
-                case MouseButton.Middle:
-                    await HandleMiddleButtonAsync();
+                case MouseButton.Right:
+                    _rightButtonHandler.RegisterClick();
                     break;
             }
         }
@@ -374,19 +384,6 @@ public class BluetoothMouseMonitor : IDisposable
         {
             _logger.LogDebug("Mouse button released: {Button}", button);
             ButtonReleased?.Invoke(this, eventArgs);
-        }
-    }
-
-    private async Task HandleMiddleButtonAsync()
-    {
-        _logger.LogInformation("MIDDLE button pressed - simulating Enter key press");
-        try
-        {
-            await _keyboardMonitor.SimulateKeyPressAsync(KeyCode.Enter);
-        }
-        catch (Exception ex)
-        {
-            _logger.LogError(ex, "Failed to simulate Enter key press");
         }
     }
 
@@ -414,6 +411,7 @@ public class BluetoothMouseMonitor : IDisposable
         }
 
         _leftButtonHandler.Dispose();
+        _middleButtonHandler.Dispose();
         _rightButtonHandler.Dispose();
         _cts?.Dispose();
         CloseDevice();
