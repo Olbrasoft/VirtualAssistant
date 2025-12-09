@@ -13,7 +13,7 @@ public class TtsServiceTests : IDisposable
 {
     private readonly Mock<ILogger<TtsService>> _loggerMock;
     private readonly IConfiguration _configuration;
-    private readonly Mock<ITtsProvider> _ttsProviderMock;
+    private readonly Mock<ITtsProviderChain> _ttsProviderChainMock;
     private readonly Mock<ITtsQueueService> _queueServiceMock;
     private readonly Mock<ITtsCacheService> _cacheServiceMock;
     private readonly Mock<IAudioPlaybackService> _playbackServiceMock;
@@ -23,15 +23,11 @@ public class TtsServiceTests : IDisposable
     public TtsServiceTests()
     {
         _loggerMock = new Mock<ILogger<TtsService>>();
-        _ttsProviderMock = new Mock<ITtsProvider>();
+        _ttsProviderChainMock = new Mock<ITtsProviderChain>();
         _queueServiceMock = new Mock<ITtsQueueService>();
         _cacheServiceMock = new Mock<ITtsCacheService>();
         _playbackServiceMock = new Mock<IAudioPlaybackService>();
         _speechLockServiceMock = new Mock<ISpeechLockService>();
-
-        // Setup TTS provider mock
-        _ttsProviderMock.Setup(x => x.Name).Returns("MockTtsProvider");
-        _ttsProviderMock.Setup(x => x.IsAvailable).Returns(true);
 
         // Setup speech lock service - default to unlocked
         _speechLockServiceMock.Setup(x => x.IsLocked).Returns(false);
@@ -50,7 +46,7 @@ public class TtsServiceTests : IDisposable
         _sut = new TtsService(
             _loggerMock.Object,
             _configuration,
-            _ttsProviderMock.Object,
+            _ttsProviderChainMock.Object,
             _queueServiceMock.Object,
             _cacheServiceMock.Object,
             _playbackServiceMock.Object,
@@ -237,7 +233,7 @@ public class TtsServiceTests : IDisposable
 
         // Assert - should play from cache, not generate
         _playbackServiceMock.Verify(x => x.PlayAsync(cachePath, It.IsAny<CancellationToken>()), Times.Once);
-        _ttsProviderMock.Verify(x => x.GenerateAudioAsync(It.IsAny<string>(), It.IsAny<VoiceConfig>(), It.IsAny<CancellationToken>()), Times.Never);
+        _ttsProviderChainMock.Verify(x => x.SynthesizeAsync(It.IsAny<string>(), It.IsAny<VoiceConfig>(), It.IsAny<string?>(), It.IsAny<CancellationToken>()), Times.Never);
     }
 
     [Fact]
@@ -254,15 +250,15 @@ public class TtsServiceTests : IDisposable
             .Returns("/tmp/new.mp3");
 
         var audioData = new byte[] { 1, 2, 3 };
-        _ttsProviderMock
-            .Setup(x => x.GenerateAudioAsync(It.IsAny<string>(), It.IsAny<VoiceConfig>(), It.IsAny<CancellationToken>()))
-            .ReturnsAsync(audioData);
+        _ttsProviderChainMock
+            .Setup(x => x.SynthesizeAsync(It.IsAny<string>(), It.IsAny<VoiceConfig>(), It.IsAny<string?>(), It.IsAny<CancellationToken>()))
+            .ReturnsAsync((audioData, "MockProvider"));
 
         // Act
         await _sut.SpeakAsync("Test message");
 
         // Assert - should generate and save to cache
-        _ttsProviderMock.Verify(x => x.GenerateAudioAsync("Test message", It.IsAny<VoiceConfig>(), It.IsAny<CancellationToken>()), Times.Once);
+        _ttsProviderChainMock.Verify(x => x.SynthesizeAsync("Test message", It.IsAny<VoiceConfig>(), It.IsAny<string?>(), It.IsAny<CancellationToken>()), Times.Once);
         _cacheServiceMock.Verify(x => x.SaveAsync("Test message", It.IsAny<VoiceConfig>(), audioData, It.IsAny<CancellationToken>()), Times.Once);
     }
 
@@ -283,14 +279,11 @@ public class TtsServiceTests : IDisposable
                 ["TtsVoice:Pitch"] = "+0Hz"
             })
             .Build();
-        var ttsProviderMock = new Mock<ITtsProvider>();
-        ttsProviderMock.Setup(x => x.Name).Returns("MockTtsProvider");
-        ttsProviderMock.Setup(x => x.IsAvailable).Returns(true);
 
         var service = new TtsService(
             logger.Object,
             configuration,
-            ttsProviderMock.Object,
+            new Mock<ITtsProviderChain>().Object,
             new Mock<ITtsQueueService>().Object,
             new Mock<ITtsCacheService>().Object,
             new Mock<IAudioPlaybackService>().Object,

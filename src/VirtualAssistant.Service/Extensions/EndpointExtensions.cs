@@ -1,6 +1,4 @@
-using Microsoft.Extensions.Options;
 using Olbrasoft.VirtualAssistant.Core.Services;
-using Olbrasoft.VirtualAssistant.Voice.Configuration;
 using Olbrasoft.VirtualAssistant.Voice.Services;
 using Olbrasoft.VirtualAssistant.Service.Services;
 using VirtualAssistant.GitHub;
@@ -78,19 +76,55 @@ public static class EndpointExtensions
 
     /// <summary>
     /// Maps TTS endpoints (speak, notify, queue management, provider status).
+    /// All TTS operations delegate to TtsService (single source of truth).
     /// </summary>
     public static WebApplication MapTtsEndpoints(this WebApplication app)
     {
         var ttsProviderChain = app.Services.GetRequiredService<ITtsProviderChain>();
-        var ttsVoiceOptions = app.Services.GetRequiredService<IOptions<TtsVoiceProfilesOptions>>().Value;
-        var voiceConfig = ttsVoiceOptions.ToVoiceConfig();
-        Console.WriteLine($"TTS Voice: {voiceConfig.Voice}, Rate: {voiceConfig.Rate}, Pitch: {voiceConfig.Pitch}");
 
-        // Main speak/notify endpoints
-        app.MapPost("/api/tts/notify", (TtsNotifyRequest request, ILogger<Program> logger) =>
-            HandleTtsSpeak(request, logger, ttsProviderChain, voiceConfig));
-        app.MapPost("/api/tts/speak", (TtsNotifyRequest request, ILogger<Program> logger) =>
-            HandleTtsSpeak(request, logger, ttsProviderChain, voiceConfig));
+        // Main speak/notify endpoints - delegate to TtsService
+        app.MapPost("/api/tts/notify", async (TtsNotifyRequest request, TtsService ttsService, ILogger<Program> logger) =>
+        {
+            var sourceInfo = string.IsNullOrEmpty(request.Source) ? "" : $" [{request.Source}]";
+            Console.WriteLine($"\u001b[96;1m📩 TTS Speak{sourceInfo}: \"{request.Text}\"\u001b[0m");
+            logger.LogInformation("TTS Speak received from {Source}: {Text}", request.Source ?? "default", request.Text);
+
+            // Fire and forget - TtsService handles queueing, caching, playback
+            _ = Task.Run(async () =>
+            {
+                try
+                {
+                    await ttsService.SpeakAsync(request.Text, request.Source);
+                }
+                catch (Exception ex)
+                {
+                    logger.LogError(ex, "TTS processing failed");
+                }
+            });
+
+            return Results.Ok(new { success = true, message = "TTS processing", text = request.Text, source = request.Source ?? "NOT_SET" });
+        });
+        app.MapPost("/api/tts/speak", async (TtsNotifyRequest request, TtsService ttsService, ILogger<Program> logger) =>
+        {
+            var sourceInfo = string.IsNullOrEmpty(request.Source) ? "" : $" [{request.Source}]";
+            Console.WriteLine($"\u001b[96;1m📩 TTS Speak{sourceInfo}: \"{request.Text}\"\u001b[0m");
+            logger.LogInformation("TTS Speak received from {Source}: {Text}", request.Source ?? "default", request.Text);
+
+            // Fire and forget - TtsService handles queueing, caching, playback
+            _ = Task.Run(async () =>
+            {
+                try
+                {
+                    await ttsService.SpeakAsync(request.Text, request.Source);
+                }
+                catch (Exception ex)
+                {
+                    logger.LogError(ex, "TTS processing failed");
+                }
+            });
+
+            return Results.Ok(new { success = true, message = "TTS processing", text = request.Text, source = request.Source ?? "NOT_SET" });
+        });
 
         // Provider status
         app.MapGet("/api/tts/providers", () =>
@@ -360,160 +394,4 @@ public static class EndpointExtensions
 
         return app;
     }
-
-    #region Private Helpers
-
-    /// <summary>
-    /// Checks if CapsLock LED is ON (user is recording).
-    /// </summary>
-    private static bool IsCapsLockOn()
-    {
-        try
-        {
-            var ledPaths = new[]
-            {
-                "/sys/class/leds/input0::capslock/brightness",
-                "/sys/class/leds/input1::capslock/brightness",
-                "/sys/class/leds/input2::capslock/brightness",
-                "/sys/class/leds/input3::capslock/brightness"
-            };
-
-            foreach (var path in ledPaths)
-            {
-                if (File.Exists(path))
-                {
-                    var value = File.ReadAllText(path).Trim();
-                    if (value == "1") return true;
-                }
-            }
-
-            // Dynamic discovery
-            if (Directory.Exists("/sys/class/leds"))
-            {
-                foreach (var dir in Directory.GetDirectories("/sys/class/leds"))
-                {
-                    if (dir.Contains("capslock", StringComparison.OrdinalIgnoreCase))
-                    {
-                        var brightnessFile = Path.Combine(dir, "brightness");
-                        if (File.Exists(brightnessFile))
-                        {
-                            var value = File.ReadAllText(brightnessFile).Trim();
-                            if (value == "1") return true;
-                        }
-                    }
-                }
-            }
-            return false;
-        }
-        catch
-        {
-            return false; // Fail open - allow speech if check fails
-        }
-    }
-
-    /// <summary>
-    /// Handles TTS speak request with CapsLock checking and audio playback.
-    /// </summary>
-    private static async Task<IResult> HandleTtsSpeak(
-        TtsNotifyRequest request,
-        ILogger<Program> logger,
-        ITtsProviderChain ttsProviderChain,
-        VoiceConfig voiceConfig)
-    {
-        var sourceInfo = string.IsNullOrEmpty(request.Source) ? "" : $" [{request.Source}]";
-        Console.WriteLine($"\u001b[96;1m📩 TTS Speak{sourceInfo}: \"{request.Text}\"\u001b[0m");
-        logger.LogInformation("TTS Speak received from {Source}: {Text}", request.Source ?? "default", request.Text);
-
-        var text = request.Text;
-        var source = request.Source ?? "default";
-
-        // Process TTS asynchronously (fire and forget for quick API response)
-        _ = Task.Run(async () =>
-        {
-            try
-            {
-                // Check CapsLock before starting - if user is recording, skip
-                if (IsCapsLockOn())
-                {
-                    Console.WriteLine("\u001b[93m⚠ TTS skipped (CapsLock ON - recording)\u001b[0m");
-                    return;
-                }
-
-                // Use provider chain with circuit breaker (single voice for all sources)
-                var (audio, providerUsed) = await ttsProviderChain.SynthesizeAsync(text, voiceConfig, source);
-
-                if (audio == null || audio.Length == 0)
-                {
-                    Console.WriteLine("\u001b[91m✗ All TTS providers failed\u001b[0m");
-                    return;
-                }
-
-                // EdgeTTS-HTTP plays audio server-side (returns empty array)
-                if (providerUsed == "EdgeTTS-HTTP" && audio.Length == 0)
-                {
-                    Console.WriteLine($"\u001b[92m✓ {providerUsed}\u001b[0m");
-                    return;
-                }
-
-                // Check CapsLock again before playing
-                if (IsCapsLockOn())
-                {
-                    Console.WriteLine($"\u001b[93m⚠ {providerUsed} generated, but CapsLock ON - not playing\u001b[0m");
-                    return;
-                }
-
-                // Save audio to temp file and play
-                var isWav = providerUsed == "PiperTTS";
-                var tempFile = Path.Combine(Path.GetTempPath(), $"tts_{Guid.NewGuid():N}.{(isWav ? "wav" : "mp3")}");
-                try
-                {
-                    await File.WriteAllBytesAsync(tempFile, audio);
-
-                    // Use aplay for WAV, ffplay for MP3
-                    using var playerProcess = new System.Diagnostics.Process
-                    {
-                        StartInfo = new System.Diagnostics.ProcessStartInfo
-                        {
-                            FileName = isWav ? "aplay" : "ffplay",
-                            Arguments = isWav ? tempFile : $"-nodisp -autoexit \"{tempFile}\"",
-                            UseShellExecute = false,
-                            CreateNoWindow = true
-                        }
-                    };
-                    playerProcess.Start();
-
-                    // Poll during playback - stop if CapsLock pressed
-                    while (!playerProcess.HasExited)
-                    {
-                        if (IsCapsLockOn())
-                        {
-                            Console.WriteLine($"\u001b[91m🛑 CapsLock pressed - stopping {providerUsed} playback\u001b[0m");
-                            try { playerProcess.Kill(entireProcessTree: true); } catch { }
-                            break;
-                        }
-                        await Task.Delay(100); // Poll every 100ms
-                    }
-
-                    if (!playerProcess.HasExited)
-                    {
-                        await playerProcess.WaitForExitAsync();
-                    }
-                    Console.WriteLine($"\u001b[92m✓ {providerUsed}\u001b[0m");
-                }
-                finally
-                {
-                    try { if (File.Exists(tempFile)) File.Delete(tempFile); } catch { }
-                }
-            }
-            catch (Exception ex)
-            {
-                logger.LogError(ex, "TTS processing failed");
-            }
-        });
-
-        var actualSource = request.Source ?? "NOT_SET";
-        return Results.Ok(new { success = true, message = "TTS processing", text = request.Text, source = actualSource });
-    }
-
-    #endregion
 }
