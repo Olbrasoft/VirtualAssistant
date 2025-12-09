@@ -321,6 +321,8 @@ public class Program
             builder.Configuration.GetSection(GoogleTtsOptions.SectionName));
         builder.Services.Configure<Olbrasoft.VirtualAssistant.Voice.Configuration.PiperTtsOptions>(
             builder.Configuration.GetSection(Olbrasoft.VirtualAssistant.Voice.Configuration.PiperTtsOptions.SectionName));
+        builder.Services.Configure<TtsVoiceProfilesOptions>(
+            builder.Configuration.GetSection(TtsVoiceProfilesOptions.SectionName));
 
         // Register all TTS providers (order doesn't matter - TtsProviderChain uses config order)
         builder.Services.AddSingleton<ITtsProvider, AzureTtsProvider>();
@@ -394,10 +396,12 @@ public class Program
         app.MapGet("/health", () => Results.Ok("OK"));
 
         // TTS Notify/Speak endpoint - receives text from OpenCode plugin and speaks it
-        // Uses TtsProviderChain with circuit breaker: EdgeTTS → VoiceRSS → gTTS → Piper
+        // Uses TtsProviderChain with circuit breaker: AzureTTS → VoiceRSS → gTTS → Piper
         // Both /api/tts/notify and /api/tts/speak are supported (speak is alias for notify)
         var ttsProviderChain = app.Services.GetRequiredService<ITtsProviderChain>();
-        var voiceProfilesOptions = app.Services.GetRequiredService<IOptions<TtsVoiceProfilesOptions>>().Value;
+        var ttsVoiceOptions = app.Services.GetRequiredService<IOptions<TtsVoiceProfilesOptions>>().Value;
+        var voiceConfig = ttsVoiceOptions.ToVoiceConfig();
+        Console.WriteLine($"TTS Voice: {voiceConfig.Voice}, Rate: {voiceConfig.Rate}, Pitch: {voiceConfig.Pitch}");
 
         // Helper: Check if CapsLock LED is ON (user is recording)
         static bool IsCapsLockOn()
@@ -466,14 +470,7 @@ public class Program
                         return;
                     }
 
-                    // Get voice config for this source
-                    if (!voiceProfilesOptions.Profiles.TryGetValue(source, out var voiceConfig))
-                    {
-                        voiceProfilesOptions.Profiles.TryGetValue("default", out voiceConfig);
-                        voiceConfig ??= new VoiceConfig("cs-CZ-AntoninNeural", "+20%", "+0%", "+0Hz");
-                    }
-
-                    // Use provider chain with circuit breaker
+                    // Use provider chain with circuit breaker (single voice for all sources)
                     var (audio, providerUsed) = await ttsProviderChain.SynthesizeAsync(text, voiceConfig, source);
 
                     if (audio == null || audio.Length == 0)

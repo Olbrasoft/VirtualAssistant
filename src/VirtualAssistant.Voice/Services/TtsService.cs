@@ -16,7 +16,7 @@ public sealed record VoiceConfig(string Voice, string Rate, string Volume, strin
 /// <summary>
 /// Text-to-Speech service orchestrator.
 /// Handles queue management, caching, playback, and delegates audio generation to ITtsProvider.
-/// Supports multiple voice profiles for different AI clients.
+/// Uses single voice configuration for the Virtual Assistant.
 /// </summary>
 public sealed class TtsService : IDisposable
 {
@@ -29,10 +29,9 @@ public sealed class TtsService : IDisposable
     private Process? _currentPlaybackProcess;
 
     /// <summary>
-    /// Voice profiles for different AI clients loaded from configuration.
-    /// Each client can have distinct voice, rate, volume, and pitch settings.
+    /// Single voice configuration for the Virtual Assistant.
     /// </summary>
-    private readonly Dictionary<string, VoiceConfig> _voiceProfiles;
+    private readonly VoiceConfig _voiceConfig;
 
     public TtsService(ILogger<TtsService> logger, IConfiguration configuration, ITtsProvider ttsProvider)
     {
@@ -44,28 +43,20 @@ public sealed class TtsService : IDisposable
 
         Directory.CreateDirectory(_cacheDirectory);
 
-        // Load voice profiles from configuration with fallback to defaults
+        // Load single voice config from configuration
         var options = new TtsVoiceProfilesOptions();
         configuration.GetSection(TtsVoiceProfilesOptions.SectionName).Bind(options);
-        _voiceProfiles = options.Profiles;
+        _voiceConfig = options.ToVoiceConfig();
 
-        _logger.LogInformation("Loaded {Count} TTS voice profiles: {Profiles}",
-            _voiceProfiles.Count, string.Join(", ", _voiceProfiles.Keys));
+        _logger.LogInformation("TTS Voice: {Voice}, Rate: {Rate}, Pitch: {Pitch}",
+            _voiceConfig.Voice, _voiceConfig.Rate, _voiceConfig.Pitch);
         _logger.LogInformation("Using TTS provider: {Provider}", _ttsProvider.Name);
     }
 
     /// <summary>
-    /// Gets the voice configuration for a given source.
-    /// Falls back to default if source is unknown.
+    /// Gets the voice configuration (single config for all sources).
     /// </summary>
-    private VoiceConfig GetVoiceConfig(string? source)
-    {
-        if (string.IsNullOrEmpty(source) || !_voiceProfiles.TryGetValue(source, out var config))
-        {
-            return _voiceProfiles["default"];
-        }
-        return config;
-    }
+    private VoiceConfig GetVoiceConfig(string? source) => _voiceConfig;
 
     /// <summary>
     /// Řekne text přes TTS provider.

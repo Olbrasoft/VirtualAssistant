@@ -3,26 +3,35 @@ using Olbrasoft.VirtualAssistant.Voice.Services;
 namespace Olbrasoft.VirtualAssistant.Voice.Configuration;
 
 /// <summary>
-/// Configuration options for TTS voice profiles.
-/// Allows configuring different voice settings for different AI clients.
+/// Configuration options for TTS voice.
+/// Single voice configuration for the Virtual Assistant.
 /// </summary>
 public class TtsVoiceProfilesOptions
 {
-    public const string SectionName = "TtsVoiceProfiles";
+    public const string SectionName = "TtsVoice";
 
     /// <summary>
-    /// Dictionary of voice profiles keyed by client identifier (e.g., "default", "opencode", "claudecode").
-    /// Each profile defines voice, rate, volume, and pitch settings.
+    /// Voice name (e.g., "cs-CZ-AntoninNeural").
     /// </summary>
-    public Dictionary<string, VoiceConfig> Profiles { get; set; } = new(StringComparer.OrdinalIgnoreCase)
-    {
-        // Default voice profile - normal Antonín
-        ["default"] = new("cs-CZ-AntoninNeural", "+20%", "+0%", "+0Hz"),
+    public string Voice { get; set; } = "cs-CZ-AntoninNeural";
 
-        // OpenCode - faster, higher pitch (energetic)
-        ["opencode"] = new("cs-CZ-AntoninNeural", "+25%", "+0%", "+3st"),
+    /// <summary>
+    /// Speech rate (e.g., "+10%", "-5%", "default").
+    /// </summary>
+    public string Rate { get; set; } = "+10%";
 
-        // Claude Code - deeper voice, slower (authoritative)
-        ["claudecode"] = new("cs-CZ-AntoninNeural", "+5%", "+0%", "-5st"),
-    };
+    /// <summary>
+    /// Volume (e.g., "+0%", "default").
+    /// </summary>
+    public string Volume { get; set; } = "+0%";
+
+    /// <summary>
+    /// Pitch (e.g., "+0Hz", "-5st", "default").
+    /// </summary>
+    public string Pitch { get; set; } = "+0Hz";
+
+    /// <summary>
+    /// Creates VoiceConfig from these options.
+    /// </summary>
+    public VoiceConfig ToVoiceConfig() => new(Voice, Rate, Volume, Pitch);
 }
