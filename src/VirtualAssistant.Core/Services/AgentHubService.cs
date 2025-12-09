@@ -10,25 +10,22 @@ namespace VirtualAssistant.Core.Services;
 
 /// <summary>
 /// Implementation of agent message hub for inter-agent communication.
-/// Includes TTS notifications for incoming messages via batching and humanization.
+/// Uses IAgentNotificationService for TTS notifications (decoupled from TTS infrastructure).
 /// </summary>
 public class AgentHubService : IAgentHubService
 {
     private readonly VirtualAssistantDbContext _dbContext;
     private readonly ILogger<AgentHubService> _logger;
-    private readonly IVirtualAssistantSpeaker _speaker;
-    private readonly INotificationBatchingService? _batchingService;
+    private readonly IAgentNotificationService _notificationService;
 
     public AgentHubService(
         VirtualAssistantDbContext dbContext,
         ILogger<AgentHubService> logger,
-        IVirtualAssistantSpeaker speaker,
-        INotificationBatchingService? batchingService = null)
+        IAgentNotificationService notificationService)
     {
         _dbContext = dbContext;
         _logger = logger;
-        _speaker = speaker;
-        _batchingService = batchingService;
+        _notificationService = notificationService;
     }
 
     public async Task<int> SendAsync(AgentMessageDto message, CancellationToken ct = default)
@@ -61,13 +58,14 @@ public class AgentHubService : IAgentHubService
             "Message sent: {Id} from {Source} to {Target}, type={Type}, phase={Phase}, requiresApproval={RequiresApproval}",
             entity.Id, entity.SourceAgent, entity.TargetAgent, entity.MessageType, entity.Phase, entity.RequiresApproval);
 
-        // Notify user via TTS (skip if user is on same workspace as target agent)
-        var notificationText = BuildNotificationText(message);
-        if (!string.IsNullOrEmpty(notificationText))
-        {
-            _logger.LogInformation("Sending TTS notification: {Text}", notificationText);
-            await _speaker.SpeakAsync(notificationText, message.TargetAgent, ct);
-        }
+        // Notify user via TTS (decoupled through IAgentNotificationService)
+        await _notificationService.OnMessageSentAsync(new AgentMessageSentEvent(
+            entity.Id,
+            entity.SourceAgent,
+            entity.TargetAgent,
+            entity.MessageType,
+            entity.Content,
+            entity.RequiresApproval), ct);
 
         return entity.Id;
     }
@@ -204,20 +202,9 @@ public class AgentHubService : IAgentHubService
             "Agent response started: {Id} by {Agent}, content: {Content}",
             entity.Id, sourceAgent, content);
 
-        // Notify user via TTS (batched and humanized if service available)
-        if (_batchingService != null)
-        {
-            _batchingService.QueueNotification(new AgentNotification
-            {
-                Agent = sourceAgent,
-                Type = "start",
-                Content = content
-            });
-        }
-        else
-        {
-            await _speaker.SpeakAsync($"{sourceAgent} začíná pracovat.", sourceAgent, ct);
-        }
+        // Notify user via TTS (decoupled through IAgentNotificationService)
+        await _notificationService.OnTaskStartedAsync(new AgentTaskStartedEvent(
+            entity.Id, sourceAgent, content), ct);
 
         return entity.Id;
     }
@@ -301,20 +288,9 @@ public class AgentHubService : IAgentHubService
             "Agent response completed: {Id} for agent {Agent}, summary: {Summary}",
             response.Id, response.AgentName, summary);
 
-        // Notify user via TTS (batched and humanized if service available)
-        if (_batchingService != null)
-        {
-            _batchingService.QueueNotification(new AgentNotification
-            {
-                Agent = response.AgentName,
-                Type = "complete",
-                Content = summary
-            });
-        }
-        else
-        {
-            await _speaker.SpeakAsync($"{response.AgentName} dokončil úkol.", response.AgentName, ct);
-        }
+        // Notify user via TTS (decoupled through IAgentNotificationService)
+        await _notificationService.OnTaskCompletedAsync(new AgentTaskCompletedEvent(
+            response.Id, response.AgentName, summary), ct);
     }
 
     public async Task<IReadOnlyList<AgentMessageDto>> GetActiveTasksAsync(string? sourceAgent = null, CancellationToken ct = default)
@@ -399,34 +375,5 @@ public class AgentHubService : IAgentHubService
             SessionId = entity.SessionId,
             ParentMessageId = entity.ParentMessageId
         };
-    }
-
-    /// <summary>
-    /// Builds a Czech notification text based on message type.
-    /// Returns null for messages that should not trigger notifications.
-    /// </summary>
-    private static string? BuildNotificationText(AgentMessageDto message)
-    {
-        return message.MessageType?.ToLowerInvariant() switch
-        {
-            "completion" => "Claude dokončil úkol.",
-            "task" when message.RequiresApproval => "Mám úkol pro Clauda. Schválíš odeslání?",
-            "task" => $"Nový úkol pro {message.TargetAgent}.",
-            "review_result" => $"{message.SourceAgent} zkontroloval kód.",
-            "question" => $"Otázka od {message.SourceAgent}: {TruncateForTts(message.Content, 100)}",
-            "error" => $"Chyba od {message.SourceAgent}.",
-            "status" => null, // Don't announce status updates
-            _ => $"Zpráva od {message.SourceAgent} pro {message.TargetAgent}."
-        };
-    }
-
-    /// <summary>
-    /// Truncates text for TTS to avoid overly long speech.
-    /// </summary>
-    private static string TruncateForTts(string text, int maxLength)
-    {
-        if (string.IsNullOrEmpty(text) || text.Length <= maxLength)
-            return text;
-        return text[..maxLength] + "...";
     }
 }

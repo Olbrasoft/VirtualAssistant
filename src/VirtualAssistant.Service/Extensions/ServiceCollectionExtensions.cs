@@ -178,6 +178,12 @@ public static class ServiceCollectionExtensions
         services.AddSingleton<IHumanizationService, HumanizationService>();
         services.AddSingleton<INotificationBatchingService, NotificationBatchingService>();
 
+        // Agent notification service (decouples AgentHubService from TTS infrastructure)
+        services.AddScoped<IAgentNotificationService>(sp =>
+            new TtsAgentNotificationService(
+                sp.GetRequiredService<IVirtualAssistantSpeaker>(),
+                sp.GetService<INotificationBatchingService>()));
+
         return services;
     }
 
