@@ -46,16 +46,21 @@ public class ClaudeDispatchService : IClaudeDispatchService
         Process? process = null;
         try
         {
+            // Use ArgumentList instead of Arguments to prevent shell injection
+            // ArgumentList handles all escaping automatically and safely
             var startInfo = new ProcessStartInfo
             {
                 FileName = "claude",
-                Arguments = $"-p \"{EscapePrompt(prompt)}\" --output-format json",
                 WorkingDirectory = dir,
                 RedirectStandardOutput = true,
                 RedirectStandardError = true,
                 UseShellExecute = false,
                 CreateNoWindow = true
             };
+            startInfo.ArgumentList.Add("-p");
+            startInfo.ArgumentList.Add(prompt);  // Safe - no manual escaping needed
+            startInfo.ArgumentList.Add("--output-format");
+            startInfo.ArgumentList.Add("json");
 
             process = new Process { StartInfo = startInfo };
 
@@ -290,18 +295,6 @@ public class ClaudeDispatchService : IClaudeDispatchService
             _logger.LogError(ex, "Failed to parse Claude JSON response: {Output}", output);
             return ClaudeExecutionResult.Failed($"JSON parse error: {ex.Message}");
         }
-    }
-
-    private static string EscapePrompt(string prompt)
-    {
-        // Escape special characters for shell argument
-        return prompt
-            .Replace("\\", "\\\\")
-            .Replace("\"", "\\\"")
-            .Replace("$", "\\$")
-            .Replace("`", "\\`")
-            .Replace("\r", "")
-            .Replace("\n", "\\n");
     }
 
     /// <summary>
