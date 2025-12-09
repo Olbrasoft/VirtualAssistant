@@ -94,6 +94,7 @@ public sealed class AzureTtsProvider : ITtsProvider, IDisposable
 
             _logger.LogDebug("Azure TTS generating audio for: {Text}",
                 text.Length > 50 ? text[..50] + "..." : text);
+            _logger.LogTrace("Azure TTS SSML: {Ssml}", ssml);
 
             // Use pull audio output stream to get raw audio bytes
             using var audioStream = AudioOutputStream.CreatePullStream();
@@ -177,14 +178,14 @@ public sealed class AzureTtsProvider : ITtsProvider, IDisposable
         if (string.IsNullOrEmpty(value))
             return defaultValue;
 
-        // Remove leading + if present (SSML doesn't need it for positive values)
+        // Check if it's a zero/default value (with or without + sign)
         var cleaned = value.TrimStart('+');
-
-        // Check if it's a zero/default value
         if (cleaned == "0%" || cleaned == "0Hz" || cleaned == "0st")
             return "default";
 
-        return cleaned;
+        // Keep the original value - Azure SSML requires +20% format for relative values
+        // Only return the cleaned version if it was already positive
+        return value;
     }
 
     private static string ParseVolumeValue(string value)
