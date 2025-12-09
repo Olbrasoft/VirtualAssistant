@@ -311,6 +311,8 @@ public class Program
         // TTS Provider Chain Configuration
         builder.Services.Configure<TtsProviderChainOptions>(
             builder.Configuration.GetSection(TtsProviderChainOptions.SectionName));
+        builder.Services.Configure<AzureTtsOptions>(
+            builder.Configuration.GetSection(AzureTtsOptions.SectionName));
         builder.Services.Configure<HttpEdgeTtsOptions>(
             builder.Configuration.GetSection(HttpEdgeTtsOptions.SectionName));
         builder.Services.Configure<VoiceRssOptions>(
@@ -320,7 +322,8 @@ public class Program
         builder.Services.Configure<Olbrasoft.VirtualAssistant.Voice.Configuration.PiperTtsOptions>(
             builder.Configuration.GetSection(Olbrasoft.VirtualAssistant.Voice.Configuration.PiperTtsOptions.SectionName));
 
-        // Register all TTS providers
+        // Register all TTS providers (order doesn't matter - TtsProviderChain uses config order)
+        builder.Services.AddSingleton<ITtsProvider, AzureTtsProvider>();
         builder.Services.AddSingleton<ITtsProvider, HttpEdgeTtsProvider>();
         builder.Services.AddSingleton<ITtsProvider, VoiceRssProvider>();
         builder.Services.AddSingleton<ITtsProvider, GoogleTtsProvider>();
