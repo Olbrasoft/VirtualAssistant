@@ -12,7 +12,7 @@ namespace Olbrasoft.VirtualAssistant.PushToTalk;
 /// Button mappings:
 /// - LEFT: Single=CapsLock, Double=ESC, Triple=OpenCode
 /// - MIDDLE: Single=Enter, Double=Chrome, Triple=Ctrl+C
-/// - RIGHT: Single=None, Double=Ctrl+V, Triple=Claude
+/// - RIGHT: Single=None, Double=Ctrl+Shift+V, Triple=Claude
 /// </remarks>
 public class BluetoothMouseMonitor : IDisposable
 {
@@ -88,11 +88,11 @@ public class BluetoothMouseMonitor : IDisposable
             logger,
             maxClickCount: 3);
 
-        // Configure RIGHT button: Single=None, Double=Ctrl+V, Triple=Claude
+        // Configure RIGHT button: Single=None, Double=Ctrl+Shift+V, Triple=Claude
         _rightButtonHandler = new ButtonClickHandler(
             "RIGHT",
             NoAction.Instance,
-            new KeyComboAction(_keyboardMonitor, KeyCode.LeftControl, KeyCode.V, "Ctrl+V (paste)"),
+            new KeyComboWithTwoModifiersAction(_keyboardMonitor, KeyCode.LeftControl, KeyCode.LeftShift, KeyCode.V, "Ctrl+Shift+V (terminal paste)"),
             new ShellCommandAction("~/.local/bin/focus-claude.sh", "Focus Claude"),
             logger,
             maxClickCount: 3);
