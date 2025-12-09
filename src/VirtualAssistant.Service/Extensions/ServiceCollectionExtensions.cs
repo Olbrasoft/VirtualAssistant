@@ -160,6 +160,12 @@ public static class ServiceCollectionExtensions
 
         // TTS Provider Chain with circuit breaker
         services.AddSingleton<ITtsProviderChain, TtsProviderChain>();
+
+        // TTS focused services (SRP compliant)
+        services.AddSingleton<ISpeechLockService, SpeechLockService>();
+        services.AddSingleton<ITtsQueueService, TtsQueueService>();
+        services.AddSingleton<ITtsCacheService, TtsCacheService>();
+        services.AddSingleton<IAudioPlaybackService, AudioPlaybackService>();
         services.AddSingleton<TtsService>();
 
         // Workspace detection for smart TTS notifications

@@ -14,17 +14,27 @@ public class TtsServiceTests : IDisposable
     private readonly Mock<ILogger<TtsService>> _loggerMock;
     private readonly IConfiguration _configuration;
     private readonly Mock<ITtsProvider> _ttsProviderMock;
+    private readonly Mock<ITtsQueueService> _queueServiceMock;
+    private readonly Mock<ITtsCacheService> _cacheServiceMock;
+    private readonly Mock<IAudioPlaybackService> _playbackServiceMock;
+    private readonly Mock<ISpeechLockService> _speechLockServiceMock;
     private readonly TtsService _sut;
-    private const string SpeechLockFilePath = "/tmp/speech-lock";
 
     public TtsServiceTests()
     {
         _loggerMock = new Mock<ILogger<TtsService>>();
         _ttsProviderMock = new Mock<ITtsProvider>();
+        _queueServiceMock = new Mock<ITtsQueueService>();
+        _cacheServiceMock = new Mock<ITtsCacheService>();
+        _playbackServiceMock = new Mock<IAudioPlaybackService>();
+        _speechLockServiceMock = new Mock<ISpeechLockService>();
 
         // Setup TTS provider mock
         _ttsProviderMock.Setup(x => x.Name).Returns("MockTtsProvider");
         _ttsProviderMock.Setup(x => x.IsAvailable).Returns(true);
+
+        // Setup speech lock service - default to unlocked
+        _speechLockServiceMock.Setup(x => x.IsLocked).Returns(false);
 
         // Use real in-memory configuration (Bind() doesn't work with mocks)
         _configuration = new ConfigurationBuilder()
@@ -37,31 +47,30 @@ public class TtsServiceTests : IDisposable
             })
             .Build();
 
-        _sut = new TtsService(_loggerMock.Object, _configuration, _ttsProviderMock.Object);
-
-        // Ensure clean state - no lock file
-        if (File.Exists(SpeechLockFilePath))
-        {
-            File.Delete(SpeechLockFilePath);
-        }
+        _sut = new TtsService(
+            _loggerMock.Object,
+            _configuration,
+            _ttsProviderMock.Object,
+            _queueServiceMock.Object,
+            _cacheServiceMock.Object,
+            _playbackServiceMock.Object,
+            _speechLockServiceMock.Object);
     }
 
     public void Dispose()
     {
-        // Clean up lock file after tests
-        if (File.Exists(SpeechLockFilePath))
-        {
-            File.Delete(SpeechLockFilePath);
-        }
         _sut.Dispose();
     }
 
     [Fact]
     public void QueueCount_InitialState_ReturnsZero()
     {
+        // Arrange
+        _queueServiceMock.Setup(x => x.Count).Returns(0);
+
         // Act
         var result = _sut.QueueCount;
-        
+
         // Assert
         Assert.Equal(0, result);
     }
@@ -70,122 +79,106 @@ public class TtsServiceTests : IDisposable
     public async Task SpeakAsync_WhenLockExists_QueuesMessage()
     {
         // Arrange
-        File.WriteAllText(SpeechLockFilePath, "test");
-        
+        _speechLockServiceMock.Setup(x => x.IsLocked).Returns(true);
+        _queueServiceMock.Setup(x => x.Count).Returns(1);
+
         // Act
         await _sut.SpeakAsync("Test message");
-        
+
         // Assert
-        Assert.Equal(1, _sut.QueueCount);
+        _queueServiceMock.Verify(x => x.Enqueue("Test message", null), Times.Once);
     }
 
     [Fact]
     public async Task SpeakAsync_WhenLockExists_QueuesMultipleMessages()
     {
         // Arrange
-        File.WriteAllText(SpeechLockFilePath, "test");
-        
+        _speechLockServiceMock.Setup(x => x.IsLocked).Returns(true);
+
         // Act
         await _sut.SpeakAsync("Message 1");
         await _sut.SpeakAsync("Message 2");
         await _sut.SpeakAsync("Message 3");
-        
+
         // Assert
-        Assert.Equal(3, _sut.QueueCount);
+        _queueServiceMock.Verify(x => x.Enqueue(It.IsAny<string>(), It.IsAny<string?>()), Times.Exactly(3));
     }
 
-    // ⚠️ WARNING: DO NOT UNCOMMENT THIS TEST - IT MAY PLAY AUDIO/TTS DURING TEST EXECUTION ⚠️
-    // This test calls FlushQueueAsync without lock file, which may trigger audio playback.
-    // Keep this test commented out to prevent sound interruptions during test runs.
-    //
-    //[Fact]
-    //public async Task FlushQueueAsync_WhenQueueEmpty_DoesNothing()
-    //{
-    //    // Arrange - queue is empty
-    //    Assert.Equal(0, _sut.QueueCount);
-    //
-    //    // Act
-    //    await _sut.FlushQueueAsync();
-    //
-    //    // Assert - no errors, still empty
-    //    Assert.Equal(0, _sut.QueueCount);
-    //}
+    [Fact]
+    public async Task FlushQueueAsync_WhenQueueEmpty_DoesNothing()
+    {
+        // Arrange
+        _queueServiceMock.Setup(x => x.Count).Returns(0);
+
+        // Act
+        await _sut.FlushQueueAsync();
+
+        // Assert - TryDequeue should not be called when queue is empty
+        _queueServiceMock.Verify(x => x.TryDequeue(out It.Ref<(string, string?)>.IsAny), Times.Never);
+    }
 
     [Fact]
     public async Task FlushQueueAsync_WhenLockReacquired_StopsAndRequeues()
     {
-        // Arrange - queue some messages
-        File.WriteAllText(SpeechLockFilePath, "test");
-        await _sut.SpeakAsync("Message 1");
-        await _sut.SpeakAsync("Message 2");
-        Assert.Equal(2, _sut.QueueCount);
-        
-        // Note: FlushQueueAsync will check for lock file before each message
-        // Since lock still exists, messages should be re-queued
-        
+        // Arrange
+        _queueServiceMock.Setup(x => x.Count).Returns(2);
+
+        var callCount = 0;
+        var item = ("Message 1", (string?)"source");
+        _queueServiceMock
+            .Setup(x => x.TryDequeue(out item))
+            .Returns(() =>
+            {
+                callCount++;
+                return callCount <= 1; // Return true only on first call
+            });
+
+        // Lock is acquired after first dequeue
+        _speechLockServiceMock.SetupSequence(x => x.IsLocked)
+            .Returns(false) // Initial check
+            .Returns(true); // After first dequeue
+
         // Act
         await _sut.FlushQueueAsync();
-        
-        // Assert - messages were re-queued because lock still exists
-        // First message was dequeued, lock checked, re-queued
-        Assert.True(_sut.QueueCount >= 1, "Messages should remain in queue when lock exists");
+
+        // Assert - message should be re-queued when lock is acquired
+        _queueServiceMock.Verify(x => x.Enqueue(It.IsAny<string>(), It.IsAny<string?>()), Times.AtLeastOnce);
     }
 
     [Fact]
     public async Task SpeakAsync_QueuePreservesOrder()
     {
         // Arrange
-        File.WriteAllText(SpeechLockFilePath, "test");
+        _speechLockServiceMock.Setup(x => x.IsLocked).Returns(true);
+        var enqueuedMessages = new List<string>();
+        _queueServiceMock
+            .Setup(x => x.Enqueue(It.IsAny<string>(), It.IsAny<string?>()))
+            .Callback<string, string?>((text, source) => enqueuedMessages.Add(text));
+
         var messages = new[] { "First", "Second", "Third" };
-        
+
         // Act
         foreach (var msg in messages)
         {
             await _sut.SpeakAsync(msg);
         }
-        
-        // Assert
-        Assert.Equal(3, _sut.QueueCount);
-        // Queue should preserve FIFO order (tested implicitly by queue behavior)
-    }
 
-    // ⚠️ WARNING: DO NOT UNCOMMENT THIS TEST - IT PLAYS AUDIO/TTS DURING TEST EXECUTION ⚠️
-    // This test calls actual TTS service without lock file, causing audio playback.
-    // Keep this test commented out to prevent sound interruptions during test runs.
-    // The functionality is covered by integration tests.
-    //
-    //[Fact]
-    //public async Task SpeakAsync_NoLock_DoesNotQueue()
-    //{
-    //    // Arrange - ensure no lock file exists
-    //    if (File.Exists(SpeechLockFilePath))
-    //    {
-    //        File.Delete(SpeechLockFilePath);
-    //    }
-    //
-    //    // Act - try to speak without lock
-    //    // Note: This will fail because we can't actually play audio in tests,
-    //    // but the queue should remain empty since lock doesn't exist
-    //    try
-    //    {
-    //        await _sut.SpeakAsync("Test message");
-    //    }
-    //    catch
-    //    {
-    //        // Expected - can't play audio in test environment
-    //    }
-    //
-    //    // Assert - message was NOT queued (was attempted to be played directly)
-    //    Assert.Equal(0, _sut.QueueCount);
-    //}
+        // Assert
+        Assert.Equal(messages, enqueuedMessages);
+    }
 
     [Fact]
     public async Task SpeakAsync_ThreadSafety_MultipleEnqueues()
     {
         // Arrange
-        File.WriteAllText(SpeechLockFilePath, "test");
+        _speechLockServiceMock.Setup(x => x.IsLocked).Returns(true);
+        var enqueueCount = 0;
+        _queueServiceMock
+            .Setup(x => x.Enqueue(It.IsAny<string>(), It.IsAny<string?>()))
+            .Callback(() => Interlocked.Increment(ref enqueueCount));
+
         var tasks = new Task[10];
-        
+
         // Act - multiple concurrent enqueues
         for (int i = 0; i < tasks.Length; i++)
         {
@@ -195,88 +188,83 @@ public class TtsServiceTests : IDisposable
                 await _sut.SpeakAsync($"Message {index}");
             });
         }
-        
+
         await Task.WhenAll(tasks);
-        
+
         // Assert - all messages should be queued
-        Assert.Equal(10, _sut.QueueCount);
+        Assert.Equal(10, enqueueCount);
     }
 
     [Fact]
-    public async Task QueueCount_AfterFlushWithLock_PreservesCount()
+    public void StopPlayback_CallsPlaybackServiceStop()
     {
-        // Arrange - add messages while lock exists
-        File.WriteAllText(SpeechLockFilePath, "test");
-        await _sut.SpeakAsync("Message 1");
-        await _sut.SpeakAsync("Message 2");
-        var initialCount = _sut.QueueCount;
-        Assert.Equal(2, initialCount);
-        
-        // Act - try to flush while lock still exists
-        await _sut.FlushQueueAsync();
-        
-        // Assert - queue should still have messages (lock prevents playback)
-        Assert.True(_sut.QueueCount >= 1);
+        // Act
+        _sut.StopPlayback();
+
+        // Assert
+        _playbackServiceMock.Verify(x => x.Stop(), Times.Once);
     }
 
-    // ⚠️ WARNING: DO NOT UNCOMMENT THIS TEST - IT PLAYS AUDIO/TTS DURING TEST EXECUTION ⚠️
-    // This test calls actual TTS service without lock file, causing audio playback of "Concurrent message 0-4".
-    // Keep this test commented out to prevent sound interruptions during test runs.
-    // The semaphore thread-safety functionality is covered by other tests that use lock files.
-    //
-    ///// <summary>
-    ///// Tests that SemaphoreSlim ensures sequential execution of SpeakDirectAsync.
-    ///// Since we can't test actual playback, this test verifies that:
-    ///// 1. Multiple concurrent calls don't throw exceptions
-    ///// 2. The service handles concurrent access gracefully
-    ///// Note: Full sequential playback is tested via integration tests.
-    ///// </summary>
-    //[Fact]
-    //public async Task SpeakAsync_MultipleConcurrentCalls_NoExceptions()
-    //{
-    //    // Arrange - ensure no lock file (messages will go to SpeakDirectAsync)
-    //    if (File.Exists(SpeechLockFilePath))
-    //    {
-    //        File.Delete(SpeechLockFilePath);
-    //    }
-    //
-    //    var tasks = new List<Task>();
-    //    var exceptions = new List<Exception>();
-    //
-    //    // Act - fire multiple concurrent calls
-    //    // These will try to play audio (which will fail in tests) but should not throw
-    //    // The semaphore should ensure they don't corrupt shared state
-    //    for (int i = 0; i < 5; i++)
-    //    {
-    //        var index = i;
-    //        tasks.Add(Task.Run(async () =>
-    //        {
-    //            try
-    //            {
-    //                await _sut.SpeakAsync($"Concurrent message {index}");
-    //            }
-    //            catch (Exception ex)
-    //            {
-    //                // WebSocket/audio errors are expected in test environment
-    //                // but ObjectDisposedException or semaphore errors would indicate a problem
-    //                if (ex is ObjectDisposedException or SemaphoreFullException)
-    //                {
-    //                    lock (exceptions)
-    //                    {
-    //                        exceptions.Add(ex);
-    //                    }
-    //                }
-    //            }
-    //        }));
-    //    }
-    //
-    //    await Task.WhenAll(tasks);
-    //
-    //    // Assert - no semaphore-related exceptions
-    //    Assert.Empty(exceptions);
-    //    // Queue should be empty (messages were attempted to be played, not queued)
-    //    Assert.Equal(0, _sut.QueueCount);
-    //}
+    [Fact]
+    public async Task SpeakAsync_WhenNotLocked_ChecksCache()
+    {
+        // Arrange
+        _speechLockServiceMock.Setup(x => x.IsLocked).Returns(false);
+        var cachePath = "/tmp/cached.mp3";
+        _cacheServiceMock
+            .Setup(x => x.TryGetCached(It.IsAny<string>(), It.IsAny<VoiceConfig>(), out cachePath))
+            .Returns(true);
+
+        // Act
+        await _sut.SpeakAsync("Test message");
+
+        // Assert - should check cache
+        _cacheServiceMock.Verify(x => x.TryGetCached("Test message", It.IsAny<VoiceConfig>(), out It.Ref<string>.IsAny), Times.Once);
+    }
+
+    [Fact]
+    public async Task SpeakAsync_CacheHit_PlaysFromCache()
+    {
+        // Arrange
+        _speechLockServiceMock.Setup(x => x.IsLocked).Returns(false);
+        var cachePath = "/tmp/cached.mp3";
+        _cacheServiceMock
+            .Setup(x => x.TryGetCached(It.IsAny<string>(), It.IsAny<VoiceConfig>(), out cachePath))
+            .Returns(true);
+
+        // Act
+        await _sut.SpeakAsync("Test message");
+
+        // Assert - should play from cache, not generate
+        _playbackServiceMock.Verify(x => x.PlayAsync(cachePath, It.IsAny<CancellationToken>()), Times.Once);
+        _ttsProviderMock.Verify(x => x.GenerateAudioAsync(It.IsAny<string>(), It.IsAny<VoiceConfig>(), It.IsAny<CancellationToken>()), Times.Never);
+    }
+
+    [Fact]
+    public async Task SpeakAsync_CacheMiss_GeneratesAndSaves()
+    {
+        // Arrange
+        _speechLockServiceMock.Setup(x => x.IsLocked).Returns(false);
+        var cachePath = "";
+        _cacheServiceMock
+            .Setup(x => x.TryGetCached(It.IsAny<string>(), It.IsAny<VoiceConfig>(), out cachePath))
+            .Returns(false);
+        _cacheServiceMock
+            .Setup(x => x.GetCachePath(It.IsAny<string>(), It.IsAny<VoiceConfig>()))
+            .Returns("/tmp/new.mp3");
+
+        var audioData = new byte[] { 1, 2, 3 };
+        _ttsProviderMock
+            .Setup(x => x.GenerateAudioAsync(It.IsAny<string>(), It.IsAny<VoiceConfig>(), It.IsAny<CancellationToken>()))
+            .ReturnsAsync(audioData);
+
+        // Act
+        await _sut.SpeakAsync("Test message");
+
+        // Assert - should generate and save to cache
+        _ttsProviderMock.Verify(x => x.GenerateAudioAsync("Test message", It.IsAny<VoiceConfig>(), It.IsAny<CancellationToken>()), Times.Once);
+        _cacheServiceMock.Verify(x => x.SaveAsync("Test message", It.IsAny<VoiceConfig>(), audioData, It.IsAny<CancellationToken>()), Times.Once);
+    }
 
     /// <summary>
     /// Tests that Dispose properly cleans up the semaphore without throwing.
@@ -299,7 +287,14 @@ public class TtsServiceTests : IDisposable
         ttsProviderMock.Setup(x => x.Name).Returns("MockTtsProvider");
         ttsProviderMock.Setup(x => x.IsAvailable).Returns(true);
 
-        var service = new TtsService(logger.Object, configuration, ttsProviderMock.Object);
+        var service = new TtsService(
+            logger.Object,
+            configuration,
+            ttsProviderMock.Object,
+            new Mock<ITtsQueueService>().Object,
+            new Mock<ITtsCacheService>().Object,
+            new Mock<IAudioPlaybackService>().Object,
+            new Mock<ISpeechLockService>().Object);
 
         // Act & Assert - multiple dispose calls should not throw
         service.Dispose();
