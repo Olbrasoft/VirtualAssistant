@@ -22,6 +22,12 @@ public class GitHubSettings
     public string Owner { get; set; } = string.Empty;
 
     /// <summary>
+    /// Gets or sets the default GitHub repository name.
+    /// Used when fetching issue summaries without explicit repo specification.
+    /// </summary>
+    public string DefaultRepo { get; set; } = string.Empty;
+
+    /// <summary>
     /// Gets or sets the URL of the GitHub.Issues API for fetching Czech summaries.
     /// Example: "http://localhost:5000"
     /// </summary>

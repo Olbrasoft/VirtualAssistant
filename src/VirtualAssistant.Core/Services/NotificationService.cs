@@ -130,4 +130,25 @@ public class NotificationService : INotificationService
 
         _logger.LogDebug("Updated {Count} notifications to status {NewStatus}", notifications.Count, newStatus);
     }
+
+    /// <inheritdoc />
+    public async Task<IReadOnlyList<int>> GetAssociatedIssueIdsAsync(IEnumerable<int> notificationIds, CancellationToken ct = default)
+    {
+        var ids = notificationIds.ToList();
+        if (ids.Count == 0)
+        {
+            return [];
+        }
+
+        var issueIds = await _dbContext.NotificationGitHubIssues
+            .Where(ngi => ids.Contains(ngi.NotificationId))
+            .Select(ngi => ngi.GitHubIssueId)
+            .Distinct()
+            .ToListAsync(ct);
+
+        _logger.LogDebug("Found {IssueCount} associated GitHub issues for {NotificationCount} notifications",
+            issueIds.Count, ids.Count);
+
+        return issueIds;
+    }
 }

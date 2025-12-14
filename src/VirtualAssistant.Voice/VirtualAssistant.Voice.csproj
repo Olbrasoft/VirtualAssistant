@@ -42,6 +42,7 @@
   </ItemGroup>
   <ItemGroup>
     <ProjectReference Include="..\VirtualAssistant.LlmChain\VirtualAssistant.LlmChain.csproj" />
+    <ProjectReference Include="..\VirtualAssistant.GitHub\VirtualAssistant.GitHub.csproj" />
   </ItemGroup>
 
 </Project>

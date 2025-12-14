@@ -1,7 +1,10 @@
 using System.Collections.Concurrent;
 using Microsoft.Extensions.Logging;
+using Microsoft.Extensions.Options;
 using VirtualAssistant.Core.Services;
 using VirtualAssistant.Data.Enums;
+using VirtualAssistant.GitHub.Configuration;
+using VirtualAssistant.GitHub.Services;
 
 namespace Olbrasoft.VirtualAssistant.Voice.Services;
 
@@ -16,6 +19,8 @@ public class NotificationBatchingService : INotificationBatchingService, IDispos
     private readonly IHumanizationService _humanizationService;
     private readonly IVirtualAssistantSpeaker _speaker;
     private readonly INotificationService _notificationService;
+    private readonly IIssueSummaryClient _issueSummaryClient;
+    private readonly GitHubSettings _gitHubSettings;
 
     private readonly ConcurrentQueue<AgentNotification> _pendingNotifications = new();
     private readonly object _timerLock = new();
@@ -32,12 +37,16 @@ public class NotificationBatchingService : INotificationBatchingService, IDispos
         ILogger<NotificationBatchingService> logger,
         IHumanizationService humanizationService,
         IVirtualAssistantSpeaker speaker,
-        INotificationService notificationService)
+        INotificationService notificationService,
+        IIssueSummaryClient issueSummaryClient,
+        IOptions<GitHubSettings> gitHubSettings)
     {
         _logger = logger;
         _humanizationService = humanizationService;
         _speaker = speaker;
         _notificationService = notificationService;
+        _issueSummaryClient = issueSummaryClient;
+        _gitHubSettings = gitHubSettings.Value;
 
         _logger.LogInformation("NotificationBatchingService initialized with {WindowMs}ms batch window", BatchWindowMs);
     }
@@ -127,8 +136,15 @@ public class NotificationBatchingService : INotificationBatchingService, IDispos
                 await _notificationService.UpdateStatusAsync(notificationIds, NotificationStatusEnum.SentForSummarization);
             }
 
-            // Humanize the batch
-            var humanizedText = await _humanizationService.HumanizeAsync(notifications);
+            // Fetch issue summaries if notifications have associated issues
+            IReadOnlyDictionary<int, IssueSummaryInfo>? issueSummaries = null;
+            if (notificationIds.Count > 0)
+            {
+                issueSummaries = await FetchIssueSummariesAsync(notificationIds);
+            }
+
+            // Humanize the batch with issue context
+            var humanizedText = await _humanizationService.HumanizeAsync(notifications, issueSummaries);
 
             // Update status to Summarized
             if (notificationIds.Count > 0)
@@ -188,5 +204,69 @@ public class NotificationBatchingService : INotificationBatchingService, IDispos
         }
 
         GC.SuppressFinalize(this);
+    }
+
+    /// <summary>
+    /// Fetches Czech issue summaries for notifications with associated GitHub issues.
+    /// </summary>
+    private async Task<IReadOnlyDictionary<int, IssueSummaryInfo>?> FetchIssueSummariesAsync(
+        IReadOnlyList<int> notificationIds)
+    {
+        try
+        {
+            // Get associated issue IDs
+            var issueIds = await _notificationService.GetAssociatedIssueIdsAsync(notificationIds);
+            if (issueIds.Count == 0)
+            {
+                _logger.LogDebug("No associated GitHub issues for these notifications");
+                return null;
+            }
+
+            _logger.LogDebug("Fetching summaries for {Count} associated GitHub issues", issueIds.Count);
+
+            // Check if we have required configuration
+            if (string.IsNullOrEmpty(_gitHubSettings.Owner) || string.IsNullOrEmpty(_gitHubSettings.DefaultRepo))
+            {
+                _logger.LogWarning("GitHub Owner or DefaultRepo not configured, cannot fetch issue summaries");
+                return null;
+            }
+
+            // Fetch summaries from GitHub.Issues API
+            var result = await _issueSummaryClient.GetSummariesAsync(
+                _gitHubSettings.Owner,
+                _gitHubSettings.DefaultRepo,
+                issueIds);
+
+            if (!string.IsNullOrEmpty(result.Error))
+            {
+                _logger.LogWarning("Failed to fetch issue summaries: {Error}", result.Error);
+                return null;
+            }
+
+            if (result.Summaries.Count == 0)
+            {
+                _logger.LogDebug("No summaries returned from API");
+                return null;
+            }
+
+            // Convert to IssueSummaryInfo dictionary
+            var summaries = result.Summaries.ToDictionary(
+                kvp => kvp.Key,
+                kvp => new IssueSummaryInfo
+                {
+                    IssueNumber = kvp.Value.IssueNumber,
+                    CzechTitle = kvp.Value.CzechTitle,
+                    CzechSummary = kvp.Value.CzechSummary,
+                    IsOpen = kvp.Value.IsOpen
+                });
+
+            _logger.LogInformation("Fetched {Count} issue summaries for humanization context", summaries.Count);
+            return summaries;
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Error fetching issue summaries, continuing without context");
+            return null;
+        }
     }
 }

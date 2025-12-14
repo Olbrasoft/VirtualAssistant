@@ -40,4 +40,12 @@ public interface INotificationService
     /// <param name="newStatus">New status to set</param>
     /// <param name="ct">Cancellation token</param>
     Task UpdateStatusAsync(IEnumerable<int> notificationIds, NotificationStatusEnum newStatus, CancellationToken ct = default);
+
+    /// <summary>
+    /// Gets all GitHub issue IDs associated with the given notifications.
+    /// </summary>
+    /// <param name="notificationIds">IDs of notifications to get issues for</param>
+    /// <param name="ct">Cancellation token</param>
+    /// <returns>List of distinct GitHub issue IDs</returns>
+    Task<IReadOnlyList<int>> GetAssociatedIssueIdsAsync(IEnumerable<int> notificationIds, CancellationToken ct = default);
 }

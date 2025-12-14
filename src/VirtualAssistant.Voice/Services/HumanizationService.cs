@@ -30,7 +30,10 @@ public class HumanizationService : IHumanizationService
         _logger.LogInformation("HumanizationService initialized with LlmChainClient (multi-provider fallback)");
     }
 
-    public async Task<string?> HumanizeAsync(IReadOnlyList<AgentNotification> notifications, CancellationToken ct = default)
+    public async Task<string?> HumanizeAsync(
+        IReadOnlyList<AgentNotification> notifications,
+        IReadOnlyDictionary<int, IssueSummaryInfo>? issueSummaries = null,
+        CancellationToken ct = default)
     {
         if (notifications.Count == 0)
         {
@@ -48,16 +51,17 @@ public class HumanizationService : IHumanizationService
         try
         {
             var systemPrompt = _promptLoader.LoadPrompt(PromptName);
-            var userMessage = FormatNotificationsAsJson(filtered);
+            var userMessage = FormatNotificationsAsJson(filtered, issueSummaries);
 
-            _logger.LogDebug("Humanizing {Count} notifications via LlmChain", filtered.Count);
+            _logger.LogDebug("Humanizing {Count} notifications with {IssueCount} issue summaries via LlmChain",
+                filtered.Count, issueSummaries?.Count ?? 0);
 
             var request = new LlmChainRequest
             {
                 SystemPrompt = systemPrompt,
                 UserMessage = userMessage,
                 Temperature = 0.3f,
-                MaxTokens = 100
+                MaxTokens = 150 // Increased to accommodate issue context
             };
 
             var result = await _llmChain.CompleteAsync(request, ct);
@@ -133,16 +137,38 @@ public class HumanizationService : IHumanizationService
         return result;
     }
 
-    private static string FormatNotificationsAsJson(IReadOnlyList<AgentNotification> notifications)
+    private static string FormatNotificationsAsJson(
+        IReadOnlyList<AgentNotification> notifications,
+        IReadOnlyDictionary<int, IssueSummaryInfo>? issueSummaries)
     {
-        var data = notifications.Select(n => new
+        var notificationsData = notifications.Select(n => new
         {
             agent = n.Agent.ToLowerInvariant(),
             type = n.Type.ToLowerInvariant(),
             content = n.Content
         });
 
-        return JsonSerializer.Serialize(data);
+        // If we have issue summaries, include them in the context
+        if (issueSummaries is { Count: > 0 })
+        {
+            var issuesData = issueSummaries.Values.Select(s => new
+            {
+                issueNumber = s.IssueNumber,
+                title = s.CzechTitle,
+                summary = s.CzechSummary,
+                isOpen = s.IsOpen
+            });
+
+            var combined = new
+            {
+                notifications = notificationsData,
+                relatedIssues = issuesData
+            };
+
+            return JsonSerializer.Serialize(combined);
+        }
+
+        return JsonSerializer.Serialize(notificationsData);
     }
 
     /// <summary>
