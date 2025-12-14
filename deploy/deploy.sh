@@ -16,9 +16,9 @@ echo
 
 cd "$PROJECT_PATH"
 
-# Step 1: Run tests
+# Step 1: Run tests (skip integration tests - they call real APIs)
 echo "📋 Running tests..."
-dotnet test
+dotnet test --filter "FullyQualifiedName!~IntegrationTests"
 if [ $? -ne 0 ]; then
     echo "❌ Tests failed! Aborting deployment."
     exit 1
