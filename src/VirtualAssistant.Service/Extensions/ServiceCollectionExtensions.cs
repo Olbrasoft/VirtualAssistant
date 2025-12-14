@@ -157,6 +157,7 @@ public static class ServiceCollectionExtensions
             configuration.GetSection(TtsVoiceProfilesOptions.SectionName));
 
         // Register all TTS providers (order doesn't matter - TtsProviderChain uses config order)
+        services.AddSingleton<ITtsProvider, EdgeTtsProvider>();
         services.AddSingleton<ITtsProvider, AzureTtsProvider>();
         services.AddSingleton<ITtsProvider, HttpEdgeTtsProvider>();
         services.AddSingleton<ITtsProvider, VoiceRssProvider>();
