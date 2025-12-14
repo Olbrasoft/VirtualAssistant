@@ -30,6 +30,12 @@ public static class ServiceCollectionExtensions
         // Register reference service (for ensuring GitHub references exist in database)
         services.AddScoped<IGitHubReferenceService, GitHubReferenceService>();
 
+        // Register issue summary client (for fetching Czech summaries from GitHub.Issues API)
+        services.AddHttpClient<IIssueSummaryClient, IssueSummaryClient>(client =>
+        {
+            client.Timeout = TimeSpan.FromSeconds(60);
+        });
+
         return services;
     }
 }

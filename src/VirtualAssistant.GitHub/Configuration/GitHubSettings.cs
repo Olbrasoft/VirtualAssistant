@@ -20,4 +20,10 @@ public class GitHubSettings
     /// Gets or sets the default GitHub owner (user or organization).
     /// </summary>
     public string Owner { get; set; } = string.Empty;
+
+    /// <summary>
+    /// Gets or sets the URL of the GitHub.Issues API for fetching Czech summaries.
+    /// Example: "http://localhost:5000"
+    /// </summary>
+    public string IssuesApiUrl { get; set; } = string.Empty;
 }
