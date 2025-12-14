@@ -50,7 +50,7 @@ public class LlmChainIntegrationTests
         return dir ?? Directory.GetCurrentDirectory();
     }
 
-    [SkipOnCIFact]
+    [Fact(Skip = "Disabled to save API credits - run manually when needed")]
     public async Task CompleteAsync_WithValidRequest_ReturnsSuccess()
     {
         // Arrange
@@ -77,28 +77,28 @@ public class LlmChainIntegrationTests
         _output.WriteLine($"Content: {result.Content}");
     }
 
-    [SkipOnCIFact]
+    [Fact(Skip = "Disabled to save API credits - run manually when needed")]
     public async Task CompleteAsync_MistralProvider_Works()
     {
         // Test specifically with Mistral
         await TestProvider("Mistral");
     }
 
-    [SkipOnCIFact]
+    [Fact(Skip = "Disabled to save API credits - run manually when needed")]
     public async Task CompleteAsync_CerebrasProvider_Works()
     {
         // Test specifically with Cerebras
         await TestProvider("Cerebras");
     }
 
-    [SkipOnCIFact]
+    [Fact(Skip = "Disabled to save API credits - run manually when needed")]
     public async Task CompleteAsync_GroqProvider_Works()
     {
         // Test specifically with Groq
         await TestProvider("Groq");
     }
 
-    [SkipOnCIFact]
+    [Fact(Skip = "Disabled to save API credits - run manually when needed")]
     public async Task CompleteAsync_OpenRouterProvider_Works()
     {
         // Test specifically with OpenRouter
@@ -162,7 +162,7 @@ public class LlmChainIntegrationTests
         Assert.NotNull(result.Content);
     }
 
-    [SkipOnCIFact]
+    [Fact(Skip = "Disabled to save API credits - run manually when needed")]
     public async Task CompleteAsync_AllProvidersRotation_UsesMultipleProviders()
     {
         // Send multiple requests and verify different providers are used (round-robin)
