@@ -18,6 +18,10 @@ public class TtsNotifyRequest
 {
     public string Text { get; set; } = string.Empty;
     public string? Source { get; set; }
+    /// <summary>
+    /// Optional GitHub issue IDs related to this notification.
+    /// </summary>
+    public List<int>? IssueIds { get; set; }
 }
 
 /// <summary>
@@ -84,15 +88,17 @@ public static class EndpointExtensions
         app.MapPost("/api/tts/notify", async (TtsNotifyRequest request, INotificationService notificationService, ILogger<Program> logger) =>
         {
             var sourceInfo = string.IsNullOrEmpty(request.Source) ? "" : $" [{request.Source}]";
-            Console.WriteLine($"\u001b[96;1m📩 Notification received{sourceInfo}: \"{request.Text}\"\u001b[0m");
-            logger.LogInformation("Notification received from {Source}: {Text}", request.Source ?? "default", request.Text);
+            var issueInfo = request.IssueIds?.Count > 0 ? $" (issues: {string.Join(", ", request.IssueIds)})" : "";
+            Console.WriteLine($"\u001b[96;1m📩 Notification received{sourceInfo}{issueInfo}: \"{request.Text}\"\u001b[0m");
+            logger.LogInformation("Notification received from {Source}: {Text} {IssueIds}", request.Source ?? "default", request.Text, request.IssueIds);
 
             var agentId = request.Source ?? "Unknown";
-            var notificationId = await notificationService.CreateNotificationAsync(request.Text, agentId);
+            var notificationId = await notificationService.CreateNotificationAsync(request.Text, agentId, request.IssueIds);
 
-            logger.LogInformation("Notification {Id} stored in database from agent {Agent}", notificationId, agentId);
+            logger.LogInformation("Notification {Id} stored in database from agent {Agent} with {IssueCount} linked issues",
+                notificationId, agentId, request.IssueIds?.Count ?? 0);
 
-            return Results.Ok(new { success = true, notificationId, message = "Notification stored", text = request.Text, source = agentId });
+            return Results.Ok(new { success = true, notificationId, message = "Notification stored", text = request.Text, source = agentId, issueIds = request.IssueIds });
         });
         app.MapPost("/api/tts/speak", async (TtsNotifyRequest request, TtsService ttsService, ILogger<Program> logger) =>
         {
