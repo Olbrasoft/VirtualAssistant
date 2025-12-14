@@ -108,7 +108,6 @@ public class LlmChainClient : ILlmChainClient
             try
             {
                 _logger.LogDebug("Trying {Provider} with key {KeyId}", provider.Name, keyId);
-                Console.WriteLine($"\u001b[97m→ {provider.Name} (key {keyIndex + 1}/{GetKeyCount(provider.Name)})...\u001b[0m");
 
                 var result = await CallProviderAsync(provider, apiKey, request, ct);
 
