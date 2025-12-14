@@ -84,8 +84,8 @@ public static class EndpointExtensions
     {
         var ttsProviderChain = app.Services.GetRequiredService<ITtsProviderChain>();
 
-        // Notify endpoint - stores notification in database for later announcement
-        app.MapPost("/api/tts/notify", async (TtsNotifyRequest request, INotificationService notificationService, ILogger<Program> logger) =>
+        // Notify endpoint - stores notification in database and queues for TTS
+        app.MapPost("/api/tts/notify", async (TtsNotifyRequest request, INotificationService notificationService, INotificationBatchingService batchingService, ILogger<Program> logger) =>
         {
             var sourceInfo = string.IsNullOrEmpty(request.Source) ? "" : $" [{request.Source}]";
             var issueInfo = request.IssueIds?.Count > 0 ? $" (issues: {string.Join(", ", request.IssueIds)})" : "";
@@ -98,7 +98,17 @@ public static class EndpointExtensions
             logger.LogInformation("Notification {Id} stored in database from agent {Agent} with {IssueCount} linked issues",
                 notificationId, agentId, request.IssueIds?.Count ?? 0);
 
-            return Results.Ok(new { success = true, notificationId, message = "Notification stored", text = request.Text, source = agentId, issueIds = request.IssueIds });
+            // Queue for batched TTS processing
+            var agentNotification = new AgentNotification
+            {
+                NotificationId = notificationId,
+                Agent = agentId,
+                Type = "status",
+                Content = request.Text
+            };
+            batchingService.QueueNotification(agentNotification);
+
+            return Results.Ok(new { success = true, notificationId, message = "Notification queued for TTS", text = request.Text, source = agentId, issueIds = request.IssueIds });
         });
         app.MapPost("/api/tts/speak", async (TtsNotifyRequest request, TtsService ttsService, ILogger<Program> logger) =>
         {
