@@ -19,22 +19,11 @@ public sealed class StartupNotificationService : IHostedService
         _logger = logger;
     }
 
-    public async Task StartAsync(CancellationToken cancellationToken)
+    public Task StartAsync(CancellationToken cancellationToken)
     {
-        // Wait a moment for all services to fully initialize
-        await Task.Delay(1000, cancellationToken);
-
-        _logger.LogInformation("Playing startup notification");
-
-        try
-        {
-            // No agent name = always speak (startup notification)
-            await _speaker.SpeakAsync("Systém nastartován, vše v pořádku", agentName: null, cancellationToken);
-        }
-        catch (Exception ex)
-        {
-            _logger.LogWarning(ex, "Failed to play startup notification");
-        }
+        // TTS disabled - notifications are stored in database, not spoken immediately
+        _logger.LogInformation("Startup notification service ready (TTS disabled)");
+        return Task.CompletedTask;
     }
 
     public Task StopAsync(CancellationToken cancellationToken) => Task.CompletedTask;

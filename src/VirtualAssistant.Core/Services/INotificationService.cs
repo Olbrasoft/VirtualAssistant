@@ -11,10 +11,10 @@ public interface INotificationService
     /// Creates a new notification with NewlyReceived status.
     /// </summary>
     /// <param name="text">Notification text content</param>
-    /// <param name="agentId">Agent identifier (e.g., "OpenCode", "Claude Code")</param>
+    /// <param name="agentName">Agent name (e.g., "opencode", "claude") - will be looked up in database</param>
     /// <param name="ct">Cancellation token</param>
     /// <returns>The ID of the created notification</returns>
-    Task<int> CreateNotificationAsync(string text, string agentId, CancellationToken ct = default);
+    Task<int> CreateNotificationAsync(string text, string agentName, CancellationToken ct = default);
 
     /// <summary>
     /// Gets all notifications with NewlyReceived status.

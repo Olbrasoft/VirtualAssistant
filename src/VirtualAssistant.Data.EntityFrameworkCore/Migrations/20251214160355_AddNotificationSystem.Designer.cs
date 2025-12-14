@@ -12,7 +12,7 @@ using VirtualAssistant.Data.EntityFrameworkCore;
 namespace VirtualAssistant.Data.EntityFrameworkCore.Migrations
 {
     [DbContext(typeof(VirtualAssistantDbContext))]
-    [Migration("20251214151714_AddNotificationSystem")]
+    [Migration("20251214160355_AddNotificationSystem")]
     partial class AddNotificationSystem
     {
         /// <inheritdoc />
@@ -133,10 +133,8 @@ namespace VirtualAssistant.Data.EntityFrameworkCore.Migrations
 
                     NpgsqlPropertyBuilderExtensions.UseIdentityByDefaultColumn(b.Property<int>("Id"));
 
-                    b.Property<string>("AgentId")
-                        .IsRequired()
-                        .HasMaxLength(50)
-                        .HasColumnType("character varying(50)")
+                    b.Property<int>("AgentId")
+                        .HasColumnType("integer")
                         .HasColumnName("agent_id");
 
                     b.Property<DateTime>("CreatedAt")
@@ -300,13 +298,26 @@ namespace VirtualAssistant.Data.EntityFrameworkCore.Migrations
 
             modelBuilder.Entity("VirtualAssistant.Data.Entities.Notification", b =>
                 {
+                    b.HasOne("VirtualAssistant.Data.Entities.Agent", "Agent")
+                        .WithMany("Notifications")
+                        .HasForeignKey("AgentId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
                     b.HasOne("VirtualAssistant.Data.Entities.NotificationStatus", "Status")
                         .WithMany("Notifications")
                         .HasForeignKey("NotificationStatusId")
                         .OnDelete(DeleteBehavior.Restrict)
                         .IsRequired();
 
+                    b.Navigation("Agent");
+
                     b.Navigation("Status");
+                });
+
+            modelBuilder.Entity("VirtualAssistant.Data.Entities.Agent", b =>
+                {
+                    b.Navigation("Notifications");
                 });
 
             modelBuilder.Entity("VirtualAssistant.Data.Entities.GitHubRepository", b =>

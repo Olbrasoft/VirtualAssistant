@@ -2,6 +2,7 @@ using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Logging;
 using VirtualAssistant.Data.Entities;
 using VirtualAssistant.Data.EntityFrameworkCore;
+using VirtualAssistant.Data.Enums;
 
 namespace VirtualAssistant.Core.Services;
 
@@ -13,11 +14,6 @@ public class NotificationService : INotificationService
     private readonly VirtualAssistantDbContext _dbContext;
     private readonly ILogger<NotificationService> _logger;
 
-    /// <summary>
-    /// Status ID for newly received notifications.
-    /// </summary>
-    private const int NewlyReceivedStatusId = 1;
-
     public NotificationService(
         VirtualAssistantDbContext dbContext,
         ILogger<NotificationService> logger)
@@ -27,23 +23,43 @@ public class NotificationService : INotificationService
     }
 
     /// <inheritdoc />
-    public async Task<int> CreateNotificationAsync(string text, string agentId, CancellationToken ct = default)
+    public async Task<int> CreateNotificationAsync(string text, string agentName, CancellationToken ct = default)
     {
         ArgumentException.ThrowIfNullOrWhiteSpace(text, nameof(text));
-        ArgumentException.ThrowIfNullOrWhiteSpace(agentId, nameof(agentId));
+        ArgumentException.ThrowIfNullOrWhiteSpace(agentName, nameof(agentName));
+
+        // Normalize agent name to lowercase for lookup
+        var normalizedName = agentName.ToLowerInvariant();
+
+        var agent = await _dbContext.Agents
+            .FirstOrDefaultAsync(a => a.Name.ToLower() == normalizedName, ct);
+
+        if (agent == null)
+        {
+            _logger.LogWarning("Agent '{AgentName}' not found in database, creating new agent", agentName);
+            agent = new Agent
+            {
+                Name = normalizedName,
+                Label = $"agent:{normalizedName}",
+                IsActive = true,
+                CreatedAt = DateTime.UtcNow
+            };
+            _dbContext.Agents.Add(agent);
+            await _dbContext.SaveChangesAsync(ct);
+        }
 
         var notification = new Notification
         {
             Text = text,
-            AgentId = agentId,
+            AgentId = agent.Id,
             CreatedAt = DateTime.UtcNow,
-            NotificationStatusId = NewlyReceivedStatusId
+            NotificationStatusId = (int)NotificationStatusEnum.NewlyReceived
         };
 
         _dbContext.Notifications.Add(notification);
         await _dbContext.SaveChangesAsync(ct);
 
-        _logger.LogInformation("Created notification {Id} from agent {Agent}", notification.Id, agentId);
+        _logger.LogInformation("Created notification {Id} from agent {AgentName} (ID: {AgentId})", notification.Id, agentName, agent.Id);
 
         return notification.Id;
     }
@@ -52,7 +68,7 @@ public class NotificationService : INotificationService
     public async Task<IReadOnlyList<Notification>> GetNewNotificationsAsync(CancellationToken ct = default)
     {
         return await _dbContext.Notifications
-            .Where(n => n.NotificationStatusId == NewlyReceivedStatusId)
+            .Where(n => n.NotificationStatusId == (int)NotificationStatusEnum.NewlyReceived)
             .OrderBy(n => n.CreatedAt)
             .ToListAsync(ct);
     }

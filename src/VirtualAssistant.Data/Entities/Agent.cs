@@ -27,4 +27,9 @@ public class Agent : BaseEnity
     /// When the agent was registered.
     /// </summary>
     public DateTime CreatedAt { get; set; }
+
+    /// <summary>
+    /// Notifications sent by this agent.
+    /// </summary>
+    public ICollection<Notification> Notifications { get; set; } = [];
 }

@@ -1,6 +1,7 @@
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Metadata.Builders;
 using VirtualAssistant.Data.Entities;
+using VirtualAssistant.Data.Enums;
 
 namespace VirtualAssistant.Data.EntityFrameworkCore.Configurations;
 
@@ -27,11 +28,17 @@ public class NotificationStatusConfiguration : IEntityTypeConfiguration<Notifica
             .IsUnique()
             .HasDatabaseName("ix_notification_statuses_name_unique");
 
-        // Seed default statuses
+        // Seed statuses matching NotificationStatusEnum
         builder.HasData(
-            new NotificationStatus { Id = 1, Name = "NewlyReceived" },
-            new NotificationStatus { Id = 2, Name = "Announced" },
-            new NotificationStatus { Id = 3, Name = "WaitingForPlayback" }
+            new NotificationStatus { Id = (int)NotificationStatusEnum.NewlyReceived, Name = nameof(NotificationStatusEnum.NewlyReceived) },
+            new NotificationStatus { Id = (int)NotificationStatusEnum.Processing, Name = nameof(NotificationStatusEnum.Processing) },
+            new NotificationStatus { Id = (int)NotificationStatusEnum.SentForSummarization, Name = nameof(NotificationStatusEnum.SentForSummarization) },
+            new NotificationStatus { Id = (int)NotificationStatusEnum.Summarized, Name = nameof(NotificationStatusEnum.Summarized) },
+            new NotificationStatus { Id = (int)NotificationStatusEnum.SentForTranslation, Name = nameof(NotificationStatusEnum.SentForTranslation) },
+            new NotificationStatus { Id = (int)NotificationStatusEnum.Translated, Name = nameof(NotificationStatusEnum.Translated) },
+            new NotificationStatus { Id = (int)NotificationStatusEnum.Announced, Name = nameof(NotificationStatusEnum.Announced) },
+            new NotificationStatus { Id = (int)NotificationStatusEnum.WaitingForPlayback, Name = nameof(NotificationStatusEnum.WaitingForPlayback) },
+            new NotificationStatus { Id = (int)NotificationStatusEnum.Played, Name = nameof(NotificationStatusEnum.Played) }
         );
     }
 }

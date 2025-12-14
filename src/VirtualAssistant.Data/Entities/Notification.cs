@@ -13,10 +13,14 @@ public class Notification : BaseEnity
     public string Text { get; set; } = string.Empty;
 
     /// <summary>
-    /// Identifier of the agent sending the notification.
-    /// Examples: "OpenCode", "Claude Code", "Antigravity", "Gemini".
+    /// Foreign key to Agent (required).
     /// </summary>
-    public string AgentId { get; set; } = string.Empty;
+    public int AgentId { get; set; }
+
+    /// <summary>
+    /// Navigation property to the agent.
+    /// </summary>
+    public Agent Agent { get; set; } = null!;
 
     /// <summary>
     /// When the notification was created.

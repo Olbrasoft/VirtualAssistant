@@ -34,13 +34,19 @@ namespace VirtualAssistant.Data.EntityFrameworkCore.Migrations
                     id = table.Column<int>(type: "integer", nullable: false)
                         .Annotation("Npgsql:ValueGenerationStrategy", NpgsqlValueGenerationStrategy.IdentityByDefaultColumn),
                     text = table.Column<string>(type: "text", nullable: false),
-                    agent_id = table.Column<string>(type: "character varying(50)", maxLength: 50, nullable: false),
+                    agent_id = table.Column<int>(type: "integer", nullable: false),
                     created_at = table.Column<DateTime>(type: "timestamp with time zone", nullable: false, defaultValueSql: "NOW()"),
                     notification_status_id = table.Column<int>(type: "integer", nullable: false, defaultValue: 1)
                 },
                 constraints: table =>
                 {
                     table.PrimaryKey("PK_notifications", x => x.id);
+                    table.ForeignKey(
+                        name: "FK_notifications_agents_agent_id",
+                        column: x => x.agent_id,
+                        principalTable: "agents",
+                        principalColumn: "id",
+                        onDelete: ReferentialAction.Restrict);
                     table.ForeignKey(
                         name: "FK_notifications_notification_statuses_notification_status_id",
                         column: x => x.notification_status_id,

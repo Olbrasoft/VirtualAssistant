@@ -24,8 +24,13 @@ public class NotificationConfiguration : IEntityTypeConfiguration<Notification>
 
         builder.Property(n => n.AgentId)
             .HasColumnName("agent_id")
-            .IsRequired()
-            .HasMaxLength(50);
+            .IsRequired();
+
+        // Relationship with Agent
+        builder.HasOne(n => n.Agent)
+            .WithMany(a => a.Notifications)
+            .HasForeignKey(n => n.AgentId)
+            .OnDelete(DeleteBehavior.Restrict);
 
         builder.Property(n => n.CreatedAt)
             .HasColumnName("created_at")
