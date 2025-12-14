@@ -1,4 +1,5 @@
 using System.Text.Json;
+using System.Text.RegularExpressions;
 using Microsoft.Extensions.Logging;
 using VirtualAssistant.Core.Services;
 using VirtualAssistant.LlmChain;
@@ -67,7 +68,7 @@ public class HumanizationService : IHumanizationService
                 return FallbackHumanize(filtered);
             }
 
-            var content = result.Content?.Trim();
+            var content = CleanLlmResponse(result.Content);
 
             if (string.IsNullOrWhiteSpace(content))
             {
@@ -209,6 +210,27 @@ public class HumanizationService : IHumanizationService
             "claude" => "Claude",
             _ => agent
         };
+    }
+
+    /// <summary>
+    /// Cleans LLM response by removing thinking blocks and other artifacts.
+    /// Qwen models (Cerebras, Groq) often output &lt;think&gt;...&lt;/think&gt; reasoning blocks.
+    /// </summary>
+    private static string? CleanLlmResponse(string? response)
+    {
+        if (string.IsNullOrWhiteSpace(response))
+            return null;
+
+        // Remove <think>...</think> blocks (Qwen model reasoning)
+        var cleaned = Regex.Replace(response, @"<think>[\s\S]*?</think>", "", RegexOptions.IgnoreCase);
+
+        // Also handle unclosed <think> tags (model might not close them)
+        cleaned = Regex.Replace(cleaned, @"<think>[\s\S]*$", "", RegexOptions.IgnoreCase);
+
+        // Remove any other XML-like tags that shouldn't be spoken
+        cleaned = Regex.Replace(cleaned, @"<[^>]+>", "");
+
+        return cleaned.Trim();
     }
 
 }
