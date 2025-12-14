@@ -1,6 +1,5 @@
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
-using Microsoft.Extensions.DependencyInjection.Extensions;
 using VirtualAssistant.GitHub.Configuration;
 using VirtualAssistant.GitHub.Services;
 
@@ -12,7 +11,7 @@ namespace VirtualAssistant.GitHub;
 public static class ServiceCollectionExtensions
 {
     /// <summary>
-    /// Adds GitHub sync services to the service collection.
+    /// Adds GitHub services to the service collection.
     /// </summary>
     /// <param name="services">The service collection.</param>
     /// <param name="configuration">The configuration containing GitHub settings.</param>
@@ -25,26 +24,11 @@ public static class ServiceCollectionExtensions
         services.Configure<GitHubSettings>(
             configuration.GetSection(GitHubSettings.SectionName));
 
-        // Register Embedding configuration
-        services.Configure<EmbeddingSettings>(
-            configuration.GetSection(EmbeddingSettings.SectionName));
-
-        // Register embedding service (Ollama - local, no API key needed)
-        services.AddHttpClient<IEmbeddingService, OllamaEmbeddingService>();
-
-        // Register sync service
-        services.AddScoped<IGitHubSyncService, GitHubSyncService>();
-
-        // Register search service
-        services.AddScoped<IGitHubSearchService, GitHubSearchService>();
-
         // Register issue status service (for orphaned task detection)
         services.AddScoped<IGitHubIssueStatusService, GitHubIssueStatusService>();
 
-        // Register background sync service as singleton (hosted services must be singletons)
-        // Also expose as GitHubSyncBackgroundService for health check access
-        services.AddSingleton<GitHubSyncBackgroundService>();
-        services.AddHostedService(sp => sp.GetRequiredService<GitHubSyncBackgroundService>());
+        // Register reference service (for ensuring GitHub references exist in database)
+        services.AddScoped<IGitHubReferenceService, GitHubReferenceService>();
 
         return services;
     }

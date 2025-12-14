@@ -1,5 +1,3 @@
-using Pgvector.EntityFrameworkCore;
-
 namespace VirtualAssistant.Data.EntityFrameworkCore;
 
 /// <summary>
@@ -7,12 +5,8 @@ namespace VirtualAssistant.Data.EntityFrameworkCore;
 /// </summary>
 public class VirtualAssistantDbContext : DbContext
 {
-    private readonly bool _isInMemory;
-
     public VirtualAssistantDbContext(DbContextOptions<VirtualAssistantDbContext> options) : base(options)
     {
-        // Detect InMemory database from options extensions (more reliable than Database.ProviderName)
-        _isInMemory = options.Extensions.Any(e => e.GetType().Name.Contains("InMemory"));
     }
 
     /// <summary>
@@ -34,11 +28,6 @@ public class VirtualAssistantDbContext : DbContext
     /// Gets or sets the GitHubIssues DbSet.
     /// </summary>
     public DbSet<GitHubIssue> GitHubIssues => Set<GitHubIssue>();
-
-    /// <summary>
-    /// Gets or sets the GitHubIssueAgents DbSet for many-to-many relationship.
-    /// </summary>
-    public DbSet<GitHubIssueAgent> GitHubIssueAgents => Set<GitHubIssueAgent>();
 
     /// <summary>
     /// Gets or sets the AgentMessages DbSet for inter-agent communication.
@@ -75,20 +64,7 @@ public class VirtualAssistantDbContext : DbContext
     {
         base.OnModelCreating(modelBuilder);
 
-        if (!_isInMemory)
-        {
-            // Enable pgvector extension (only for PostgreSQL)
-            modelBuilder.HasPostgresExtension("vector");
-        }
-
         // Apply all configurations from assembly
         modelBuilder.ApplyConfigurationsFromAssembly(typeof(VirtualAssistantDbContext).Assembly);
-
-        if (_isInMemory)
-        {
-            // For InMemory testing, ignore vector properties AFTER configurations are applied
-            modelBuilder.Entity<GitHubIssue>().Ignore(e => e.TitleEmbedding);
-            modelBuilder.Entity<GitHubIssue>().Ignore(e => e.BodyEmbedding);
-        }
     }
 }

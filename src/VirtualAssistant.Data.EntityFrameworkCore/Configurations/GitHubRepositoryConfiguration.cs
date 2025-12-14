@@ -1,7 +1,8 @@
 namespace VirtualAssistant.Data.EntityFrameworkCore.Configurations;
 
 /// <summary>
-/// EF Core configuration for GitHubRepository entity with PostgreSQL snake_case naming.
+/// EF Core configuration for GitHubRepository entity.
+/// Minimal reference table with (owner, name) unique constraint.
 /// </summary>
 public class GitHubRepositoryConfiguration : IEntityTypeConfiguration<GitHubRepository>
 {
@@ -24,38 +25,8 @@ public class GitHubRepositoryConfiguration : IEntityTypeConfiguration<GitHubRepo
             .HasMaxLength(100)
             .IsRequired();
 
-        builder.Property(r => r.FullName)
-            .HasColumnName("full_name")
-            .HasMaxLength(201)
-            .IsRequired();
-
-        builder.Property(r => r.Description)
-            .HasColumnName("description");
-
-        builder.Property(r => r.HtmlUrl)
-            .HasColumnName("html_url")
-            .HasMaxLength(500)
-            .IsRequired();
-
-        builder.Property(r => r.IsPrivate)
-            .HasColumnName("is_private")
-            .IsRequired();
-
-        builder.Property(r => r.CreatedAt)
-            .HasColumnName("created_at")
-            .IsRequired();
-
-        builder.Property(r => r.UpdatedAt)
-            .HasColumnName("updated_at")
-            .IsRequired();
-
-        builder.Property(r => r.SyncedAt)
-            .HasColumnName("synced_at")
-            .IsRequired()
-            .HasDefaultValueSql("NOW()");
-
-        // Unique constraint on FullName
-        builder.HasIndex(r => r.FullName)
+        // Unique constraint on (owner, name)
+        builder.HasIndex(r => new { r.Owner, r.Name })
             .IsUnique();
 
         // Relationship with Issues

@@ -1,0 +1,13 @@
+{
+    "postgresql.connections": [
+        {
+            "label": "localhost",
+            "host": "localhost",
+            "user": "jirka",
+            "port": 5432,
+            "ssl": false,
+            "database": "postgres",
+            "password": ""
+        }
+    ]
+}
