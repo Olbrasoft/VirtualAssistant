@@ -30,6 +30,7 @@ public class IssueSummaryClient : IIssueSummaryClient
         string owner,
         string repo,
         IEnumerable<int> issueNumbers,
+        int languageId = 1029,
         CancellationToken ct = default)
     {
         var issueList = issueNumbers.ToList();
@@ -50,14 +51,15 @@ public class IssueSummaryClient : IIssueSummaryClient
         try
         {
             _logger.LogInformation(
-                "Fetching Czech summaries for {Count} issues in {Owner}/{Repo}",
-                issueList.Count, owner, repo);
+                "Fetching summaries for {Count} issues in {Owner}/{Repo}, languageId={LanguageId}",
+                issueList.Count, owner, repo, languageId);
 
             var request = new
             {
                 issueNumbers = issueList,
                 owner,
-                repo
+                repo,
+                languageId
             };
 
             var response = await _httpClient.PostAsJsonAsync(

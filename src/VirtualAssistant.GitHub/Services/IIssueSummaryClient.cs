@@ -1,23 +1,25 @@
 namespace VirtualAssistant.GitHub.Services;
 
 /// <summary>
-/// Client for fetching Czech issue summaries from the GitHub.Issues API.
+/// Client for fetching translated issue summaries from the GitHub.Issues API.
 /// </summary>
 public interface IIssueSummaryClient
 {
     /// <summary>
-    /// Gets Czech summaries for the specified issues.
+    /// Gets translated summaries for the specified issues.
     /// If an issue is not in the database, the API will fetch it from GitHub.
     /// </summary>
     /// <param name="owner">Repository owner</param>
     /// <param name="repo">Repository name</param>
     /// <param name="issueNumbers">List of issue numbers</param>
+    /// <param name="languageId">Language LCID (default: 1029 = Czech)</param>
     /// <param name="ct">Cancellation token</param>
     /// <returns>Summaries result with found issues and any that weren't found</returns>
     Task<IssueSummariesResult> GetSummariesAsync(
         string owner,
         string repo,
         IEnumerable<int> issueNumbers,
+        int languageId = 1029,
         CancellationToken ct = default);
 }
 
