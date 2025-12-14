@@ -22,6 +22,7 @@
 
   <ItemGroup>
     <ProjectReference Include="..\..\src\VirtualAssistant.Data.EntityFrameworkCore\VirtualAssistant.Data.EntityFrameworkCore.csproj" />
+    <ProjectReference Include="..\..\src\VirtualAssistant.Core\VirtualAssistant.Core.csproj" />
   </ItemGroup>
 
 </Project>
