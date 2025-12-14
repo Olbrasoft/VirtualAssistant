@@ -36,4 +36,9 @@ public class Notification : BaseEnity
     /// Navigation property to the notification status.
     /// </summary>
     public NotificationStatus Status { get; set; } = null!;
+
+    /// <summary>
+    /// Navigation property to associated GitHub issues (many-to-many via junction table).
+    /// </summary>
+    public ICollection<NotificationGitHubIssue> NotificationGitHubIssues { get; set; } = [];
 }

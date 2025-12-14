@@ -47,8 +47,8 @@ public class NotificationsController : ControllerBase
 
         _logger.LogInformation("Notification from {Source}: {Text}", request.Source, request.Text);
 
-        // Save to database
-        var notificationId = await _notificationService.CreateNotificationAsync(request.Text, request.Source, ct);
+        // Save to database (with optional issue IDs)
+        var notificationId = await _notificationService.CreateNotificationAsync(request.Text, request.Source, request.IssueIds, ct);
 
         // Queue for batched TTS processing (include notification ID for status tracking)
         var agentNotification = new AgentNotification
@@ -78,6 +78,11 @@ public class CreateNotificationRequest
     /// Source agent identifier (e.g., "claude-code", "opencode").
     /// </summary>
     public string? Source { get; set; }
+
+    /// <summary>
+    /// Optional GitHub issue IDs to associate with this notification.
+    /// </summary>
+    public List<int>? IssueIds { get; set; }
 }
 
 /// <summary>

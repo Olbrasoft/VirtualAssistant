@@ -23,7 +23,7 @@ public class NotificationService : INotificationService
     }
 
     /// <inheritdoc />
-    public async Task<int> CreateNotificationAsync(string text, string agentName, CancellationToken ct = default)
+    public async Task<int> CreateNotificationAsync(string text, string agentName, IReadOnlyList<int>? issueIds = null, CancellationToken ct = default)
     {
         ArgumentException.ThrowIfNullOrWhiteSpace(text, nameof(text));
         ArgumentException.ThrowIfNullOrWhiteSpace(agentName, nameof(agentName));
@@ -59,7 +59,27 @@ public class NotificationService : INotificationService
         _dbContext.Notifications.Add(notification);
         await _dbContext.SaveChangesAsync(ct);
 
-        _logger.LogInformation("Created notification {Id} from agent {AgentName} (ID: {AgentId})", notification.Id, agentName, agent.Id);
+        // Add GitHub issue associations if provided
+        if (issueIds is { Count: > 0 })
+        {
+            foreach (var issueId in issueIds.Distinct())
+            {
+                _dbContext.NotificationGitHubIssues.Add(new NotificationGitHubIssue
+                {
+                    NotificationId = notification.Id,
+                    GitHubIssueId = issueId
+                });
+            }
+            await _dbContext.SaveChangesAsync(ct);
+
+            _logger.LogInformation("Created notification {Id} from agent {AgentName} with {IssueCount} linked issues",
+                notification.Id, agentName, issueIds.Count);
+        }
+        else
+        {
+            _logger.LogInformation("Created notification {Id} from agent {AgentName} (ID: {AgentId})",
+                notification.Id, agentName, agent.Id);
+        }
 
         return notification.Id;
     }

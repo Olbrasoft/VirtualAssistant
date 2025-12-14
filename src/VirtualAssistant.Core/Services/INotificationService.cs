@@ -13,9 +13,10 @@ public interface INotificationService
     /// </summary>
     /// <param name="text">Notification text content</param>
     /// <param name="agentName">Agent name (e.g., "opencode", "claude") - will be looked up in database</param>
+    /// <param name="issueIds">Optional GitHub issue IDs to associate with this notification</param>
     /// <param name="ct">Cancellation token</param>
     /// <returns>The ID of the created notification</returns>
-    Task<int> CreateNotificationAsync(string text, string agentName, CancellationToken ct = default);
+    Task<int> CreateNotificationAsync(string text, string agentName, IReadOnlyList<int>? issueIds = null, CancellationToken ct = default);
 
     /// <summary>
     /// Gets all notifications with NewlyReceived status.

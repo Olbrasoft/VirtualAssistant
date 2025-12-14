@@ -44,6 +44,11 @@ public class VirtualAssistantDbContext : DbContext
     /// </summary>
     public DbSet<Notification> Notifications => Set<Notification>();
 
+    /// <summary>
+    /// Gets or sets the NotificationGitHubIssues DbSet (junction table).
+    /// </summary>
+    public DbSet<NotificationGitHubIssue> NotificationGitHubIssues => Set<NotificationGitHubIssue>();
+
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {
         base.OnModelCreating(modelBuilder);
