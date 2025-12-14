@@ -1,4 +1,4 @@
-<Project Sdk="Microsoft.NET.Sdk.Web">
+﻿<Project Sdk="Microsoft.NET.Sdk.Web">
 
   <PropertyGroup>
     <TargetFramework>net10.0</TargetFramework>
@@ -10,6 +10,7 @@
     <GenerateDocumentationFile>true</GenerateDocumentationFile>
     <NoWarn>$(NoWarn);1591</NoWarn>
     <PublishDir>/home/jirka/virtual-assistant/</PublishDir>
+    <UserSecretsId>18b6190b-6af7-4833-959a-bd320ba9db33</UserSecretsId>
   </PropertyGroup>
 
   <ItemGroup>
