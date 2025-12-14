@@ -1,4 +1,5 @@
 using Microsoft.Extensions.DependencyInjection;
+using VirtualAssistant.Core.Services;
 
 namespace VirtualAssistant.Core;
 
@@ -14,7 +15,8 @@ public static class ServiceCollectionExtensions
     /// <returns>The service collection for chaining</returns>
     public static IServiceCollection AddCoreServices(this IServiceCollection services)
     {
-        // No core services currently registered
+        services.AddScoped<INotificationService, NotificationService>();
+
         return services;
     }
 }

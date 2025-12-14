@@ -1,6 +1,7 @@
 using Olbrasoft.VirtualAssistant.Core.Services;
 using Olbrasoft.VirtualAssistant.Voice.Services;
 using Olbrasoft.VirtualAssistant.Service.Services;
+using VirtualAssistant.Core.Services;
 
 namespace Olbrasoft.VirtualAssistant.Service.Extensions;
 
@@ -79,27 +80,19 @@ public static class EndpointExtensions
     {
         var ttsProviderChain = app.Services.GetRequiredService<ITtsProviderChain>();
 
-        // Main speak/notify endpoints - delegate to TtsService
-        app.MapPost("/api/tts/notify", async (TtsNotifyRequest request, TtsService ttsService, ILogger<Program> logger) =>
+        // Notify endpoint - stores notification in database for later announcement
+        app.MapPost("/api/tts/notify", async (TtsNotifyRequest request, INotificationService notificationService, ILogger<Program> logger) =>
         {
             var sourceInfo = string.IsNullOrEmpty(request.Source) ? "" : $" [{request.Source}]";
-            Console.WriteLine($"\u001b[96;1m📩 TTS Speak{sourceInfo}: \"{request.Text}\"\u001b[0m");
-            logger.LogInformation("TTS Speak received from {Source}: {Text}", request.Source ?? "default", request.Text);
+            Console.WriteLine($"\u001b[96;1m📩 Notification received{sourceInfo}: \"{request.Text}\"\u001b[0m");
+            logger.LogInformation("Notification received from {Source}: {Text}", request.Source ?? "default", request.Text);
 
-            // Fire and forget - TtsService handles queueing, caching, playback
-            _ = Task.Run(async () =>
-            {
-                try
-                {
-                    await ttsService.SpeakAsync(request.Text, request.Source);
-                }
-                catch (Exception ex)
-                {
-                    logger.LogError(ex, "TTS processing failed");
-                }
-            });
+            var agentId = request.Source ?? "Unknown";
+            var notificationId = await notificationService.CreateNotificationAsync(request.Text, agentId);
 
-            return Results.Ok(new { success = true, message = "TTS processing", text = request.Text, source = request.Source ?? "NOT_SET" });
+            logger.LogInformation("Notification {Id} stored in database from agent {Agent}", notificationId, agentId);
+
+            return Results.Ok(new { success = true, notificationId, message = "Notification stored", text = request.Text, source = agentId });
         });
         app.MapPost("/api/tts/speak", async (TtsNotifyRequest request, TtsService ttsService, ILogger<Program> logger) =>
         {

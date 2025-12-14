@@ -34,6 +34,16 @@ public class VirtualAssistantDbContext : DbContext
     /// </summary>
     public DbSet<Agent> Agents => Set<Agent>();
 
+    /// <summary>
+    /// Gets or sets the NotificationStatuses DbSet (reference table).
+    /// </summary>
+    public DbSet<NotificationStatus> NotificationStatuses => Set<NotificationStatus>();
+
+    /// <summary>
+    /// Gets or sets the Notifications DbSet for agent notifications.
+    /// </summary>
+    public DbSet<Notification> Notifications => Set<Notification>();
+
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {
         base.OnModelCreating(modelBuilder);
