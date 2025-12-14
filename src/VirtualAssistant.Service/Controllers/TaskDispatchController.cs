@@ -4,7 +4,6 @@ using VirtualAssistant.Core.Services;
 using VirtualAssistant.Data.Dtos;
 using VirtualAssistant.Data.Entities;
 using VirtualAssistant.Data.EntityFrameworkCore;
-using VirtualAssistant.Data.Enums;
 
 namespace Olbrasoft.VirtualAssistant.Service.Controllers;
 
@@ -162,27 +161,9 @@ public class TaskDispatchController : ControllerBase
 
         // Step 2: Only execute Claude if target is claude
         string? sessionId = null;
-        int? agentResponseId = null;
 
         if (targetAgent.Equals("claude", StringComparison.OrdinalIgnoreCase))
         {
-            // Create AgentResponse record to track agent status (linked to task)
-            var agentResponse = new AgentResponse
-            {
-                AgentName = "claude",
-                Status = AgentResponseStatus.InProgress,
-                StartedAt = DateTime.UtcNow,
-                AgentTaskId = result.TaskId
-            };
-
-            _dbContext.AgentResponses.Add(agentResponse);
-            await _dbContext.SaveChangesAsync(ct);
-            agentResponseId = agentResponse.Id;
-
-            _logger.LogInformation(
-                "Created AgentResponse {ResponseId} for task {TaskId}",
-                agentResponse.Id, result.TaskId);
-
             // Build the prompt for Claude
             var prompt = $"""
                 Nový úkol k implementaci:
@@ -201,7 +182,6 @@ public class TaskDispatchController : ControllerBase
             // Capture values for closure BEFORE entering Task.Run
             // HttpContext becomes null after the HTTP request completes
             var taskId = result.TaskId;
-            var responseId = agentResponse.Id;
             var serviceProvider = HttpContext.RequestServices;
 
             // Execute Claude in headless mode (fire and forget - runs in background)
@@ -212,23 +192,11 @@ public class TaskDispatchController : ControllerBase
                 {
                     var claudeResult = await _claudeService.ExecuteAsync(prompt);
 
-                    // Update AgentResponse and AgentTask with results
-                    using var scope = serviceProvider.CreateScope();
-                    var db = scope.ServiceProvider.GetRequiredService<VirtualAssistantDbContext>();
-
-                    var response = await db.AgentResponses.FindAsync(responseId);
-                    if (response != null)
-                    {
-                        response.Status = claudeResult.Success
-                            ? AgentResponseStatus.Completed
-                            : AgentResponseStatus.Completed; // Mark completed even on error (agent is no longer busy)
-                        response.CompletedAt = DateTime.UtcNow;
-                        await db.SaveChangesAsync();
-                    }
-
                     if (claudeResult.Success && !string.IsNullOrEmpty(claudeResult.SessionId))
                     {
                         // Update task with Claude session ID
+                        using var scope = serviceProvider.CreateScope();
+                        var db = scope.ServiceProvider.GetRequiredService<VirtualAssistantDbContext>();
                         var task = await db.AgentTasks.FindAsync(taskId);
                         if (task != null)
                         {
@@ -250,24 +218,6 @@ public class TaskDispatchController : ControllerBase
                 catch (Exception ex)
                 {
                     _logger.LogError(ex, "Error executing Claude for task {TaskId}", taskId);
-
-                    // Mark AgentResponse as completed even on exception so agent doesn't stay "busy" forever
-                    try
-                    {
-                        using var scope = serviceProvider.CreateScope();
-                        var db = scope.ServiceProvider.GetRequiredService<VirtualAssistantDbContext>();
-                        var response = await db.AgentResponses.FindAsync(responseId);
-                        if (response != null)
-                        {
-                            response.Status = AgentResponseStatus.Completed;
-                            response.CompletedAt = DateTime.UtcNow;
-                            await db.SaveChangesAsync();
-                        }
-                    }
-                    catch (Exception innerEx)
-                    {
-                        _logger.LogError(innerEx, "Failed to mark AgentResponse {ResponseId} as completed after error", responseId);
-                    }
                 }
             }, CancellationToken.None);
 

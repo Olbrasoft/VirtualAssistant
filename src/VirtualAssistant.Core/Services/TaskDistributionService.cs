@@ -6,8 +6,8 @@ using VirtualAssistant.Data.Dtos;
 namespace VirtualAssistant.Core.Services;
 
 /// <summary>
-/// Background service that distributes tasks to idle agents.
-/// Periodically checks for approved tasks and sends them when target agent is idle.
+/// Background service that distributes tasks to agents.
+/// Periodically checks for approved tasks and notifies when ready.
 /// </summary>
 public class TaskDistributionService : BackgroundService
 {
@@ -48,7 +48,6 @@ public class TaskDistributionService : BackgroundService
     {
         using var scope = _scopeFactory.CreateScope();
         var taskService = scope.ServiceProvider.GetRequiredService<IAgentTaskService>();
-        var hubService = scope.ServiceProvider.GetRequiredService<IAgentHubService>();
         var speaker = scope.ServiceProvider.GetRequiredService<IVirtualAssistantSpeaker>();
 
         var readyTasks = await taskService.GetReadyToSendAsync(ct);
@@ -64,19 +63,22 @@ public class TaskDistributionService : BackgroundService
         {
             try
             {
-                await SendTaskToAgentAsync(task, taskService, hubService, speaker, ct);
+                await NotifyTaskAsync(task, taskService, speaker, ct);
             }
             catch (Exception ex)
             {
-                _logger.LogError(ex, "Failed to send task {TaskId} to {Agent}", task.Id, task.TargetAgent);
+                _logger.LogError(ex, "Failed to notify task {TaskId} to {Agent}", task.Id, task.TargetAgent);
             }
         }
     }
 
-    private async Task SendTaskToAgentAsync(
+    /// <summary>
+    /// Notify about pending task via TTS.
+    /// Agent must call AcceptTask to receive the task prompt.
+    /// </summary>
+    private async Task NotifyTaskAsync(
         AgentTaskDto task,
         IAgentTaskService taskService,
-        IAgentHubService hubService,
         IVirtualAssistantSpeaker speaker,
         CancellationToken ct)
     {
@@ -86,98 +88,15 @@ public class TaskDistributionService : BackgroundService
             return;
         }
 
-        var targetAgentLower = task.TargetAgent.ToLowerInvariant();
-
-        // OpenCode uses pull-based delivery: only notify, don't auto-send
-        if (targetAgentLower == "opencode")
-        {
-            await NotifyAgentAsync(task, taskService, speaker, ct);
-            return;
-        }
-
-        // Claude and other agents use push-based delivery: auto-send via hub
-        await PushTaskToAgentAsync(task, taskService, hubService, speaker, ct);
-    }
-
-    /// <summary>
-    /// Notify agent about pending task (pull-based delivery for OpenCode).
-    /// Agent must call AcceptTask to receive the task prompt.
-    /// </summary>
-    private async Task NotifyAgentAsync(
-        AgentTaskDto task,
-        IAgentTaskService taskService,
-        IVirtualAssistantSpeaker speaker,
-        CancellationToken ct)
-    {
         // Mark task as notified
         await taskService.MarkNotifiedAsync(task.Id, ct);
 
-        // Notify user via TTS (skip if user is on same workspace as OpenCode)
-        var notification = $"Máš nový úkol od Clauda: issue {task.GithubIssueNumber}.";
-        await speaker.SpeakAsync(notification, "opencode", ct);
+        // Notify user via TTS
+        var notification = $"Nový úkol pro {task.TargetAgent}: issue {task.GithubIssueNumber}.";
+        await speaker.SpeakAsync(notification, task.TargetAgent, ct);
 
         _logger.LogInformation(
-            "Task {TaskId} notified to {Agent} (pull-based delivery)",
+            "Task {TaskId} notified to {Agent}",
             task.Id, task.TargetAgent);
-    }
-
-    /// <summary>
-    /// Push task directly to agent via hub (for Claude and other agents).
-    /// </summary>
-    private async Task PushTaskToAgentAsync(
-        AgentTaskDto task,
-        IAgentTaskService taskService,
-        IAgentHubService hubService,
-        IVirtualAssistantSpeaker speaker,
-        CancellationToken ct)
-    {
-        // Build the prompt based on target agent
-        var prompt = BuildTaskPrompt(task);
-
-        // Send via hub as a new task start
-        var sessionId = $"task-{task.Id}";
-        var messageId = await hubService.StartTaskAsync(
-            sourceAgent: "virtualassistant",
-            content: prompt,
-            targetAgent: task.TargetAgent!,
-            sessionId: sessionId,
-            ct: ct);
-
-        // Mark task as sent
-        await taskService.MarkSentAsync(
-            task.Id,
-            deliveryMethod: "hub_api",
-            response: $"Message ID: {messageId}",
-            ct);
-
-        // Notify user via TTS (skip if user is on same workspace as Claude)
-        var notification = $"Posílám úkol Claudovi: issue {task.GithubIssueNumber}.";
-        await speaker.SpeakAsync(notification, "claude", ct);
-
-        _logger.LogInformation(
-            "Task {TaskId} sent to {Agent}, hub message {MessageId}",
-            task.Id, task.TargetAgent, messageId);
-    }
-
-    private static string BuildTaskPrompt(AgentTaskDto task)
-    {
-        return task.TargetAgent?.ToLowerInvariant() switch
-        {
-            "claude" => $"""
-                Nový úkol k implementaci:
-                {task.Summary}
-
-                Issue: {task.GithubIssueUrl}
-
-                Přečti si issue pro detaily, implementuj, otestuj, nasaď.
-                """,
-
-            _ => $"""
-                Nový úkol:
-                {task.Summary}
-
-                Issue: {task.GithubIssueUrl}
-                """
-        };
     }
 }

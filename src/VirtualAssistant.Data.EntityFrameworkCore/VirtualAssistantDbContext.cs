@@ -30,16 +30,6 @@ public class VirtualAssistantDbContext : DbContext
     public DbSet<GitHubIssue> GitHubIssues => Set<GitHubIssue>();
 
     /// <summary>
-    /// Gets or sets the AgentMessages DbSet for inter-agent communication.
-    /// </summary>
-    public DbSet<AgentMessage> AgentMessages => Set<AgentMessage>();
-
-    /// <summary>
-    /// Gets or sets the AgentMessageLogs DbSet for hub message logging.
-    /// </summary>
-    public DbSet<AgentMessageLog> AgentMessageLogs => Set<AgentMessageLog>();
-
-    /// <summary>
     /// Gets or sets the Agents DbSet for registered agent workers.
     /// </summary>
     public DbSet<Agent> Agents => Set<Agent>();
@@ -48,17 +38,6 @@ public class VirtualAssistantDbContext : DbContext
     /// Gets or sets the AgentTasks DbSet for inter-agent task queue.
     /// </summary>
     public DbSet<AgentTask> AgentTasks => Set<AgentTask>();
-
-    /// <summary>
-    /// Gets or sets the AgentTaskSends DbSet for task delivery logs.
-    /// </summary>
-    public DbSet<AgentTaskSend> AgentTaskSends => Set<AgentTaskSend>();
-
-    /// <summary>
-    /// Gets or sets the AgentResponses DbSet for simplified agent status tracking.
-    /// One record per agent work session (monolog).
-    /// </summary>
-    public DbSet<AgentResponse> AgentResponses => Set<AgentResponse>();
 
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {

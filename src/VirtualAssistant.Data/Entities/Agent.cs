@@ -37,9 +37,4 @@ public class Agent : BaseEnity
     /// Tasks assigned to this agent.
     /// </summary>
     public ICollection<AgentTask> AssignedTasks { get; set; } = new List<AgentTask>();
-
-    /// <summary>
-    /// Task delivery logs for this agent.
-    /// </summary>
-    public ICollection<AgentTaskSend> TaskSends { get; set; } = new List<AgentTaskSend>();
 }

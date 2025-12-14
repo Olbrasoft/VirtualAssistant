@@ -88,9 +88,4 @@ public class AgentTask : BaseEnity
     /// Used for potential multi-turn follow-up.
     /// </summary>
     public string? ClaudeSessionId { get; set; }
-
-    /// <summary>
-    /// Delivery logs for this task.
-    /// </summary>
-    public ICollection<AgentTaskSend> Sends { get; set; } = new List<AgentTaskSend>();
 }

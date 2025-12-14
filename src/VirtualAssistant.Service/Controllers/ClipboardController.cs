@@ -1,5 +1,6 @@
 using System.Diagnostics;
 using Microsoft.AspNetCore.Mvc;
+using VirtualAssistant.Data.Dtos;
 
 namespace Olbrasoft.VirtualAssistant.Service.Controllers;
 

@@ -4,7 +4,6 @@ using VirtualAssistant.Core.Services;
 using VirtualAssistant.Data.Dtos;
 using VirtualAssistant.Data.Entities;
 using VirtualAssistant.Data.EntityFrameworkCore;
-using VirtualAssistant.Data.Enums;
 
 namespace Olbrasoft.VirtualAssistant.Service.Controllers;
 
@@ -416,18 +415,6 @@ public class TaskQueueController : ControllerBase
             // If target is Claude, execute in background
             if (targetAgent.Equals("claude", StringComparison.OrdinalIgnoreCase))
             {
-                // Create AgentResponse record to track agent status
-                var agentResponse = new AgentResponse
-                {
-                    AgentName = "claude",
-                    Status = AgentResponseStatus.InProgress,
-                    StartedAt = DateTime.UtcNow,
-                    AgentTaskId = task.Id
-                };
-
-                _dbContext.AgentResponses.Add(agentResponse);
-                await _dbContext.SaveChangesAsync(ct);
-
                 // Build the prompt for Claude
                 var prompt = $"""
                     Implementuj GitHub issue #{issueNumber}:
@@ -441,7 +428,6 @@ public class TaskQueueController : ControllerBase
 
                 // Capture values for closure
                 var taskId = task.Id;
-                var responseId = agentResponse.Id;
                 var serviceProvider = HttpContext.RequestServices;
 
                 // Execute Claude in background
@@ -452,7 +438,7 @@ public class TaskQueueController : ControllerBase
                         var claudeResult = await _claudeDispatch.ExecuteAsync(prompt, ct: CancellationToken.None);
 
                         await UpdateTaskCompletionAsync(
-                            serviceProvider, responseId, taskId,
+                            serviceProvider, taskId,
                             claudeResult.SessionId,
                             claudeResult.Success ? "completed" : "failed",
                             claudeResult.Success ? (claudeResult.Result ?? "Completed") : $"Error: {claudeResult.Error}");
@@ -467,7 +453,7 @@ public class TaskQueueController : ControllerBase
                         _logger.LogError(ex, "Error executing Claude for task {TaskId}", taskId);
 
                         await UpdateTaskCompletionAsync(
-                            serviceProvider, responseId, taskId,
+                            serviceProvider, taskId,
                             sessionId: null,
                             status: "failed",
                             taskResult: $"Exception: {ex.Message}");
@@ -543,27 +529,14 @@ public class TaskQueueController : ControllerBase
                 : Ok(result);
         }
 
-        // 2. Create AgentResponse record to track agent status (linked to task)
-        var agentResponse = new AgentResponse
-        {
-            AgentName = targetAgent,
-            Status = AgentResponseStatus.InProgress,
-            StartedAt = DateTime.UtcNow,
-            AgentTaskId = result.TaskId
-        };
-
-        _dbContext.AgentResponses.Add(agentResponse);
-        await _dbContext.SaveChangesAsync(ct);
-
-        var responseId = agentResponse.Id;
         var taskId = result.TaskId!.Value;
         var issueNumber = result.GithubIssueNumber;
 
         _logger.LogInformation(
-            "Task {TaskId} dispatched to Claude, AgentResponse {ResponseId} created",
-            taskId, responseId);
+            "Task {TaskId} dispatched to Claude",
+            taskId);
 
-        // 3. Build prompt for Claude
+        // 2. Build prompt for Claude
         var prompt = $"""
             Implementuj GitHub issue #{issueNumber}:
             {result.Summary}
@@ -574,7 +547,7 @@ public class TaskQueueController : ControllerBase
             Přečti si issue pro detaily, implementuj, otestuj, nasaď.
             """;
 
-        // 4. Execute Claude in background (fire-and-forget)
+        // 3. Execute Claude in background (fire-and-forget)
         var serviceProvider = HttpContext.RequestServices;
         _ = Task.Run(async () =>
         {
@@ -586,7 +559,7 @@ public class TaskQueueController : ControllerBase
 
                 // Update database with results
                 await UpdateTaskCompletionAsync(
-                    serviceProvider, responseId, taskId,
+                    serviceProvider, taskId,
                     claudeResult.SessionId,
                     claudeResult.Success ? "completed" : "failed",
                     claudeResult.Success ? (claudeResult.Result ?? "Completed") : $"Error: {claudeResult.Error}");
@@ -607,7 +580,7 @@ public class TaskQueueController : ControllerBase
 
                 // Mark as failed on exception
                 await UpdateTaskCompletionAsync(
-                    serviceProvider, responseId, taskId,
+                    serviceProvider, taskId,
                     sessionId: null,
                     status: "failed",
                     taskResult: $"Exception: {ex.Message}");
@@ -618,11 +591,10 @@ public class TaskQueueController : ControllerBase
     }
 
     /// <summary>
-    /// Updates task and response records after Claude execution.
+    /// Updates task records after Claude execution.
     /// </summary>
     private static async Task UpdateTaskCompletionAsync(
         IServiceProvider serviceProvider,
-        int responseId,
         int taskId,
         string? sessionId,
         string status,
@@ -630,13 +602,6 @@ public class TaskQueueController : ControllerBase
     {
         using var scope = serviceProvider.CreateScope();
         var db = scope.ServiceProvider.GetRequiredService<VirtualAssistantDbContext>();
-
-        var response = await db.AgentResponses.FindAsync(responseId);
-        if (response != null)
-        {
-            response.Status = AgentResponseStatus.Completed;
-            response.CompletedAt = DateTime.UtcNow;
-        }
 
         var task = await db.AgentTasks.FindAsync(taskId);
         if (task != null)

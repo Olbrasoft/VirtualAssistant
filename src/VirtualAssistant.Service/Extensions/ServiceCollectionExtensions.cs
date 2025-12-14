@@ -186,12 +186,6 @@ public static class ServiceCollectionExtensions
         services.AddSingleton<IHumanizationService, HumanizationService>();
         services.AddSingleton<INotificationBatchingService, NotificationBatchingService>();
 
-        // Agent notification service (decouples AgentHubService from TTS infrastructure)
-        services.AddScoped<IAgentNotificationService>(sp =>
-            new TtsAgentNotificationService(
-                sp.GetRequiredService<IVirtualAssistantSpeaker>(),
-                sp.GetService<INotificationBatchingService>()));
-
         return services;
     }
 
@@ -227,10 +221,6 @@ public static class ServiceCollectionExtensions
 
         // Startup notification (Phase 1: simple "System started")
         services.AddHostedService<StartupNotificationService>();
-
-        // Orphaned task detection (detects stuck tasks after restart, notifies human)
-        services.AddScoped<IOrphanedTaskService, OrphanedTaskService>();
-        services.AddHostedService<OrphanedTaskDetectionService>();
 
         return services;
     }

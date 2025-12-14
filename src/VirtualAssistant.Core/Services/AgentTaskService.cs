@@ -4,7 +4,6 @@ using Microsoft.Extensions.Logging;
 using VirtualAssistant.Data.Dtos;
 using VirtualAssistant.Data.Entities;
 using VirtualAssistant.Data.EntityFrameworkCore;
-using VirtualAssistant.Data.Enums;
 
 namespace VirtualAssistant.Core.Services;
 
@@ -192,33 +191,13 @@ public partial class AgentTaskService : IAgentTaskService
         return tasks.Select(t => MapToDto(t, t.CreatedByAgent?.Name, t.TargetAgent?.Name)).ToList();
     }
 
-    public async Task<bool> IsAgentIdleAsync(string agentName, CancellationToken ct = default)
+    public Task<bool> IsAgentIdleAsync(string agentName, CancellationToken ct = default)
     {
         ArgumentException.ThrowIfNullOrWhiteSpace(agentName);
 
-        // An agent is idle if:
-        // 1. They have no AgentResponse records (never started), OR
-        // 2. Their last AgentResponse has status = Completed
-
-        var lastResponse = await _dbContext.AgentResponses
-            .Where(ar => ar.AgentName == agentName)
-            .OrderByDescending(ar => ar.StartedAt)
-            .FirstOrDefaultAsync(ct);
-
-        if (lastResponse == null)
-        {
-            // No responses ever - agent is considered idle
-            _logger.LogDebug("Agent {Agent} has no responses, considered idle", agentName);
-            return true;
-        }
-
-        var isIdle = lastResponse.Status == AgentResponseStatus.Completed;
-
-        _logger.LogDebug(
-            "Agent {Agent} last response: {ResponseId}, status: {Status}, idle: {IsIdle}",
-            agentName, lastResponse.Id, lastResponse.Status, isIdle);
-
-        return isIdle;
+        // Without response tracking, agents are always considered available
+        _logger.LogDebug("Agent {Agent} is considered idle (no response tracking)", agentName);
+        return Task.FromResult(true);
     }
 
     public async Task<IReadOnlyList<AgentTaskDto>> GetReadyToSendAsync(CancellationToken ct = default)
@@ -266,18 +245,6 @@ public partial class AgentTaskService : IAgentTaskService
 
         task.Status = "sent";
         task.SentAt = DateTime.UtcNow;
-
-        // Log the delivery
-        var sendLog = new AgentTaskSend
-        {
-            TaskId = taskId,
-            AgentId = task.TargetAgentId.Value,
-            SentAt = DateTime.UtcNow,
-            DeliveryMethod = deliveryMethod,
-            Response = response
-        };
-
-        _dbContext.AgentTaskSends.Add(sendLog);
         await _dbContext.SaveChangesAsync(ct);
 
         _logger.LogInformation(
@@ -342,21 +309,6 @@ public partial class AgentTaskService : IAgentTaskService
         // Mark task as sent (via pull-based delivery)
         task.Status = "sent";
         task.SentAt = DateTime.UtcNow;
-
-        // Log the delivery
-        if (task.TargetAgentId.HasValue)
-        {
-            var sendLog = new AgentTaskSend
-            {
-                TaskId = taskId,
-                AgentId = task.TargetAgentId.Value,
-                SentAt = DateTime.UtcNow,
-                DeliveryMethod = "pull_api",
-                Response = "Task accepted via API"
-            };
-            _dbContext.AgentTaskSends.Add(sendLog);
-        }
-
         await _dbContext.SaveChangesAsync(ct);
 
         _logger.LogInformation("Task {Id} accepted by {Agent} via pull API", taskId, task.TargetAgent?.Name);
@@ -507,18 +459,6 @@ public partial class AgentTaskService : IAgentTaskService
         // 4. Mark task as sent
         task.Status = "sent";
         task.SentAt = DateTime.UtcNow;
-
-        // Log the delivery
-        var sendLog = new AgentTaskSend
-        {
-            TaskId = task.Id,
-            AgentId = agent.Id,
-            SentAt = DateTime.UtcNow,
-            DeliveryMethod = "dispatch_api",
-            Response = "Task dispatched via /api/hub/dispatch-task"
-        };
-
-        _dbContext.AgentTaskSends.Add(sendLog);
         await _dbContext.SaveChangesAsync(ct);
 
         _logger.LogInformation(

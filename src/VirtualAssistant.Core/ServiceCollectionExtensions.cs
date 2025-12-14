@@ -15,9 +15,6 @@ public static class ServiceCollectionExtensions
     /// <returns>The service collection for chaining</returns>
     public static IServiceCollection AddCoreServices(this IServiceCollection services)
     {
-        // Hub message service for inter-agent communication
-        services.AddScoped<IAgentHubService, AgentHubService>();
-
         // Task queue service for agent task management
         services.AddScoped<IAgentTaskService, AgentTaskService>();
 
