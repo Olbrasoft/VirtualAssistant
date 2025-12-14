@@ -21,6 +21,11 @@ public interface IHumanizationService
 public record AgentNotification
 {
     /// <summary>
+    /// Database ID of the notification (for status tracking).
+    /// </summary>
+    public int? NotificationId { get; init; }
+
+    /// <summary>
     /// Name of the agent (e.g., "opencode", "claudecode")
     /// </summary>
     public required string Agent { get; init; }

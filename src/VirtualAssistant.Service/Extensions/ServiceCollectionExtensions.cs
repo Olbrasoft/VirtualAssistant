@@ -183,8 +183,11 @@ public static class ServiceCollectionExtensions
         services.AddSingleton<IVirtualAssistantSpeaker, VirtualAssistantSpeaker>();
 
         // Notification humanization and batching services
-        services.AddSingleton<IHumanizationService, HumanizationService>();
+        services.AddHttpClient<IHumanizationService, HumanizationService>();
         services.AddSingleton<INotificationBatchingService, NotificationBatchingService>();
+
+        // Speech queue with cancellation support
+        services.AddSingleton<ISpeechQueueService, SpeechQueueService>();
 
         return services;
     }

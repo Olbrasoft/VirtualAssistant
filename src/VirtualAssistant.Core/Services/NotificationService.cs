@@ -72,4 +72,42 @@ public class NotificationService : INotificationService
             .OrderBy(n => n.CreatedAt)
             .ToListAsync(ct);
     }
+
+    /// <inheritdoc />
+    public async Task UpdateStatusAsync(int notificationId, NotificationStatusEnum newStatus, CancellationToken ct = default)
+    {
+        var notification = await _dbContext.Notifications.FindAsync([notificationId], ct);
+        if (notification == null)
+        {
+            _logger.LogWarning("Notification {Id} not found for status update", notificationId);
+            return;
+        }
+
+        var oldStatus = (NotificationStatusEnum)notification.NotificationStatusId;
+        notification.NotificationStatusId = (int)newStatus;
+        await _dbContext.SaveChangesAsync(ct);
+
+        _logger.LogDebug("Notification {Id} status changed: {OldStatus} -> {NewStatus}",
+            notificationId, oldStatus, newStatus);
+    }
+
+    /// <inheritdoc />
+    public async Task UpdateStatusAsync(IEnumerable<int> notificationIds, NotificationStatusEnum newStatus, CancellationToken ct = default)
+    {
+        var ids = notificationIds.ToList();
+        if (ids.Count == 0) return;
+
+        var notifications = await _dbContext.Notifications
+            .Where(n => ids.Contains(n.Id))
+            .ToListAsync(ct);
+
+        foreach (var notification in notifications)
+        {
+            notification.NotificationStatusId = (int)newStatus;
+        }
+
+        await _dbContext.SaveChangesAsync(ct);
+
+        _logger.LogDebug("Updated {Count} notifications to status {NewStatus}", notifications.Count, newStatus);
+    }
 }

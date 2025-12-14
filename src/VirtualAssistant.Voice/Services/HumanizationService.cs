@@ -175,13 +175,35 @@ public class HumanizationService : IHumanizationService
     {
         _logger.LogDebug("Using fallback humanization for {Count} notifications", notifications.Count);
 
+        if (notifications.Count == 0)
+        {
+            return null!;
+        }
+
+        // For status updates, just format the content with agent name
+        var statusNotifications = notifications
+            .Where(n => n.Type.Equals("status", StringComparison.OrdinalIgnoreCase))
+            .ToList();
+
+        if (statusNotifications.Count > 0)
+        {
+            // Combine status messages from all agents
+            var messages = statusNotifications
+                .Select(n => $"{FormatAgentName(n.Agent)} hlásí: {n.Content}")
+                .ToList();
+            return string.Join(" ", messages);
+        }
+
+        // For complete notifications
         var completeNotifications = notifications
             .Where(n => n.Type.Equals("complete", StringComparison.OrdinalIgnoreCase))
             .ToList();
 
         if (completeNotifications.Count == 0)
         {
-            return null!;
+            // Generic fallback - just read the content
+            var first = notifications.First();
+            return $"{FormatAgentName(first.Agent)}: {first.Content}";
         }
 
         var agents = completeNotifications
@@ -206,6 +228,7 @@ public class HumanizationService : IHumanizationService
         {
             "opencode" => "OpenCode",
             "claudecode" => "Claude Code",
+            "claude-code" => "Claude Code",
             "claude" => "Claude",
             _ => agent
         };

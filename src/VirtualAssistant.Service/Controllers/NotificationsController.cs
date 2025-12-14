@@ -5,6 +5,7 @@ namespace Olbrasoft.VirtualAssistant.Service.Controllers;
 
 /// <summary>
 /// REST API controller for notifications from agents.
+/// Saves notifications to database and queues them for batched TTS.
 /// </summary>
 [ApiController]
 [Route("api/notifications")]
@@ -12,18 +13,22 @@ namespace Olbrasoft.VirtualAssistant.Service.Controllers;
 public class NotificationsController : ControllerBase
 {
     private readonly INotificationService _notificationService;
+    private readonly INotificationBatchingService _batchingService;
     private readonly ILogger<NotificationsController> _logger;
 
     public NotificationsController(
         INotificationService notificationService,
+        INotificationBatchingService batchingService,
         ILogger<NotificationsController> logger)
     {
         _notificationService = notificationService;
+        _batchingService = batchingService;
         _logger = logger;
     }
 
     /// <summary>
     /// Creates a new notification from an agent.
+    /// The notification is saved to database and queued for batched TTS processing.
     /// </summary>
     [HttpPost]
     [ProducesResponseType(StatusCodes.Status200OK)]
@@ -42,7 +47,18 @@ public class NotificationsController : ControllerBase
 
         _logger.LogInformation("Notification from {Source}: {Text}", request.Source, request.Text);
 
+        // Save to database
         var notificationId = await _notificationService.CreateNotificationAsync(request.Text, request.Source, ct);
+
+        // Queue for batched TTS processing (include notification ID for status tracking)
+        var agentNotification = new AgentNotification
+        {
+            NotificationId = notificationId,
+            Agent = request.Source!,
+            Type = "status",
+            Content = request.Text
+        };
+        _batchingService.QueueNotification(agentNotification);
 
         return Ok(new { success = true, id = notificationId, text = request.Text, source = request.Source });
     }
