@@ -20,17 +20,35 @@ public class MistralRouterService : BaseLlmRouterService
         IPromptLoader promptLoader)
         : base(logger, httpClient, GetModel(configuration), promptLoader)
     {
-        // Try environment variable first, then config
-        var apiKey = Environment.GetEnvironmentVariable("MISTRAL_API_KEY") 
-                  ?? configuration["MistralRouter:ApiKey"] 
+        // Try environment variable first, then config, then file
+        var apiKey = Environment.GetEnvironmentVariable("MISTRAL_API_KEY")
+                  ?? configuration["MistralRouter:ApiKey"]
+                  ?? LoadApiKeyFromFile(configuration["MistralRouter:ApiKeyFile"])
                   ?? "";
-        
+
         httpClient.BaseAddress = new Uri("https://api.mistral.ai/v1/");
         httpClient.DefaultRequestHeaders.Add("Authorization", $"Bearer {apiKey}");
         httpClient.Timeout = TimeSpan.FromSeconds(30);
-        
+
         var hasKey = !string.IsNullOrEmpty(apiKey);
         logger.LogInformation("Mistral Router initialized with model {Model}, API key: {HasKey}", _model, hasKey ? "configured" : "MISSING");
+    }
+
+    private static string? LoadApiKeyFromFile(string? filePath)
+    {
+        if (string.IsNullOrEmpty(filePath))
+            return null;
+
+        var path = filePath.StartsWith("~")
+            ? filePath.Replace("~", Environment.GetFolderPath(Environment.SpecialFolder.UserProfile))
+            : filePath;
+
+        if (!File.Exists(path))
+            return null;
+
+        return File.ReadAllLines(path)
+            .FirstOrDefault(line => !string.IsNullOrWhiteSpace(line) && !line.TrimStart().StartsWith('#'))
+            ?.Trim();
     }
 
     private static string GetModel(IConfiguration configuration)

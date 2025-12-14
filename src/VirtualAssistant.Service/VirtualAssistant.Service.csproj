@@ -18,6 +18,7 @@
     <ProjectReference Include="..\VirtualAssistant.Data.EntityFrameworkCore\VirtualAssistant.Data.EntityFrameworkCore.csproj" />
     <ProjectReference Include="..\VirtualAssistant.GitHub\VirtualAssistant.GitHub.csproj" />
     <ProjectReference Include="..\VirtualAssistant.Core\VirtualAssistant.Core.csproj" />
+    <ProjectReference Include="..\VirtualAssistant.LlmChain\VirtualAssistant.LlmChain.csproj" />
   </ItemGroup>
 
   <ItemGroup>

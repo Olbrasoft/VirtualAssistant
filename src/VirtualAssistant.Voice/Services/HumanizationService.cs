@@ -1,49 +1,32 @@
-using System.Net.Http.Json;
-using System.Text;
 using System.Text.Json;
-using System.Text.Json.Serialization;
-using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.Logging;
 using VirtualAssistant.Core.Services;
+using VirtualAssistant.LlmChain;
 
 namespace Olbrasoft.VirtualAssistant.Voice.Services;
 
 /// <summary>
-/// Humanizes agent notifications using LLM.
-/// Uses Mistral API to transform raw agent messages into natural Czech speech.
+/// Humanizes agent notifications using LLM with multi-provider fallback.
+/// Uses LlmChainClient to automatically failover between providers (Mistral, Cerebras, Groq, OpenRouter).
 /// </summary>
 public class HumanizationService : IHumanizationService
 {
     private readonly ILogger<HumanizationService> _logger;
-    private readonly HttpClient _httpClient;
+    private readonly ILlmChainClient _llmChain;
     private readonly IPromptLoader _promptLoader;
-    private readonly string _model;
 
     private const string PromptName = "AgentNotificationHumanizer";
 
     public HumanizationService(
         ILogger<HumanizationService> logger,
-        HttpClient httpClient,
-        IConfiguration configuration,
+        ILlmChainClient llmChain,
         IPromptLoader promptLoader)
     {
         _logger = logger;
-        _httpClient = httpClient;
+        _llmChain = llmChain;
         _promptLoader = promptLoader;
-        _model = configuration["HumanizationService:Model"] ?? "mistral-small-latest";
 
-        // Configure HttpClient for Mistral API
-        var apiKey = Environment.GetEnvironmentVariable("MISTRAL_API_KEY")
-                  ?? configuration["MistralRouter:ApiKey"]
-                  ?? "";
-
-        _httpClient.BaseAddress = new Uri("https://api.mistral.ai/v1/");
-        _httpClient.DefaultRequestHeaders.Add("Authorization", $"Bearer {apiKey}");
-        _httpClient.Timeout = TimeSpan.FromSeconds(10); // Quick timeout for notifications
-
-        var hasKey = !string.IsNullOrEmpty(apiKey);
-        _logger.LogInformation("HumanizationService initialized with model {Model}, API key: {HasKey}",
-            _model, hasKey ? "configured" : "MISSING");
+        _logger.LogInformation("HumanizationService initialized with LlmChainClient (multi-provider fallback)");
     }
 
     public async Task<string?> HumanizeAsync(IReadOnlyList<AgentNotification> notifications, CancellationToken ct = default)
@@ -66,36 +49,29 @@ public class HumanizationService : IHumanizationService
             var systemPrompt = _promptLoader.LoadPrompt(PromptName);
             var userMessage = FormatNotificationsAsJson(filtered);
 
-            var request = new LlmRequest
+            _logger.LogDebug("Humanizing {Count} notifications via LlmChain", filtered.Count);
+
+            var request = new LlmChainRequest
             {
-                Model = _model,
-                Messages =
-                [
-                    new LlmMessage { Role = "system", Content = systemPrompt },
-                    new LlmMessage { Role = "user", Content = userMessage }
-                ],
+                SystemPrompt = systemPrompt,
+                UserMessage = userMessage,
                 Temperature = 0.3f,
                 MaxTokens = 100
             };
 
-            _logger.LogDebug("Humanizing {Count} notifications via LLM", filtered.Count);
+            var result = await _llmChain.CompleteAsync(request, ct);
 
-            var requestJson = JsonSerializer.Serialize(request);
-            using var requestContent = new StringContent(requestJson, Encoding.UTF8, "application/json");
-            var response = await _httpClient.PostAsync("chat/completions", requestContent, ct);
-
-            if (!response.IsSuccessStatusCode)
+            if (!result.Success)
             {
-                _logger.LogWarning("LLM API returned {StatusCode}, using fallback", response.StatusCode);
+                _logger.LogWarning("LlmChain failed: {Error}, using fallback", result.Error);
                 return FallbackHumanize(filtered);
             }
 
-            var llmResponse = await response.Content.ReadFromJsonAsync<LlmResponse>(cancellationToken: ct);
-            var content = llmResponse?.Choices?.FirstOrDefault()?.Message?.Content?.Trim();
+            var content = result.Content?.Trim();
 
             if (string.IsNullOrWhiteSpace(content))
             {
-                _logger.LogWarning("Empty response from LLM, using fallback");
+                _logger.LogWarning("Empty response from LlmChain, using fallback");
                 return FallbackHumanize(filtered);
             }
 
@@ -106,7 +82,8 @@ public class HumanizationService : IHumanizationService
                 return null;
             }
 
-            _logger.LogInformation("Humanized notification: {Text}", content);
+            _logger.LogInformation("Humanized via {Provider} ({Key}): {Text}",
+                result.ProviderName, result.KeyIdentifier, content);
             return content;
         }
         catch (Exception ex)
@@ -234,43 +211,4 @@ public class HumanizationService : IHumanizationService
         };
     }
 
-    #region DTOs
-
-    private class LlmRequest
-    {
-        [JsonPropertyName("model")]
-        public required string Model { get; set; }
-
-        [JsonPropertyName("messages")]
-        public required LlmMessage[] Messages { get; set; }
-
-        [JsonPropertyName("temperature")]
-        public float Temperature { get; set; }
-
-        [JsonPropertyName("max_tokens")]
-        public int MaxTokens { get; set; }
-    }
-
-    private class LlmMessage
-    {
-        [JsonPropertyName("role")]
-        public required string Role { get; set; }
-
-        [JsonPropertyName("content")]
-        public required string Content { get; set; }
-    }
-
-    private class LlmResponse
-    {
-        [JsonPropertyName("choices")]
-        public LlmChoice[]? Choices { get; set; }
-    }
-
-    private class LlmChoice
-    {
-        [JsonPropertyName("message")]
-        public LlmMessage? Message { get; set; }
-    }
-
-    #endregion
 }

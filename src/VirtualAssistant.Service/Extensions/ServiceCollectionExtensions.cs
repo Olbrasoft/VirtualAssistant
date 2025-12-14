@@ -15,6 +15,7 @@ using VirtualAssistant.Data.EntityFrameworkCore;
 using VirtualAssistant.GitHub;
 using VirtualAssistant.Core;
 using VirtualAssistant.Core.Services;
+using VirtualAssistant.LlmChain;
 
 namespace Olbrasoft.VirtualAssistant.Service.Extensions;
 
@@ -182,8 +183,11 @@ public static class ServiceCollectionExtensions
         // VirtualAssistantSpeaker - single entry point for all TTS operations
         services.AddSingleton<IVirtualAssistantSpeaker, VirtualAssistantSpeaker>();
 
+        // LLM Chain for multi-provider fallback
+        services.AddLlmChain(configuration);
+
         // Notification humanization and batching services
-        services.AddHttpClient<IHumanizationService, HumanizationService>();
+        services.AddSingleton<IHumanizationService, HumanizationService>();
         services.AddSingleton<INotificationBatchingService, NotificationBatchingService>();
 
         // Speech queue with cancellation support
