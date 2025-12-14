@@ -27,7 +27,7 @@ function logToFile(message: string): void {
  * Configuration for the Notify service
  */
 interface NotifyConfig {
-  /** VirtualAssistant API endpoint for TTS notifications */
+  /** VirtualAssistant API endpoint for notifications */
   notifyUrl: string
 }
 
@@ -35,7 +35,7 @@ interface NotifyConfig {
  * Default configuration
  */
 const defaultConfig: NotifyConfig = {
-  notifyUrl: "http://localhost:5055/api/tts/notify",
+  notifyUrl: "http://localhost:5055/api/notifications",
 }
 
 /**
