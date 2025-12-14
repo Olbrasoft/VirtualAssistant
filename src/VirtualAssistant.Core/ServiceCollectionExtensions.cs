@@ -1,5 +1,4 @@
 using Microsoft.Extensions.DependencyInjection;
-using VirtualAssistant.Core.Services;
 
 namespace VirtualAssistant.Core;
 
@@ -15,12 +14,7 @@ public static class ServiceCollectionExtensions
     /// <returns>The service collection for chaining</returns>
     public static IServiceCollection AddCoreServices(this IServiceCollection services)
     {
-        // Task queue service for agent task management
-        services.AddScoped<IAgentTaskService, AgentTaskService>();
-
-        // Background service for automatic task distribution
-        services.AddHostedService<TaskDistributionService>();
-
+        // No core services currently registered
         return services;
     }
 }

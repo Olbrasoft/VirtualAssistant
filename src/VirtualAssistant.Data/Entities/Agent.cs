@@ -27,14 +27,4 @@ public class Agent : BaseEnity
     /// When the agent was registered.
     /// </summary>
     public DateTime CreatedAt { get; set; }
-
-    /// <summary>
-    /// Tasks created by this agent.
-    /// </summary>
-    public ICollection<AgentTask> CreatedTasks { get; set; } = new List<AgentTask>();
-
-    /// <summary>
-    /// Tasks assigned to this agent.
-    /// </summary>
-    public ICollection<AgentTask> AssignedTasks { get; set; } = new List<AgentTask>();
 }

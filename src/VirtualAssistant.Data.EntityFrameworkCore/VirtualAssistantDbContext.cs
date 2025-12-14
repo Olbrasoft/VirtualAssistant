@@ -34,11 +34,6 @@ public class VirtualAssistantDbContext : DbContext
     /// </summary>
     public DbSet<Agent> Agents => Set<Agent>();
 
-    /// <summary>
-    /// Gets or sets the AgentTasks DbSet for inter-agent task queue.
-    /// </summary>
-    public DbSet<AgentTask> AgentTasks => Set<AgentTask>();
-
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {
         base.OnModelCreating(modelBuilder);
