@@ -11,6 +11,10 @@
     <NoWarn>$(NoWarn);1591</NoWarn>
     <PublishDir>/home/jirka/virtual-assistant/</PublishDir>
     <UserSecretsId>18b6190b-6af7-4833-959a-bd320ba9db33</UserSecretsId>
+    <Version>1.0.0</Version>
+    <AssemblyVersion>1.0.0.0</AssemblyVersion>
+    <FileVersion>1.0.0.0</FileVersion>
+    <InformationalVersion>1.0.0</InformationalVersion>
   </PropertyGroup>
 
   <ItemGroup>

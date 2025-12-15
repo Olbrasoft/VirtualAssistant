@@ -114,8 +114,20 @@ class Program
 {
     private static GObject.GCallback? _quitCallback;
     private static GObject.GCallback? _sayNotificationCallback;
+    private static GObject.GCallback? _aboutCallback;
     private static GLib.GSourceFunc? _startupTtsCallback;
     private static TtsService? _ttsService;
+
+    private static string GetVersion()
+    {
+        var assembly = typeof(Program).Assembly;
+        var version = assembly.GetName().Version?.ToString(3) ?? "1.0.0";
+        var informationalVersion = assembly
+            .GetCustomAttributes(typeof(System.Reflection.AssemblyInformationalVersionAttribute), false)
+            .OfType<System.Reflection.AssemblyInformationalVersionAttribute>()
+            .FirstOrDefault()?.InformationalVersion;
+        return informationalVersion ?? version;
+    }
 
     [STAThread]
     static void Main(string[] args)
@@ -177,6 +189,19 @@ class Program
                 Task.Run(async () => await _ttsService!.SpeakAsync("Úkol dokončen."));
             };
             GObject.g_signal_connect_data(sayNotificationItem, "activate", _sayNotificationCallback, IntPtr.Zero, IntPtr.Zero, 0);
+
+            // About item
+            var aboutItem = Gtk.gtk_menu_item_new_with_label("O aplikaci");
+            Gtk.gtk_menu_shell_append(menu, aboutItem);
+
+            // Connect about signal
+            _aboutCallback = (widget, data) =>
+            {
+                var version = GetVersion();
+                Console.WriteLine($"VirtualAssistant verze {version}");
+                Task.Run(async () => await _ttsService!.SpeakAsync($"Virtual Assistant verze {version}"));
+            };
+            GObject.g_signal_connect_data(aboutItem, "activate", _aboutCallback, IntPtr.Zero, IntPtr.Zero, 0);
 
             // Separator
             var separator2 = Gtk.gtk_separator_menu_item_new();
