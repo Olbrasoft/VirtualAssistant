@@ -52,6 +52,7 @@ public sealed class HttpEdgeTtsProvider : ITtsProvider
     {
         try
         {
+            // play = false means server generates audio but doesn't play it - returns file path
             var request = new
             {
                 text,
@@ -59,7 +60,7 @@ public sealed class HttpEdgeTtsProvider : ITtsProvider
                 rate = config.Rate,
                 volume = config.Volume,
                 pitch = config.Pitch,
-                returnAudio = true
+                play = false  // Don't play on server, we need the audio file
             };
 
             var content = new StringContent(
@@ -79,19 +80,40 @@ public sealed class HttpEdgeTtsProvider : ITtsProvider
                 return null;
             }
 
-            // Check if response is audio (binary) or JSON
-            var contentType = response.Content.Headers.ContentType?.MediaType;
-            if (contentType?.StartsWith("audio/") == true)
-            {
-                return await response.Content.ReadAsByteArrayAsync(cancellationToken);
-            }
-
-            // Server returned JSON (audio was played server-side)
+            // Parse JSON response to get audio file path
             var responseText = await response.Content.ReadAsStringAsync(cancellationToken);
             _logger.LogDebug("EdgeTTS server response: {Response}", responseText);
 
-            // Audio was played server-side, return empty (no need to play locally)
-            return [];
+            using var doc = JsonDocument.Parse(responseText);
+            var root = doc.RootElement;
+
+            // Check if generation was successful
+            if (root.TryGetProperty("success", out var successProp) && !successProp.GetBoolean())
+            {
+                var message = root.TryGetProperty("message", out var msgProp) ? msgProp.GetString() : "Unknown error";
+                _logger.LogWarning("EdgeTTS generation failed: {Message}", message);
+                return null;
+            }
+
+            // Get the audio file path from response message
+            // Format: "✅ Audio cached at: /path/to/file.mp3" or "✅ Audio generated at: /path/to/file.mp3"
+            if (root.TryGetProperty("message", out var messageProp))
+            {
+                var message = messageProp.GetString() ?? "";
+                var pathStart = message.IndexOf(": ", StringComparison.Ordinal);
+                if (pathStart > 0)
+                {
+                    var audioPath = message[(pathStart + 2)..].Trim();
+                    if (File.Exists(audioPath))
+                    {
+                        _logger.LogDebug("Reading audio from: {Path}", audioPath);
+                        return await File.ReadAllBytesAsync(audioPath, cancellationToken);
+                    }
+                    _logger.LogWarning("Audio file not found: {Path}", audioPath);
+                }
+            }
+
+            return null;
         }
         catch (HttpRequestException ex)
         {
