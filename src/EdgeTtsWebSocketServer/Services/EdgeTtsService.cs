@@ -1,11 +1,8 @@
 using System.Net.WebSockets;
 using System.Security.Cryptography;
 using System.Text;
-using System.Text.Json;
 using System.Diagnostics;
 using System.Net.Http.Json;
-using Olbrasoft.Mediation;
-using Olbrasoft.VoiceAssistant.Shared.Data.Queries.SpeechLockQueries;
 
 namespace Olbrasoft.VoiceAssistant.EdgeTtsWebSocketServer.Services;
 
@@ -23,8 +20,6 @@ public class EdgeTtsService
     private readonly string _defaultRate;
     private readonly string _listenerApiUrl;
     private readonly ILogger<EdgeTtsService> _logger;
-    private readonly IServiceProvider _serviceProvider;
-    private readonly AssistantSpeechStateService _assistantSpeechState;
     private readonly HttpClient _httpClient;
     
     // Current playback process for stop functionality
@@ -32,15 +27,11 @@ public class EdgeTtsService
     private readonly object _processLock = new();
 
     public EdgeTtsService(
-        IConfiguration configuration, 
-        ILogger<EdgeTtsService> logger, 
-        IServiceProvider serviceProvider,
-        AssistantSpeechStateService assistantSpeechState,
+        IConfiguration configuration,
+        ILogger<EdgeTtsService> logger,
         HttpClient httpClient)
     {
         _logger = logger;
-        _serviceProvider = serviceProvider;
-        _assistantSpeechState = assistantSpeechState;
         _httpClient = httpClient;
         _cacheDirectory = ExpandPath(configuration["EdgeTts:CacheDirectory"] ?? "~/.cache/edge-tts-server");
         _speechLockFile = configuration["EdgeTts:SpeechLockFile"] ?? "/tmp/speech.lock";
@@ -49,108 +40,6 @@ public class EdgeTtsService
         _listenerApiUrl = configuration["EdgeTts:ListenerApiUrl"] ?? "http://localhost:5051";
         
         Directory.CreateDirectory(_cacheDirectory);
-    }
-
-    /// <summary>
-    /// Check if speech is locked (user is recording).
-    /// </summary>
-    private async Task<bool> IsSpeechLockedAsync()
-    {
-        try
-        {
-            using var scope = _serviceProvider.CreateScope();
-            var mediator = scope.ServiceProvider.GetRequiredService<IMediator>();
-            
-            var query = new SpeechLockExistsQuery { MaxAgeMinutes = 1 };
-            return await mediator.MediateAsync(query);
-        }
-        catch (Exception ex)
-        {
-            _logger.LogWarning(ex, "Failed to check speech lock from DB, allowing speech");
-            return false; // Fail open - allow speech if DB check fails
-        }
-    }
-
-    /// <summary>
-    /// Check if CapsLock LED is currently ON (user is recording via push-to-talk).
-    /// This is a direct hardware check as a backup to database lock.
-    /// </summary>
-    private bool IsCapsLockOn()
-    {
-        try
-        {
-            // Check all potential CapsLock LED paths
-            var ledPaths = new[]
-            {
-                "/sys/class/leds/input0::capslock/brightness",
-                "/sys/class/leds/input1::capslock/brightness",
-                "/sys/class/leds/input2::capslock/brightness",
-                "/sys/class/leds/input3::capslock/brightness"
-            };
-
-            foreach (var path in ledPaths)
-            {
-                if (File.Exists(path))
-                {
-                    var value = File.ReadAllText(path).Trim();
-                    if (value == "1")
-                    {
-                        _logger.LogDebug("CapsLock LED is ON (checked {Path})", path);
-                        return true;
-                    }
-                }
-            }
-
-            // Also try dynamic discovery
-            if (Directory.Exists("/sys/class/leds"))
-            {
-                foreach (var dir in Directory.GetDirectories("/sys/class/leds"))
-                {
-                    if (dir.Contains("capslock", StringComparison.OrdinalIgnoreCase))
-                    {
-                        var brightnessFile = Path.Combine(dir, "brightness");
-                        if (File.Exists(brightnessFile))
-                        {
-                            var value = File.ReadAllText(brightnessFile).Trim();
-                            if (value == "1")
-                            {
-                                _logger.LogDebug("CapsLock LED is ON (discovered {Path})", brightnessFile);
-                                return true;
-                            }
-                        }
-                    }
-                }
-            }
-
-            return false;
-        }
-        catch (Exception ex)
-        {
-            _logger.LogDebug(ex, "Could not check CapsLock LED state");
-            return false; // Fail open - allow speech if check fails
-        }
-    }
-
-    /// <summary>
-    /// Check if speech should be blocked (either by DB lock or CapsLock state).
-    /// </summary>
-    private async Task<bool> ShouldBlockSpeechAsync()
-    {
-        // Check 1: Database lock (set by PTT service)
-        if (await IsSpeechLockedAsync())
-        {
-            _logger.LogDebug("Speech blocked: DB lock exists");
-            return true;
-        }
-
-        // Check 2: Direct CapsLock LED state (backup check)
-        if (IsCapsLockOn())
-        {
-            _logger.LogDebug("Speech blocked: CapsLock LED is ON");
-            return true;
-        }
-
-        return false;
     }
 
     public async Task<(bool success, string message, bool cached)> SpeakAsync(
@@ -163,13 +52,6 @@ public class EdgeTtsService
     {
         try
         {
-            // Check speech lock from database or CapsLock - if locked, silently skip TTS
-            if (await ShouldBlockSpeechAsync())
-            {
-                _logger.LogInformation("Speech blocked - skipping TTS for: {Text}", text);
-                return (true, string.Empty, false);
-            }
-
             voice ??= _defaultVoice;
             rate ??= _defaultRate;
             volume ??= "+0%";
@@ -380,16 +262,14 @@ public class EdgeTtsService
     {
         // Acquire speech lock
         using var lockFile = new FileStream(_speechLockFile, FileMode.OpenOrCreate, FileAccess.ReadWrite, FileShare.None);
-        
+
+        Process? process = null;
         try
         {
-            // Mark assistant as speaking BEFORE playback
-            await _assistantSpeechState.StartSpeakingAsync();
-            
             // Notify ContinuousListener what we're about to say
             await NotifyListenerSpeechStartAsync(spokenText);
-            
-            var process = new Process
+
+            process = new Process
             {
                 StartInfo = new ProcessStartInfo
                 {
@@ -408,49 +288,19 @@ public class EdgeTtsService
             }
 
             process.Start();
-            
-            // Poll every 100ms during playback to check if we should stop
-            while (!process.HasExited)
-            {
-                // Check if CapsLock is pressed (user wants to speak)
-                if (IsCapsLockOn())
-                {
-                    _logger.LogInformation("CapsLock detected during playback - stopping TTS immediately");
-                    try
-                    {
-                        process.Kill(entireProcessTree: true);
-                    }
-                    catch (Exception ex)
-                    {
-                        _logger.LogDebug(ex, "Error killing ffplay process");
-                    }
-                    break;
-                }
-                
-                // Wait 100ms before next check
-                await Task.Delay(100);
-            }
-            
-            // If process is still running, wait for it to finish
-            if (!process.HasExited)
-            {
-                await process.WaitForExitAsync();
-            }
+            await process.WaitForExitAsync();
         }
         finally
         {
             // Notify ContinuousListener that we stopped speaking
             await NotifyListenerSpeechEndAsync();
 
-            // Mark assistant as NOT speaking AFTER playback
-            await _assistantSpeechState.StopSpeakingAsync();
-
             lock (_processLock)
             {
                 _currentPlaybackProcess = null;
             }
 
-            process.Dispose();  // Prevent resource leak
+            process?.Dispose();
             lockFile.Close();
             File.Delete(_speechLockFile);
         }
