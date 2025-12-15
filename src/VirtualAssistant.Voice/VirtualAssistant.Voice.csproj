@@ -34,12 +34,12 @@
     <PackageReference Include="F23.StringSimilarity" Version="5.1.0" />
   </ItemGroup>
 
-  <!-- TextToSpeech Library (linked for development, will be NuGet later) -->
+  <!-- TextToSpeech Library (NuGet packages) -->
   <ItemGroup>
-    <ProjectReference Include="..\..\..\TextToSpeech\src\TextToSpeech.Core\TextToSpeech.Core.csproj" />
-    <ProjectReference Include="..\..\..\TextToSpeech\src\TextToSpeech.Providers\TextToSpeech.Providers.csproj" />
-    <ProjectReference Include="..\..\..\TextToSpeech\src\TextToSpeech.Providers.Piper\TextToSpeech.Providers.Piper.csproj" />
-    <ProjectReference Include="..\..\..\TextToSpeech\src\TextToSpeech.Orchestration\TextToSpeech.Orchestration.csproj" />
+    <PackageReference Include="Olbrasoft.TextToSpeech.Core" Version="1.0.0" />
+    <PackageReference Include="Olbrasoft.TextToSpeech.Providers" Version="1.0.0" />
+    <PackageReference Include="Olbrasoft.TextToSpeech.Providers.Piper" Version="1.0.0" />
+    <PackageReference Include="Olbrasoft.TextToSpeech.Orchestration" Version="1.0.0" />
   </ItemGroup>
 
   <!-- Copy prompt files to output directory -->
