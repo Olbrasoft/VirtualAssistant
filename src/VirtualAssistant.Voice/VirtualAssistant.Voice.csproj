@@ -36,10 +36,10 @@
 
   <!-- TextToSpeech Library (NuGet packages) -->
   <ItemGroup>
-    <PackageReference Include="Olbrasoft.TextToSpeech.Core" Version="1.0.0" />
-    <PackageReference Include="Olbrasoft.TextToSpeech.Providers" Version="1.0.0" />
-    <PackageReference Include="Olbrasoft.TextToSpeech.Providers.Piper" Version="1.0.0" />
-    <PackageReference Include="Olbrasoft.TextToSpeech.Orchestration" Version="1.0.0" />
+    <PackageReference Include="Olbrasoft.TextToSpeech.Core" Version="1.1.9" />
+    <PackageReference Include="Olbrasoft.TextToSpeech.Providers" Version="1.1.9" />
+    <PackageReference Include="Olbrasoft.TextToSpeech.Providers.Piper" Version="1.1.9" />
+    <PackageReference Include="Olbrasoft.TextToSpeech.Orchestration" Version="1.1.9" />
   </ItemGroup>
 
   <!-- Copy prompt files to output directory -->
