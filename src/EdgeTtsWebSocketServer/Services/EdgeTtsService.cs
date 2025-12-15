@@ -8,9 +8,11 @@ namespace Olbrasoft.VoiceAssistant.EdgeTtsWebSocketServer.Services;
 
 public class EdgeTtsService
 {
-    private const string WSS_URL = "wss://api.msedgeservices.com/tts/cognitiveservices/websocket/v1";
-    private const string API_KEY = "6A5AA1D4EAFF4E9FB37E23D68491D6F4";
-    private const string CHROMIUM_FULL_VERSION = "131.0.2903.86";
+    // Updated to match Python edge-tts 7.2.7
+    private const string BASE_URL = "speech.platform.bing.com/consumer/speech/synthesize/readaloud";
+    private const string TRUSTED_CLIENT_TOKEN = "6A5AA1D4EAFF4E9FB37E23D68491D6F4";
+    private const string WSS_URL = $"wss://{BASE_URL}/edge/v1?TrustedClientToken={TRUSTED_CLIENT_TOKEN}";
+    private const string CHROMIUM_FULL_VERSION = "143.0.3650.75";
     private const long WIN_EPOCH = 11644473600;
     private const double S_TO_NS = 1e9;
     
@@ -104,46 +106,57 @@ public class EdgeTtsService
     private async Task<byte[]?> GenerateAudioAsync(string text, string voice, string rate, string volume, string pitch)
     {
         using var client = new ClientWebSocket();
-        
-        // Add all required headers to match Microsoft Edge TTS requirements
-        client.Options.SetRequestHeader("User-Agent", 
-            "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/140.0.0.0 Safari/537.36 Edg/140.0.0.0");
+
+        // Headers matching Python edge-tts 7.2.7
+        var chromiumMajor = CHROMIUM_FULL_VERSION.Split('.')[0];
+        client.Options.SetRequestHeader("User-Agent",
+            $"Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/{chromiumMajor}.0.0.0 Safari/537.36 Edg/{chromiumMajor}.0.0.0");
         client.Options.SetRequestHeader("Origin", "chrome-extension://jdiccldimpdaibmpdkjnbmckianbfold");
         client.Options.SetRequestHeader("Pragma", "no-cache");
         client.Options.SetRequestHeader("Cache-Control", "no-cache");
-        client.Options.SetRequestHeader("Accept-Encoding", "gzip, deflate, br");
+        client.Options.SetRequestHeader("Accept-Encoding", "gzip, deflate, br, zstd");
         client.Options.SetRequestHeader("Accept-Language", "en-US,en;q=0.9");
-        
-        // CRITICAL: Add WebSocket subprotocol - this is required by Microsoft Edge TTS
-        client.Options.AddSubProtocol("synthesize");
-        
+
+        // Add MUID cookie (required by Python edge-tts)
+        var muid = GenerateMuid();
+        client.Options.SetRequestHeader("Cookie", $"muid={muid};");
+
         // Generate connection parameters
         var connectionId = Guid.NewGuid().ToString("N");
         var secMsGec = GenerateSecMsGec();
         var secMsGecVersion = $"1-{CHROMIUM_FULL_VERSION}";
-        
-        var uri = new Uri($"{WSS_URL}?Ocp-Apim-Subscription-Key={API_KEY}&ConnectionId={connectionId}&Sec-MS-GEC={secMsGec}&Sec-MS-GEC-Version={secMsGecVersion}");
+
+        // URL format matching Python edge-tts: WSS_URL already contains TrustedClientToken
+        var uri = new Uri($"{WSS_URL}&ConnectionId={connectionId}&Sec-MS-GEC={secMsGec}&Sec-MS-GEC-Version={secMsGecVersion}");
         
         try
         {
             await client.ConnectAsync(uri, CancellationToken.None);
-            _logger.LogInformation("Connected to Microsoft Edge TTS WebSocket");
+            _logger.LogInformation("Connected to Microsoft Edge TTS WebSocket at {Uri}", uri);
 
-            // Send SSML request
-            var requestId = Guid.NewGuid().ToString("N");
-            var timestamp = DateTime.UtcNow.ToString("yyyy-MM-ddTHH:mm:ss.fffK");
-            
-            var ssml = GenerateSsml(text, voice, rate, volume, pitch);
-            var configMessage = $"X-Timestamp:{timestamp}\r\nContent-Type:application/json; charset=utf-8\r\nPath:speech.config\r\n\r\n" +
-                               $"{{\"context\":{{\"synthesis\":{{\"audio\":{{\"metadataoptions\":{{\"sentenceBoundaryEnabled\":\"false\",\"wordBoundaryEnabled\":\"false\"}},\"outputFormat\":\"audio-24khz-48kbitrate-mono-mp3\"}}}}}}}}";
-            
+            // Send config request (matching Python edge-tts format)
+            var timestamp = DateToString();
+            var configMessage = $"X-Timestamp:{timestamp}\r\n" +
+                               "Content-Type:application/json; charset=utf-8\r\n" +
+                               "Path:speech.config\r\n\r\n" +
+                               "{\"context\":{\"synthesis\":{\"audio\":{\"metadataoptions\":{" +
+                               "\"sentenceBoundaryEnabled\":\"true\",\"wordBoundaryEnabled\":\"false\"}," +
+                               "\"outputFormat\":\"audio-24khz-48kbitrate-mono-mp3\"}}}}\r\n";
+
             await client.SendAsync(
                 new ArraySegment<byte>(Encoding.UTF8.GetBytes(configMessage)),
                 WebSocketMessageType.Text,
                 true,
                 CancellationToken.None);
 
-            var ssmlMessage = $"X-RequestId:{requestId}\r\nContent-Type:application/ssml+xml\r\nPath:ssml\r\n\r\n{ssml}";
+            // Send SSML request (matching Python edge-tts format)
+            var requestId = Guid.NewGuid().ToString("N");
+            var ssml = GenerateSsml(text, voice, rate, volume, pitch);
+            var ssmlMessage = $"X-RequestId:{requestId}\r\n" +
+                             "Content-Type:application/ssml+xml\r\n" +
+                             $"X-Timestamp:{timestamp}Z\r\n" +  // Note: Python adds Z suffix here
+                             "Path:ssml\r\n\r\n" +
+                             ssml;
             
             await client.SendAsync(
                 new ArraySegment<byte>(Encoding.UTF8.GetBytes(ssmlMessage)),
@@ -232,15 +245,36 @@ public class EdgeTtsService
         }
     }
 
-    private string GenerateSsml(string text, string voice, string rate, string volume, string pitch)
+    private static string GenerateSsml(string text, string voice, string rate, string volume, string pitch)
     {
-        return $@"<speak version='1.0' xmlns='http://www.w3.org/2001/10/synthesis' xml:lang='cs-CZ'>
-            <voice name='{voice}'>
-                <prosody rate='{rate}' volume='{volume}' pitch='{pitch}'>
-                    {System.Security.SecurityElement.Escape(text)}
-                </prosody>
-            </voice>
-        </speak>";
+        // Matching Python edge-tts format exactly
+        var escapedText = System.Security.SecurityElement.Escape(text);
+        return "<speak version='1.0' xmlns='http://www.w3.org/2001/10/synthesis' xml:lang='en-US'>" +
+               $"<voice name='{voice}'>" +
+               $"<prosody pitch='{pitch}' rate='{rate}' volume='{volume}'>" +
+               escapedText +
+               "</prosody>" +
+               "</voice>" +
+               "</speak>";
+    }
+
+    /// <summary>
+    /// Returns JavaScript-style date string matching Python edge-tts format.
+    /// </summary>
+    private static string DateToString()
+    {
+        return DateTime.UtcNow.ToString("ddd MMM dd yyyy HH:mm:ss 'GMT+0000 (Coordinated Universal Time)'",
+            System.Globalization.CultureInfo.InvariantCulture);
+    }
+
+    /// <summary>
+    /// Generates a random MUID (matching Python edge-tts).
+    /// </summary>
+    private static string GenerateMuid()
+    {
+        var bytes = new byte[16];
+        RandomNumberGenerator.Fill(bytes);
+        return Convert.ToHexString(bytes);
     }
 
     private string GenerateCacheFileName(string text, string voice, string rate, string volume, string pitch)
@@ -403,7 +437,7 @@ public class EdgeTtsService
         var ticksInNs = (double)ticks * S_TO_NS / 100;
         
         // Create string to hash
-        var strToHash = $"{ticksInNs:F0}{API_KEY}";
+        var strToHash = $"{ticksInNs:F0}{TRUSTED_CLIENT_TOKEN}";
         
         // Compute SHA256 hash and return uppercased hex digest
         var hashBytes = SHA256.HashData(Encoding.ASCII.GetBytes(strToHash));
