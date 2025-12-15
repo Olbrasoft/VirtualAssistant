@@ -16,6 +16,11 @@ using VirtualAssistant.GitHub;
 using VirtualAssistant.Core;
 using VirtualAssistant.Core.Services;
 using VirtualAssistant.LlmChain;
+// TextToSpeech Library
+using Olbrasoft.TextToSpeech.Providers.Extensions;
+using Olbrasoft.TextToSpeech.Providers.Piper.Extensions;
+using Olbrasoft.TextToSpeech.Orchestration.Extensions;
+using LibraryChain = Olbrasoft.TextToSpeech.Orchestration.ITtsProviderChain;
 
 namespace Olbrasoft.VirtualAssistant.Service.Extensions;
 
@@ -140,32 +145,23 @@ public static class ServiceCollectionExtensions
         services.Configure<SystemPathsOptions>(
             configuration.GetSection(SystemPathsOptions.SectionName));
 
-        // TTS Provider Chain Configuration
-        services.Configure<TtsProviderChainOptions>(
-            configuration.GetSection(TtsProviderChainOptions.SectionName));
-        services.Configure<AzureTtsOptions>(
-            configuration.GetSection(AzureTtsOptions.SectionName));
-        services.Configure<HttpEdgeTtsOptions>(
-            configuration.GetSection(HttpEdgeTtsOptions.SectionName));
-        services.Configure<VoiceRssOptions>(
-            configuration.GetSection(VoiceRssOptions.SectionName));
-        services.Configure<GoogleTtsOptions>(
-            configuration.GetSection(GoogleTtsOptions.SectionName));
-        services.Configure<Olbrasoft.VirtualAssistant.Voice.Configuration.PiperTtsOptions>(
-            configuration.GetSection(Olbrasoft.VirtualAssistant.Voice.Configuration.PiperTtsOptions.SectionName));
+        // Voice profiles configuration (still needed for VoiceConfig mapping)
         services.Configure<TtsVoiceProfilesOptions>(
             configuration.GetSection(TtsVoiceProfilesOptions.SectionName));
 
-        // Register all TTS providers (order doesn't matter - TtsProviderChain uses config order)
-        services.AddSingleton<ITtsProvider, EdgeTtsProvider>();
-        services.AddSingleton<ITtsProvider, AzureTtsProvider>();
-        services.AddSingleton<ITtsProvider, HttpEdgeTtsProvider>();
-        services.AddSingleton<ITtsProvider, VoiceRssProvider>();
-        services.AddSingleton<ITtsProvider, GoogleTtsProvider>();
-        services.AddSingleton<ITtsProvider, PiperTtsProvider>();
+        // ========== TextToSpeech Library Integration ==========
+        // Register providers from the new library (Azure, EdgeTTS, VoiceRSS, Google)
+        services.AddTtsProviders(configuration);
 
-        // TTS Provider Chain with circuit breaker
-        services.AddSingleton<ITtsProviderChain, TtsProviderChain>();
+        // Register Piper provider (separate due to ONNX dependency)
+        services.AddPiperTts(configuration);
+
+        // Register orchestration (circuit breaker, fallback chain)
+        services.AddTtsOrchestration(configuration);
+
+        // Adapter that bridges VirtualAssistant's ITtsProviderChain with the library
+        services.AddSingleton<ITtsProviderChain, TtsProviderChainAdapter>();
+        // =======================================================
 
         // TTS focused services (SRP compliant)
         services.AddSingleton<ISpeechLockService>(sp =>

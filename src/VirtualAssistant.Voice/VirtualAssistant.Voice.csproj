@@ -34,6 +34,14 @@
     <PackageReference Include="F23.StringSimilarity" Version="5.1.0" />
   </ItemGroup>
 
+  <!-- TextToSpeech Library (linked for development, will be NuGet later) -->
+  <ItemGroup>
+    <ProjectReference Include="..\..\..\TextToSpeech\src\TextToSpeech.Core\TextToSpeech.Core.csproj" />
+    <ProjectReference Include="..\..\..\TextToSpeech\src\TextToSpeech.Providers\TextToSpeech.Providers.csproj" />
+    <ProjectReference Include="..\..\..\TextToSpeech\src\TextToSpeech.Providers.Piper\TextToSpeech.Providers.Piper.csproj" />
+    <ProjectReference Include="..\..\..\TextToSpeech\src\TextToSpeech.Orchestration\TextToSpeech.Orchestration.csproj" />
+  </ItemGroup>
+
   <!-- Copy prompt files to output directory -->
   <ItemGroup>
     <Content Include="Prompts\**\*.md">
