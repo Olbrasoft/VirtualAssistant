@@ -1,16 +1,9 @@
 using Olbrasoft.VoiceAssistant.EdgeTtsWebSocketServer.Services;
-using Olbrasoft.VoiceAssistant.Data.EntityFrameworkCore;
 
 var builder = WebApplication.CreateBuilder(args);
 
 // Add services to the container
 builder.Services.AddControllers();
-
-// Register VoiceAssistant data services (DbContext, Mediator, CQRS handlers)
-builder.Services.AddVoiceAssistantData(builder.Configuration);
-
-// Register AssistantSpeechStateService
-builder.Services.AddSingleton<AssistantSpeechStateService>();
 
 // Register HttpClient for EdgeTtsService to communicate with ContinuousListener
 builder.Services.AddHttpClient<EdgeTtsService>();

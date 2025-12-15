@@ -7,8 +7,5 @@
     <RootNamespace>Olbrasoft.VoiceAssistant.EdgeTtsWebSocketServer</RootNamespace>
   </PropertyGroup>
 
-  <ItemGroup>
-    <ProjectReference Include="..\Data.EntityFrameworkCore\Data.EntityFrameworkCore.csproj" />
-  </ItemGroup>
 
 </Project>
