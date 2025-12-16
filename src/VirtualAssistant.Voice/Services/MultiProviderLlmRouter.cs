@@ -84,8 +84,6 @@ public class MultiProviderLlmRouter : ILlmRouterService
 
             try
             {
-                // White output - which provider we're sending to
-                Console.WriteLine($"\u001b[97m→ {routerService.ProviderName}...\u001b[0m");
                 _logger.LogDebug("Trying provider: {Provider}", routerService.ProviderName);
 
                 var result = await routerService.RouteAsync(inputText, isDiscussionActive, cancellationToken);

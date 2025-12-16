@@ -1,6 +1,7 @@
 using System.Diagnostics;
 using Microsoft.AspNetCore.Mvc;
-using VirtualAssistant.Data.Dtos;
+using VirtualAssistant.Data.Dtos.Clipboard;
+using VirtualAssistant.Data.Dtos.Common;
 
 namespace Olbrasoft.VirtualAssistant.Service.Controllers;
 

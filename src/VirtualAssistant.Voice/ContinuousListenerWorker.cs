@@ -1,4 +1,3 @@
-using System.Net.Http.Json;
 using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
@@ -8,6 +7,7 @@ using Olbrasoft.VirtualAssistant.Core.Services;
 using Olbrasoft.VirtualAssistant.Core.TextInput;
 using Olbrasoft.VirtualAssistant.Voice.Audio;
 using Olbrasoft.VirtualAssistant.Voice.Services;
+using Olbrasoft.VirtualAssistant.Voice.StateMachine;
 using VirtualAssistant.Core.Services;
 using KeyCode = Olbrasoft.VirtualAssistant.Core.Services.KeyCode;
 
@@ -16,7 +16,7 @@ namespace Olbrasoft.VirtualAssistant.Voice;
 /// <summary>
 /// Main worker that continuously listens for speech, transcribes it,
 /// and uses LLM Router to determine actions (OpenCode, Respond, Ignore).
-/// 
+///
 /// Includes TTS echo cancellation via AssistantSpeechTrackerService.
 /// Also handles PTT history repeat requests via RepeatTextIntentService.
 /// </summary>
@@ -33,48 +33,17 @@ public class ContinuousListenerWorker : BackgroundService
     private readonly AssistantSpeechTrackerService _speechTracker;
     private readonly IRepeatTextIntentService _repeatTextIntent;
     private readonly IVirtualAssistantSpeaker _speaker;
-    private readonly HttpClient _httpClient;
     private readonly IKeyboardMonitor? _keyboardMonitor;
 
-    // PTT Service endpoint for repeat text
-    private const string PttRepeatEndpoint = "http://localhost:5050/api/ptt/repeat";
-
-    // VirtualAssistant Service endpoint for task dispatch
-    private const string TaskDispatchEndpoint = "http://localhost:5055/api/hub/dispatch-task";
-
-    // State machine
-    private enum State { Waiting, Recording, Muted }
-    private State _state; // Initialized in constructor based on StartMuted config
+    // Extracted services
+    private readonly IVoiceStateMachine _stateMachine;
+    private readonly ISpeechBufferManager _bufferManager;
+    private readonly ICommandDetectionService _commandDetection;
+    private readonly IExternalServiceClient _externalService;
 
     // Transcription cancellation
     private CancellationTokenSource? _transcriptionCts;
     private bool _isTranscribing;
-
-    // Buffers
-    private readonly Queue<byte[]> _preBuffer = new();
-    private readonly List<byte[]> _speechBuffer = new();
-    private int _preBufferBytes = 0;
-    private int _speechBufferBytes = 0;
-
-    // Timing
-    private DateTime _silenceStart;
-    private DateTime _recordingStart;
-    private int _segmentCount = 0;
-
-    // Stop command - immediately stops current action
-    private static readonly HashSet<string> StopCommands = new(StringComparer.OrdinalIgnoreCase)
-    {
-        "stop"
-    };
-
-    // Cancel command - user wants to abort current prompt before sending to LLM
-    private static readonly HashSet<string> CancelCommands = new(StringComparer.OrdinalIgnoreCase)
-    {
-        "cancel",
-        "kencel"  // Possible Whisper transcription variant
-    };
-
-
 
     public ContinuousListenerWorker(
         ILogger<ContinuousListenerWorker> logger,
@@ -87,7 +56,10 @@ public class ContinuousListenerWorker : BackgroundService
         AssistantSpeechTrackerService speechTracker,
         IRepeatTextIntentService repeatTextIntent,
         IVirtualAssistantSpeaker speaker,
-        HttpClient httpClient,
+        IVoiceStateMachine stateMachine,
+        ISpeechBufferManager bufferManager,
+        ICommandDetectionService commandDetection,
+        IExternalServiceClient externalService,
         IManualMuteService? muteService = null,
         IKeyboardMonitor? keyboardMonitor = null)
     {
@@ -101,20 +73,21 @@ public class ContinuousListenerWorker : BackgroundService
         _speechTracker = speechTracker;
         _repeatTextIntent = repeatTextIntent;
         _speaker = speaker;
-        _httpClient = httpClient;
+        _stateMachine = stateMachine;
+        _bufferManager = bufferManager;
+        _commandDetection = commandDetection;
+        _externalService = externalService;
         _muteService = muteService;
         _keyboardMonitor = keyboardMonitor;
 
-        // Initialize state based on StartMuted configuration (#70)
-        _state = _options.StartMuted ? State.Muted : State.Waiting;
         _logger.LogInformation("ContinuousListener starting in {State} state (StartMuted={StartMuted})",
-            _state, _options.StartMuted);
+            _stateMachine.CurrentState, _options.StartMuted);
 
         // Subscribe to mute state changes
         if (_muteService != null)
         {
             _muteService.MuteStateChanged += OnMuteStateChanged;
-            _logger.LogWarning("Subscribed to MuteStateChanged event on instance {HashCode}", _muteService.GetHashCode());
+            _logger.LogDebug("Subscribed to MuteStateChanged event");
         }
         else
         {
@@ -125,20 +98,16 @@ public class ContinuousListenerWorker : BackgroundService
         if (_keyboardMonitor != null)
         {
             _keyboardMonitor.KeyReleased += OnKeyReleased;
-            _logger.LogInformation("Subscribed to keyboard events for transcription cancellation");
+            _logger.LogDebug("Subscribed to keyboard events for transcription cancellation");
         }
     }
 
     private void OnKeyReleased(object? sender, KeyEventArgs e)
     {
-        // Handle Escape - cancel ongoing transcription
-        if (e.Key == KeyCode.Escape)
+        if (e.Key == KeyCode.Escape && _isTranscribing && _transcriptionCts != null)
         {
-            if (_isTranscribing && _transcriptionCts != null)
-            {
-                _logger.LogInformation("Escape pressed - canceling transcription");
-                _transcriptionCts.Cancel();
-            }
+            _logger.LogInformation("Escape pressed - canceling transcription");
+            _transcriptionCts.Cancel();
         }
     }
 
@@ -146,35 +115,24 @@ public class ContinuousListenerWorker : BackgroundService
     {
         try
         {
-            _logger.LogWarning("OnMuteStateChanged called: isMuted={IsMuted}", isMuted);
-            
+            _logger.LogInformation("Mute state changed: {IsMuted}", isMuted);
+
             if (isMuted)
             {
-                // If we were recording, abort and go to muted state
-                if (_state == State.Recording)
+                if (_stateMachine.CurrentState == VoiceState.Recording)
                 {
-                    Console.WriteLine("\u001b[93;1m🔇 MUTED - recording cancelled\u001b[0m");
-                    ResetToMuted();
+                    _logger.LogInformation("Muted during recording - cancelling");
+                    _bufferManager.ClearAll();
                 }
-                else
-                {
-                    Console.WriteLine("\u001b[93;1m🔇 MUTED\u001b[0m");
-                    _state = State.Muted;
-                }
-                
-                // Release microphone completely so other apps can use it
-                _logger.LogWarning("About to release microphone...");
+                _stateMachine.ResetToMuted();
                 _audioCapture.Stop();
-                _logger.LogWarning("Microphone released successfully");
+                _logger.LogInformation("Microphone released");
             }
             else
             {
-                // Restart audio capture when unmuted
-                _logger.LogWarning("About to start microphone...");
                 _audioCapture.Start();
-                _logger.LogWarning("Microphone started successfully");
-                Console.WriteLine("\u001b[92;1m🔊 UNMUTED - listening resumed\u001b[0m");
-                _state = State.Waiting;
+                _stateMachine.TransitionTo(VoiceState.Waiting);
+                _logger.LogInformation("Microphone started - listening resumed");
             }
         }
         catch (Exception ex)
@@ -185,23 +143,20 @@ public class ContinuousListenerWorker : BackgroundService
 
     protected override async Task ExecuteAsync(CancellationToken stoppingToken)
     {
-        // Initialize services
         try
         {
             _transcription.Initialize();
-            
-            // Only start audio capture if not muted
+
             if (_muteService?.IsMuted == true)
             {
-                _state = State.Muted;
-                Console.WriteLine("\u001b[93;1m🎤 ContinuousListener started - MUTED (microphone not captured)\u001b[0m");
+                _stateMachine.TransitionTo(VoiceState.Muted);
+                _logger.LogInformation("ContinuousListener started - MUTED");
             }
             else
             {
                 _audioCapture.Start();
-                Console.WriteLine("\u001b[92;1m🎤 ContinuousListener started - listening for speech\u001b[0m");
+                _logger.LogInformation("ContinuousListener started - listening for speech");
             }
-            _logger.LogInformation("ContinuousListener started");
         }
         catch (Exception ex)
         {
@@ -213,18 +168,15 @@ public class ContinuousListenerWorker : BackgroundService
         {
             while (!stoppingToken.IsCancellationRequested)
             {
-                // Wait while muted - microphone is released
                 if (_muteService?.IsMuted == true)
                 {
                     await Task.Delay(100, stoppingToken);
                     continue;
                 }
-                
+
                 var chunk = await _audioCapture.ReadChunkAsync(stoppingToken);
                 if (chunk == null)
                 {
-                    // End of stream - might happen when audio capture is stopped
-                    // Wait a bit and check if we should restart
                     await Task.Delay(100, stoppingToken);
                     continue;
                 }
@@ -238,7 +190,6 @@ public class ContinuousListenerWorker : BackgroundService
         }
         catch (InvalidOperationException ex) when (ex.Message.Contains("not started"))
         {
-            // Audio capture was stopped (muted) - this is expected, loop will restart
             _logger.LogDebug("Audio capture stopped, waiting for unmute");
         }
         catch (Exception ex)
@@ -248,84 +199,57 @@ public class ContinuousListenerWorker : BackgroundService
         finally
         {
             _audioCapture.Stop();
-            Console.WriteLine("\u001b[93;1m🛑 ContinuousListener stopped\u001b[0m");
             _logger.LogInformation("ContinuousListener stopped");
         }
     }
 
     private async Task ProcessChunkAsync(byte[] chunk, CancellationToken cancellationToken)
     {
-        // Skip processing if muted
         if (_muteService?.IsMuted == true)
         {
-            _state = State.Muted;
+            _stateMachine.TransitionTo(VoiceState.Muted);
             return;
         }
 
         var (isSpeech, rms) = _vad.Analyze(chunk);
+        var currentState = _stateMachine.CurrentState;
 
-        switch (_state)
+        switch (currentState)
         {
-            case State.Muted:
-                // Was muted but now unmuted - transition to waiting
-                _state = State.Waiting;
-                goto case State.Waiting;
+            case VoiceState.Muted:
+                _stateMachine.TransitionTo(VoiceState.Waiting);
+                goto case VoiceState.Waiting;
 
-            case State.Waiting:
+            case VoiceState.Waiting:
                 if (isSpeech)
                 {
-                    TransitionToRecording(rms);
-                    
-                    // Move pre-buffer to speech buffer
-                    while (_preBuffer.Count > 0)
-                    {
-                        var c = _preBuffer.Dequeue();
-                        _speechBuffer.Add(c);
-                        _speechBufferBytes += c.Length;
-                    }
-                    _preBufferBytes = 0;
-
-                    // Add current chunk
-                    _speechBuffer.Add(chunk);
-                    _speechBufferBytes += chunk.Length;
+                    _stateMachine.StartRecording(rms);
+                    _bufferManager.TransferPreBufferToSpeech();
+                    _bufferManager.AddToSpeechBuffer(chunk);
                 }
                 else
                 {
-                    // Keep in pre-buffer
-                    _preBuffer.Enqueue(chunk);
-                    _preBufferBytes += chunk.Length;
-
-                    // Trim if too large
-                    while (_preBufferBytes > _options.PreBufferMaxBytes && _preBuffer.Count > 0)
-                    {
-                        var removed = _preBuffer.Dequeue();
-                        _preBufferBytes -= removed.Length;
-                    }
+                    _bufferManager.AddToPreBuffer(chunk);
                 }
                 break;
 
-            case State.Recording:
-                // Always add to speech buffer
-                _speechBuffer.Add(chunk);
-                _speechBufferBytes += chunk.Length;
+            case VoiceState.Recording:
+                _bufferManager.AddToSpeechBuffer(chunk);
 
                 if (isSpeech)
                 {
-                    // Reset silence timer
-                    _silenceStart = default;
+                    _stateMachine.SilenceStartTime = default;
                 }
                 else
                 {
-                    // Start or continue silence timer
-                    if (_silenceStart == default)
+                    if (_stateMachine.SilenceStartTime == default)
                     {
-                        _silenceStart = DateTime.UtcNow;
+                        _stateMachine.SilenceStartTime = DateTime.UtcNow;
                     }
 
-                    var silenceMs = (DateTime.UtcNow - _silenceStart).TotalMilliseconds;
-                    var recordingMs = (DateTime.UtcNow - _recordingStart).TotalMilliseconds;
+                    var silenceMs = (DateTime.UtcNow - _stateMachine.SilenceStartTime).TotalMilliseconds;
+                    var recordingMs = (DateTime.UtcNow - _stateMachine.RecordingStartTime).TotalMilliseconds;
 
-                    // Check if we should complete
                     if (silenceMs >= _options.PostSilenceMs)
                     {
                         if (recordingMs >= _options.MinRecordingMs)
@@ -342,37 +266,15 @@ public class ContinuousListenerWorker : BackgroundService
         }
     }
 
-    private void TransitionToRecording(float probability)
-    {
-        _state = State.Recording;
-        _recordingStart = DateTime.UtcNow;
-        _silenceStart = default;
-        
-        Console.WriteLine($"\u001b[94m🔴 RECORDING (VAD: {probability:F2})\u001b[0m");
-    }
-
     private async Task CompleteRecordingAsync(CancellationToken cancellationToken)
     {
-        _segmentCount++;
-        var duration = DateTime.UtcNow - _recordingStart;
-
-        // Combine all chunks
-        var audioData = new byte[_speechBufferBytes];
-        int offset = 0;
-        foreach (var chunk in _speechBuffer)
-        {
-            Buffer.BlockCopy(chunk, 0, audioData, offset, chunk.Length);
-            offset += chunk.Length;
-        }
-
-        // Create cancellation token for transcription (can be cancelled with Escape key)
+        var audioData = _bufferManager.GetCombinedSpeechData();
         _transcriptionCts = new CancellationTokenSource();
         _isTranscribing = true;
 
         try
         {
-            // Transcribe speech
-            _logger.LogDebug("Starting transcription... (press Escape to cancel)");
+            _logger.LogDebug("Starting transcription...");
             var transcriptionResult = await _transcription.TranscribeAsync(audioData, _transcriptionCts.Token);
 
             if (!transcriptionResult.Success || string.IsNullOrWhiteSpace(transcriptionResult.Text))
@@ -381,128 +283,77 @@ public class ContinuousListenerWorker : BackgroundService
             }
 
             var text = transcriptionResult.Text;
-            
-            // Bright cyan for transcript from Whisper
-            Console.WriteLine($"\u001b[96;1m📝 \"{text}\"\u001b[0m");
+            _logger.LogInformation("Transcribed: \"{Text}\"", text);
 
-            // Filter out TTS echo (assistant's own speech captured by microphone)
+            // Filter out TTS echo
             var filteredText = _speechTracker.FilterEchoFromTranscription(text);
             if (string.IsNullOrWhiteSpace(filteredText))
             {
-                Console.WriteLine($"\u001b[95m🔇 Echo filtered - entire transcription was TTS output\u001b[0m");
+                _logger.LogDebug("Echo filtered - entire transcription was TTS output");
                 ResetToWaiting();
                 return;
             }
-            
+
             if (filteredText != text)
             {
-                Console.WriteLine($"\u001b[95m🔇 Echo filtered: \"{filteredText}\"\u001b[0m");
+                _logger.LogDebug("Echo filtered: \"{FilteredText}\"", filteredText);
                 text = filteredText;
             }
 
-            // Cancel command - user wants to abort this prompt before sending to LLM
-            if (IsCancelCommand(text))
+            // Cancel command
+            if (_commandDetection.IsCancelCommand(text))
             {
-                Console.WriteLine($"\u001b[93;1m✋ CANCEL - prompt cancelled, nothing sent\u001b[0m");
+                _logger.LogInformation("Cancel command detected - prompt cancelled");
                 ResetToWaiting();
                 return;
             }
 
-            // Local pre-filter: skip short/noise phrases before calling LLM API
-            if (ShouldSkipLocally(text))
+            // Local pre-filter
+            if (_commandDetection.ShouldSkipLocally(text))
             {
-                Console.WriteLine($"\u001b[90m⏭️ Skipped locally (too short or noise)\u001b[0m");
+                _logger.LogDebug("Skipped locally (too short or noise)");
                 ResetToWaiting();
                 return;
             }
 
-            // Check for STOP command
-            if (IsStopCommand(text))
+            // Stop command
+            if (_commandDetection.IsStopCommand(text))
             {
-                Console.WriteLine($"\u001b[91;1m🛑 STOP command detected\u001b[0m");
-                // In simplified version, just acknowledge and continue
+                _logger.LogInformation("Stop command detected");
                 ResetToWaiting();
                 return;
             }
 
-            // FIRST LLM QUERY: Check for repeat text intent (PTT history feature)
-            // This is done before the main router to handle "vrať mi text" requests
-            Console.WriteLine($"\u001b[90m🔍 Checking repeat text intent...\u001b[0m");
+            // Check for repeat text intent
+            _logger.LogDebug("Checking repeat text intent...");
             var repeatIntent = await _repeatTextIntent.DetectIntentAsync(text, cancellationToken);
-            
+
             if (repeatIntent.IsRepeatTextIntent && repeatIntent.Confidence >= 0.7f)
             {
-                Console.WriteLine($"\u001b[95;1m📋 REPEAT TEXT INTENT detected (confidence: {repeatIntent.Confidence:F2}, {repeatIntent.ResponseTimeMs}ms)\u001b[0m");
-                Console.WriteLine($"\u001b[95;1m   └─ {repeatIntent.Reason}\u001b[0m");
-                
-                // Call PTT repeat endpoint
+                _logger.LogInformation("Repeat text intent detected (confidence: {Confidence:F2})", repeatIntent.Confidence);
                 await HandleRepeatTextAsync(cancellationToken);
                 ResetToWaiting();
                 return;
             }
-            else
-            {
-                Console.WriteLine($"\u001b[90m   └─ Not repeat intent ({repeatIntent.ResponseTimeMs}ms): {repeatIntent.Reason}\u001b[0m");
-            }
-
-            // SECOND LLM QUERY: Normal routing through multi-provider LLM
-            Console.WriteLine($"\u001b[97;1m🤖 → LLM: \"{text}\"\u001b[0m");
 
             // Route through LLM
+            _logger.LogInformation("Routing to LLM: \"{Text}\"", text);
             var routerResult = await _llmRouter.RouteAsync(text, false, cancellationToken);
 
-            // Colored output for LLM router decision
-            var actionColor = routerResult.Action == LlmRouterAction.Ignore 
-                ? "\u001b[91;1m"  // Red for IGNORE
-                : "\u001b[92;1m"; // Green for actions
-            var promptTypeIndicator = routerResult.PromptType switch
-            {
-                PromptType.Command => "⚡",
-                PromptType.Confirmation => "✓",
-                PromptType.Continuation => "→",
-                PromptType.Question => "❓",
-                PromptType.Acknowledgement => "📝",
-                _ => "?"
-            };
-            Console.WriteLine($"{actionColor}🎯 {_llmRouter.ProviderName}: {routerResult.Action.ToString().ToUpper()} {promptTypeIndicator} [{routerResult.PromptType}] (confidence: {routerResult.Confidence:F2}, {routerResult.ResponseTimeMs}ms)\u001b[0m");
-            
+            _logger.LogInformation("{Provider}: {Action} [{PromptType}] (confidence: {Confidence:F2}, {Time}ms)",
+                _llmRouter.ProviderName, routerResult.Action, routerResult.PromptType,
+                routerResult.Confidence, routerResult.ResponseTimeMs);
+
             if (!string.IsNullOrEmpty(routerResult.Reason))
             {
-                Console.WriteLine($"{actionColor}   └─ {routerResult.Reason}\u001b[0m");
+                _logger.LogDebug("Reason: {Reason}", routerResult.Reason);
             }
 
-            switch (routerResult.Action)
-            {
-                case LlmRouterAction.OpenCode:
-                    await HandleOpenCodeActionAsync(text, routerResult.PromptType, cancellationToken);
-                    break;
-
-                case LlmRouterAction.Respond:
-                    await HandleRespondActionAsync(routerResult.Response, cancellationToken);
-                    break;
-
-                case LlmRouterAction.SaveNote:
-                    Console.WriteLine($"\u001b[95;1m📓 Note saving not implemented in this version\u001b[0m");
-                    break;
-
-                case LlmRouterAction.StartDiscussion:
-                case LlmRouterAction.EndDiscussion:
-                    Console.WriteLine($"\u001b[96;1m💬 Discussion mode not implemented in this version\u001b[0m");
-                    break;
-
-                case LlmRouterAction.DispatchTask:
-                    await HandleDispatchTaskActionAsync(routerResult.TargetAgent ?? "claude", cancellationToken);
-                    break;
-
-                case LlmRouterAction.Ignore:
-                    // Already logged above
-                    break;
-            }
+            await HandleRouterResultAsync(text, routerResult, cancellationToken);
         }
         catch (OperationCanceledException)
         {
-            _logger.LogInformation("Transcription cancelled by user (Escape key pressed)");
-            Console.WriteLine($"\u001b[93;1m✋ CANCELLED - transcription cancelled by Escape key\u001b[0m");
+            _logger.LogInformation("Transcription cancelled by user");
         }
         catch (Exception ex)
         {
@@ -517,9 +368,39 @@ public class ContinuousListenerWorker : BackgroundService
         }
     }
 
+    private async Task HandleRouterResultAsync(string text, LlmRouterResult routerResult, CancellationToken cancellationToken)
+    {
+        switch (routerResult.Action)
+        {
+            case LlmRouterAction.OpenCode:
+                await HandleOpenCodeActionAsync(text, routerResult.PromptType, cancellationToken);
+                break;
+
+            case LlmRouterAction.Respond:
+                HandleRespondAction(routerResult.Response);
+                break;
+
+            case LlmRouterAction.SaveNote:
+                _logger.LogInformation("Note saving not implemented");
+                break;
+
+            case LlmRouterAction.StartDiscussion:
+            case LlmRouterAction.EndDiscussion:
+                _logger.LogInformation("Discussion mode not implemented");
+                break;
+
+            case LlmRouterAction.DispatchTask:
+                await HandleDispatchTaskActionAsync(routerResult.TargetAgent ?? "claude", cancellationToken);
+                break;
+
+            case LlmRouterAction.Ignore:
+                // Already logged
+                break;
+        }
+    }
+
     private async Task HandleOpenCodeActionAsync(string command, PromptType promptType, CancellationToken cancellationToken)
     {
-        // Determine agent based on prompt type
         var agent = promptType switch
         {
             PromptType.Command => "build",
@@ -527,252 +408,95 @@ public class ContinuousListenerWorker : BackgroundService
             PromptType.Continuation => "build",
             PromptType.Question => "plan",
             PromptType.Acknowledgement => "plan",
-            _ => "plan" // Default to plan (safer)
+            _ => "plan"
         };
-        
-        var agentColor = agent == "plan" ? "\u001b[96;1m" : "\u001b[93;1m";
-        var agentIcon = agent == "plan" ? "❓" : "⚡";
-        
-        Console.WriteLine($"{agentColor}{agentIcon} Sending to OpenCode with agent: {agent}\u001b[0m");
-        
+
+        _logger.LogInformation("Sending to OpenCode with agent: {Agent}", agent);
         var success = await _textInput.SendMessageToSessionAsync(command, agent, cancellationToken);
-        
+
         if (success)
         {
-            Console.WriteLine($"\u001b[92;1m✓ Message sent to OpenCode\u001b[0m");
+            _logger.LogInformation("Message sent to OpenCode");
         }
         else
         {
-            Console.WriteLine($"\u001b[91;1m✗ Failed to send message to OpenCode\u001b[0m");
+            _logger.LogWarning("Failed to send message to OpenCode");
         }
     }
 
-    private Task HandleRespondActionAsync(string? response, CancellationToken cancellationToken)
+    private void HandleRespondAction(string? response)
     {
         if (string.IsNullOrWhiteSpace(response))
         {
             _logger.LogWarning("LLM returned RESPOND but no response text");
-            return Task.CompletedTask;
+            return;
         }
 
-        // In simplified version, just log the response (no TTS)
-        Console.WriteLine($"\u001b[92;1m🔊 Response: \"{response}\"\u001b[0m");
-        Console.WriteLine($"\u001b[90m   (TTS not implemented in this version)\u001b[0m");
-        
-        return Task.CompletedTask;
+        _logger.LogInformation("Response: \"{Response}\"", response);
     }
 
-    /// <summary>
-    /// Handles repeat text request - calls PTT service and speaks confirmation.
-    /// </summary>
     private async Task HandleRepeatTextAsync(CancellationToken cancellationToken)
     {
-        try
+        _logger.LogDebug("Calling PTT repeat endpoint");
+        var (success, response, error) = await _externalService.CallPttRepeatAsync(cancellationToken);
+
+        if (success && response != null)
         {
-            Console.WriteLine($"\u001b[95;1m📋 Calling PTT repeat endpoint...\u001b[0m");
-            
-            var response = await _httpClient.PostAsync(PttRepeatEndpoint, null, cancellationToken);
-            
-            if (response.IsSuccessStatusCode)
-            {
-                var result = await response.Content.ReadFromJsonAsync<PttRepeatResponse>(cancellationToken: cancellationToken);
-                
-                Console.WriteLine($"\u001b[92;1m✓ Text copied to clipboard: \"{result?.Text?.Substring(0, Math.Min(50, result?.Text?.Length ?? 0))}...\"\u001b[0m");
-                
-                // TTS confirmation with random phrase (Issue #68, #115)
-                var phrase = _repeatTextIntent.GetRandomClipboardResponse();
-                await _speaker.SpeakAsync(phrase, agentName: null, cancellationToken);
-            }
-            else if (response.StatusCode == System.Net.HttpStatusCode.NotFound)
-            {
-                Console.WriteLine($"\u001b[93;1m⚠ No text in history\u001b[0m");
-                await _speaker.SpeakAsync("Žádný text v historii.", agentName: null, cancellationToken);
-            }
-            else
-            {
-                Console.WriteLine($"\u001b[91;1m✗ PTT repeat failed: {response.StatusCode}\u001b[0m");
-                await _speaker.SpeakAsync("Nepodařilo se získat text.", agentName: null, cancellationToken);
-            }
+            var preview = response.Text?.Length > 50 ? response.Text[..50] + "..." : response.Text;
+            _logger.LogInformation("Text copied to clipboard: \"{Text}\"", preview);
+            var phrase = _repeatTextIntent.GetRandomClipboardResponse();
+            await _speaker.SpeakAsync(phrase, agentName: null, cancellationToken);
         }
-        catch (HttpRequestException ex)
+        else if (error == "No text in history")
         {
-            _logger.LogError(ex, "Failed to call PTT repeat endpoint");
-            Console.WriteLine($"\u001b[91;1m✗ PTT service unavailable: {ex.Message}\u001b[0m");
-            await _speaker.SpeakAsync("Služba není dostupná.", agentName: null, cancellationToken);
+            _logger.LogWarning("No text in history");
+            await _speaker.SpeakAsync("Zadny text v historii.", agentName: null, cancellationToken);
         }
-        catch (Exception ex)
+        else
         {
-            _logger.LogError(ex, "Error handling repeat text request");
-            Console.WriteLine($"\u001b[91;1m✗ Error: {ex.Message}\u001b[0m");
+            _logger.LogError("PTT repeat failed: {Error}", error);
+            await _speaker.SpeakAsync("Nepodarilo se ziskat text.", agentName: null, cancellationToken);
         }
     }
 
-    /// <summary>
-    /// Response from PTT repeat endpoint.
-    /// </summary>
-    private record PttRepeatResponse(string? Text, string? Message);
-
-    /// <summary>
-    /// Handles task dispatch request - sends task to target agent and speaks confirmation.
-    /// </summary>
     private async Task HandleDispatchTaskActionAsync(string targetAgent, CancellationToken cancellationToken)
     {
-        try
+        _logger.LogInformation("Dispatching task to {Agent}", targetAgent);
+        var (success, response, error) = await _externalService.DispatchTaskAsync(targetAgent, cancellationToken);
+
+        if (success && response?.Success == true)
         {
-            Console.WriteLine($"\u001b[95;1m📤 Dispatching task to {targetAgent}...\u001b[0m");
+            var issueInfo = response.GithubIssueNumber.HasValue ? $" (issue #{response.GithubIssueNumber})" : "";
+            _logger.LogInformation("Task dispatched to {Agent}{IssueInfo}", targetAgent, issueInfo);
 
-            var requestBody = new { agent = targetAgent };
-            var response = await _httpClient.PostAsJsonAsync(TaskDispatchEndpoint, requestBody, cancellationToken);
-
-            if (response.IsSuccessStatusCode)
-            {
-                var result = await response.Content.ReadFromJsonAsync<DispatchTaskResponse>(cancellationToken: cancellationToken);
-
-                if (result?.Success == true)
-                {
-                    var issueInfo = result.GithubIssueNumber.HasValue
-                        ? $" (issue #{result.GithubIssueNumber})"
-                        : "";
-                    Console.WriteLine($"\u001b[92;1m✓ Task dispatched to {targetAgent}{issueInfo}\u001b[0m");
-                    if (!string.IsNullOrEmpty(result.Summary))
-                    {
-                        Console.WriteLine($"\u001b[92;1m   └─ {result.Summary}\u001b[0m");
-                    }
-
-                    // TTS confirmation
-                    var ttsMessage = result.GithubIssueNumber.HasValue
-                        ? $"Posílám úkol číslo {result.GithubIssueNumber}."
-                        : "Úkol odeslán.";
-                    await _speaker.SpeakAsync(ttsMessage, agentName: null, cancellationToken);
-                }
-                else
-                {
-                    Console.WriteLine($"\u001b[93;1m⚠ {result?.Message ?? "Unknown error"}\u001b[0m");
-
-                    // TTS notification based on reason
-                    var ttsMessage = result?.Reason switch
-                    {
-                        "agent_busy" => $"{targetAgent} je zaneprázdněný.",
-                        "no_pending_tasks" => "Žádné čekající úkoly.",
-                        _ => result?.Message ?? "Nepodařilo se odeslat úkol."
-                    };
-                    await _speaker.SpeakAsync(ttsMessage, agentName: null, cancellationToken);
-                }
-            }
-            else
-            {
-                Console.WriteLine($"\u001b[91;1m✗ Dispatch failed: {response.StatusCode}\u001b[0m");
-                await _speaker.SpeakAsync("Chyba při odesílání úkolu.", agentName: null, cancellationToken);
-            }
+            var ttsMessage = response.GithubIssueNumber.HasValue
+                ? $"Posilam ukol cislo {response.GithubIssueNumber}."
+                : "Ukol odeslan.";
+            await _speaker.SpeakAsync(ttsMessage, agentName: null, cancellationToken);
         }
-        catch (HttpRequestException ex)
+        else if (response != null)
         {
-            _logger.LogError(ex, "Failed to call dispatch task endpoint");
-            Console.WriteLine($"\u001b[91;1m✗ Service unavailable: {ex.Message}\u001b[0m");
-            await _speaker.SpeakAsync("Služba není dostupná.", agentName: null, cancellationToken);
+            _logger.LogWarning("{Message}", response.Message);
+
+            var ttsMessage = response.Reason switch
+            {
+                "agent_busy" => $"{targetAgent} je zaneprazdneny.",
+                "no_pending_tasks" => "Zadne cekajici ukoly.",
+                _ => response.Message ?? "Nepodarilo se odeslat ukol."
+            };
+            await _speaker.SpeakAsync(ttsMessage, agentName: null, cancellationToken);
         }
-        catch (Exception ex)
+        else
         {
-            _logger.LogError(ex, "Error handling dispatch task request");
-            Console.WriteLine($"\u001b[91;1m✗ Error: {ex.Message}\u001b[0m");
+            _logger.LogError("Dispatch failed: {Error}", error);
+            await _speaker.SpeakAsync("Chyba pri odesilani ukolu.", agentName: null, cancellationToken);
         }
     }
-
-    /// <summary>
-    /// Response from dispatch task endpoint.
-    /// </summary>
-    private record DispatchTaskResponse(
-        bool Success,
-        string? Reason,
-        string? Message,
-        int? TaskId,
-        int? GithubIssueNumber,
-        string? GithubIssueUrl,
-        string? Summary);
 
     private void ResetToWaiting()
     {
-        _state = State.Waiting;
-        _speechBuffer.Clear();
-        _speechBufferBytes = 0;
-        _silenceStart = default;
-
-        Console.WriteLine("\u001b[90m→ WAITING\u001b[0m");
-    }
-
-    private void ResetToMuted()
-    {
-        _state = State.Muted;
-        _speechBuffer.Clear();
-        _speechBufferBytes = 0;
-        _silenceStart = default;
-        _preBuffer.Clear();
-        _preBufferBytes = 0;
-    }
-
-    /// <summary>
-    /// Local pre-filter to skip noise phrases before calling LLM API.
-    /// </summary>
-    private bool ShouldSkipLocally(string text)
-    {
-        var normalized = text.Trim().ToLowerInvariant();
-        
-        var noisePatterns = new HashSet<string>(StringComparer.OrdinalIgnoreCase)
-        {
-            "ano", "ne", "jo", "no", "tak", "hmm", "hm", "aha", "ok", "okay",
-            "dobře", "jasně", "fajn", "super", "díky", "děkuji", "prosím",
-            "moment", "počkej", "ehm", "ehm ehm", "no tak", "tak jo",
-            "to je", "to bylo", "a tak", "no jo", "no ne", "tak tak",
-            "jasně jasně", "jo jo", "ne ne", "aha aha", "mm", "mhm",
-            "no nic", "nic", "nevím", "uvidíme", "možná", "asi",
-            "co to", "co je", "hele", "hele hele", "víš co", "že jo",
-            "no jasně", "no dobře", "no fajn", "to jo", "to ne",
-            "tak nějak", "nějak", "prostě", "vlastně", "takže",
-            "...", ".", ",", "!", "?"
-        };
-
-        return noisePatterns.Contains(normalized.TrimEnd('.', ',', '!', '?', ' '));
-    }
-
-    /// <summary>
-    /// Checks if the text contains a stop command.
-    /// </summary>
-    internal static bool IsStopCommand(string text)
-    {
-        if (string.IsNullOrWhiteSpace(text))
-            return false;
-            
-        var normalized = text.Trim().ToLowerInvariant();
-        var words = normalized.Split(new[] { ' ', ',', '.', '!', '?', ';', ':' }, 
-            StringSplitOptions.RemoveEmptyEntries);
-            
-        foreach (var word in words)
-        {
-            if (StopCommands.Contains(word))
-                return true;
-        }
-        
-        return false;
-    }
-
-    /// <summary>
-    /// Checks if the text contains a cancel command.
-    /// </summary>
-    internal static bool IsCancelCommand(string text)
-    {
-        if (string.IsNullOrWhiteSpace(text))
-            return false;
-            
-        var normalized = text.Trim().ToLowerInvariant();
-        var words = normalized.Split(new[] { ' ', ',', '.', '!', '?', ';', ':' }, 
-            StringSplitOptions.RemoveEmptyEntries);
-            
-        foreach (var word in words)
-        {
-            if (CancelCommands.Contains(word))
-                return true;
-        }
-        
-        return false;
+        _bufferManager.ClearSpeechBuffer();
+        _stateMachine.ResetToWaiting();
+        _logger.LogDebug("State reset to Waiting");
     }
 }

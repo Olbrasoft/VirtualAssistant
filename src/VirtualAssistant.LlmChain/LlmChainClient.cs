@@ -3,11 +3,12 @@ using System.Diagnostics;
 using System.Net.Http.Json;
 using System.Text;
 using System.Text.Json;
-using System.Text.Json.Serialization;
-using System.Text.RegularExpressions;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
+using Olbrasoft.VirtualAssistant.Core.Utilities;
 using VirtualAssistant.LlmChain.Configuration;
+using VirtualAssistant.LlmChain.Dtos;
+using VirtualAssistant.LlmChain.Exceptions;
 
 namespace VirtualAssistant.LlmChain;
 
@@ -195,8 +196,8 @@ public class LlmChainClient : ILlmChainClient
             Model = provider.Model,
             Messages =
             [
-                new LlmMessage { Role = "system", Content = request.SystemPrompt },
-                new LlmMessage { Role = "user", Content = request.UserMessage }
+                new LlmApiMessage { Role = "system", Content = request.SystemPrompt },
+                new LlmApiMessage { Role = "user", Content = request.UserMessage }
             ],
             Temperature = request.Temperature,
             MaxTokens = request.MaxTokens
@@ -210,7 +211,7 @@ public class LlmChainClient : ILlmChainClient
         if (response.StatusCode == System.Net.HttpStatusCode.TooManyRequests)
         {
             var errorBody = await response.Content.ReadAsStringAsync(ct);
-            var resetAt = ParseResetTimeFromError(errorBody);
+            var resetAt = RateLimitParser.ParseResetTimeFromError(errorBody);
             throw new RateLimitedException(provider.Name, resetAt);
         }
 
@@ -291,93 +292,9 @@ public class LlmChainClient : ILlmChainClient
         }
     }
 
-    private static DateTime? ParseResetTimeFromError(string errorBody)
-    {
-        try
-        {
-            // Pattern: "Please try again in Xm Y.Zs" or "Please try again in Y.Zs"
-            var match = Regex.Match(errorBody, @"try again in (\d+)m([\d.]+)s");
-            if (match.Success)
-            {
-                var minutes = int.Parse(match.Groups[1].Value);
-                var seconds = double.Parse(match.Groups[2].Value, System.Globalization.CultureInfo.InvariantCulture);
-                return DateTime.UtcNow.AddMinutes(minutes).AddSeconds(seconds);
-            }
-
-            match = Regex.Match(errorBody, @"try again in ([\d.]+)s");
-            if (match.Success)
-            {
-                var seconds = double.Parse(match.Groups[1].Value, System.Globalization.CultureInfo.InvariantCulture);
-                return DateTime.UtcNow.AddSeconds(seconds);
-            }
-        }
-        catch
-        {
-            // Ignore parsing errors
-        }
-
-        return null;
-    }
-
     private static string MaskKey(string key)
     {
         if (key.Length <= 8) return "****";
         return $"{key[..4]}...{key[^4..]}";
-    }
-
-    #region DTOs
-
-    private class LlmApiRequest
-    {
-        [JsonPropertyName("model")]
-        public required string Model { get; set; }
-
-        [JsonPropertyName("messages")]
-        public required LlmMessage[] Messages { get; set; }
-
-        [JsonPropertyName("temperature")]
-        public float Temperature { get; set; }
-
-        [JsonPropertyName("max_tokens")]
-        public int MaxTokens { get; set; }
-    }
-
-    private class LlmMessage
-    {
-        [JsonPropertyName("role")]
-        public required string Role { get; set; }
-
-        [JsonPropertyName("content")]
-        public required string Content { get; set; }
-    }
-
-    private class LlmApiResponse
-    {
-        [JsonPropertyName("choices")]
-        public LlmChoice[]? Choices { get; set; }
-    }
-
-    private class LlmChoice
-    {
-        [JsonPropertyName("message")]
-        public LlmMessage? Message { get; set; }
-    }
-
-    #endregion
-}
-
-/// <summary>
-/// Exception thrown when a provider returns 429 (rate limited).
-/// </summary>
-public class RateLimitedException : Exception
-{
-    public string ProviderName { get; }
-    public DateTime? ResetAt { get; }
-
-    public RateLimitedException(string providerName, DateTime? resetAt = null)
-        : base($"Provider {providerName} rate limited")
-    {
-        ProviderName = providerName;
-        ResetAt = resetAt;
     }
 }

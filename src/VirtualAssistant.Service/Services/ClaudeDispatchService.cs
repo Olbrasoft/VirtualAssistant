@@ -1,9 +1,9 @@
 using System.Diagnostics;
 using System.Text;
 using System.Text.Json;
-using System.Text.Json.Serialization;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
+using Olbrasoft.VirtualAssistant.Service.Dtos;
 using VirtualAssistant.Core.Services;
 
 namespace Olbrasoft.VirtualAssistant.Service.Services;
@@ -295,29 +295,5 @@ public class ClaudeDispatchService : IClaudeDispatchService
             _logger.LogError(ex, "Failed to parse Claude JSON response: {Output}", output);
             return ClaudeExecutionResult.Failed($"JSON parse error: {ex.Message}");
         }
-    }
-
-    /// <summary>
-    /// JSON response from Claude Code headless mode.
-    /// </summary>
-    private class ClaudeJsonResponse
-    {
-        [JsonPropertyName("type")]
-        public string? Type { get; set; }
-
-        [JsonPropertyName("subtype")]
-        public string? Subtype { get; set; }
-
-        [JsonPropertyName("total_cost_usd")]
-        public decimal? TotalCostUsd { get; set; }
-
-        [JsonPropertyName("is_error")]
-        public bool? IsError { get; set; }
-
-        [JsonPropertyName("result")]
-        public string? Result { get; set; }
-
-        [JsonPropertyName("session_id")]
-        public string? SessionId { get; set; }
     }
 }

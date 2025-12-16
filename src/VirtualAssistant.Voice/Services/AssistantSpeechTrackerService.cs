@@ -79,7 +79,7 @@ public class AssistantSpeechTrackerService
                 _ttsHistory.RemoveAt(0);
             }
             
-            Console.WriteLine($"\u001b[95m📢 TTS History [{_ttsHistory.Count}]: \"{(text.Length > 60 ? text[..60] + "..." : text)}\"\u001b[0m");
+            _logger.LogDebug("TTS History [{Count}]: \"{Text}\"", _ttsHistory.Count, text.Length > 60 ? text[..60] + "..." : text);
         }
     }
 
@@ -113,8 +113,8 @@ public class AssistantSpeechTrackerService
             var result = transcription;
             var removedCount = 0;
             
-            Console.WriteLine($"\u001b[96m🔍 Filtering echo from: \"{(result.Length > 80 ? result[..80] + "..." : result)}\"\u001b[0m");
-            Console.WriteLine($"\u001b[96m   TTS History has {_ttsHistory.Count} message(s)\u001b[0m");
+            _logger.LogDebug("Filtering echo from: \"{Text}\", TTS History has {Count} message(s)",
+                result.Length > 80 ? result[..80] + "..." : result, _ttsHistory.Count);
             
             // Iterate through TTS history and try to remove each from the beginning
             foreach (var ttsMessage in _ttsHistory)
@@ -124,7 +124,8 @@ public class AssistantSpeechTrackerService
                 if (wasRemoved)
                 {
                     removedCount++;
-                    Console.WriteLine($"\u001b[93m   ✂️ Removed echo (similarity: {similarity:P0}): \"{(ttsMessage.Length > 50 ? ttsMessage[..50] + "..." : ttsMessage)}\"\u001b[0m");
+                    _logger.LogDebug("Removed echo (similarity: {Similarity:P0}): \"{Message}\"",
+                        similarity, ttsMessage.Length > 50 ? ttsMessage[..50] + "..." : ttsMessage);
                     result = newResult;
                     
                     // If nothing left, we're done
@@ -137,15 +138,13 @@ public class AssistantSpeechTrackerService
             
             if (removedCount > 0)
             {
-                Console.WriteLine($"\u001b[92m   ✅ Filtered {removedCount} echo(es). Result: \"{(result.Length > 80 ? result[..80] + "..." : result)}\"\u001b[0m");
+                _logger.LogDebug("Filtered {Count} echo(es). Result: \"{Result}\"",
+                    removedCount, result.Length > 80 ? result[..80] + "..." : result);
             }
             else
             {
-                Console.WriteLine($"\u001b[91m   ❌ No echo detected! TTS history:\u001b[0m");
-                foreach (var tts in _ttsHistory)
-                {
-                    Console.WriteLine($"\u001b[91m      - \"{(tts.Length > 60 ? tts[..60] + "..." : tts)}\"\u001b[0m");
-                }
+                _logger.LogDebug("No echo detected! TTS history: {History}",
+                    string.Join(", ", _ttsHistory.Select(tts => $"\"{(tts.Length > 60 ? tts[..60] + "..." : tts)}\"")));
             }
             
             return result.Trim();
@@ -179,7 +178,7 @@ public class AssistantSpeechTrackerService
         
         if (ttsNormalizedForContains.Contains(textNormalizedForContains) && textWords.Length >= 3)
         {
-            Console.WriteLine($"\u001b[93m      [DEBUG] Substring match! Text is contained in TTS message\u001b[0m");
+            _logger.LogDebug("Substring match! Text is contained in TTS message");
             // The entire captured text is part of TTS output - it's an echo
             return (true, string.Empty, 1.0);
         }
@@ -203,7 +202,8 @@ public class AssistantSpeechTrackerService
         var ttsMatchRatio = ttsWords.Length > 0 ? (double)consecutiveMatches / ttsWords.Length : 0;
         if (consecutiveMatches >= 3 && ttsMatchRatio >= 0.6)
         {
-            Console.WriteLine($"\u001b[93m      [DEBUG] Fuzzy prefix match! {consecutiveMatches} consecutive words match TTS ({ttsMatchRatio:P0} of TTS)\u001b[0m");
+            _logger.LogDebug("Fuzzy prefix match! {ConsecutiveMatches} consecutive words match TTS ({TtsMatchRatio:P0} of TTS)",
+                consecutiveMatches, ttsMatchRatio);
             var remainingText = RemoveWordsFromOriginal(text, consecutiveMatches);
             return (true, remainingText, ttsMatchRatio);
         }
@@ -222,18 +222,19 @@ public class AssistantSpeechTrackerService
         {
             var prefix = string.Join(" ", textWords.Take(prefixLen));
             var similarity = CalculateSimilarity(prefix, ttsNormalized);
-            
-            Console.WriteLine($"\u001b[90m      [DEBUG] prefixLen={prefixLen}, similarity={similarity:P1}, prefix=\"{prefix}\"\u001b[0m");
-            
+
+            _logger.LogDebug("prefixLen={PrefixLen}, similarity={Similarity:P1}, prefix=\"{Prefix}\"",
+                prefixLen, similarity, prefix);
+
             if (similarity > bestSimilarity)
             {
                 bestSimilarity = similarity;
                 bestPrefixLength = prefixLen;
             }
         }
-        
-        Console.WriteLine($"\u001b[96m      [DEBUG] Best: prefixLen={bestPrefixLength}, similarity={bestSimilarity:P1}, threshold={SimilarityThreshold:P0}\u001b[0m");
-        Console.WriteLine($"\u001b[96m      [DEBUG] TTS normalized: \"{ttsNormalized}\"\u001b[0m");
+
+        _logger.LogDebug("Best: prefixLen={BestPrefixLength}, similarity={BestSimilarity:P1}, threshold={Threshold:P0}, TTS normalized: \"{TtsNormalized}\"",
+            bestPrefixLength, bestSimilarity, SimilarityThreshold, ttsNormalized);
         
         if (bestSimilarity >= SimilarityThreshold)
         {

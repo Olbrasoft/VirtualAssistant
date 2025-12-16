@@ -1,4 +1,5 @@
 using System.Diagnostics;
+using Microsoft.Extensions.Logging;
 using Olbrasoft.VirtualAssistant.Core.Services;
 
 namespace Olbrasoft.VirtualAssistant.Service.Tray;
@@ -10,6 +11,7 @@ namespace Olbrasoft.VirtualAssistant.Service.Tray;
 public class TrayIconService : IDisposable
 {
     private readonly IManualMuteService _muteService;
+    private readonly ILogger<TrayIconService> _logger;
     private readonly int _logViewerPort;
     private IntPtr _indicator;
     private IntPtr _muteMenuItem;
@@ -23,11 +25,12 @@ public class TrayIconService : IDisposable
     private bool _isInitialized;
     private Action? _onQuitRequested;
 
-    public TrayIconService(IManualMuteService muteService, int logViewerPort = 5053)
+    public TrayIconService(IManualMuteService muteService, ILogger<TrayIconService> logger, int logViewerPort = 5053)
     {
         _muteService = muteService;
+        _logger = logger;
         _logViewerPort = logViewerPort;
-        
+
         // Subscribe to mute changes to update menu
         _muteService.MuteStateChanged += OnMuteStateChanged;
     }
@@ -186,7 +189,7 @@ public class TrayIconService : IDisposable
         }
         catch (Exception ex)
         {
-            Console.WriteLine($"Failed to open logs: {ex.Message}");
+            _logger.LogWarning(ex, "Failed to open logs");
         }
     }
 

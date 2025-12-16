@@ -55,9 +55,9 @@ public static class EndpointExtensions
     {
         var speechTracker = app.Services.GetRequiredService<AssistantSpeechTrackerService>();
 
-        app.MapPost("/api/assistant-speech/start", (AssistantSpeechStartRequest request) =>
+        app.MapPost("/api/assistant-speech/start", (AssistantSpeechStartRequest request, ILogger<Program> logger) =>
         {
-            Console.WriteLine($"\u001b[92;1m🗣️ TTS: \"{request.Text}\"\u001b[0m");
+            logger.LogInformation("TTS Start: \"{Text}\"", request.Text);
             speechTracker.StartSpeaking(request.Text);
             return Results.Ok(new { status = "started", text = request.Text });
         });
@@ -87,10 +87,7 @@ public static class EndpointExtensions
         // Notify endpoint - stores notification in database and queues for TTS
         app.MapPost("/api/tts/notify", async (TtsNotifyRequest request, INotificationService notificationService, INotificationBatchingService batchingService, ILogger<Program> logger) =>
         {
-            var sourceInfo = string.IsNullOrEmpty(request.Source) ? "" : $" [{request.Source}]";
-            var issueInfo = request.IssueIds?.Count > 0 ? $" (issues: {string.Join(", ", request.IssueIds)})" : "";
-            Console.WriteLine($"\u001b[96;1m📩 Notification received{sourceInfo}{issueInfo}: \"{request.Text}\"\u001b[0m");
-            logger.LogInformation("Notification received from {Source}: {Text} {IssueIds}", request.Source ?? "default", request.Text, request.IssueIds);
+            logger.LogInformation("Notification received from {Source}: {Text} (issues: {IssueIds})", request.Source ?? "default", request.Text, request.IssueIds);
 
             var agentId = request.Source ?? "Unknown";
             var notificationId = await notificationService.CreateNotificationAsync(request.Text, agentId, request.IssueIds);
@@ -112,8 +109,6 @@ public static class EndpointExtensions
         });
         app.MapPost("/api/tts/speak", async (TtsNotifyRequest request, TtsService ttsService, ILogger<Program> logger) =>
         {
-            var sourceInfo = string.IsNullOrEmpty(request.Source) ? "" : $" [{request.Source}]";
-            Console.WriteLine($"\u001b[96;1m📩 TTS Speak{sourceInfo}: \"{request.Text}\"\u001b[0m");
             logger.LogInformation("TTS Speak received from {Source}: {Text}", request.Source ?? "default", request.Text);
 
             // Fire and forget - TtsService handles queueing, caching, playback
@@ -159,7 +154,6 @@ public static class EndpointExtensions
         // Stop playback
         app.MapPost("/api/tts/stop", (TtsService ttsService, ILogger<Program> logger) =>
         {
-            Console.WriteLine($"\u001b[91;1m🛑 TTS Stop requested\u001b[0m");
             logger.LogInformation("TTS Stop requested - stopping playback");
             ttsService.StopPlayback();
             return Results.Ok(new { success = true, message = "Playback stopped" });
@@ -169,10 +163,6 @@ public static class EndpointExtensions
         app.MapPost("/api/tts/flush-queue", async (TtsService ttsService, ILogger<Program> logger) =>
         {
             var queueCount = ttsService.QueueCount;
-            if (queueCount > 0)
-            {
-                Console.WriteLine($"\u001b[93;1m🔊 TTS Flush Queue: {queueCount} message(s) pending\u001b[0m");
-            }
             logger.LogInformation("TTS Flush Queue requested. Queue count: {Count}", queueCount);
 
             _ = Task.Run(async () =>
@@ -205,8 +195,6 @@ public static class EndpointExtensions
             var previousState = muteService.IsMuted;
             muteService.SetMuted(request.Muted);
 
-            var action = request.Muted ? "🔇 MUTED" : "🔊 UNMUTED";
-            Console.WriteLine($"\u001b[95;1m{action} (via API)\u001b[0m");
             logger.LogInformation("Mute state changed via API: {PreviousState} -> {NewState}", previousState, request.Muted);
 
             return Results.Ok(new { success = true, muted = muteService.IsMuted, previousState });

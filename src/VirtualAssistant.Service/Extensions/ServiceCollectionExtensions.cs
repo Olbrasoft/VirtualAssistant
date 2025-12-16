@@ -8,6 +8,7 @@ using Olbrasoft.VirtualAssistant.Voice.Audio;
 using Olbrasoft.VirtualAssistant.Voice.Configuration;
 using Olbrasoft.VirtualAssistant.Voice.Services;
 using Olbrasoft.VirtualAssistant.Voice.Similarity;
+using Olbrasoft.VirtualAssistant.Voice.StateMachine;
 using Olbrasoft.VirtualAssistant.Service.Services;
 using Olbrasoft.VirtualAssistant.Service.Workers;
 using OpenCode.DotnetClient;
@@ -122,6 +123,23 @@ public static class ServiceCollectionExtensions
 
         // Mute service (shared between tray, keyboard monitor, and continuous listener)
         services.AddSingleton<IManualMuteService, ManualMuteService>();
+
+        // Voice state machine (extracted from ContinuousListenerWorker)
+        services.AddSingleton<IVoiceStateMachine>(sp =>
+        {
+            var logger = sp.GetRequiredService<ILogger<VoiceStateMachine>>();
+            var options = sp.GetRequiredService<IOptions<ContinuousListenerOptions>>();
+            return new VoiceStateMachine(logger, options.Value.StartMuted);
+        });
+
+        // Speech buffer manager (extracted from ContinuousListenerWorker)
+        services.AddSingleton<ISpeechBufferManager, SpeechBufferManager>();
+
+        // Command detection service (extracted from ContinuousListenerWorker)
+        services.AddSingleton<ICommandDetectionService, CommandDetectionService>();
+
+        // External service client (extracted from ContinuousListenerWorker)
+        services.AddSingleton<IExternalServiceClient, ExternalServiceClient>();
 
         // Keyboard monitor
         services.AddSingleton<IKeyboardMonitor>(sp =>

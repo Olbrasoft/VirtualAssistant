@@ -106,8 +106,34 @@ public class EdgeTtsService
     private async Task<byte[]?> GenerateAudioAsync(string text, string voice, string rate, string volume, string pitch)
     {
         using var client = new ClientWebSocket();
+        ConfigureWebSocketHeaders(client);
 
-        // Headers matching Python edge-tts 7.2.7
+        var uri = BuildWebSocketUri();
+
+        try
+        {
+            await client.ConnectAsync(uri, CancellationToken.None);
+            _logger.LogInformation("Connected to Microsoft Edge TTS WebSocket at {Uri}", uri);
+
+            await SendSpeechConfigAsync(client);
+            await SendSsmlRequestAsync(client, text, voice, rate, volume, pitch);
+            var audioData = await ReceiveAudioDataAsync(client);
+
+            await client.CloseAsync(WebSocketCloseStatus.NormalClosure, "Done", CancellationToken.None);
+
+            _logger.LogInformation("Total audio data collected: {Count} bytes", audioData.Length);
+
+            return audioData;
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Error generating audio via WebSocket");
+            return null;
+        }
+    }
+
+    private void ConfigureWebSocketHeaders(ClientWebSocket client)
+    {
         var chromiumMajor = CHROMIUM_FULL_VERSION.Split('.')[0];
         client.Options.SetRequestHeader("User-Agent",
             $"Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/{chromiumMajor}.0.0.0 Safari/537.36 Edg/{chromiumMajor}.0.0.0");
@@ -117,131 +143,115 @@ public class EdgeTtsService
         client.Options.SetRequestHeader("Accept-Encoding", "gzip, deflate, br, zstd");
         client.Options.SetRequestHeader("Accept-Language", "en-US,en;q=0.9");
 
-        // Add MUID cookie (required by Python edge-tts)
         var muid = GenerateMuid();
         client.Options.SetRequestHeader("Cookie", $"muid={muid};");
+    }
 
-        // Generate connection parameters
+    private static Uri BuildWebSocketUri()
+    {
         var connectionId = Guid.NewGuid().ToString("N");
         var secMsGec = GenerateSecMsGec();
         var secMsGecVersion = $"1-{CHROMIUM_FULL_VERSION}";
+        return new Uri($"{WSS_URL}&ConnectionId={connectionId}&Sec-MS-GEC={secMsGec}&Sec-MS-GEC-Version={secMsGecVersion}");
+    }
 
-        // URL format matching Python edge-tts: WSS_URL already contains TrustedClientToken
-        var uri = new Uri($"{WSS_URL}&ConnectionId={connectionId}&Sec-MS-GEC={secMsGec}&Sec-MS-GEC-Version={secMsGecVersion}");
-        
-        try
+    private async Task SendSpeechConfigAsync(ClientWebSocket client)
+    {
+        var timestamp = DateToString();
+        var configMessage = $"X-Timestamp:{timestamp}\r\n" +
+                           "Content-Type:application/json; charset=utf-8\r\n" +
+                           "Path:speech.config\r\n\r\n" +
+                           "{\"context\":{\"synthesis\":{\"audio\":{\"metadataoptions\":{" +
+                           "\"sentenceBoundaryEnabled\":\"true\",\"wordBoundaryEnabled\":\"false\"}," +
+                           "\"outputFormat\":\"audio-24khz-48kbitrate-mono-mp3\"}}}}\r\n";
+
+        await client.SendAsync(
+            new ArraySegment<byte>(Encoding.UTF8.GetBytes(configMessage)),
+            WebSocketMessageType.Text,
+            true,
+            CancellationToken.None);
+    }
+
+    private async Task SendSsmlRequestAsync(ClientWebSocket client, string text, string voice, string rate, string volume, string pitch)
+    {
+        var timestamp = DateToString();
+        var requestId = Guid.NewGuid().ToString("N");
+        var ssml = GenerateSsml(text, voice, rate, volume, pitch);
+        var ssmlMessage = $"X-RequestId:{requestId}\r\n" +
+                         "Content-Type:application/ssml+xml\r\n" +
+                         $"X-Timestamp:{timestamp}Z\r\n" +
+                         "Path:ssml\r\n\r\n" +
+                         ssml;
+
+        await client.SendAsync(
+            new ArraySegment<byte>(Encoding.UTF8.GetBytes(ssmlMessage)),
+            WebSocketMessageType.Text,
+            true,
+            CancellationToken.None);
+    }
+
+    private async Task<byte[]> ReceiveAudioDataAsync(ClientWebSocket client)
+    {
+        var audioChunks = new List<byte>();
+        var buffer = new byte[16384];
+
+        while (client.State == WebSocketState.Open)
         {
-            await client.ConnectAsync(uri, CancellationToken.None);
-            _logger.LogInformation("Connected to Microsoft Edge TTS WebSocket at {Uri}", uri);
+            var result = await client.ReceiveAsync(new ArraySegment<byte>(buffer), CancellationToken.None);
 
-            // Send config request (matching Python edge-tts format)
-            var timestamp = DateToString();
-            var configMessage = $"X-Timestamp:{timestamp}\r\n" +
-                               "Content-Type:application/json; charset=utf-8\r\n" +
-                               "Path:speech.config\r\n\r\n" +
-                               "{\"context\":{\"synthesis\":{\"audio\":{\"metadataoptions\":{" +
-                               "\"sentenceBoundaryEnabled\":\"true\",\"wordBoundaryEnabled\":\"false\"}," +
-                               "\"outputFormat\":\"audio-24khz-48kbitrate-mono-mp3\"}}}}\r\n";
-
-            await client.SendAsync(
-                new ArraySegment<byte>(Encoding.UTF8.GetBytes(configMessage)),
-                WebSocketMessageType.Text,
-                true,
-                CancellationToken.None);
-
-            // Send SSML request (matching Python edge-tts format)
-            var requestId = Guid.NewGuid().ToString("N");
-            var ssml = GenerateSsml(text, voice, rate, volume, pitch);
-            var ssmlMessage = $"X-RequestId:{requestId}\r\n" +
-                             "Content-Type:application/ssml+xml\r\n" +
-                             $"X-Timestamp:{timestamp}Z\r\n" +  // Note: Python adds Z suffix here
-                             "Path:ssml\r\n\r\n" +
-                             ssml;
-            
-            await client.SendAsync(
-                new ArraySegment<byte>(Encoding.UTF8.GetBytes(ssmlMessage)),
-                WebSocketMessageType.Text,
-                true,
-                CancellationToken.None);
-
-            // Receive audio data
-            var audioChunks = new List<byte>();
-            var buffer = new byte[16384];
-            
-            while (client.State == WebSocketState.Open)
+            if (result.MessageType == WebSocketMessageType.Close)
             {
-                var result = await client.ReceiveAsync(new ArraySegment<byte>(buffer), CancellationToken.None);
-                
-                if (result.MessageType == WebSocketMessageType.Close)
-                {
-                    _logger.LogInformation("WebSocket closed by server");
-                    break;
-                }
-
-                if (result.MessageType == WebSocketMessageType.Binary)
-                {
-                    _logger.LogInformation($"Received binary message: {result.Count} bytes");
-                    
-                    // Message must be at least 2 bytes to contain header length
-                    if (result.Count < 2)
-                    {
-                        _logger.LogWarning("Binary message too short (< 2 bytes)");
-                        continue;
-                    }
-                    
-                    // First 2 bytes contain header length in BIG-ENDIAN format
-                    var headerLength = (buffer[0] << 8) | buffer[1];
-                    _logger.LogInformation($"Header length (big-endian): {headerLength}");
-                    
-                    // Header starts at byte 2 and continues for headerLength bytes
-                    // Audio data starts after that
-                    var audioStart = 2 + headerLength;
-                    
-                    if (audioStart > result.Count)
-                    {
-                        _logger.LogWarning($"Header length {headerLength} exceeds message size {result.Count}");
-                        continue;
-                    }
-                    
-                    // Parse headers to check if this is audio data
-                    var headerBytes = buffer.Skip(2).Take(headerLength).ToArray();
-                    var headerText = Encoding.UTF8.GetString(headerBytes);
-                    
-                    if (headerText.Contains("Path:audio"))
-                    {
-                        var audioBytes = result.Count - audioStart;
-                        audioChunks.AddRange(buffer.Skip(audioStart).Take(audioBytes));
-                        _logger.LogInformation($"Added {audioBytes} bytes of audio data. Total so far: {audioChunks.Count} bytes");
-                    }
-                    else
-                    {
-                        _logger.LogInformation($"Binary message is not audio data: {headerText.Substring(0, Math.Min(50, headerText.Length))}");
-                    }
-                }
-                else if (result.MessageType == WebSocketMessageType.Text)
-                {
-                    var message = Encoding.UTF8.GetString(buffer, 0, result.Count);
-                    _logger.LogInformation($"Received text message: {message.Substring(0, Math.Min(100, message.Length))}...");
-                    
-                    // Check if this is the end message
-                    if (message.Contains("Path:turn.end"))
-                    {
-                        _logger.LogInformation("Received turn.end - audio generation complete");
-                        break;
-                    }
-                }
+                _logger.LogInformation("WebSocket closed by server");
+                break;
             }
 
-            await client.CloseAsync(WebSocketCloseStatus.NormalClosure, "Done", CancellationToken.None);
-            
-            _logger.LogInformation($"Total audio data collected: {audioChunks.Count} bytes");
-            
-            return audioChunks.ToArray();
+            if (result.MessageType == WebSocketMessageType.Binary)
+            {
+                ProcessBinaryMessage(buffer, result.Count, audioChunks);
+            }
+            else if (result.MessageType == WebSocketMessageType.Text)
+            {
+                var message = Encoding.UTF8.GetString(buffer, 0, result.Count);
+                _logger.LogDebug("Received text message: {Message}", message.Length > 100 ? message[..100] + "..." : message);
+
+                if (message.Contains("Path:turn.end"))
+                {
+                    _logger.LogInformation("Received turn.end - audio generation complete");
+                    break;
+                }
+            }
         }
-        catch (Exception ex)
+
+        return audioChunks.ToArray();
+    }
+
+    private void ProcessBinaryMessage(byte[] buffer, int count, List<byte> audioChunks)
+    {
+        _logger.LogDebug("Received binary message: {Count} bytes", count);
+
+        if (count < 2)
         {
-            _logger.LogError(ex, "Error generating audio via WebSocket");
-            return null;
+            _logger.LogWarning("Binary message too short (< 2 bytes)");
+            return;
+        }
+
+        var headerLength = (buffer[0] << 8) | buffer[1];
+        var audioStart = 2 + headerLength;
+
+        if (audioStart > count)
+        {
+            _logger.LogWarning("Header length {HeaderLength} exceeds message size {Count}", headerLength, count);
+            return;
+        }
+
+        var headerBytes = buffer.Skip(2).Take(headerLength).ToArray();
+        var headerText = Encoding.UTF8.GetString(headerBytes);
+
+        if (headerText.Contains("Path:audio"))
+        {
+            var audioBytes = count - audioStart;
+            audioChunks.AddRange(buffer.Skip(audioStart).Take(audioBytes));
+            _logger.LogDebug("Added {AudioBytes} bytes of audio data. Total: {Total} bytes", audioBytes, audioChunks.Count);
         }
     }
 

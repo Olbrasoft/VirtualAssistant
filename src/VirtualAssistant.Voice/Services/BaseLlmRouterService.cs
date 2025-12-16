@@ -2,12 +2,12 @@ using System.Diagnostics;
 using System.Net.Http.Json;
 using System.Text;
 using System.Text.Json;
-using System.Text.Json.Serialization;
-using System.Text.RegularExpressions;
 using Microsoft.Extensions.Logging;
 using Olbrasoft.VirtualAssistant.Core.Enums;
 using Olbrasoft.VirtualAssistant.Core.Exceptions;
 using Olbrasoft.VirtualAssistant.Core.Services;
+using Olbrasoft.VirtualAssistant.Core.Utilities;
+using Olbrasoft.VirtualAssistant.Voice.Dtos.Llm;
 
 namespace Olbrasoft.VirtualAssistant.Voice.Services;
 
@@ -27,7 +27,7 @@ public abstract class BaseLlmRouterService : ILlmRouterService
     private const int MaxContextEntries = 5;
 
     public abstract string ProviderName { get; }
-    
+
     /// <summary>
     /// The LLM provider enum value for this service
     /// </summary>
@@ -65,25 +65,20 @@ public abstract class BaseLlmRouterService : ILlmRouterService
             MaxTokens = 256
         };
 
-        // No retry for rate limiting - throw exception for MultiProviderRouter to handle
         try
         {
             _logger.LogDebug("Sending to {Provider}: {Input}", ProviderName, inputText);
 
-            // Use explicit StringContent to ensure Content-Length header is set (required by Cerebras)
             var requestJson = JsonSerializer.Serialize(request);
             using var requestContent = new StringContent(requestJson, Encoding.UTF8, "application/json");
             var response = await _httpClient.PostAsync("chat/completions", requestContent, cancellationToken);
 
-            // Handle rate limiting - throw exception instead of retry
             if (response.StatusCode == System.Net.HttpStatusCode.TooManyRequests)
             {
                 var errorBody = await response.Content.ReadAsStringAsync(cancellationToken);
                 _logger.LogWarning("{Provider} rate limited (429): {Body}", ProviderName, errorBody);
-                
-                // Try to parse reset time from error message
-                var resetAt = ParseResetTimeFromError(errorBody);
-                
+
+                var resetAt = RateLimitParser.ParseResetTimeFromError(errorBody);
                 throw new RateLimitException(Provider, $"{ProviderName} rate limited", resetAt ?? DateTime.UtcNow.AddMinutes(5));
             }
 
@@ -99,10 +94,7 @@ public abstract class BaseLlmRouterService : ILlmRouterService
                 return LlmRouterResult.Error("Empty response", (int)stopwatch.ElapsedMilliseconds);
             }
 
-            // Parse JSON response
             var result = ParseLlmResponse(content, (int)stopwatch.ElapsedMilliseconds);
-
-            // Add to context
             AddToContext(inputText, result);
 
             _logger.LogInformation(
@@ -113,7 +105,6 @@ public abstract class BaseLlmRouterService : ILlmRouterService
         }
         catch (RateLimitException)
         {
-            // Re-throw rate limit exceptions for MultiProviderRouter to handle
             throw;
         }
         catch (HttpRequestException ex)
@@ -134,38 +125,6 @@ public abstract class BaseLlmRouterService : ILlmRouterService
             _logger.LogError(ex, "Unexpected error calling {Provider} API", ProviderName);
             return LlmRouterResult.Error(ex.Message, (int)stopwatch.ElapsedMilliseconds);
         }
-    }
-
-    /// <summary>
-    /// Parse reset time from rate limit error message (e.g., "Please try again in 11m51.936s")
-    /// </summary>
-    private static DateTime? ParseResetTimeFromError(string errorBody)
-    {
-        try
-        {
-            // Pattern: "Please try again in Xm Y.Zs" or "Please try again in Y.Zs"
-            var match = Regex.Match(errorBody, @"try again in (\d+)m([\d.]+)s");
-            if (match.Success)
-            {
-                var minutes = int.Parse(match.Groups[1].Value);
-                var seconds = double.Parse(match.Groups[2].Value, System.Globalization.CultureInfo.InvariantCulture);
-                return DateTime.UtcNow.AddMinutes(minutes).AddSeconds(seconds);
-            }
-            
-            // Pattern: just seconds
-            match = Regex.Match(errorBody, @"try again in ([\d.]+)s");
-            if (match.Success)
-            {
-                var seconds = double.Parse(match.Groups[1].Value, System.Globalization.CultureInfo.InvariantCulture);
-                return DateTime.UtcNow.AddSeconds(seconds);
-            }
-        }
-        catch
-        {
-            // Ignore parsing errors
-        }
-        
-        return null;
     }
 
     private string BuildSystemPrompt(bool isDiscussionActive)
@@ -195,7 +154,6 @@ PREDCHOZI KONTEXT (poslednich {_recentContext.Count} interakci):
 {string.Join("\n", contextLines)}";
         }
 
-        // Load discussion warning if active
         var discussionWarning = "";
         if (isDiscussionActive)
         {
@@ -216,7 +174,6 @@ Pouze pokud uzivatel explicitne rika ""konec diskuze"" nebo ""ukoncit diskuzi"",
             }
         }
 
-        // Load main prompt template and replace placeholders
         var values = new Dictionary<string, string>
         {
             ["CurrentTime"] = now.ToString("HH:mm"),
@@ -241,7 +198,6 @@ Pouze pokud uzivatel explicitne rika ""konec diskuze"" nebo ""ukoncit diskuzi"",
     {
         try
         {
-            // Clean up content - remove markdown code blocks if present
             var json = content.Trim();
             if (json.StartsWith("```"))
             {
@@ -268,12 +224,10 @@ Pouze pokud uzivatel explicitne rika ""konec diskuze"" nebo ""ukoncit diskuzi"",
                 "start_discussion" => LlmRouterAction.StartDiscussion,
                 "end_discussion" => LlmRouterAction.EndDiscussion,
                 "dispatch_task" => LlmRouterAction.DispatchTask,
-                // Bash actions are now redirected to OpenCode
                 "bash" => LlmRouterAction.OpenCode,
                 _ => LlmRouterAction.Ignore
             };
 
-            // Parse prompt type from string (case-insensitive)
             var promptType = parsed.PromptType?.ToLowerInvariant() switch
             {
                 "command" => PromptType.Command,
@@ -281,7 +235,7 @@ Pouze pokud uzivatel explicitne rika ""konec diskuze"" nebo ""ukoncit diskuzi"",
                 "acknowledgement" => PromptType.Acknowledgement,
                 "confirmation" => PromptType.Confirmation,
                 "continuation" => PromptType.Continuation,
-                _ => PromptType.Question // Default to Question (safer)
+                _ => PromptType.Question
             };
 
             return new LlmRouterResult
@@ -296,7 +250,7 @@ Pouze pokud uzivatel explicitne rika ""konec diskuze"" nebo ""ukoncit diskuzi"",
                 NoteTitle = parsed.NoteTitle,
                 NoteContent = parsed.NoteContent,
                 DiscussionTopic = parsed.DiscussionTopic,
-                TargetAgent = parsed.TargetAgent ?? "claude", // Default to claude
+                TargetAgent = parsed.TargetAgent ?? "claude",
                 ResponseTimeMs = responseTimeMs,
                 Success = true
             };
@@ -329,80 +283,4 @@ Pouze pokud uzivatel explicitne rika ""konec diskuze"" nebo ""ukoncit diskuzi"",
         public required string Action { get; init; }
         public DateTime Timestamp { get; init; }
     }
-
-    #region DTOs
-
-    private class LlmRequest
-    {
-        [JsonPropertyName("model")]
-        public required string Model { get; set; }
-
-        [JsonPropertyName("messages")]
-        public required LlmMessage[] Messages { get; set; }
-
-        [JsonPropertyName("temperature")]
-        public float Temperature { get; set; }
-
-        [JsonPropertyName("max_tokens")]
-        public int MaxTokens { get; set; }
-    }
-
-    private class LlmMessage
-    {
-        [JsonPropertyName("role")]
-        public required string Role { get; set; }
-
-        [JsonPropertyName("content")]
-        public required string Content { get; set; }
-    }
-
-    private class LlmResponse
-    {
-        [JsonPropertyName("choices")]
-        public LlmChoice[]? Choices { get; set; }
-    }
-
-    private class LlmChoice
-    {
-        [JsonPropertyName("message")]
-        public LlmMessage? Message { get; set; }
-    }
-
-    private class LlmRouterResponseDto
-    {
-        [JsonPropertyName("action")]
-        public string? Action { get; set; }
-
-        [JsonPropertyName("prompt_type")]
-        public string? PromptType { get; set; }
-
-        [JsonPropertyName("confidence")]
-        public float Confidence { get; set; }
-
-        [JsonPropertyName("reason")]
-        public string? Reason { get; set; }
-
-        [JsonPropertyName("response")]
-        public string? Response { get; set; }
-
-        [JsonPropertyName("command_for_opencode")]
-        public string? CommandForOpenCode { get; set; }
-
-        [JsonPropertyName("bash_command")]
-        public string? BashCommand { get; set; }
-
-        [JsonPropertyName("note_title")]
-        public string? NoteTitle { get; set; }
-
-        [JsonPropertyName("note_content")]
-        public string? NoteContent { get; set; }
-
-        [JsonPropertyName("discussion_topic")]
-        public string? DiscussionTopic { get; set; }
-
-        [JsonPropertyName("target_agent")]
-        public string? TargetAgent { get; set; }
-    }
-
-    #endregion
 }

@@ -24,7 +24,6 @@ public static class ApplicationBuilderExtensions
             {
                 logger.LogInformation("Applying {Count} pending database migrations: {Migrations}",
                     pendingMigrations.Count, string.Join(", ", pendingMigrations));
-                Console.WriteLine($"📦 Applying {pendingMigrations.Count} pending migration(s)...");
             }
 
             dbContext.Database.Migrate();
@@ -32,13 +31,11 @@ public static class ApplicationBuilderExtensions
             if (pendingMigrations.Count > 0)
             {
                 logger.LogInformation("Database migrations applied successfully");
-                Console.WriteLine("✅ Database migrations applied successfully");
             }
         }
         catch (Exception ex)
         {
             logger.LogError(ex, "Failed to apply database migrations");
-            Console.WriteLine($"❌ Database migration failed: {ex.Message}");
             throw;
         }
 

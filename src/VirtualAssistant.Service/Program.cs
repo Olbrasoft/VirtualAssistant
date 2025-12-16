@@ -67,7 +67,8 @@ public class Program
         // Create tray icon service
         var muteService = _app.Services.GetRequiredService<IManualMuteService>();
         var options = _app.Services.GetRequiredService<IOptions<ContinuousListenerOptions>>();
-        _trayService = new TrayIconService(muteService, options.Value.LogViewerPort);
+        var trayLogger = _app.Services.GetRequiredService<ILogger<TrayIconService>>();
+        _trayService = new TrayIconService(muteService, trayLogger, options.Value.LogViewerPort);
 
         try
         {
