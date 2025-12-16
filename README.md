@@ -65,12 +65,17 @@ Služba běží na `http://localhost:5055`.
 |--------|----------|-------|
 | GET | `/health` | Health check |
 
+### Notifications
+
+| Metoda | Endpoint | Popis |
+|--------|----------|-------|
+| POST | `/api/notifications` | Vytvoří notifikaci (ukládá do DB, přehraje přes TTS) |
+
 ### TTS (Text-to-Speech)
 
 | Metoda | Endpoint | Popis |
 |--------|----------|-------|
 | POST | `/api/tts/speak` | Pošle text k přečtení (source: opencode/claude/assistant) |
-| POST | `/api/tts/notify` | Alias pro `/api/tts/speak` (zpětná kompatibilita) |
 | GET | `/api/tts/queue` | Vrátí počet zpráv ve frontě |
 | POST | `/api/tts/stop` | Zastaví aktuální přehrávání |
 | POST | `/api/tts/flush-queue` | Přehraje všechny zprávy ve frontě |

@@ -192,7 +192,7 @@ public class ClaudeDispatchService : IClaudeDispatchService
                 Encoding.UTF8,
                 "application/json");
 
-            await client.PostAsync(_options.TtsNotifyUrl, content);
+            await client.PostAsync(_options.NotifyUrl, content);
         }
         catch (Exception ex)
         {

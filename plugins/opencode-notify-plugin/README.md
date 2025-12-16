@@ -26,7 +26,7 @@ Add to your `~/.config/opencode/opencode.json`:
 
 | Variable | Default | Description |
 |----------|---------|-------------|
-| `OPENCODE_NOTIFY_URL` | `http://localhost:5055/api/tts/notify` | VirtualAssistant API endpoint |
+| `OPENCODE_NOTIFY_URL` | `http://localhost:5055/api/notifications` | VirtualAssistant API endpoint |
 
 ## Usage
 

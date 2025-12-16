@@ -11,9 +11,9 @@ public class ClaudeDispatchOptions
     public const string SectionName = "ClaudeDispatch";
 
     /// <summary>
-    /// URL for TTS notifications.
+    /// URL for notifications endpoint.
     /// </summary>
-    public string TtsNotifyUrl { get; set; } = "http://localhost:5055/api/tts/notify";
+    public string NotifyUrl { get; set; } = "http://localhost:5055/api/notifications";
 
     /// <summary>
     /// Default working directory for Claude execution.

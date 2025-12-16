@@ -7,8 +7,9 @@ using VirtualAssistant.Data.Dtos.Common;
 namespace Olbrasoft.VirtualAssistant.Service.Controllers;
 
 /// <summary>
-/// REST API controller for text-to-speech notifications.
-/// Uses EdgeTTS with Piper fallback when Microsoft service is unavailable.
+/// Legacy REST API controller for direct text-to-speech.
+/// Note: For notifications, use NotificationsController at /api/notifications instead.
+/// This controller provides direct TTS without database storage or batching.
 /// </summary>
 [ApiController]
 [Route("api/tts")]
@@ -35,36 +36,8 @@ public class TtsController : ControllerBase
             ?? "/home/jirka/virtual-assistant/piper-voices/cs/cs_CZ-jirka-medium.onnx";
     }
 
-    /// <summary>
-    /// Sends text-to-speech notification. Tries EdgeTTS first, falls back to Piper.
-    /// </summary>
-    [HttpPost("notify")]
-    [ProducesResponseType(StatusCodes.Status200OK)]
-    [ProducesResponseType(typeof(ErrorResponse), StatusCodes.Status400BadRequest)]
-    public async Task<ActionResult> Notify([FromBody] TtsNotifyRequest request, CancellationToken ct)
-    {
-        if (string.IsNullOrWhiteSpace(request.Text))
-        {
-            return BadRequest(new ErrorResponse { Error = "Text is required" });
-        }
-
-        _logger.LogInformation("TTS notify request from {Source}: {Text}",
-            request.Source ?? "unknown", request.Text);
-
-        // Try EdgeTTS first
-        var edgeTtsSuccess = await TryEdgeTtsAsync(request.Text, ct);
-
-        if (edgeTtsSuccess)
-        {
-            return Ok(new { success = true, message = "TTS via EdgeTTS", text = request.Text, source = request.Source });
-        }
-
-        // Fallback to Piper
-        _logger.LogWarning("EdgeTTS failed, falling back to Piper");
-        _ = Task.Run(() => SpeakWithPiper(request.Text));
-
-        return Ok(new { success = true, message = "TTS via Piper (fallback)", text = request.Text, source = request.Source });
-    }
+    // Note: /api/tts/notify endpoint removed - use /api/notifications instead
+    // The NotificationsController stores to database and uses batching/queue
 
     private async Task<bool> TryEdgeTtsAsync(string text, CancellationToken ct)
     {

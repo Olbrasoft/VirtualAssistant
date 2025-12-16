@@ -77,36 +77,15 @@ public static class EndpointExtensions
     }
 
     /// <summary>
-    /// Maps TTS endpoints (speak, notify, queue management, provider status).
+    /// Maps TTS endpoints (speak, queue management, provider status).
     /// All TTS operations delegate to TtsService (single source of truth).
+    /// Note: Notifications are handled by NotificationsController at /api/notifications
     /// </summary>
     public static WebApplication MapTtsEndpoints(this WebApplication app)
     {
         var ttsProviderChain = app.Services.GetRequiredService<ITtsProviderChain>();
 
-        // Notify endpoint - stores notification in database and queues for TTS
-        app.MapPost("/api/tts/notify", async (TtsNotifyRequest request, INotificationService notificationService, INotificationBatchingService batchingService, ILogger<Program> logger) =>
-        {
-            logger.LogInformation("Notification received from {Source}: {Text} (issues: {IssueIds})", request.Source ?? "default", request.Text, request.IssueIds);
-
-            var agentId = request.Source ?? "Unknown";
-            var notificationId = await notificationService.CreateNotificationAsync(request.Text, agentId, request.IssueIds);
-
-            logger.LogInformation("Notification {Id} stored in database from agent {Agent} with {IssueCount} linked issues",
-                notificationId, agentId, request.IssueIds?.Count ?? 0);
-
-            // Queue for batched TTS processing
-            var agentNotification = new AgentNotification
-            {
-                NotificationId = notificationId,
-                Agent = agentId,
-                Type = "status",
-                Content = request.Text
-            };
-            batchingService.QueueNotification(agentNotification);
-
-            return Results.Ok(new { success = true, notificationId, message = "Notification queued for TTS", text = request.Text, source = agentId, issueIds = request.IssueIds });
-        });
+        // Speak endpoint - directly speaks text via TTS
         app.MapPost("/api/tts/speak", async (TtsNotifyRequest request, TtsService ttsService, ILogger<Program> logger) =>
         {
             logger.LogInformation("TTS Speak received from {Source}: {Text}", request.Source ?? "default", request.Text);
