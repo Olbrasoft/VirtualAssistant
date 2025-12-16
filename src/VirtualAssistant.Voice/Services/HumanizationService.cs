@@ -76,7 +76,8 @@ public class HumanizationService : IHumanizationService
 
             if (string.IsNullOrWhiteSpace(content))
             {
-                _logger.LogWarning("Empty response from LlmChain, using fallback");
+                _logger.LogWarning("Empty response from LlmChain after cleaning. Raw response was: {RawResponse}",
+                    result.Content?.Length > 500 ? result.Content[..500] + "..." : result.Content);
                 return FallbackHumanize(filtered);
             }
 
