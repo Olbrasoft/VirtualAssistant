@@ -60,7 +60,9 @@ public class SpeechLockController : ControllerBase
             Success = true,
             IsLocked = true,
             Message = "Speech lock activated",
-            QueueCount = _batchingService.PendingCount
+            QueueCount = _batchingService.PendingCount + _speaker.QueueCount,
+            BatchingQueueCount = _batchingService.PendingCount,
+            TtsQueueCount = _speaker.QueueCount
         });
     }
 
@@ -77,22 +79,31 @@ public class SpeechLockController : ControllerBase
         // Unlock
         _speechLockService.Unlock();
 
-        // Flush queued notifications immediately
-        var pendingCount = _batchingService.PendingCount;
-        if (pendingCount > 0)
+        // Flush queued notifications from NotificationBatchingService
+        var batchPendingCount = _batchingService.PendingCount;
+        if (batchPendingCount > 0)
         {
-            _logger.LogInformation("Flushing {Count} queued notifications after unlock", pendingCount);
+            _logger.LogInformation("Flushing {Count} queued notifications from batching service", batchPendingCount);
             await _batchingService.FlushAsync();
         }
 
+        // Flush queued messages from TtsService (messages that arrived during lock)
+        var ttsQueueCount = _speaker.QueueCount;
+        if (ttsQueueCount > 0)
+        {
+            _logger.LogInformation("Flushing {Count} queued messages from TTS service", ttsQueueCount);
+            await _speaker.FlushQueueAsync();
+        }
+
+        var totalFlushed = batchPendingCount + ttsQueueCount;
         return Ok(new SpeechLockResponse
         {
             Success = true,
             IsLocked = false,
-            Message = pendingCount > 0
-                ? $"Speech lock released, playing {pendingCount} queued message(s)"
+            Message = totalFlushed > 0
+                ? $"Speech lock released, playing {totalFlushed} queued message(s)"
                 : "Speech lock released",
-            QueueCount = _batchingService.PendingCount
+            QueueCount = _batchingService.PendingCount + _speaker.QueueCount
         });
     }
 
@@ -103,13 +114,16 @@ public class SpeechLockController : ControllerBase
     [ProducesResponseType(StatusCodes.Status200OK)]
     public ActionResult GetStatus()
     {
+        var totalQueueCount = _batchingService.PendingCount + _speaker.QueueCount;
         return Ok(new SpeechLockResponse
         {
             Success = true,
             IsLocked = _speechLockService.IsLocked,
             Message = _speechLockService.IsLocked ? "Speech is locked" : "Speech is unlocked",
-            QueueCount = _batchingService.PendingCount,
-            IsProcessing = _batchingService.IsProcessing
+            QueueCount = totalQueueCount,
+            IsProcessing = _batchingService.IsProcessing,
+            BatchingQueueCount = _batchingService.PendingCount,
+            TtsQueueCount = _speaker.QueueCount
         });
     }
 }
@@ -147,7 +161,7 @@ public class SpeechLockResponse
     public string Message { get; set; } = string.Empty;
 
     /// <summary>
-    /// Number of notifications waiting in queue.
+    /// Total number of notifications waiting in both queues.
     /// </summary>
     public int QueueCount { get; set; }
 
@@ -155,4 +169,14 @@ public class SpeechLockResponse
     /// Whether batch processing is currently in progress.
     /// </summary>
     public bool IsProcessing { get; set; }
+
+    /// <summary>
+    /// Number of notifications in NotificationBatchingService queue.
+    /// </summary>
+    public int BatchingQueueCount { get; set; }
+
+    /// <summary>
+    /// Number of messages in TtsService queue.
+    /// </summary>
+    public int TtsQueueCount { get; set; }
 }

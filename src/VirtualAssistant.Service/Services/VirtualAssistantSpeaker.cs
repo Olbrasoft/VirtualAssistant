@@ -31,6 +31,11 @@ public class VirtualAssistantSpeaker : IVirtualAssistantSpeaker
     public bool IsSpeaking => _speechQueueService.IsSpeaking;
 
     /// <summary>
+    /// Number of messages waiting in TTS queue.
+    /// </summary>
+    public int QueueCount => _ttsService.QueueCount;
+
+    /// <summary>
     /// Cancels currently playing speech.
     /// </summary>
     public void CancelCurrentSpeech()
@@ -77,6 +82,16 @@ public class VirtualAssistantSpeaker : IVirtualAssistantSpeaker
         {
             _speechQueueService.EndSpeaking();
         }
+    }
+
+    /// <summary>
+    /// Plays all queued messages immediately.
+    /// Called when speech lock is released to flush pending messages.
+    /// </summary>
+    public async Task FlushQueueAsync(CancellationToken ct = default)
+    {
+        _logger.LogDebug("Flushing TTS queue ({Count} messages)", _ttsService.QueueCount);
+        await _ttsService.FlushQueueAsync(ct);
     }
 
     private static string TruncateText(string text, int maxLength)

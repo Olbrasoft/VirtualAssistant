@@ -13,6 +13,11 @@ public interface IVirtualAssistantSpeaker
     bool IsSpeaking { get; }
 
     /// <summary>
+    /// Number of messages waiting in TTS queue.
+    /// </summary>
+    int QueueCount { get; }
+
+    /// <summary>
     /// Speaks the text using TTS.
     /// If agentName is provided, checks workspace and skips TTS if user is on same workspace as agent.
     /// </summary>
@@ -31,4 +36,10 @@ public interface IVirtualAssistantSpeaker
     /// Cancels all speech and clears the queue.
     /// </summary>
     void CancelAllSpeech();
+
+    /// <summary>
+    /// Plays all queued messages immediately.
+    /// Called when speech lock is released to flush pending messages.
+    /// </summary>
+    Task FlushQueueAsync(CancellationToken ct = default);
 }

@@ -34,6 +34,7 @@ public class SpeechLockControllerTests
     {
         // Arrange
         _batchingServiceMock.Setup(x => x.PendingCount).Returns(0);
+        _speakerMock.Setup(x => x.QueueCount).Returns(0);
 
         // Act
         var result = _controller.Start(null);
@@ -55,6 +56,7 @@ public class SpeechLockControllerTests
         // Arrange
         var request = new SpeechLockStartRequest { TimeoutSeconds = 60 };
         _batchingServiceMock.Setup(x => x.PendingCount).Returns(0);
+        _speakerMock.Setup(x => x.QueueCount).Returns(0);
 
         // Act
         var result = _controller.Start(request);
@@ -75,6 +77,7 @@ public class SpeechLockControllerTests
         // Arrange
         var request = new SpeechLockStartRequest { TimeoutSeconds = 0 };
         _batchingServiceMock.Setup(x => x.PendingCount).Returns(0);
+        _speakerMock.Setup(x => x.QueueCount).Returns(0);
 
         // Act
         var result = _controller.Start(request);
@@ -88,6 +91,7 @@ public class SpeechLockControllerTests
     {
         // Arrange
         _batchingServiceMock.Setup(x => x.PendingCount).Returns(3);
+        _speakerMock.Setup(x => x.QueueCount).Returns(2);
 
         // Act
         var result = _controller.Start(null);
@@ -95,14 +99,15 @@ public class SpeechLockControllerTests
         // Assert
         var okResult = Assert.IsType<OkObjectResult>(result);
         var response = Assert.IsType<SpeechLockResponse>(okResult.Value);
-        Assert.Equal(3, response.QueueCount);
+        Assert.Equal(5, response.QueueCount); // 3 batching + 2 tts
     }
 
     [Fact]
-    public async Task Stop_UnlocksAndFlushesQueue()
+    public async Task Stop_UnlocksAndFlushesBothQueues()
     {
         // Arrange
         _batchingServiceMock.Setup(x => x.PendingCount).Returns(2);
+        _speakerMock.Setup(x => x.QueueCount).Returns(3);
 
         // Act
         var result = await _controller.Stop();
@@ -112,10 +117,11 @@ public class SpeechLockControllerTests
         var response = Assert.IsType<SpeechLockResponse>(okResult.Value);
         Assert.True(response.Success);
         Assert.False(response.IsLocked);
-        Assert.Contains("2", response.Message);
+        Assert.Contains("5", response.Message); // 2 batching + 3 tts
 
         _speechLockServiceMock.Verify(x => x.Unlock(), Times.Once);
         _batchingServiceMock.Verify(x => x.FlushAsync(), Times.Once);
+        _speakerMock.Verify(x => x.FlushQueueAsync(It.IsAny<CancellationToken>()), Times.Once);
     }
 
     [Fact]
@@ -123,6 +129,7 @@ public class SpeechLockControllerTests
     {
         // Arrange
         _batchingServiceMock.Setup(x => x.PendingCount).Returns(0);
+        _speakerMock.Setup(x => x.QueueCount).Returns(0);
 
         // Act
         var result = await _controller.Stop();
@@ -134,6 +141,26 @@ public class SpeechLockControllerTests
 
         _speechLockServiceMock.Verify(x => x.Unlock(), Times.Once);
         _batchingServiceMock.Verify(x => x.FlushAsync(), Times.Never);
+        _speakerMock.Verify(x => x.FlushQueueAsync(It.IsAny<CancellationToken>()), Times.Never);
+    }
+
+    [Fact]
+    public async Task Stop_WithOnlyTtsQueue_FlushesTtsOnly()
+    {
+        // Arrange
+        _batchingServiceMock.Setup(x => x.PendingCount).Returns(0);
+        _speakerMock.Setup(x => x.QueueCount).Returns(2);
+
+        // Act
+        var result = await _controller.Stop();
+
+        // Assert
+        var okResult = Assert.IsType<OkObjectResult>(result);
+        var response = Assert.IsType<SpeechLockResponse>(okResult.Value);
+        Assert.Contains("2", response.Message);
+
+        _batchingServiceMock.Verify(x => x.FlushAsync(), Times.Never);
+        _speakerMock.Verify(x => x.FlushQueueAsync(It.IsAny<CancellationToken>()), Times.Once);
     }
 
     [Fact]
@@ -143,6 +170,7 @@ public class SpeechLockControllerTests
         _speechLockServiceMock.Setup(x => x.IsLocked).Returns(true);
         _batchingServiceMock.Setup(x => x.PendingCount).Returns(5);
         _batchingServiceMock.Setup(x => x.IsProcessing).Returns(false);
+        _speakerMock.Setup(x => x.QueueCount).Returns(3);
 
         // Act
         var result = _controller.GetStatus();
@@ -153,7 +181,9 @@ public class SpeechLockControllerTests
         Assert.True(response.Success);
         Assert.True(response.IsLocked);
         Assert.Equal("Speech is locked", response.Message);
-        Assert.Equal(5, response.QueueCount);
+        Assert.Equal(8, response.QueueCount); // 5 batching + 3 tts
+        Assert.Equal(5, response.BatchingQueueCount);
+        Assert.Equal(3, response.TtsQueueCount);
         Assert.False(response.IsProcessing);
     }
 
@@ -164,6 +194,7 @@ public class SpeechLockControllerTests
         _speechLockServiceMock.Setup(x => x.IsLocked).Returns(false);
         _batchingServiceMock.Setup(x => x.PendingCount).Returns(0);
         _batchingServiceMock.Setup(x => x.IsProcessing).Returns(true);
+        _speakerMock.Setup(x => x.QueueCount).Returns(0);
 
         // Act
         var result = _controller.GetStatus();
@@ -174,6 +205,7 @@ public class SpeechLockControllerTests
         Assert.True(response.Success);
         Assert.False(response.IsLocked);
         Assert.Equal("Speech is unlocked", response.Message);
+        Assert.Equal(0, response.QueueCount);
         Assert.True(response.IsProcessing);
     }
 }
