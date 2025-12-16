@@ -10,23 +10,35 @@ jobs:
     runs-on: self-hosted
 
     steps:
-      - name: Checkout code
+      - name: Checkout VirtualAssistant
         uses: actions/checkout@v4
+        with:
+          path: VirtualAssistant
+
+      - name: Checkout Data dependency
+        uses: actions/checkout@v4
+        with:
+          repository: Olbrasoft/Data
+          path: Data
 
       # .NET 10 is already installed system-wide on the self-hosted runner
       - name: Verify .NET version
         run: dotnet --version
 
       - name: Restore dependencies
+        working-directory: VirtualAssistant
         run: dotnet restore
 
       - name: Build
+        working-directory: VirtualAssistant
         run: dotnet build --no-restore --configuration Release
 
       - name: Run tests
+        working-directory: VirtualAssistant
         run: dotnet test --no-build --configuration Release --filter "FullyQualifiedName!~IntegrationTests"
 
       - name: Publish
+        working-directory: VirtualAssistant
         run: |
           dotnet publish src/VirtualAssistant.Service/VirtualAssistant.Service.csproj \
             -c Release \
