@@ -62,6 +62,9 @@ public static class ServiceCollectionExtensions
         services.Configure<ClaudeDispatchOptions>(
             configuration.GetSection(ClaudeDispatchOptions.SectionName));
 
+        services.Configure<ExternalServicesOptions>(
+            configuration.GetSection(ExternalServicesOptions.SectionName));
+
         return services;
     }
 

@@ -17,16 +17,22 @@ public class TtsController : ControllerBase
 {
     private readonly IHttpClientFactory _httpClientFactory;
     private readonly ILogger<TtsController> _logger;
-
-    private const string EdgeTtsServerUrl = "http://localhost:5555/api/speech/speak";
-    private const string PiperModelPath = "/home/jirka/virtual-assistant/piper-voices/cs/cs_CZ-jirka-medium.onnx";
+    private readonly string _edgeTtsServerUrl;
+    private readonly string _piperModelPath;
 
     public TtsController(
         IHttpClientFactory httpClientFactory,
-        ILogger<TtsController> logger)
+        ILogger<TtsController> logger,
+        IConfiguration configuration)
     {
         _httpClientFactory = httpClientFactory;
         _logger = logger;
+
+        // Read from config with fallback defaults
+        var edgeTtsBaseUrl = configuration["EdgeTtsServer:BaseUrl"] ?? "http://localhost:5555";
+        _edgeTtsServerUrl = $"{edgeTtsBaseUrl}/api/speech/speak";
+        _piperModelPath = configuration["TTS:Piper:ModelPath"]
+            ?? "/home/jirka/virtual-assistant/piper-voices/cs/cs_CZ-jirka-medium.onnx";
     }
 
     /// <summary>
@@ -81,7 +87,7 @@ public class TtsController : ControllerBase
                 Encoding.UTF8,
                 "application/json");
 
-            var response = await client.PostAsync(EdgeTtsServerUrl, content, ct);
+            var response = await client.PostAsync(_edgeTtsServerUrl, content, ct);
 
             if (!response.IsSuccessStatusCode)
             {
@@ -120,7 +126,7 @@ public class TtsController : ControllerBase
                 StartInfo = new ProcessStartInfo
                 {
                     FileName = "piper",
-                    Arguments = $"--model \"{PiperModelPath}\" --output_file \"{tempWav}\"",
+                    Arguments = $"--model \"{_piperModelPath}\" --output_file \"{tempWav}\"",
                     RedirectStandardInput = true,
                     RedirectStandardOutput = true,
                     RedirectStandardError = true,

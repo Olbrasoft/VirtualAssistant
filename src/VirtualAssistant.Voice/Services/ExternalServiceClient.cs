@@ -1,5 +1,7 @@
 using System.Net.Http.Json;
 using Microsoft.Extensions.Logging;
+using Microsoft.Extensions.Options;
+using Olbrasoft.VirtualAssistant.Voice.Configuration;
 using Olbrasoft.VirtualAssistant.Voice.Dtos;
 
 namespace Olbrasoft.VirtualAssistant.Voice.Services;
@@ -11,17 +13,18 @@ public class ExternalServiceClient : IExternalServiceClient
 {
     private readonly ILogger<ExternalServiceClient> _logger;
     private readonly HttpClient _httpClient;
-
-    // Service endpoints
-    private const string PttRepeatEndpoint = "http://localhost:5050/api/ptt/repeat";
-    private const string TaskDispatchEndpoint = "http://localhost:5055/api/hub/dispatch-task";
+    private readonly string _pttRepeatUrl;
+    private readonly string _taskDispatchUrl;
 
     public ExternalServiceClient(
         ILogger<ExternalServiceClient> logger,
-        HttpClient httpClient)
+        HttpClient httpClient,
+        IOptions<ExternalServicesOptions> options)
     {
         _logger = logger;
         _httpClient = httpClient;
+        _pttRepeatUrl = options.Value.PttRepeatUrl;
+        _taskDispatchUrl = options.Value.TaskDispatchUrl;
     }
 
     /// <inheritdoc />
@@ -31,7 +34,7 @@ public class ExternalServiceClient : IExternalServiceClient
         {
             _logger.LogDebug("Calling PTT repeat endpoint");
 
-            var response = await _httpClient.PostAsync(PttRepeatEndpoint, null, ct);
+            var response = await _httpClient.PostAsync(_pttRepeatUrl, null, ct);
 
             if (response.IsSuccessStatusCode)
             {
@@ -66,7 +69,7 @@ public class ExternalServiceClient : IExternalServiceClient
             _logger.LogDebug("Dispatching task to {Agent}", targetAgent);
 
             var requestBody = new { agent = targetAgent };
-            var response = await _httpClient.PostAsJsonAsync(TaskDispatchEndpoint, requestBody, ct);
+            var response = await _httpClient.PostAsJsonAsync(_taskDispatchUrl, requestBody, ct);
 
             if (response.IsSuccessStatusCode)
             {
