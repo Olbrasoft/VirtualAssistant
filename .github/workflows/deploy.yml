@@ -1,0 +1,41 @@
+name: Deploy VirtualAssistant
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+jobs:
+  deploy:
+    runs-on: self-hosted
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Setup .NET
+        uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: '10.0.x'
+
+      - name: Restore dependencies
+        run: dotnet restore
+
+      - name: Build
+        run: dotnet build --no-restore --configuration Release
+
+      - name: Run tests
+        run: dotnet test --no-build --configuration Release --filter "FullyQualifiedName!~IntegrationTests"
+
+      - name: Publish
+        run: |
+          dotnet publish src/VirtualAssistant.Service/VirtualAssistant.Service.csproj \
+            -c Release \
+            -o ~/virtual-assistant/main \
+            --no-self-contained
+
+      - name: Restart service
+        run: |
+          systemctl --user restart virtual-assistant.service || true
+          sleep 2
+          systemctl --user status virtual-assistant.service --no-pager || true
