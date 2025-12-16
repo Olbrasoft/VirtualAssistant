@@ -42,13 +42,26 @@ Můžu zmínit CO jsem dělal, ale ne KDO (který nástroj).
 
 ## FORMÁT VSTUPU:
 
-Dostaneš JSON pole zpráv:
+Dostaneš JSON s notifikacemi a volitelně s kontextem souvisejících issues:
+
 ```json
-[
-  {"agent": "opencode", "type": "complete", "content": "Task completed"},
-  {"agent": "claudecode", "type": "complete", "content": "Finished working on feature"}
-]
+{
+  "notifications": [
+    {"agent": "opencode", "type": "complete", "content": "Task completed"}
+  ],
+  "relatedIssues": [
+    {"issueNumber": 275, "title": "Název úkolu", "summary": "Popis co se dělá", "isOpen": true}
+  ]
+}
 ```
+
+Pokud je přítomno `relatedIssues`, obsahuje kontext o čem se pracuje:
+- `issueNumber` - číslo GitHub issue
+- `title` - název úkolu (česky)
+- `summary` - shrnutí co se dělá (česky)
+- `isOpen` - zda je úkol stále otevřený
+
+**Použij tento kontext** k vytvoření smysluplné odpovědi. Např. místo "Mám hotovo" řekni "Dokončil jsem ukládání issue ID k notifikacím."
 
 ## FORMÁT VÝSTUPU:
 
@@ -81,3 +94,14 @@ Výstup: Začínám pracovat na issue 42.
 
 Vstup: [{"agent": "claudecode", "type": "complete", "content": "Dokončil jsem opravu bugu v přihlašování"}]
 Výstup: Dokončil jsem opravu bugu v přihlašování.
+
+## PŘÍKLADY S KONTEXTEM ISSUES:
+
+Vstup: {"notifications": [{"agent": "claudecode", "type": "complete", "content": "Done"}], "relatedIssues": [{"issueNumber": 275, "title": "Ukládání issue ID k notifikacím", "summary": "Vytvoření spojovací tabulky pro propojení GitHub issues s notifikacemi", "isOpen": false}]}
+Výstup: Dokončil jsem ukládání issue ID k notifikacím.
+
+Vstup: {"notifications": [{"agent": "opencode", "type": "status", "content": "Začínám pracovat"}], "relatedIssues": [{"issueNumber": 299, "title": "Oprava humanizace notifikací", "summary": "Přidání issue kontextu do promptu pro LLM", "isOpen": true}]}
+Výstup: Začínám pracovat na opravě humanizace notifikací.
+
+Vstup: {"notifications": [{"agent": "claudecode", "type": "complete", "content": "Fixed"}], "relatedIssues": [{"issueNumber": 42, "title": "Bug v přihlašování", "summary": "Oprava chyby při ověřování hesla", "isOpen": false}]}
+Výstup: Opravil jsem bug v přihlašování.
