@@ -179,13 +179,15 @@ public class TrayIconService : IDisposable
         try
         {
             var url = $"http://localhost:{_logViewerPort}";
-            Process.Start(new ProcessStartInfo
+            using var process = Process.Start(new ProcessStartInfo
             {
                 FileName = "xdg-open",
                 Arguments = url,
                 UseShellExecute = false,
                 CreateNoWindow = true
             });
+            // Fire-and-forget: xdg-open spawns browser and exits immediately
+            // Using statement ensures Process resources are released
         }
         catch (Exception ex)
         {
