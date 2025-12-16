@@ -173,7 +173,8 @@ public class HumanizationService : IHumanizationService
 
     /// <summary>
     /// Fallback humanization when LLM is unavailable.
-    /// Uses simple template-based approach.
+    /// Uses simple template-based approach with first-person persona.
+    /// VirtualAssistant speaks as "I" - never mentions agents as external entities.
     /// </summary>
     private string FallbackHumanize(IReadOnlyList<AgentNotification> notifications)
     {
@@ -184,16 +185,16 @@ public class HumanizationService : IHumanizationService
             return null!;
         }
 
-        // For status updates, just format the content with agent name
+        // For status updates, use content directly (it's usually already in first person)
         var statusNotifications = notifications
             .Where(n => n.Type.Equals("status", StringComparison.OrdinalIgnoreCase))
             .ToList();
 
         if (statusNotifications.Count > 0)
         {
-            // Combine status messages from all agents
+            // Use the content directly - it should be in first person
             var messages = statusNotifications
-                .Select(n => $"{FormatAgentName(n.Agent)} hlásí: {n.Content}")
+                .Select(n => n.Content)
                 .ToList();
             return string.Join(" ", messages);
         }
@@ -205,21 +206,17 @@ public class HumanizationService : IHumanizationService
 
         if (completeNotifications.Count == 0)
         {
-            // Generic fallback - just read the content
+            // Generic fallback - just read the content directly
             var first = notifications.First();
-            return $"{FormatAgentName(first.Agent)}: {first.Content}";
+            return first.Content;
         }
 
-        var agents = completeNotifications
-            .Select(n => FormatAgentName(n.Agent))
-            .Distinct()
-            .ToList();
-
-        return agents.Count switch
+        // Use first-person responses without mentioning agents
+        return completeNotifications.Count switch
         {
-            1 => $"{agents[0]} je hotový.",
-            2 => $"{agents[0]} a {agents[1]} jsou hotovi.",
-            _ => $"{string.Join(", ", agents.Take(agents.Count - 1))} a {agents.Last()} jsou hotovi."
+            1 => "Mám hotovo.",
+            2 => "Mám hotovo s oběma úkoly.",
+            _ => "Mám hotovo se všemi úkoly."
         };
     }
 
