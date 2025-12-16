@@ -77,12 +77,16 @@ export const NotifyPlugin: Plugin = async () => {
    * Send notification to VirtualAssistant
    * Uses source: "opencode" for voice differentiation
    */
-  async function notify(text: string): Promise<{ success: boolean; error?: string }> {
+  async function notify(text: string, issueIds?: number[]): Promise<{ success: boolean; error?: string }> {
     try {
+      const requestBody: { text: string; source: string; issueIds?: number[] } = { text, source: "opencode" }
+      if (issueIds && issueIds.length > 0) {
+        requestBody.issueIds = issueIds
+      }
       const response = await fetch(config.notifyUrl, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ text, source: "opencode" }),
+        body: JSON.stringify(requestBody),
         signal: AbortSignal.timeout(5000), // 5 second timeout
       })
 
@@ -114,14 +118,17 @@ export const NotifyPlugin: Plugin = async () => {
         description:
           "Notify VirtualAssistant with text to speak aloud. Use this for voice confirmations, " +
           "task acknowledgments, and summaries. Text should be in Czech language, " +
-          "natural and conversational. Keep it brief (1-3 sentences).",
+          "natural and conversational. Keep it brief (1-3 sentences). " +
+          "Optionally include related GitHub issue IDs for context.",
         args: {
           text: tool.schema.string().describe("The text to notify (Czech language preferred)"),
+          issueIds: tool.schema.array(tool.schema.number()).optional().describe("Optional array of GitHub issue numbers related to this notification"),
         },
         async execute(args) {
-          const result = await notify(args.text)
+          const result = await notify(args.text, args.issueIds)
           if (result.success) {
-            return `„${args.text}"`
+            const issueInfo = args.issueIds?.length ? ` [issues: ${args.issueIds.join(", ")}]` : ""
+            return `„${args.text}"${issueInfo}`
           } else {
             return `[Notify error: ${result.error}] „${args.text}"`
           }
