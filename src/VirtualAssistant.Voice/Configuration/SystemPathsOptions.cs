@@ -36,6 +36,12 @@ public class SystemPathsOptions
     public string TtsCacheDirectory { get; set; } = "~/.cache/virtual-assistant-tts";
 
     /// <summary>
+    /// Default timeout in seconds for speech lock auto-release.
+    /// If STT fails to send unlock, the lock will auto-release after this time.
+    /// </summary>
+    public int SpeechLockTimeoutSeconds { get; set; } = 30;
+
+    /// <summary>
     /// Expands ~ to home directory in the TTS cache path.
     /// </summary>
     public string GetExpandedTtsCacheDirectory()

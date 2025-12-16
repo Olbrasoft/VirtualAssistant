@@ -11,7 +11,7 @@ namespace Olbrasoft.VirtualAssistant.Voice.Services;
 /// <summary>
 /// Batches agent notifications and processes them through humanization and TTS.
 /// Uses a sliding window to combine related notifications.
-/// Detects concurrent notifications and cancels current speech to include new messages.
+/// Messages are queued and played sequentially - no interruption between agents.
 /// </summary>
 public class NotificationBatchingService : INotificationBatchingService, IDisposable
 {
@@ -65,12 +65,11 @@ public class NotificationBatchingService : INotificationBatchingService, IDispos
         _pendingNotifications.Enqueue(notification);
         _logger.LogDebug("Queued notification: {Agent} {Type}", notification.Agent, notification.Type);
 
-        // If currently processing, cancel speech and restart timer
-        // This ensures new notifications are included in the next batch
+        // If currently processing, just queue - don't interrupt current speech
+        // Agent messages should play sequentially, never interrupt each other
         if (_isProcessing)
         {
-            _logger.LogInformation("Concurrent notification detected - cancelling current speech");
-            _speaker.CancelCurrentSpeech();
+            _logger.LogDebug("Notification queued during processing - will play after current message");
         }
 
         // Reset/start the batch timer
@@ -204,6 +203,29 @@ public class NotificationBatchingService : INotificationBatchingService, IDispos
         }
 
         GC.SuppressFinalize(this);
+    }
+
+    /// <summary>
+    /// Immediately processes any pending notifications without waiting for the batch timer.
+    /// Used when speech lock is released to play queued messages right away.
+    /// </summary>
+    public async Task FlushAsync()
+    {
+        if (_pendingNotifications.IsEmpty)
+        {
+            _logger.LogDebug("FlushAsync called but no pending notifications");
+            return;
+        }
+
+        // Cancel the batch timer since we're processing immediately
+        lock (_timerLock)
+        {
+            _batchTimer?.Dispose();
+            _batchTimer = null;
+        }
+
+        _logger.LogInformation("Flushing {Count} pending notifications", _pendingNotifications.Count);
+        await ProcessBatchAsync();
     }
 
     /// <summary>

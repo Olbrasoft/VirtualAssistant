@@ -7,24 +7,21 @@ namespace Olbrasoft.VirtualAssistant.Voice.Services;
 public interface ISpeechLockService
 {
     /// <summary>
-    /// Gets whether speech is currently locked (microphone is active).
+    /// Gets whether speech is currently locked (microphone is active or programmatically locked).
     /// </summary>
     bool IsLocked { get; }
-}
 
-/// <summary>
-/// File-based speech lock service implementation.
-/// Checks for existence of a lock file to determine if microphone is active.
-/// </summary>
-public sealed class SpeechLockService : ISpeechLockService
-{
-    private readonly string _lockFilePath;
+    /// <summary>
+    /// Activates speech lock (recording started).
+    /// Stops current TTS and queues new messages.
+    /// Auto-unlocks after timeout for safety.
+    /// </summary>
+    /// <param name="timeout">Optional timeout after which lock auto-releases. Default is 30 seconds.</param>
+    void Lock(TimeSpan? timeout = null);
 
-    public SpeechLockService(string lockFilePath = "/tmp/speech-lock")
-    {
-        _lockFilePath = lockFilePath;
-    }
-
-    /// <inheritdoc />
-    public bool IsLocked => File.Exists(_lockFilePath);
+    /// <summary>
+    /// Deactivates speech lock (recording stopped).
+    /// Should trigger queue flush to play pending messages.
+    /// </summary>
+    void Unlock();
 }

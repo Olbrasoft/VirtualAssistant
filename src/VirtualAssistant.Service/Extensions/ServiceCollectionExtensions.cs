@@ -182,11 +182,8 @@ public static class ServiceCollectionExtensions
         // =======================================================
 
         // TTS focused services (SRP compliant)
-        services.AddSingleton<ISpeechLockService>(sp =>
-        {
-            var options = sp.GetRequiredService<IOptions<SystemPathsOptions>>();
-            return new SpeechLockService(options.Value.SpeechLockFile);
-        });
+        // SpeechLockService with timeout support for STT coordination
+        services.AddSingleton<ISpeechLockService, SpeechLockService>();
         services.AddSingleton<ITtsQueueService, TtsQueueService>();
         services.AddSingleton<ITtsCacheService, TtsCacheService>();
         services.AddSingleton<IAudioPlaybackService, AudioPlaybackService>();
