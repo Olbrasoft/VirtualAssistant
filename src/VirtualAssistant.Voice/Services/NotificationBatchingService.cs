@@ -142,8 +142,20 @@ public class NotificationBatchingService : INotificationBatchingService, IDispos
                 issueSummaries = await FetchIssueSummariesAsync(notificationIds);
             }
 
-            // Humanize the batch with issue context
-            var humanizedText = await _humanizationService.HumanizeAsync(notifications, issueSummaries);
+            string? humanizedText;
+
+            // Skip humanization if no associated issues - send text directly to TTS
+            // This is faster and saves LLM API calls for simple status notifications
+            if (issueSummaries is null or { Count: 0 })
+            {
+                _logger.LogDebug("No associated issues, skipping humanization - sending text directly to TTS");
+                humanizedText = string.Join(" ", notifications.Select(n => n.Content));
+            }
+            else
+            {
+                // Humanize the batch with issue context
+                humanizedText = await _humanizationService.HumanizeAsync(notifications, issueSummaries);
+            }
 
             // Update status to Summarized
             if (notificationIds.Count > 0)

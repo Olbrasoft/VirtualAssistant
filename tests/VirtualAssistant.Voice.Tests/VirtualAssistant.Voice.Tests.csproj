@@ -21,6 +21,7 @@
 
   <ItemGroup>
     <ProjectReference Include="..\..\src\VirtualAssistant.Voice\VirtualAssistant.Voice.csproj" />
+    <ProjectReference Include="..\..\src\VirtualAssistant.GitHub\VirtualAssistant.GitHub.csproj" />
   </ItemGroup>
 
 </Project>
