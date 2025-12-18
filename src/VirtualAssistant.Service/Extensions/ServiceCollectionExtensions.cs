@@ -185,7 +185,15 @@ public static class ServiceCollectionExtensions
         // =======================================================
 
         // TTS focused services (SRP compliant)
-        // SpeechLockService with timeout support for STT coordination
+        // SpeechToText client for querying recording status
+        services.Configure<SpeechToTextSettings>(configuration.GetSection(SpeechToTextSettings.SectionName));
+        services.AddHttpClient<ISpeechToTextClient, SpeechToTextClient>(client =>
+        {
+            var settings = configuration.GetSection(SpeechToTextSettings.SectionName).Get<SpeechToTextSettings>() ?? new SpeechToTextSettings();
+            client.Timeout = TimeSpan.FromMilliseconds(settings.StatusTimeoutMs);
+        });
+
+        // SpeechLockService for backward compatibility with speech-lock API
         services.AddSingleton<ISpeechLockService, SpeechLockService>();
         services.AddSingleton<ITtsQueueService, TtsQueueService>();
         services.AddSingleton<ITtsCacheService, TtsCacheService>();

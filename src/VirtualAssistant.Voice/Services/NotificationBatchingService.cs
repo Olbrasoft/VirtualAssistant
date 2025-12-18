@@ -1,6 +1,7 @@
 using System.Collections.Concurrent;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
+using Olbrasoft.VirtualAssistant.Voice.Configuration;
 using VirtualAssistant.Core.Services;
 using VirtualAssistant.Data.Enums;
 using VirtualAssistant.GitHub.Configuration;
@@ -12,6 +13,7 @@ namespace Olbrasoft.VirtualAssistant.Voice.Services;
 /// Batches agent notifications and processes them through humanization and TTS.
 /// Uses a sliding window to combine related notifications.
 /// Messages are queued and played sequentially - no interruption between agents.
+/// Uses speech lock to coordinate with PushToTalk - waits for recording to finish.
 /// </summary>
 public class NotificationBatchingService : INotificationBatchingService, IDisposable
 {
@@ -20,6 +22,8 @@ public class NotificationBatchingService : INotificationBatchingService, IDispos
     private readonly IVirtualAssistantSpeaker _speaker;
     private readonly INotificationService _notificationService;
     private readonly IIssueSummaryClient _issueSummaryClient;
+    private readonly ISpeechLockService _speechLockService;
+    private readonly SpeechToTextSettings _speechToTextSettings;
     private readonly GitHubSettings _gitHubSettings;
 
     private readonly ConcurrentQueue<AgentNotification> _pendingNotifications = new();
@@ -39,6 +43,8 @@ public class NotificationBatchingService : INotificationBatchingService, IDispos
         IVirtualAssistantSpeaker speaker,
         INotificationService notificationService,
         IIssueSummaryClient issueSummaryClient,
+        ISpeechLockService speechLockService,
+        IOptions<SpeechToTextSettings> speechToTextSettings,
         IOptions<GitHubSettings> gitHubSettings)
     {
         _logger = logger;
@@ -46,9 +52,12 @@ public class NotificationBatchingService : INotificationBatchingService, IDispos
         _speaker = speaker;
         _notificationService = notificationService;
         _issueSummaryClient = issueSummaryClient;
+        _speechLockService = speechLockService;
+        _speechToTextSettings = speechToTextSettings.Value;
         _gitHubSettings = gitHubSettings.Value;
 
-        _logger.LogInformation("NotificationBatchingService initialized with {WindowMs}ms batch window", BatchWindowMs);
+        _logger.LogInformation("NotificationBatchingService initialized with {WindowMs}ms batch window, polling interval {PollMs}ms",
+            BatchWindowMs, _speechToTextSettings.PollingIntervalMs);
     }
 
     public int PendingCount => _pendingNotifications.Count;
@@ -174,6 +183,10 @@ public class NotificationBatchingService : INotificationBatchingService, IDispos
                 return;
             }
 
+            // Wait for speech lock to be released before speaking
+            // This ensures we don't interrupt user's dictation
+            await WaitForSpeechUnlockAsync();
+
             // Speak the humanized text (with workspace detection)
             var agentName = notifications.FirstOrDefault()?.Agent;
             await _speaker.SpeakAsync(humanizedText, agentName);
@@ -238,6 +251,30 @@ public class NotificationBatchingService : INotificationBatchingService, IDispos
 
         _logger.LogInformation("Flushing {Count} pending notifications", _pendingNotifications.Count);
         await ProcessBatchAsync();
+    }
+
+    /// <summary>
+    /// Waits for speech lock to be released before playing notification.
+    /// Uses speech lock service as the single source of truth.
+    /// PushToTalk calls /api/speech-lock/start when recording begins and /stop when it ends.
+    /// </summary>
+    private async Task WaitForSpeechUnlockAsync()
+    {
+        // Check speech lock - this is set by PushToTalk via API
+        if (!_speechLockService.IsLocked)
+        {
+            return;
+        }
+
+        _logger.LogInformation("🎤 Speech lock active - waiting before playing notification...");
+
+        // Poll until lock is released
+        while (_speechLockService.IsLocked)
+        {
+            await Task.Delay(_speechToTextSettings.PollingIntervalMs);
+        }
+
+        _logger.LogInformation("🔊 Speech lock released - proceeding with notification");
     }
 
     /// <summary>

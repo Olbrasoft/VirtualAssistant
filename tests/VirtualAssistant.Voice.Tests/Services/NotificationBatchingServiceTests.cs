@@ -1,6 +1,7 @@
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
 using Moq;
+using Olbrasoft.VirtualAssistant.Voice.Configuration;
 using Olbrasoft.VirtualAssistant.Voice.Services;
 using VirtualAssistant.Core.Services;
 using VirtualAssistant.Data.Enums;
@@ -20,6 +21,8 @@ public class NotificationBatchingServiceTests : IDisposable
     private readonly Mock<IVirtualAssistantSpeaker> _speakerMock;
     private readonly Mock<INotificationService> _notificationServiceMock;
     private readonly Mock<IIssueSummaryClient> _issueSummaryClientMock;
+    private readonly Mock<ISpeechLockService> _speechLockServiceMock;
+    private readonly IOptions<SpeechToTextSettings> _speechToTextSettings;
     private readonly IOptions<GitHubSettings> _gitHubSettings;
     private readonly NotificationBatchingService _sut;
 
@@ -30,6 +33,17 @@ public class NotificationBatchingServiceTests : IDisposable
         _speakerMock = new Mock<IVirtualAssistantSpeaker>();
         _notificationServiceMock = new Mock<INotificationService>();
         _issueSummaryClientMock = new Mock<IIssueSummaryClient>();
+        _speechLockServiceMock = new Mock<ISpeechLockService>();
+
+        // Default: speech not locked
+        _speechLockServiceMock.Setup(x => x.IsLocked).Returns(false);
+
+        _speechToTextSettings = Options.Create(new SpeechToTextSettings
+        {
+            BaseUrl = "http://localhost:5050",
+            StatusTimeoutMs = 1000,
+            PollingIntervalMs = 500
+        });
         _gitHubSettings = Options.Create(new GitHubSettings
         {
             Owner = "TestOwner",
@@ -42,6 +56,8 @@ public class NotificationBatchingServiceTests : IDisposable
             _speakerMock.Object,
             _notificationServiceMock.Object,
             _issueSummaryClientMock.Object,
+            _speechLockServiceMock.Object,
+            _speechToTextSettings,
             _gitHubSettings);
     }
 
