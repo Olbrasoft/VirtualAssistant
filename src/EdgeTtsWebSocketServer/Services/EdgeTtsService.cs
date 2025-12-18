@@ -20,6 +20,7 @@ public class EdgeTtsService
     private readonly string _speechLockFile;
     private readonly string _defaultVoice;
     private readonly string _defaultRate;
+    private readonly string _outputFormat;
     private readonly string _listenerApiUrl;
     private readonly ILogger<EdgeTtsService> _logger;
     private readonly HttpClient _httpClient;
@@ -39,8 +40,9 @@ public class EdgeTtsService
         _speechLockFile = configuration["EdgeTts:SpeechLockFile"] ?? "/tmp/speech.lock";
         _defaultVoice = configuration["EdgeTts:DefaultVoice"] ?? "cs-CZ-AntoninNeural";
         _defaultRate = configuration["EdgeTts:DefaultRate"] ?? "+20%";
+        _outputFormat = configuration["EdgeTts:OutputFormat"] ?? "audio-24khz-48kbitrate-mono-mp3";
         _listenerApiUrl = configuration["EdgeTts:ListenerApiUrl"] ?? "http://localhost:5051";
-        
+
         Directory.CreateDirectory(_cacheDirectory);
     }
 
@@ -163,7 +165,7 @@ public class EdgeTtsService
                            "Path:speech.config\r\n\r\n" +
                            "{\"context\":{\"synthesis\":{\"audio\":{\"metadataoptions\":{" +
                            "\"sentenceBoundaryEnabled\":\"true\",\"wordBoundaryEnabled\":\"false\"}," +
-                           "\"outputFormat\":\"audio-24khz-48kbitrate-mono-mp3\"}}}}\r\n";
+                           $"\"outputFormat\":\"{_outputFormat}\"}}}}}}\r\n";
 
         await client.SendAsync(
             new ArraySegment<byte>(Encoding.UTF8.GetBytes(configMessage)),
