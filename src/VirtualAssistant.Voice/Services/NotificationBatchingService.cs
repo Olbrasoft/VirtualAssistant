@@ -4,27 +4,23 @@ using Microsoft.Extensions.Options;
 using Olbrasoft.VirtualAssistant.Voice.Configuration;
 using VirtualAssistant.Core.Services;
 using VirtualAssistant.Data.Enums;
-using VirtualAssistant.GitHub.Configuration;
-using VirtualAssistant.GitHub.Services;
 
 namespace Olbrasoft.VirtualAssistant.Voice.Services;
 
 /// <summary>
-/// Batches agent notifications and processes them through humanization and TTS.
+/// Batches agent notifications and sends them directly to TTS.
 /// Uses a sliding window to combine related notifications.
 /// Messages are queued and played sequentially - no interruption between agents.
 /// Uses speech lock to coordinate with PushToTalk - waits for recording to finish.
+/// No LLM humanization - text goes directly to TTS as received from agents.
 /// </summary>
 public class NotificationBatchingService : INotificationBatchingService, IDisposable
 {
     private readonly ILogger<NotificationBatchingService> _logger;
-    private readonly IHumanizationService _humanizationService;
     private readonly IVirtualAssistantSpeaker _speaker;
     private readonly INotificationService _notificationService;
-    private readonly IIssueSummaryClient _issueSummaryClient;
     private readonly ISpeechLockService _speechLockService;
     private readonly SpeechToTextSettings _speechToTextSettings;
-    private readonly GitHubSettings _gitHubSettings;
 
     private readonly ConcurrentQueue<AgentNotification> _pendingNotifications = new();
     private readonly object _timerLock = new();
@@ -39,25 +35,19 @@ public class NotificationBatchingService : INotificationBatchingService, IDispos
 
     public NotificationBatchingService(
         ILogger<NotificationBatchingService> logger,
-        IHumanizationService humanizationService,
         IVirtualAssistantSpeaker speaker,
         INotificationService notificationService,
-        IIssueSummaryClient issueSummaryClient,
         ISpeechLockService speechLockService,
-        IOptions<SpeechToTextSettings> speechToTextSettings,
-        IOptions<GitHubSettings> gitHubSettings)
+        IOptions<SpeechToTextSettings> speechToTextSettings)
     {
         _logger = logger;
-        _humanizationService = humanizationService;
         _speaker = speaker;
         _notificationService = notificationService;
-        _issueSummaryClient = issueSummaryClient;
         _speechLockService = speechLockService;
         _speechToTextSettings = speechToTextSettings.Value;
-        _gitHubSettings = gitHubSettings.Value;
 
-        _logger.LogInformation("NotificationBatchingService initialized with {WindowMs}ms batch window, polling interval {PollMs}ms",
-            BatchWindowMs, _speechToTextSettings.PollingIntervalMs);
+        _logger.LogInformation("NotificationBatchingService initialized with {WindowMs}ms batch window (direct TTS, no humanization)",
+            BatchWindowMs);
     }
 
     public int PendingCount => _pendingNotifications.Count;
@@ -138,44 +128,13 @@ public class NotificationBatchingService : INotificationBatchingService, IDispos
                 await _notificationService.UpdateStatusAsync(notificationIds, NotificationStatusEnum.Processing);
             }
 
-            // Update status to SentForSummarization
-            if (notificationIds.Count > 0)
-            {
-                await _notificationService.UpdateStatusAsync(notificationIds, NotificationStatusEnum.SentForSummarization);
-            }
+            // Combine notification texts directly - no LLM humanization
+            // Text from Claude Code/OpenRouter is already well-formatted
+            var text = string.Join(" ", notifications.Select(n => n.Content));
 
-            // Fetch issue summaries if notifications have associated issues
-            IReadOnlyDictionary<int, IssueSummaryInfo>? issueSummaries = null;
-            if (notificationIds.Count > 0)
+            if (string.IsNullOrWhiteSpace(text))
             {
-                issueSummaries = await FetchIssueSummariesAsync(notificationIds);
-            }
-
-            string? humanizedText;
-
-            // Skip humanization if no associated issues - send text directly to TTS
-            // This is faster and saves LLM API calls for simple status notifications
-            if (issueSummaries is null or { Count: 0 })
-            {
-                _logger.LogDebug("No associated issues, skipping humanization - sending text directly to TTS");
-                humanizedText = string.Join(" ", notifications.Select(n => n.Content));
-            }
-            else
-            {
-                // Humanize the batch with issue context
-                humanizedText = await _humanizationService.HumanizeAsync(notifications, issueSummaries);
-            }
-
-            // Update status to Summarized
-            if (notificationIds.Count > 0)
-            {
-                await _notificationService.UpdateStatusAsync(notificationIds, NotificationStatusEnum.Summarized);
-            }
-
-            if (string.IsNullOrWhiteSpace(humanizedText))
-            {
-                _logger.LogDebug("Humanization returned empty text, skipping TTS");
-                // Mark as Played even without speech (nothing to play)
+                _logger.LogDebug("Empty notification text, skipping TTS");
                 if (notificationIds.Count > 0)
                 {
                     await _notificationService.UpdateStatusAsync(notificationIds, NotificationStatusEnum.Played);
@@ -187,9 +146,9 @@ public class NotificationBatchingService : INotificationBatchingService, IDispos
             // This ensures we don't interrupt user's dictation
             await WaitForSpeechUnlockAsync();
 
-            // Speak the humanized text (with workspace detection)
+            // Speak the text directly (with workspace detection)
             var agentName = notifications.FirstOrDefault()?.Agent;
-            await _speaker.SpeakAsync(humanizedText, agentName);
+            await _speaker.SpeakAsync(text, agentName);
 
             // Update status to Played after successful TTS
             if (notificationIds.Count > 0)
@@ -197,7 +156,7 @@ public class NotificationBatchingService : INotificationBatchingService, IDispos
                 await _notificationService.UpdateStatusAsync(notificationIds, NotificationStatusEnum.Played);
             }
 
-            _logger.LogInformation("Notification batch processed: {Text}", humanizedText);
+            _logger.LogInformation("Notification sent to TTS: {Text}", text);
 
             // Check if new notifications arrived during speech
             // If so, they will be processed in the next batch (timer was reset)
@@ -275,69 +234,5 @@ public class NotificationBatchingService : INotificationBatchingService, IDispos
         }
 
         _logger.LogInformation("🔊 Speech lock released - proceeding with notification");
-    }
-
-    /// <summary>
-    /// Fetches Czech issue summaries for notifications with associated GitHub issues.
-    /// </summary>
-    private async Task<IReadOnlyDictionary<int, IssueSummaryInfo>?> FetchIssueSummariesAsync(
-        IReadOnlyList<int> notificationIds)
-    {
-        try
-        {
-            // Get associated issue IDs
-            var issueIds = await _notificationService.GetAssociatedIssueIdsAsync(notificationIds);
-            if (issueIds.Count == 0)
-            {
-                _logger.LogDebug("No associated GitHub issues for these notifications");
-                return null;
-            }
-
-            _logger.LogDebug("Fetching summaries for {Count} associated GitHub issues", issueIds.Count);
-
-            // Check if we have required configuration
-            if (string.IsNullOrEmpty(_gitHubSettings.Owner) || string.IsNullOrEmpty(_gitHubSettings.DefaultRepo))
-            {
-                _logger.LogWarning("GitHub Owner or DefaultRepo not configured, cannot fetch issue summaries");
-                return null;
-            }
-
-            // Fetch summaries from GitHub.Issues API
-            var result = await _issueSummaryClient.GetSummariesAsync(
-                _gitHubSettings.Owner,
-                _gitHubSettings.DefaultRepo,
-                issueIds);
-
-            if (!string.IsNullOrEmpty(result.Error))
-            {
-                _logger.LogWarning("Failed to fetch issue summaries: {Error}", result.Error);
-                return null;
-            }
-
-            if (result.Summaries.Count == 0)
-            {
-                _logger.LogDebug("No summaries returned from API");
-                return null;
-            }
-
-            // Convert to IssueSummaryInfo dictionary
-            var summaries = result.Summaries.ToDictionary(
-                kvp => kvp.Key,
-                kvp => new IssueSummaryInfo
-                {
-                    IssueNumber = kvp.Value.IssueNumber,
-                    CzechTitle = kvp.Value.CzechTitle,
-                    CzechSummary = kvp.Value.CzechSummary,
-                    IsOpen = kvp.Value.IsOpen
-                });
-
-            _logger.LogInformation("Fetched {Count} issue summaries for humanization context", summaries.Count);
-            return summaries;
-        }
-        catch (Exception ex)
-        {
-            _logger.LogError(ex, "Error fetching issue summaries, continuing without context");
-            return null;
-        }
     }
 }
