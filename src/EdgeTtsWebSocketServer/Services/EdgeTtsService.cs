@@ -160,12 +160,14 @@ public class EdgeTtsService
     private async Task SendSpeechConfigAsync(ClientWebSocket client)
     {
         var timestamp = DateToString();
+        var jsonPayload = "{\"context\":{\"synthesis\":{\"audio\":{\"metadataoptions\":{" +
+                         "\"sentenceBoundaryEnabled\":\"true\",\"wordBoundaryEnabled\":\"false\"}," +
+                         "\"outputFormat\":\"" + _outputFormat + "\"}}}}";
+
         var configMessage = $"X-Timestamp:{timestamp}\r\n" +
                            "Content-Type:application/json; charset=utf-8\r\n" +
                            "Path:speech.config\r\n\r\n" +
-                           "{\"context\":{\"synthesis\":{\"audio\":{\"metadataoptions\":{" +
-                           "\"sentenceBoundaryEnabled\":\"true\",\"wordBoundaryEnabled\":\"false\"}," +
-                           $"\"outputFormat\":\"{_outputFormat}\"}}}}}}\r\n";
+                           jsonPayload + "\r\n";
 
         await client.SendAsync(
             new ArraySegment<byte>(Encoding.UTF8.GetBytes(configMessage)),
