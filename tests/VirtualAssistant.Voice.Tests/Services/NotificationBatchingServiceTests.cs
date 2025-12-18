@@ -9,7 +9,7 @@ namespace VirtualAssistant.Voice.Tests.Services;
 
 /// <summary>
 /// Unit tests for NotificationBatchingService.
-/// Tests verify that notifications are sent directly to TTS without humanization.
+/// Tests verify that notifications are sent directly to TTS without delay.
 /// </summary>
 public class NotificationBatchingServiceTests : IDisposable
 {
@@ -72,7 +72,7 @@ public class NotificationBatchingServiceTests : IDisposable
     }
 
     [Fact]
-    public void QueueNotification_IncrementsPendingCount()
+    public async Task QueueNotification_ProcessesImmediately()
     {
         // Arrange
         var notification = new AgentNotification
@@ -82,11 +82,21 @@ public class NotificationBatchingServiceTests : IDisposable
             Content = "Test notification"
         };
 
+        _speakerMock
+            .Setup(x => x.SpeakAsync(It.IsAny<string>(), It.IsAny<string?>()))
+            .Returns(Task.CompletedTask);
+
         // Act
         _sut.QueueNotification(notification);
 
-        // Assert
-        Assert.Equal(1, _sut.PendingCount);
+        // Wait a bit for async processing to complete
+        await Task.Delay(100);
+
+        // Assert - notification was processed immediately (queue is empty)
+        Assert.Equal(0, _sut.PendingCount);
+        _speakerMock.Verify(
+            x => x.SpeakAsync("Test notification", "test-agent"),
+            Times.Once);
     }
 
     [Fact]
@@ -101,25 +111,37 @@ public class NotificationBatchingServiceTests : IDisposable
             Content = "Začínám pracovat na úkolu."
         };
 
+        // Block speaker to prevent immediate processing
+        var speakerTcs = new TaskCompletionSource();
         _speakerMock
             .Setup(x => x.SpeakAsync(It.IsAny<string>(), It.IsAny<string?>()))
-            .Returns(Task.CompletedTask);
+            .Returns(speakerTcs.Task);
 
         _sut.QueueNotification(notification);
+
+        // Complete the speaker task
+        speakerTcs.SetResult();
 
         // Act
         await _sut.FlushAsync();
 
-        // Assert - text goes directly to TTS without humanization
+        // Assert - text goes directly to TTS
         _speakerMock.Verify(
             x => x.SpeakAsync("Začínám pracovat na úkolu.", "claude-code"),
             Times.Once);
     }
 
     [Fact]
-    public async Task FlushAsync_WithMultipleNotifications_CombinesTexts()
+    public async Task QueueNotification_WithMultipleNotifications_ProcessesSequentially()
     {
         // Arrange
+        var processedTexts = new List<string>();
+
+        _speakerMock
+            .Setup(x => x.SpeakAsync(It.IsAny<string>(), It.IsAny<string?>(), It.IsAny<CancellationToken>()))
+            .Callback<string, string?, CancellationToken>((text, _, _) => processedTexts.Add(text))
+            .Returns(Task.CompletedTask);
+
         var notification1 = new AgentNotification
         {
             NotificationId = 1,
@@ -135,20 +157,17 @@ public class NotificationBatchingServiceTests : IDisposable
             Content = "Druhá část."
         };
 
-        _speakerMock
-            .Setup(x => x.SpeakAsync(It.IsAny<string>(), It.IsAny<string?>()))
-            .Returns(Task.CompletedTask);
-
+        // Act
         _sut.QueueNotification(notification1);
         _sut.QueueNotification(notification2);
 
-        // Act
-        await _sut.FlushAsync();
+        // Wait for async processing
+        await Task.Delay(200);
 
-        // Assert - texts should be combined with space separator
-        _speakerMock.Verify(
-            x => x.SpeakAsync("První část. Druhá část.", "claude-code"),
-            Times.Once);
+        // Assert - each notification is processed separately
+        Assert.Equal(2, processedTexts.Count);
+        Assert.Contains("První část.", processedTexts);
+        Assert.Contains("Druhá část.", processedTexts);
     }
 
     [Fact]
@@ -161,5 +180,37 @@ public class NotificationBatchingServiceTests : IDisposable
         _speakerMock.Verify(
             x => x.SpeakAsync(It.IsAny<string>(), It.IsAny<string?>()),
             Times.Never);
+    }
+
+    [Fact]
+    public async Task QueueNotification_WhenSpeechLocked_WaitsForUnlock()
+    {
+        // Arrange
+        var lockSequence = new Queue<bool>(new[] { true, true, false }); // Locked twice, then unlocked
+        _speechLockServiceMock
+            .Setup(x => x.IsLocked)
+            .Returns(() => lockSequence.Count > 0 ? lockSequence.Dequeue() : false);
+
+        _speakerMock
+            .Setup(x => x.SpeakAsync(It.IsAny<string>(), It.IsAny<string?>()))
+            .Returns(Task.CompletedTask);
+
+        var notification = new AgentNotification
+        {
+            Agent = "test-agent",
+            Type = "status",
+            Content = "Test notification"
+        };
+
+        // Act
+        _sut.QueueNotification(notification);
+
+        // Wait for async processing (including polling delays)
+        await Task.Delay(1500);
+
+        // Assert - notification was eventually processed
+        _speakerMock.Verify(
+            x => x.SpeakAsync("Test notification", "test-agent"),
+            Times.Once);
     }
 }

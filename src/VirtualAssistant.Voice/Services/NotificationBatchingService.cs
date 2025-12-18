@@ -8,11 +8,10 @@ using VirtualAssistant.Data.Enums;
 namespace Olbrasoft.VirtualAssistant.Voice.Services;
 
 /// <summary>
-/// Batches agent notifications and sends them directly to TTS.
-/// Uses a sliding window to combine related notifications.
+/// Processes agent notifications and sends them directly to TTS.
+/// Notifications are processed immediately as they arrive (no batching delay).
 /// Messages are queued and played sequentially - no interruption between agents.
 /// Uses speech lock to coordinate with PushToTalk - waits for recording to finish.
-/// No LLM humanization - text goes directly to TTS as received from agents.
 /// </summary>
 public class NotificationBatchingService : INotificationBatchingService, IDisposable
 {
@@ -23,15 +22,8 @@ public class NotificationBatchingService : INotificationBatchingService, IDispos
     private readonly SpeechToTextSettings _speechToTextSettings;
 
     private readonly ConcurrentQueue<AgentNotification> _pendingNotifications = new();
-    private readonly object _timerLock = new();
-    private Timer? _batchTimer;
+    private readonly SemaphoreSlim _processingSemaphore = new(1, 1);
     private bool _disposed;
-    private volatile bool _isProcessing;
-
-    /// <summary>
-    /// Time to wait after last notification before processing batch (milliseconds).
-    /// </summary>
-    private const int BatchWindowMs = 3000;
 
     public NotificationBatchingService(
         ILogger<NotificationBatchingService> logger,
@@ -46,152 +38,120 @@ public class NotificationBatchingService : INotificationBatchingService, IDispos
         _speechLockService = speechLockService;
         _speechToTextSettings = speechToTextSettings.Value;
 
-        _logger.LogInformation("NotificationBatchingService initialized with {WindowMs}ms batch window (direct TTS, no humanization)",
-            BatchWindowMs);
+        _logger.LogInformation("NotificationBatchingService initialized (immediate processing, no batch delay)");
     }
 
     public int PendingCount => _pendingNotifications.Count;
 
     /// <summary>
-    /// Whether a batch is currently being processed.
+    /// Whether notifications are currently being processed.
     /// </summary>
-    public bool IsProcessing => _isProcessing;
+    public bool IsProcessing => _processingSemaphore.CurrentCount == 0;
 
     public void QueueNotification(AgentNotification notification)
     {
         ArgumentNullException.ThrowIfNull(notification);
 
         _pendingNotifications.Enqueue(notification);
-        _logger.LogDebug("Queued notification: {Agent} {Type}", notification.Agent, notification.Type);
+        _logger.LogDebug("Queued notification: {Agent} - {Content}", notification.Agent, notification.Content);
 
-        // If currently processing, just queue - don't interrupt current speech
-        // Agent messages should play sequentially, never interrupt each other
-        if (_isProcessing)
+        // Start processing immediately (fire and forget)
+        _ = ProcessQueueAsync();
+    }
+
+    /// <summary>
+    /// Processes all pending notifications sequentially.
+    /// Uses semaphore to ensure only one processing loop runs at a time.
+    /// </summary>
+    private async Task ProcessQueueAsync()
+    {
+        // Try to acquire the semaphore - if already processing, just return
+        // The current processing loop will pick up the new notification
+        if (!await _processingSemaphore.WaitAsync(0))
         {
-            _logger.LogDebug("Notification queued during processing - will play after current message");
+            _logger.LogDebug("Already processing - notification will be picked up by current loop");
+            return;
         }
 
-        // Reset/start the batch timer
-        ResetBatchTimer();
-    }
-
-    private void ResetBatchTimer()
-    {
-        lock (_timerLock)
-        {
-            if (_disposed) return;
-
-            // Cancel existing timer and create new one
-            _batchTimer?.Dispose();
-            _batchTimer = new Timer(
-                callback: ProcessBatchCallback,
-                state: null,
-                dueTime: BatchWindowMs,
-                period: Timeout.Infinite);
-        }
-    }
-
-    private void ProcessBatchCallback(object? state)
-    {
-        // Fire and forget - exceptions are logged
-        _ = ProcessBatchAsync();
-    }
-
-    private async Task ProcessBatchAsync()
-    {
-        _isProcessing = true;
         try
         {
-            // Drain the queue
-            var notifications = new List<AgentNotification>();
+            // Process all notifications in the queue
             while (_pendingNotifications.TryDequeue(out var notification))
             {
-                notifications.Add(notification);
+                await ProcessSingleNotificationAsync(notification);
             }
+        }
+        finally
+        {
+            _processingSemaphore.Release();
+        }
+    }
 
-            if (notifications.Count == 0)
-            {
-                return;
-            }
-
-            _logger.LogInformation("Processing batch of {Count} notifications", notifications.Count);
-
-            // Get notification IDs for status updates
-            var notificationIds = notifications
-                .Where(n => n.NotificationId.HasValue)
-                .Select(n => n.NotificationId!.Value)
-                .ToList();
+    /// <summary>
+    /// Processes a single notification: updates status, waits for speech lock, speaks via TTS.
+    /// </summary>
+    private async Task ProcessSingleNotificationAsync(AgentNotification notification)
+    {
+        try
+        {
+            _logger.LogInformation("Processing notification from {Agent}", notification.Agent);
 
             // Update status to Processing
-            if (notificationIds.Count > 0)
+            if (notification.NotificationId.HasValue)
             {
-                await _notificationService.UpdateStatusAsync(notificationIds, NotificationStatusEnum.Processing);
+                await _notificationService.UpdateStatusAsync(
+                    new[] { notification.NotificationId.Value },
+                    NotificationStatusEnum.Processing);
             }
 
-            // Combine notification texts directly - no LLM humanization
-            // Text from Claude Code/OpenRouter is already well-formatted
-            var text = string.Join(" ", notifications.Select(n => n.Content));
+            var text = notification.Content;
 
             if (string.IsNullOrWhiteSpace(text))
             {
                 _logger.LogDebug("Empty notification text, skipping TTS");
-                if (notificationIds.Count > 0)
+                if (notification.NotificationId.HasValue)
                 {
-                    await _notificationService.UpdateStatusAsync(notificationIds, NotificationStatusEnum.Played);
+                    await _notificationService.UpdateStatusAsync(
+                        new[] { notification.NotificationId.Value },
+                        NotificationStatusEnum.Played);
                 }
                 return;
             }
 
             // Wait for speech lock to be released before speaking
-            // This ensures we don't interrupt user's dictation
             await WaitForSpeechUnlockAsync();
 
-            // Speak the text directly (with workspace detection)
-            var agentName = notifications.FirstOrDefault()?.Agent;
-            await _speaker.SpeakAsync(text, agentName);
+            // Speak the text directly
+            await _speaker.SpeakAsync(text, notification.Agent);
 
             // Update status to Played after successful TTS
-            if (notificationIds.Count > 0)
+            if (notification.NotificationId.HasValue)
             {
-                await _notificationService.UpdateStatusAsync(notificationIds, NotificationStatusEnum.Played);
+                await _notificationService.UpdateStatusAsync(
+                    new[] { notification.NotificationId.Value },
+                    NotificationStatusEnum.Played);
             }
 
             _logger.LogInformation("Notification sent to TTS: {Text}", text);
-
-            // Check if new notifications arrived during speech
-            // If so, they will be processed in the next batch (timer was reset)
-            if (_pendingNotifications.Count > 0)
-            {
-                _logger.LogDebug("New notifications arrived during processing, will be handled in next batch");
-            }
         }
         catch (Exception ex)
         {
-            _logger.LogError(ex, "Error processing notification batch");
-        }
-        finally
-        {
-            _isProcessing = false;
+            _logger.LogError(ex, "Error processing notification from {Agent}", notification.Agent);
         }
     }
 
     public void Dispose()
     {
         if (_disposed) return;
+        _disposed = true;
 
-        lock (_timerLock)
-        {
-            _disposed = true;
-            _batchTimer?.Dispose();
-            _batchTimer = null;
-        }
-
+        _processingSemaphore.Dispose();
         GC.SuppressFinalize(this);
     }
 
     /// <summary>
-    /// Immediately processes any pending notifications without waiting for the batch timer.
-    /// Used when speech lock is released to play queued messages right away.
+    /// Immediately processes any pending notifications.
+    /// Since we now process immediately, this just ensures the queue is being processed.
     /// </summary>
     public async Task FlushAsync()
     {
@@ -201,25 +161,15 @@ public class NotificationBatchingService : INotificationBatchingService, IDispos
             return;
         }
 
-        // Cancel the batch timer since we're processing immediately
-        lock (_timerLock)
-        {
-            _batchTimer?.Dispose();
-            _batchTimer = null;
-        }
-
         _logger.LogInformation("Flushing {Count} pending notifications", _pendingNotifications.Count);
-        await ProcessBatchAsync();
+        await ProcessQueueAsync();
     }
 
     /// <summary>
     /// Waits for speech lock to be released before playing notification.
-    /// Uses speech lock service as the single source of truth.
-    /// PushToTalk calls /api/speech-lock/start when recording begins and /stop when it ends.
     /// </summary>
     private async Task WaitForSpeechUnlockAsync()
     {
-        // Check speech lock - this is set by PushToTalk via API
         if (!_speechLockService.IsLocked)
         {
             return;
@@ -227,7 +177,6 @@ public class NotificationBatchingService : INotificationBatchingService, IDispos
 
         _logger.LogInformation("🎤 Speech lock active - waiting before playing notification...");
 
-        // Poll until lock is released
         while (_speechLockService.IsLocked)
         {
             await Task.Delay(_speechToTextSettings.PollingIntervalMs);
