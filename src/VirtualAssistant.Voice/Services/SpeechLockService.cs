@@ -25,6 +25,20 @@ public sealed class SpeechLockService : ISpeechLockService, IDisposable
         _logger = logger;
         _lockFilePath = options.Value.SpeechLockFile;
 
+        // Clean up stale lock file from previous crashed sessions
+        try
+        {
+            if (File.Exists(_lockFilePath))
+            {
+                File.Delete(_lockFilePath);
+                _logger.LogInformation("Deleted stale speech lock file on startup: {Path}", _lockFilePath);
+            }
+        }
+        catch (Exception ex)
+        {
+            _logger.LogWarning(ex, "Failed to delete stale lock file: {Path}", _lockFilePath);
+        }
+
         _logger.LogDebug("SpeechLockService initialized. Lock file: {Path} (no timeout - unlock only on explicit stop)",
             _lockFilePath);
     }
