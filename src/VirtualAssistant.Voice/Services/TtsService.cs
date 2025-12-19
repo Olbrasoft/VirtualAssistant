@@ -41,13 +41,11 @@ public sealed class TtsService : IDisposable
         _playbackService = playbackService;
         _speechLockService = speechLockService;
 
-        // Load single voice config from configuration
-        var options = new TtsVoiceProfilesOptions();
-        configuration.GetSection(TtsVoiceProfilesOptions.SectionName).Bind(options);
-        _voiceConfig = options.ToVoiceConfig();
+        // Voice config is now provider-specific in TTS:EdgeTTS, TTS:AzureTTS, etc.
+        // Use empty config - each provider reads its own configuration
+        _voiceConfig = new VoiceConfig("", "", "", "");
 
-        _logger.LogInformation("TTS Voice: {Voice}, Rate: {Rate}, Pitch: {Pitch}",
-            _voiceConfig.Voice, _voiceConfig.Rate, _voiceConfig.Pitch);
+        _logger.LogInformation("TTS Service initialized - providers use their own voice configuration");
     }
 
     /// <summary>
