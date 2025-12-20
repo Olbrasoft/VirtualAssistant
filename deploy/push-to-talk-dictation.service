@@ -12,9 +12,9 @@ Environment=XAUTHORITY=/run/user/1000/.mutter-Xwaylandauth.0KYPG3
 Environment=XDG_RUNTIME_DIR=/run/user/1000
 Environment=PULSE_SERVER=unix:/run/user/1000/pulse/native
 Environment=DOTNET_ROOT=/home/jirka/.dotnet
-Environment=LD_LIBRARY_PATH=/home/jirka/virtual-assistant/push-to-talk/runtimes/cuda/linux-x64:/home/jirka/virtual-assistant/push-to-talk/runtimes/linux-x64:/usr/local/cuda-13.0/lib64
-WorkingDirectory=/home/jirka/virtual-assistant/push-to-talk
-ExecStart=/home/jirka/.dotnet/dotnet /home/jirka/virtual-assistant/push-to-talk/VirtualAssistant.PushToTalk.Service.dll
+Environment=LD_LIBRARY_PATH=/home/jirka/apps/virtual-assistant/push-to-talk/runtimes/cuda/linux-x64:/home/jirka/apps/virtual-assistant/push-to-talk/runtimes/linux-x64:/usr/local/cuda-13.0/lib64
+WorkingDirectory=/home/jirka/apps/virtual-assistant/push-to-talk
+ExecStart=/home/jirka/.dotnet/dotnet /home/jirka/apps/virtual-assistant/push-to-talk/VirtualAssistant.PushToTalk.Service.dll
 Restart=on-failure
 RestartSec=5
 TimeoutStopSec=10

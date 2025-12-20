@@ -6,12 +6,11 @@
 cd ~/Olbrasoft/VirtualAssistant && ./deploy/deploy.sh
 ```
 
-Target: `~/virtual-assistant/main/`
-FORBIDDEN: `~/virtual-assistant/service/`, `~/virtual-assistant/` (root)
+Target: `~/apps/virtual-assistant/` (defined in deploy/virtual-assistant.service WorkingDirectory)
 
 Manual (emergency):
 ```bash
-dotnet test && dotnet publish src/VirtualAssistant.Service/VirtualAssistant.Service.csproj -c Release -o ~/virtual-assistant/main/ --no-self-contained && systemctl --user restart virtual-assistant.service
+dotnet test && dotnet publish src/VirtualAssistant.Service/VirtualAssistant.Service.csproj -c Release -o ~/apps/virtual-assistant/ --no-self-contained && systemctl --user restart virtual-assistant.service
 ```
 
 ## SERVICES

@@ -5,11 +5,11 @@ After=network.target
 [Service]
 Type=simple
 User=jirka
-WorkingDirectory=/home/jirka/virtual-assistant/continuous-listener
+WorkingDirectory=/home/jirka/apps/virtual-assistant/continuous-listener
 Environment="DOTNET_ROOT=/home/jirka/.dotnet"
 Environment="XDG_RUNTIME_DIR=/run/user/1000"
 Environment="PULSE_SERVER=unix:/run/user/1000/pulse/native"
-ExecStart=/home/jirka/.dotnet/dotnet /home/jirka/virtual-assistant/continuous-listener/ContinuousListener.dll
+ExecStart=/home/jirka/.dotnet/dotnet /home/jirka/apps/virtual-assistant/continuous-listener/ContinuousListener.dll
 Restart=on-failure
 RestartSec=5
 StandardOutput=journal
