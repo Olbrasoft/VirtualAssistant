@@ -5,8 +5,8 @@ Wants=graphical-session.target
 
 [Service]
 Type=simple
-ExecStart=/home/jirka/virtual-assistant/main/VirtualAssistant.Service
-WorkingDirectory=/home/jirka/virtual-assistant/main
+ExecStart=/home/jirka/apps/virtual-assistant/VirtualAssistant.Service
+WorkingDirectory=/home/jirka/apps/virtual-assistant
 Restart=always
 RestartSec=5
 Environment="DISPLAY=:0"
