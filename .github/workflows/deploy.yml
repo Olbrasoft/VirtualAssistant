@@ -40,9 +40,13 @@ jobs:
       - name: Publish
         working-directory: VirtualAssistant
         run: |
+          # Read deploy path from systemd service WorkingDirectory (SINGLE SOURCE OF TRUTH)
+          DEPLOY_PATH=$(grep "^WorkingDirectory=" deploy/virtual-assistant.service | cut -d'=' -f2)
+          echo "Deploying to: $DEPLOY_PATH"
+
           dotnet publish src/VirtualAssistant.Service/VirtualAssistant.Service.csproj \
             -c Release \
-            -o ~/apps/virtual-assistant \
+            -o "$DEPLOY_PATH" \
             --no-self-contained
 
       - name: Restart service

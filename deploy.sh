@@ -5,7 +5,19 @@ set -e
 # Builds, tests, and deploys all components
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-DEPLOY_DIR="/home/jirka/apps/virtual-assistant"
+
+# Read deploy path from systemd service WorkingDirectory (SINGLE SOURCE OF TRUTH)
+SERVICE_FILE="$SCRIPT_DIR/deploy/virtual-assistant.service"
+if [ ! -f "$SERVICE_FILE" ]; then
+    echo "❌ Service file not found: $SERVICE_FILE"
+    exit 1
+fi
+
+DEPLOY_DIR=$(grep "^WorkingDirectory=" "$SERVICE_FILE" | cut -d'=' -f2)
+if [ -z "$DEPLOY_DIR" ]; then
+    echo "❌ WorkingDirectory not found in service file"
+    exit 1
+fi
 
 echo "=========================================="
 echo "VirtualAssistant Deploy Script"

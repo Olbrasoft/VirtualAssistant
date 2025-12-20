@@ -5,9 +5,21 @@ set -e
 # Builds and deploys VirtualAssistant Service
 
 PROJECT_PATH="/home/jirka/Olbrasoft/VirtualAssistant"
-DEPLOY_TARGET="/home/jirka/apps/virtual-assistant"
 SERVICE_NAME="virtual-assistant.service"
 LOG_SERVICE_NAME="virtual-assistant-logs.service"
+
+# Read deploy target from systemd service WorkingDirectory (SINGLE SOURCE OF TRUTH)
+SYSTEMD_SERVICE_FILE="$PROJECT_PATH/deploy/$SERVICE_NAME"
+if [ ! -f "$SYSTEMD_SERVICE_FILE" ]; then
+    echo "❌ Service file not found: $SYSTEMD_SERVICE_FILE"
+    exit 1
+fi
+
+DEPLOY_TARGET=$(grep "^WorkingDirectory=" "$SYSTEMD_SERVICE_FILE" | cut -d'=' -f2)
+if [ -z "$DEPLOY_TARGET" ]; then
+    echo "❌ WorkingDirectory not found in $SERVICE_NAME"
+    exit 1
+fi
 
 echo "╔══════════════════════════════════════════════════════════════╗"
 echo "║             VirtualAssistant Deploy Script                    ║"
