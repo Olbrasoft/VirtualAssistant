@@ -334,11 +334,14 @@ Prompty jsou v `src/VirtualAssistant.Voice/Prompts/`:
 ## Deployment
 
 ```bash
-# Deploy hlavní služby - RECOMMENDED: Use ./deploy/deploy.sh instead
+# Deploy - RECOMMENDED: Use ./deploy/deploy.sh instead
+# Deploy path is defined in ~/.config/systemd/user/virtual-assistant.env (SINGLE SOURCE OF TRUTH)
+# Variable: VIRTUAL_ASSISTANT_BASE=%h/apps/virtual-assistant
+
+# Manual deploy (emergency only):
 dotnet publish src/VirtualAssistant.Service/VirtualAssistant.Service.csproj \
   -c Release -o ~/apps/virtual-assistant --no-self-contained
 
-# Deploy Push-to-Talk služby
 dotnet publish src/VirtualAssistant.PushToTalk.Service/VirtualAssistant.PushToTalk.Service.csproj \
   -c Release -o ~/apps/virtual-assistant/push-to-talk --no-self-contained
 
@@ -382,7 +385,8 @@ Systém podporuje automatický fallback pro TTS:
 
 Když EdgeTTS selže (např. Microsoft WebSocket problémy), automaticky se použije Piper:
 
-- Model: `/home/jirka/apps/virtual-assistant/piper-voices/cs/cs_CZ-jirka-medium.onnx`
+- Model path: Relativní cesta `piper-voices/cs/cs_CZ-jirka-medium.onnx` (resolved from `AppContext.BaseDirectory`)
+- Base directory je definován v `~/.config/systemd/user/virtual-assistant.env`
 - Respektuje CapsLock stav (stejný algoritmus jako EdgeTTS):
   - Kontroluje před spuštěním syntézy
   - Kontroluje po generování ale před přehráváním
@@ -393,7 +397,8 @@ Když EdgeTTS selže (např. Microsoft WebSocket problémy), automaticky se pou�
 ```bash
 pipx install piper-tts
 
-# Stáhnout český model
+# Stáhnout český model (do base directory z environment file)
+# Default base: ~/apps/virtual-assistant
 mkdir -p ~/apps/virtual-assistant/piper-voices/cs
 cd ~/apps/virtual-assistant/piper-voices/cs
 wget https://huggingface.co/rhasspy/piper-voices/resolve/main/cs/cs_CZ/jirka/medium/cs_CZ-jirka-medium.onnx
