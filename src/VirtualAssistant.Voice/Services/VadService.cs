@@ -30,16 +30,21 @@ public class VadService : IDisposable
         _logger = logger;
         _options = new ContinuousListenerOptions();
         configuration.GetSection(ContinuousListenerOptions.SectionName).Bind(_options);
-        
-        // Load Silero VAD model
+
+        // Load Silero VAD model - resolve relative path
         var modelPath = _options.SileroVadModelPath;
+        if (!Path.IsPathRooted(modelPath))
+        {
+            modelPath = Path.Combine(AppContext.BaseDirectory, modelPath);
+        }
+
         _logger.LogInformation("Loading Silero VAD model from: {Path}", modelPath);
-        
+
         if (!File.Exists(modelPath))
         {
             throw new FileNotFoundException($"Silero VAD model not found at: {modelPath}");
         }
-        
+
         _model = new SileroVadOnnxModel(modelPath);
         _logger.LogInformation("Silero VAD model loaded successfully");
     }

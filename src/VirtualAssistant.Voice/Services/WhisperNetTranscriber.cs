@@ -30,8 +30,15 @@ public class WhisperNetTranscriber : ISpeechTranscriber
     public WhisperNetTranscriber(ILogger<WhisperNetTranscriber> logger, string modelPath, string language = "cs")
     {
         _logger = logger ?? throw new ArgumentNullException(nameof(logger));
-        _modelPath = modelPath ?? throw new ArgumentNullException(nameof(modelPath));
         _language = language ?? throw new ArgumentNullException(nameof(language));
+
+        // Resolve relative path
+        if (!Path.IsPathRooted(modelPath))
+        {
+            modelPath = Path.Combine(AppContext.BaseDirectory, modelPath);
+        }
+
+        _modelPath = modelPath;
 
         if (!File.Exists(_modelPath))
         {

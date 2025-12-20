@@ -34,14 +34,14 @@ public class ContinuousListenerOptions
     public int MinRecordingMs { get; set; } = 800;
 
     /// <summary>
-    /// Path to Silero VAD ONNX model file.
+    /// Path to Silero VAD ONNX model file (relative to application directory).
     /// </summary>
-    public string SileroVadModelPath { get; set; } = "/home/jirka/virtual-assistant/models/silero_vad.onnx";
+    public string SileroVadModelPath { get; set; } = "models/silero_vad.onnx";
 
     /// <summary>
-    /// Path to Whisper model file for transcription.
+    /// Path to Whisper model file for transcription (relative to application directory).
     /// </summary>
-    public string WhisperModelPath { get; set; } = "/home/jirka/virtual-assistant/asr-models/ggml-medium.bin";
+    public string WhisperModelPath { get; set; } = "asr-models/ggml-medium.bin";
 
     /// <summary>
     /// Language for Whisper transcription.
