@@ -1,6 +1,0 @@
-@EdgeTtsWebSocketServer_HostAddress = http://localhost:5212
-
-GET {{EdgeTtsWebSocketServer_HostAddress}}/weatherforecast/
-Accept: application/json
-
-###

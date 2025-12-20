@@ -39,6 +39,10 @@
       <IncludeAssets>runtime; build; native; contentfiles; analyzers; buildtransitive</IncludeAssets>
       <PrivateAssets>all</PrivateAssets>
     </PackageReference>
+    <!-- EdgeTTS WebSocket provider with extern alias (used by EdgeTtsWebSocketExtensions.cs) -->
+    <PackageReference Include="Olbrasoft.TextToSpeech.Providers.EdgeTTS" Version="1.1.13">
+      <Aliases>EdgeTtsWebSocket</Aliases>
+    </PackageReference>
   </ItemGroup>
 
 </Project>

@@ -171,8 +171,15 @@ public static class ServiceCollectionExtensions
             configuration.GetSection(TtsVoiceProfilesOptions.SectionName));
 
         // ========== TextToSpeech Library Integration ==========
+        // IMPORTANT: Configure TTS providers FIRST (hosting app decides where values come from)
+        // This is where we load configuration from appsettings.json, environment variables, etc.
+        services.ConfigureTtsProviders(configuration);
+
         // Register providers from the new library (Azure, EdgeTTS, VoiceRSS, Google)
         services.AddTtsProviders(configuration);
+
+        // Register EdgeTTS WebSocket provider (overrides HTTP-based provider during development)
+        services.AddEdgeTtsWebSocketProvider(configuration);
 
         // Register Piper provider (separate due to ONNX dependency)
         services.AddPiperTts(configuration);
