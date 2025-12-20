@@ -32,8 +32,12 @@ public class TtsController : ControllerBase
         // Read from config with fallback defaults
         var edgeTtsBaseUrl = configuration["EdgeTtsServer:BaseUrl"] ?? "http://localhost:5555";
         _edgeTtsServerUrl = $"{edgeTtsBaseUrl}/api/speech/speak";
-        _piperModelPath = configuration["TTS:Piper:ModelPath"]
-            ?? "/home/jirka/virtual-assistant/piper-voices/cs/cs_CZ-jirka-medium.onnx";
+
+        // Piper model path - resolve relative path
+        var piperPath = configuration["TTS:Piper:ModelPath"] ?? "piper-voices/cs/cs_CZ-jirka-medium.onnx";
+        _piperModelPath = Path.IsPathRooted(piperPath)
+            ? piperPath
+            : Path.Combine(AppContext.BaseDirectory, piperPath);
     }
 
     // Note: /api/tts/notify endpoint removed - use /api/notifications instead

@@ -5,7 +5,7 @@ set -e
 # Builds, tests, and deploys all components
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-DEPLOY_DIR="/home/jirka/virtual-assistant"
+DEPLOY_DIR="/home/jirka/apps/virtual-assistant"
 
 echo "=========================================="
 echo "VirtualAssistant Deploy Script"

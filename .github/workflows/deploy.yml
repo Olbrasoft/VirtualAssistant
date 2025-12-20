@@ -42,7 +42,7 @@ jobs:
         run: |
           dotnet publish src/VirtualAssistant.Service/VirtualAssistant.Service.csproj \
             -c Release \
-            -o ~/virtual-assistant/main \
+            -o ~/apps/virtual-assistant \
             --no-self-contained
 
       - name: Restart service
