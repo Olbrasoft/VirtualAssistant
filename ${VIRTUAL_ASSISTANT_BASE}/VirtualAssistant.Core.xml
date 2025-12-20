@@ -1,0 +1,960 @@
+<?xml version="1.0"?>
+<doc>
+    <assembly>
+        <name>VirtualAssistant.Core</name>
+    </assembly>
+    <members>
+        <member name="T:Olbrasoft.VirtualAssistant.Core.Configuration.ContinuousListenerOptions">
+            <summary>
+            Configuration options for ContinuousListener.
+            </summary>
+        </member>
+        <member name="P:Olbrasoft.VirtualAssistant.Core.Configuration.ContinuousListenerOptions.SampleRate">
+            <summary>
+            Audio sample rate in Hz. Default: 16000.
+            </summary>
+        </member>
+        <member name="P:Olbrasoft.VirtualAssistant.Core.Configuration.ContinuousListenerOptions.VadChunkMs">
+            <summary>
+            VAD chunk size in milliseconds. Default: 32ms.
+            </summary>
+        </member>
+        <member name="P:Olbrasoft.VirtualAssistant.Core.Configuration.ContinuousListenerOptions.PreBufferMs">
+            <summary>
+            Pre-buffer duration in milliseconds. Default: 1000ms.
+            </summary>
+        </member>
+        <member name="P:Olbrasoft.VirtualAssistant.Core.Configuration.ContinuousListenerOptions.PostSilenceMs">
+            <summary>
+            Post-silence duration to end recording in milliseconds. Default: 1500ms.
+            With LLM Router, we wait longer to capture complete utterances.
+            </summary>
+        </member>
+        <member name="P:Olbrasoft.VirtualAssistant.Core.Configuration.ContinuousListenerOptions.MinRecordingMs">
+            <summary>
+            Minimum recording duration in milliseconds. Default: 800ms.
+            </summary>
+        </member>
+        <member name="P:Olbrasoft.VirtualAssistant.Core.Configuration.ContinuousListenerOptions.SileroVadModelPath">
+            <summary>
+            Path to Silero VAD ONNX model file (relative to application directory).
+            MUST be configured in appsettings.json.
+            </summary>
+        </member>
+        <member name="P:Olbrasoft.VirtualAssistant.Core.Configuration.ContinuousListenerOptions.WhisperModelPath">
+            <summary>
+            Path to Whisper model file for transcription (relative to application directory).
+            MUST be configured in appsettings.json.
+            </summary>
+        </member>
+        <member name="P:Olbrasoft.VirtualAssistant.Core.Configuration.ContinuousListenerOptions.WhisperLanguage">
+            <summary>
+            Language for Whisper transcription.
+            </summary>
+        </member>
+        <member name="P:Olbrasoft.VirtualAssistant.Core.Configuration.ContinuousListenerOptions.MaxSegmentMs">
+            <summary>
+            Maximum audio segment duration for transcription in milliseconds. Default: 60000ms (60 seconds).
+            Longer audio will be truncated to prevent Whisper.net issues.
+            </summary>
+        </member>
+        <member name="P:Olbrasoft.VirtualAssistant.Core.Configuration.ContinuousListenerOptions.AudioSource">
+            <summary>
+            PipeWire audio source to capture from.
+            If set, uses the specified source (e.g., "virtual-assistant-aec-source" for echo cancellation).
+            If null/empty, uses the default microphone.
+            </summary>
+        </member>
+        <member name="P:Olbrasoft.VirtualAssistant.Core.Configuration.ContinuousListenerOptions.LogViewerPort">
+            <summary>
+            Port for Logdy log viewer. Default: 5053.
+            </summary>
+        </member>
+        <member name="P:Olbrasoft.VirtualAssistant.Core.Configuration.ContinuousListenerOptions.KeyboardDevice">
+            <summary>
+            Path to keyboard device for ScrollLock mute toggle.
+            If null/empty, auto-detects keyboard.
+            </summary>
+        </member>
+        <member name="P:Olbrasoft.VirtualAssistant.Core.Configuration.ContinuousListenerOptions.StartMuted">
+            <summary>
+            Whether the assistant should start in muted mode. Default: true.
+            When true, user must explicitly unmute (ScrollLock) to begin voice interaction.
+            </summary>
+        </member>
+        <member name="T:Olbrasoft.VirtualAssistant.Core.Enums.LlmProvider">
+            <summary>
+            Available LLM providers for routing
+            </summary>
+        </member>
+        <member name="F:Olbrasoft.VirtualAssistant.Core.Enums.LlmProvider.Mistral">
+            <summary>
+            Mistral AI - primary provider, most reliable
+            </summary>
+        </member>
+        <member name="F:Olbrasoft.VirtualAssistant.Core.Enums.LlmProvider.Groq">
+            <summary>
+            Groq - fast inference, 100k daily token limit
+            </summary>
+        </member>
+        <member name="F:Olbrasoft.VirtualAssistant.Core.Enums.LlmProvider.Cerebras">
+            <summary>
+            Cerebras - alternative provider
+            </summary>
+        </member>
+        <member name="T:Olbrasoft.VirtualAssistant.Core.Enums.LlmRouterAction">
+            <summary>
+            Possible actions from LLM routing.
+            </summary>
+        </member>
+        <member name="F:Olbrasoft.VirtualAssistant.Core.Enums.LlmRouterAction.OpenCode">
+            <summary>Send command to OpenCode.</summary>
+        </member>
+        <member name="F:Olbrasoft.VirtualAssistant.Core.Enums.LlmRouterAction.Respond">
+            <summary>Respond directly via TTS.</summary>
+        </member>
+        <member name="F:Olbrasoft.VirtualAssistant.Core.Enums.LlmRouterAction.Bash">
+            <summary>Execute bash command (redirected to OpenCode).</summary>
+        </member>
+        <member name="F:Olbrasoft.VirtualAssistant.Core.Enums.LlmRouterAction.SaveNote">
+            <summary>Save a note.</summary>
+        </member>
+        <member name="F:Olbrasoft.VirtualAssistant.Core.Enums.LlmRouterAction.StartDiscussion">
+            <summary>Start a discussion/planning session (persistent PLAN mode).</summary>
+        </member>
+        <member name="F:Olbrasoft.VirtualAssistant.Core.Enums.LlmRouterAction.EndDiscussion">
+            <summary>End a discussion/planning session (return to normal mode).</summary>
+        </member>
+        <member name="F:Olbrasoft.VirtualAssistant.Core.Enums.LlmRouterAction.DispatchTask">
+            <summary>Dispatch a task to an agent (e.g., Claude).</summary>
+        </member>
+        <member name="F:Olbrasoft.VirtualAssistant.Core.Enums.LlmRouterAction.Ignore">
+            <summary>Ignore the input.</summary>
+        </member>
+        <member name="T:Olbrasoft.VirtualAssistant.Core.Enums.PromptType">
+            <summary>
+            Type of prompt received from voice input.
+            Determines agent mode (Build/Plan) in OpenCode.
+            </summary>
+        </member>
+        <member name="F:Olbrasoft.VirtualAssistant.Core.Enums.PromptType.Command">
+            <summary>
+            Command - action to be executed (Build mode).
+            </summary>
+        </member>
+        <member name="F:Olbrasoft.VirtualAssistant.Core.Enums.PromptType.Question">
+            <summary>
+            Question - query to be answered (Plan mode).
+            </summary>
+        </member>
+        <member name="F:Olbrasoft.VirtualAssistant.Core.Enums.PromptType.Acknowledgement">
+            <summary>
+            Acknowledgement - statement that doesn't need a response (Plan mode).
+            </summary>
+        </member>
+        <member name="F:Olbrasoft.VirtualAssistant.Core.Enums.PromptType.Confirmation">
+            <summary>
+            Confirmation - confirmation of an action (Build mode).
+            </summary>
+        </member>
+        <member name="F:Olbrasoft.VirtualAssistant.Core.Enums.PromptType.Continuation">
+            <summary>
+            Continuation - request to continue previous action (Build mode).
+            </summary>
+        </member>
+        <member name="T:Olbrasoft.VirtualAssistant.Core.Exceptions.RateLimitException">
+            <summary>
+            Exception thrown when an LLM provider is rate limited.
+            </summary>
+        </member>
+        <member name="P:Olbrasoft.VirtualAssistant.Core.Exceptions.RateLimitException.Provider">
+            <summary>
+            The provider that was rate limited.
+            </summary>
+        </member>
+        <member name="P:Olbrasoft.VirtualAssistant.Core.Exceptions.RateLimitException.ResetAt">
+            <summary>
+            When the rate limit resets (if known).
+            </summary>
+        </member>
+        <member name="T:Olbrasoft.VirtualAssistant.Core.Services.IKeyboardMonitor">
+            <summary>
+            Interface for monitoring keyboard events (e.g., ScrollLock for mute toggle).
+            </summary>
+        </member>
+        <member name="E:Olbrasoft.VirtualAssistant.Core.Services.IKeyboardMonitor.KeyPressed">
+            <summary>
+            Event raised when a key is pressed.
+            </summary>
+        </member>
+        <member name="E:Olbrasoft.VirtualAssistant.Core.Services.IKeyboardMonitor.KeyReleased">
+            <summary>
+            Event raised when a key is released.
+            </summary>
+        </member>
+        <member name="M:Olbrasoft.VirtualAssistant.Core.Services.IKeyboardMonitor.StartAsync(System.Threading.CancellationToken)">
+            <summary>
+            Starts monitoring keyboard events.
+            </summary>
+            <param name="cancellationToken">Token to cancel monitoring.</param>
+        </member>
+        <member name="M:Olbrasoft.VirtualAssistant.Core.Services.IKeyboardMonitor.Stop">
+            <summary>
+            Stops monitoring keyboard events.
+            </summary>
+        </member>
+        <member name="M:Olbrasoft.VirtualAssistant.Core.Services.IKeyboardMonitor.IsScrollLockOn">
+            <summary>
+            Gets whether ScrollLock LED is currently on.
+            Note: May not work on Wayland, use internal state tracking instead.
+            </summary>
+        </member>
+        <member name="T:Olbrasoft.VirtualAssistant.Core.Services.KeyEventArgs">
+            <summary>
+            Event arguments for keyboard events.
+            </summary>
+        </member>
+        <member name="P:Olbrasoft.VirtualAssistant.Core.Services.KeyEventArgs.Key">
+            <summary>
+            Gets the key code of the pressed or released key.
+            </summary>
+        </member>
+        <member name="P:Olbrasoft.VirtualAssistant.Core.Services.KeyEventArgs.IsPressed">
+            <summary>
+            Gets a value indicating whether the key is pressed (true) or released (false).
+            </summary>
+        </member>
+        <member name="T:Olbrasoft.VirtualAssistant.Core.Services.KeyCode">
+            <summary>
+            Common key codes for monitoring.
+            </summary>
+        </member>
+        <member name="F:Olbrasoft.VirtualAssistant.Core.Services.KeyCode.Unknown">
+            <summary>Unknown or unsupported key.</summary>
+        </member>
+        <member name="F:Olbrasoft.VirtualAssistant.Core.Services.KeyCode.Escape">
+            <summary>Escape key (key code 1).</summary>
+        </member>
+        <member name="F:Olbrasoft.VirtualAssistant.Core.Services.KeyCode.CapsLock">
+            <summary>Caps Lock key (key code 58).</summary>
+        </member>
+        <member name="F:Olbrasoft.VirtualAssistant.Core.Services.KeyCode.NumLock">
+            <summary>Num Lock key (key code 69).</summary>
+        </member>
+        <member name="F:Olbrasoft.VirtualAssistant.Core.Services.KeyCode.ScrollLock">
+            <summary>Scroll Lock key (key code 70).</summary>
+        </member>
+        <member name="T:Olbrasoft.VirtualAssistant.Core.Services.ILlmRouterService">
+            <summary>
+            Interface for LLM-based voice input routing services.
+            Implementations determine whether input should be sent to OpenCode, responded directly, 
+            executed as bash command, or ignored.
+            </summary>
+        </member>
+        <member name="P:Olbrasoft.VirtualAssistant.Core.Services.ILlmRouterService.ProviderName">
+            <summary>
+            Name of the LLM provider (for logging).
+            </summary>
+        </member>
+        <member name="M:Olbrasoft.VirtualAssistant.Core.Services.ILlmRouterService.RouteAsync(System.String,System.Boolean,System.Threading.CancellationToken)">
+            <summary>
+            Routes voice input through the LLM and returns the routing decision.
+            </summary>
+            <param name="inputText">The transcribed voice input.</param>
+            <param name="isDiscussionActive">Whether discussion mode is currently active.</param>
+            <param name="cancellationToken">Cancellation token.</param>
+            <returns>Routing result with action, response, and timing information.</returns>
+        </member>
+        <member name="T:Olbrasoft.VirtualAssistant.Core.Services.LlmRouterResult">
+            <summary>
+            Result from LLM Router containing routing decision and associated data.
+            </summary>
+        </member>
+        <member name="P:Olbrasoft.VirtualAssistant.Core.Services.LlmRouterResult.Success">
+            <summary>
+            Gets a value indicating whether the routing was successful.
+            </summary>
+        </member>
+        <member name="P:Olbrasoft.VirtualAssistant.Core.Services.LlmRouterResult.Action">
+            <summary>
+            Gets the routing action determined by the LLM.
+            </summary>
+        </member>
+        <member name="P:Olbrasoft.VirtualAssistant.Core.Services.LlmRouterResult.Confidence">
+            <summary>
+            Gets the confidence score of the routing decision (0.0 to 1.0).
+            </summary>
+        </member>
+        <member name="P:Olbrasoft.VirtualAssistant.Core.Services.LlmRouterResult.Reason">
+            <summary>
+            Gets the reason for the routing decision.
+            </summary>
+        </member>
+        <member name="P:Olbrasoft.VirtualAssistant.Core.Services.LlmRouterResult.Response">
+            <summary>
+            Gets the response text to speak via TTS (when Action is Respond).
+            </summary>
+        </member>
+        <member name="P:Olbrasoft.VirtualAssistant.Core.Services.LlmRouterResult.CommandForOpenCode">
+            <summary>
+            Gets the command to send to OpenCode (when Action is OpenCode).
+            </summary>
+        </member>
+        <member name="P:Olbrasoft.VirtualAssistant.Core.Services.LlmRouterResult.BashCommand">
+            <summary>
+            Gets the bash command to execute (when Action is Bash).
+            </summary>
+        </member>
+        <member name="P:Olbrasoft.VirtualAssistant.Core.Services.LlmRouterResult.NoteTitle">
+            <summary>
+            Gets the title for the note (when Action is SaveNote).
+            </summary>
+        </member>
+        <member name="P:Olbrasoft.VirtualAssistant.Core.Services.LlmRouterResult.NoteContent">
+            <summary>
+            Gets the content for the note (when Action is SaveNote).
+            </summary>
+        </member>
+        <member name="P:Olbrasoft.VirtualAssistant.Core.Services.LlmRouterResult.DiscussionTopic">
+            <summary>
+            Gets the topic of the discussion (when Action is StartDiscussion).
+            </summary>
+        </member>
+        <member name="P:Olbrasoft.VirtualAssistant.Core.Services.LlmRouterResult.TargetAgent">
+            <summary>
+            Gets the target agent for task dispatch (when Action is DispatchTask).
+            </summary>
+        </member>
+        <member name="P:Olbrasoft.VirtualAssistant.Core.Services.LlmRouterResult.ResponseTimeMs">
+            <summary>
+            Gets the response time in milliseconds.
+            </summary>
+        </member>
+        <member name="P:Olbrasoft.VirtualAssistant.Core.Services.LlmRouterResult.ErrorMessage">
+            <summary>
+            Gets the error message if routing failed.
+            </summary>
+        </member>
+        <member name="P:Olbrasoft.VirtualAssistant.Core.Services.LlmRouterResult.PromptType">
+            <summary>
+            Type of prompt detected by the LLM router.
+            Determines the mode (Build/Plan) and label prefix for OpenCode.
+            </summary>
+        </member>
+        <member name="P:Olbrasoft.VirtualAssistant.Core.Services.LlmRouterResult.ProviderName">
+            <summary>
+            Name of the LLM provider that processed this result.
+            </summary>
+        </member>
+        <member name="M:Olbrasoft.VirtualAssistant.Core.Services.LlmRouterResult.Ignored(System.String)">
+            <summary>
+            Creates a result for ignored input.
+            </summary>
+            <param name="reason">The reason for ignoring the input.</param>
+            <returns>A new <see cref="T:Olbrasoft.VirtualAssistant.Core.Services.LlmRouterResult"/> with Action set to Ignore.</returns>
+        </member>
+        <member name="M:Olbrasoft.VirtualAssistant.Core.Services.LlmRouterResult.Error(System.String,System.Int32)">
+            <summary>
+            Creates a result for a routing error.
+            </summary>
+            <param name="message">The error message.</param>
+            <param name="responseTimeMs">The response time in milliseconds.</param>
+            <returns>A new <see cref="T:Olbrasoft.VirtualAssistant.Core.Services.LlmRouterResult"/> indicating failure.</returns>
+        </member>
+        <member name="T:Olbrasoft.VirtualAssistant.Core.Services.IManualMuteService">
+            <summary>
+            Service for managing manual mute state (via ScrollLock or tray menu).
+            Thread-safe for concurrent access from tray UI and keyboard monitor.
+            </summary>
+        </member>
+        <member name="P:Olbrasoft.VirtualAssistant.Core.Services.IManualMuteService.IsMuted">
+            <summary>
+            Gets whether audio capture is currently muted.
+            </summary>
+        </member>
+        <member name="M:Olbrasoft.VirtualAssistant.Core.Services.IManualMuteService.Toggle">
+            <summary>
+            Toggles the mute state and returns the new state.
+            </summary>
+            <returns>True if now muted, false if now unmuted.</returns>
+        </member>
+        <member name="M:Olbrasoft.VirtualAssistant.Core.Services.IManualMuteService.SetMuted(System.Boolean)">
+            <summary>
+            Sets the mute state explicitly.
+            </summary>
+            <param name="muted">True to mute, false to unmute.</param>
+        </member>
+        <member name="E:Olbrasoft.VirtualAssistant.Core.Services.IManualMuteService.MuteStateChanged">
+            <summary>
+            Event raised when mute state changes.
+            </summary>
+        </member>
+        <member name="T:Olbrasoft.VirtualAssistant.Core.Speech.ISpeechTranscriber">
+            <summary>
+            Interface for speech-to-text transcription.
+            </summary>
+        </member>
+        <member name="P:Olbrasoft.VirtualAssistant.Core.Speech.ISpeechTranscriber.Language">
+            <summary>
+            Gets the language code for transcription (e.g., "cs" for Czech).
+            </summary>
+        </member>
+        <member name="M:Olbrasoft.VirtualAssistant.Core.Speech.ISpeechTranscriber.TranscribeAsync(System.Byte[],System.Threading.CancellationToken)">
+            <summary>
+            Transcribes audio data to text asynchronously.
+            </summary>
+            <param name="audioData">Audio data in WAV format.</param>
+            <param name="cancellationToken">Cancellation token.</param>
+            <returns>Transcription result with text and confidence.</returns>
+        </member>
+        <member name="M:Olbrasoft.VirtualAssistant.Core.Speech.ISpeechTranscriber.TranscribeAsync(System.IO.Stream,System.Threading.CancellationToken)">
+            <summary>
+            Transcribes audio stream to text asynchronously.
+            </summary>
+            <param name="audioStream">Audio stream in WAV format.</param>
+            <param name="cancellationToken">Cancellation token.</param>
+            <returns>Transcription result with text and confidence.</returns>
+        </member>
+        <member name="T:Olbrasoft.VirtualAssistant.Core.Speech.TranscriptionResult">
+            <summary>
+            Represents the result of speech transcription.
+            </summary>
+        </member>
+        <member name="P:Olbrasoft.VirtualAssistant.Core.Speech.TranscriptionResult.Text">
+            <summary>
+            Gets the transcribed text.
+            </summary>
+        </member>
+        <member name="P:Olbrasoft.VirtualAssistant.Core.Speech.TranscriptionResult.Confidence">
+            <summary>
+            Gets the confidence score (0.0 to 1.0).
+            </summary>
+        </member>
+        <member name="P:Olbrasoft.VirtualAssistant.Core.Speech.TranscriptionResult.Success">
+            <summary>
+            Gets a value indicating whether transcription was successful.
+            </summary>
+        </member>
+        <member name="P:Olbrasoft.VirtualAssistant.Core.Speech.TranscriptionResult.ErrorMessage">
+            <summary>
+            Gets the error message if transcription failed.
+            </summary>
+        </member>
+        <member name="M:Olbrasoft.VirtualAssistant.Core.Speech.TranscriptionResult.#ctor(System.String,System.Single)">
+            <summary>
+            Initializes a new instance for successful transcription.
+            </summary>
+        </member>
+        <member name="M:Olbrasoft.VirtualAssistant.Core.Speech.TranscriptionResult.#ctor(System.String)">
+            <summary>
+            Initializes a new instance for failed transcription.
+            </summary>
+        </member>
+        <member name="T:Olbrasoft.VirtualAssistant.Core.TextInput.TextInputService">
+            <summary>
+            Service for sending text to OpenCode via HTTP API.
+            Uses OpenCode.DotnetClient for TUI API communication.
+            </summary>
+        </member>
+        <member name="M:Olbrasoft.VirtualAssistant.Core.TextInput.TextInputService.SendMessageToSessionAsync(System.String,System.String,System.Threading.CancellationToken)">
+            <summary>
+            Sends a message to OpenCode via TUI API (asynchronous, fire-and-forget).
+            Uses AppendPrompt to set the text, then SubmitPrompt to send it.
+            </summary>
+            <param name="text">Message text to send.</param>
+            <param name="agent">Agent to use: "plan" for questions/discussions, "build" for commands.</param>
+            <param name="cancellationToken">Cancellation token.</param>
+            <returns>True if message was sent successfully, false otherwise.</returns>
+        </member>
+        <member name="M:Olbrasoft.VirtualAssistant.Core.TextInput.TextInputService.TypeTextAsync(System.String,System.Boolean,System.Threading.CancellationToken)">
+            <summary>
+            Sends text to OpenCode via HTTP POST to /tui/append-prompt endpoint.
+            Optionally submits the prompt with /tui/submit-prompt.
+            </summary>
+        </member>
+        <member name="T:Olbrasoft.VirtualAssistant.Core.Utilities.RateLimitParser">
+            <summary>
+            Utility for parsing rate limit information from error messages.
+            </summary>
+        </member>
+        <member name="M:Olbrasoft.VirtualAssistant.Core.Utilities.RateLimitParser.ParseResetTimeFromError(System.String)">
+            <summary>
+            Parses reset time from rate limit error message.
+            </summary>
+            <param name="errorBody">Error message body</param>
+            <returns>DateTime when rate limit resets, or null if not parseable</returns>
+        </member>
+        <member name="M:Olbrasoft.VirtualAssistant.Core.Utilities.RateLimitParser.MinutesSecondsRegex">
+            <remarks>
+            Pattern:<br/>
+            <code>try again in (\\d+)m([\\d.]+)s</code><br/>
+            Explanation:<br/>
+            <code>
+            ○ Match the string "try again in ".<br/>
+            ○ 1st capture group.<br/>
+                ○ Match a Unicode digit atomically at least once.<br/>
+            ○ Match 'm'.<br/>
+            ○ 2nd capture group.<br/>
+                ○ Match a character in the set [.\d] atomically at least once.<br/>
+            ○ Match 's'.<br/>
+            </code>
+            </remarks>
+        </member>
+        <member name="M:Olbrasoft.VirtualAssistant.Core.Utilities.RateLimitParser.SecondsOnlyRegex">
+            <remarks>
+            Pattern:<br/>
+            <code>try again in ([\\d.]+)s</code><br/>
+            Explanation:<br/>
+            <code>
+            ○ Match the string "try again in ".<br/>
+            ○ 1st capture group.<br/>
+                ○ Match a character in the set [.\d] atomically at least once.<br/>
+            ○ Match 's'.<br/>
+            </code>
+            </remarks>
+        </member>
+        <member name="T:VirtualAssistant.Core.ServiceCollectionExtensions">
+            <summary>
+            Extension methods for registering VirtualAssistant.Core services.
+            </summary>
+        </member>
+        <member name="M:VirtualAssistant.Core.ServiceCollectionExtensions.AddCoreServices(Microsoft.Extensions.DependencyInjection.IServiceCollection)">
+            <summary>
+            Adds core services to the dependency injection container.
+            </summary>
+            <param name="services">The service collection</param>
+            <returns>The service collection for chaining</returns>
+        </member>
+        <member name="T:VirtualAssistant.Core.Services.ClaudeDispatchOptions">
+            <summary>
+            Configuration options for Claude dispatch service.
+            </summary>
+        </member>
+        <member name="F:VirtualAssistant.Core.Services.ClaudeDispatchOptions.SectionName">
+            <summary>
+            Configuration section name.
+            </summary>
+        </member>
+        <member name="P:VirtualAssistant.Core.Services.ClaudeDispatchOptions.NotifyUrl">
+            <summary>
+            URL for notifications endpoint.
+            </summary>
+        </member>
+        <member name="P:VirtualAssistant.Core.Services.ClaudeDispatchOptions.DefaultWorkingDirectory">
+            <summary>
+            Default working directory for Claude execution.
+            Supports ~ for home directory.
+            </summary>
+        </member>
+        <member name="P:VirtualAssistant.Core.Services.ClaudeDispatchOptions.TimeoutMinutes">
+            <summary>
+            Timeout in minutes for Claude execution.
+            </summary>
+        </member>
+        <member name="P:VirtualAssistant.Core.Services.ClaudeDispatchOptions.NotifyOnSuccess">
+            <summary>
+            Whether to send TTS notification on successful completion.
+            </summary>
+        </member>
+        <member name="M:VirtualAssistant.Core.Services.ClaudeDispatchOptions.GetExpandedWorkingDirectory">
+            <summary>
+            Expands ~ to home directory in the working directory path.
+            </summary>
+        </member>
+        <member name="T:VirtualAssistant.Core.Services.IClaudeDispatchService">
+            <summary>
+            Service for dispatching tasks to Claude Code via headless mode.
+            Executes claude -p command and manages the process lifecycle.
+            </summary>
+        </member>
+        <member name="M:VirtualAssistant.Core.Services.IClaudeDispatchService.ExecuteAsync(System.String,System.String,System.Threading.CancellationToken)">
+            <summary>
+            Execute a task via Claude Code headless mode.
+            </summary>
+            <param name="prompt">The task prompt to send to Claude</param>
+            <param name="workingDirectory">Optional working directory for Claude</param>
+            <param name="ct">Cancellation token</param>
+            <returns>Result containing session_id and execution details</returns>
+        </member>
+        <member name="M:VirtualAssistant.Core.Services.IClaudeDispatchService.IsClaudeAvailableAsync">
+            <summary>
+            Check if Claude Code is installed and available.
+            </summary>
+            <returns>True if claude command is available</returns>
+        </member>
+        <member name="M:VirtualAssistant.Core.Services.IClaudeDispatchService.NotifySuccessAsync(System.String)">
+            <summary>
+            Send TTS notification for successful completion.
+            Only sends if NotifyOnSuccess is enabled in configuration.
+            </summary>
+            <param name="message">Message to speak</param>
+        </member>
+        <member name="T:VirtualAssistant.Core.Services.ClaudeExecutionResult">
+            <summary>
+            Result of Claude Code headless execution.
+            </summary>
+        </member>
+        <member name="P:VirtualAssistant.Core.Services.ClaudeExecutionResult.Success">
+            <summary>
+            Whether the execution was successful.
+            </summary>
+        </member>
+        <member name="P:VirtualAssistant.Core.Services.ClaudeExecutionResult.SessionId">
+            <summary>
+            Claude session ID from the execution.
+            </summary>
+        </member>
+        <member name="P:VirtualAssistant.Core.Services.ClaudeExecutionResult.Result">
+            <summary>
+            Result content from Claude.
+            </summary>
+        </member>
+        <member name="P:VirtualAssistant.Core.Services.ClaudeExecutionResult.TotalCostUsd">
+            <summary>
+            Total cost in USD for this execution.
+            </summary>
+        </member>
+        <member name="P:VirtualAssistant.Core.Services.ClaudeExecutionResult.Error">
+            <summary>
+            Error message if execution failed.
+            </summary>
+        </member>
+        <member name="P:VirtualAssistant.Core.Services.ClaudeExecutionResult.IsError">
+            <summary>
+            Whether the result was an error from Claude.
+            </summary>
+        </member>
+        <member name="P:VirtualAssistant.Core.Services.ClaudeExecutionResult.ExitCode">
+            <summary>
+            Process exit code.
+            </summary>
+        </member>
+        <member name="M:VirtualAssistant.Core.Services.ClaudeExecutionResult.Succeeded(System.String,System.String,System.Nullable{System.Decimal})">
+            <summary>
+            Creates a successful result.
+            </summary>
+        </member>
+        <member name="M:VirtualAssistant.Core.Services.ClaudeExecutionResult.Failed(System.String,System.Int32)">
+            <summary>
+            Creates a failed result.
+            </summary>
+        </member>
+        <member name="M:VirtualAssistant.Core.Services.ClaudeExecutionResult.ClaudeError(System.String,System.String)">
+            <summary>
+            Creates a result from Claude error response.
+            </summary>
+        </member>
+        <member name="T:VirtualAssistant.Core.Services.IHumanizationService">
+            <summary>
+            Service for humanizing agent notifications using LLM.
+            Transforms raw agent messages into natural Czech speech.
+            </summary>
+        </member>
+        <member name="M:VirtualAssistant.Core.Services.IHumanizationService.HumanizeAsync(System.Collections.Generic.IReadOnlyList{VirtualAssistant.Core.Services.AgentNotification},System.Collections.Generic.IReadOnlyDictionary{System.Int32,VirtualAssistant.Core.Services.IssueSummaryInfo},System.Threading.CancellationToken)">
+            <summary>
+            Humanizes a batch of agent notifications into natural Czech speech.
+            </summary>
+            <param name="notifications">List of notifications to humanize</param>
+            <param name="issueSummaries">Optional Czech summaries of related GitHub issues (issue number -> summary info)</param>
+            <param name="ct">Cancellation token</param>
+            <returns>Humanized text for TTS, or null if no notification needed</returns>
+        </member>
+        <member name="T:VirtualAssistant.Core.Services.IssueSummaryInfo">
+            <summary>
+            Summary information for a GitHub issue used in humanization.
+            </summary>
+        </member>
+        <member name="P:VirtualAssistant.Core.Services.IssueSummaryInfo.IssueNumber">
+            <summary>
+            GitHub issue number.
+            </summary>
+        </member>
+        <member name="P:VirtualAssistant.Core.Services.IssueSummaryInfo.CzechTitle">
+            <summary>
+            Czech translated title.
+            </summary>
+        </member>
+        <member name="P:VirtualAssistant.Core.Services.IssueSummaryInfo.CzechSummary">
+            <summary>
+            Czech summary of the issue.
+            </summary>
+        </member>
+        <member name="P:VirtualAssistant.Core.Services.IssueSummaryInfo.IsOpen">
+            <summary>
+            Whether the issue is open.
+            </summary>
+        </member>
+        <member name="T:VirtualAssistant.Core.Services.AgentNotification">
+            <summary>
+            Represents an agent notification to be humanized.
+            </summary>
+        </member>
+        <member name="P:VirtualAssistant.Core.Services.AgentNotification.NotificationId">
+            <summary>
+            Database ID of the notification (for status tracking).
+            </summary>
+        </member>
+        <member name="P:VirtualAssistant.Core.Services.AgentNotification.Agent">
+            <summary>
+            Name of the agent (e.g., "opencode", "claudecode")
+            </summary>
+        </member>
+        <member name="P:VirtualAssistant.Core.Services.AgentNotification.Type">
+            <summary>
+            Type of notification (e.g., "start", "complete", "progress")
+            </summary>
+        </member>
+        <member name="P:VirtualAssistant.Core.Services.AgentNotification.Content">
+            <summary>
+            Raw content of the notification
+            </summary>
+        </member>
+        <member name="T:VirtualAssistant.Core.Services.INotificationBatchingService">
+            <summary>
+            Service for batching agent notifications before humanization.
+            Collects notifications over a short time window to combine related messages.
+            Messages are queued and played sequentially - no interruption between agents.
+            </summary>
+        </member>
+        <member name="M:VirtualAssistant.Core.Services.INotificationBatchingService.QueueNotification(VirtualAssistant.Core.Services.AgentNotification)">
+            <summary>
+            Queues a notification for batching.
+            The notification will be humanized and spoken after the batch window expires.
+            If a batch is currently being processed, the notification waits in queue.
+            </summary>
+            <param name="notification">Notification to queue</param>
+        </member>
+        <member name="P:VirtualAssistant.Core.Services.INotificationBatchingService.PendingCount">
+            <summary>
+            Gets the current batch size (for monitoring/testing).
+            </summary>
+        </member>
+        <member name="P:VirtualAssistant.Core.Services.INotificationBatchingService.IsProcessing">
+            <summary>
+            Whether a batch is currently being processed (humanization + TTS).
+            </summary>
+        </member>
+        <member name="M:VirtualAssistant.Core.Services.INotificationBatchingService.FlushAsync">
+            <summary>
+            Immediately processes any pending notifications without waiting for the batch timer.
+            Used when speech lock is released to play queued messages right away.
+            </summary>
+            <returns>Task that completes when the batch has been processed.</returns>
+        </member>
+        <member name="T:VirtualAssistant.Core.Services.INotificationService">
+            <summary>
+            Service for managing notifications in the database.
+            </summary>
+        </member>
+        <member name="M:VirtualAssistant.Core.Services.INotificationService.CreateNotificationAsync(System.String,System.String,System.Collections.Generic.IReadOnlyList{System.Int32},System.Threading.CancellationToken)">
+            <summary>
+            Creates a new notification with NewlyReceived status.
+            </summary>
+            <param name="text">Notification text content</param>
+            <param name="agentName">Agent name (e.g., "opencode", "claude") - will be looked up in database</param>
+            <param name="issueIds">Optional GitHub issue IDs to associate with this notification</param>
+            <param name="ct">Cancellation token</param>
+            <returns>The ID of the created notification</returns>
+        </member>
+        <member name="M:VirtualAssistant.Core.Services.INotificationService.GetNewNotificationsAsync(System.Threading.CancellationToken)">
+            <summary>
+            Gets all notifications with NewlyReceived status.
+            </summary>
+            <param name="ct">Cancellation token</param>
+            <returns>List of new notifications</returns>
+        </member>
+        <member name="M:VirtualAssistant.Core.Services.INotificationService.UpdateStatusAsync(System.Int32,VirtualAssistant.Data.Enums.NotificationStatusEnum,System.Threading.CancellationToken)">
+            <summary>
+            Updates the status of a notification.
+            </summary>
+            <param name="notificationId">ID of the notification to update</param>
+            <param name="newStatus">New status to set</param>
+            <param name="ct">Cancellation token</param>
+        </member>
+        <member name="M:VirtualAssistant.Core.Services.INotificationService.UpdateStatusAsync(System.Collections.Generic.IEnumerable{System.Int32},VirtualAssistant.Data.Enums.NotificationStatusEnum,System.Threading.CancellationToken)">
+            <summary>
+            Updates the status of multiple notifications.
+            </summary>
+            <param name="notificationIds">IDs of notifications to update</param>
+            <param name="newStatus">New status to set</param>
+            <param name="ct">Cancellation token</param>
+        </member>
+        <member name="M:VirtualAssistant.Core.Services.INotificationService.GetAssociatedIssueIdsAsync(System.Collections.Generic.IEnumerable{System.Int32},System.Threading.CancellationToken)">
+            <summary>
+            Gets all GitHub issue IDs associated with the given notifications.
+            </summary>
+            <param name="notificationIds">IDs of notifications to get issues for</param>
+            <param name="ct">Cancellation token</param>
+            <returns>List of distinct GitHub issue IDs</returns>
+        </member>
+        <member name="T:VirtualAssistant.Core.Services.IVirtualAssistantSpeaker">
+            <summary>
+            Single entry point for all TTS operations in VirtualAssistant.
+            All components must use this interface for speaking - nobody injects ITtsService directly.
+            Supports speech cancellation for interruption scenarios.
+            </summary>
+        </member>
+        <member name="P:VirtualAssistant.Core.Services.IVirtualAssistantSpeaker.IsSpeaking">
+            <summary>
+            Whether speech is currently playing.
+            </summary>
+        </member>
+        <member name="P:VirtualAssistant.Core.Services.IVirtualAssistantSpeaker.QueueCount">
+            <summary>
+            Number of messages waiting in TTS queue.
+            </summary>
+        </member>
+        <member name="M:VirtualAssistant.Core.Services.IVirtualAssistantSpeaker.SpeakAsync(System.String,System.String,System.Boolean,System.Threading.CancellationToken)">
+            <summary>
+            Speaks the text using TTS.
+            If agentName is provided, checks workspace and skips TTS if user is on same workspace as agent.
+            </summary>
+            <param name="text">Text to speak</param>
+            <param name="agentName">Optional agent name for workspace detection (e.g., "opencode", "claude")</param>
+            <param name="skipCache">If true, bypasses TTS cache and always generates fresh audio (use for notifications with dynamic content)</param>
+            <param name="ct">Cancellation token</param>
+        </member>
+        <member name="M:VirtualAssistant.Core.Services.IVirtualAssistantSpeaker.CancelCurrentSpeech">
+            <summary>
+            Cancels currently playing speech.
+            Next item in queue will start playing.
+            </summary>
+        </member>
+        <member name="M:VirtualAssistant.Core.Services.IVirtualAssistantSpeaker.CancelAllSpeech">
+            <summary>
+            Cancels all speech and clears the queue.
+            </summary>
+        </member>
+        <member name="M:VirtualAssistant.Core.Services.IVirtualAssistantSpeaker.FlushQueueAsync(System.Threading.CancellationToken)">
+            <summary>
+            Plays all queued messages immediately.
+            Called when speech lock is released to flush pending messages.
+            </summary>
+        </member>
+        <member name="T:VirtualAssistant.Core.Services.IWorkspaceDetectionService">
+            <summary>
+            Service for detecting GNOME workspaces to optimize TTS notifications.
+            Allows skipping notifications when user is on the same workspace as the agent.
+            </summary>
+        </member>
+        <member name="M:VirtualAssistant.Core.Services.IWorkspaceDetectionService.GetCurrentWorkspaceAsync(System.Threading.CancellationToken)">
+            <summary>
+            Gets the current active workspace number.
+            </summary>
+            <param name="ct">Cancellation token</param>
+            <returns>Workspace number (0-based), or -1 if detection fails</returns>
+        </member>
+        <member name="M:VirtualAssistant.Core.Services.IWorkspaceDetectionService.GetAgentWorkspaceAsync(System.String,System.Threading.CancellationToken)">
+            <summary>
+            Gets the workspace number where the agent's terminal window is located.
+            </summary>
+            <param name="agentName">Agent name (e.g., "opencode", "claude")</param>
+            <param name="ct">Cancellation token</param>
+            <returns>Workspace number (0-based), or -1 if window not found</returns>
+        </member>
+        <member name="M:VirtualAssistant.Core.Services.IWorkspaceDetectionService.IsUserOnAgentWorkspaceAsync(System.String,System.Threading.CancellationToken)">
+            <summary>
+            Checks if user is on the same workspace as the agent.
+            </summary>
+            <param name="agentName">Agent name</param>
+            <param name="ct">Cancellation token</param>
+            <returns>True if same workspace (skip notification), false otherwise</returns>
+        </member>
+        <member name="T:VirtualAssistant.Core.Services.NotificationService">
+            <summary>
+            Service for managing notifications in the database.
+            </summary>
+        </member>
+        <member name="M:VirtualAssistant.Core.Services.NotificationService.CreateNotificationAsync(System.String,System.String,System.Collections.Generic.IReadOnlyList{System.Int32},System.Threading.CancellationToken)">
+            <inheritdoc />
+        </member>
+        <member name="M:VirtualAssistant.Core.Services.NotificationService.GetNewNotificationsAsync(System.Threading.CancellationToken)">
+            <inheritdoc />
+        </member>
+        <member name="M:VirtualAssistant.Core.Services.NotificationService.UpdateStatusAsync(System.Int32,VirtualAssistant.Data.Enums.NotificationStatusEnum,System.Threading.CancellationToken)">
+            <inheritdoc />
+        </member>
+        <member name="M:VirtualAssistant.Core.Services.NotificationService.UpdateStatusAsync(System.Collections.Generic.IEnumerable{System.Int32},VirtualAssistant.Data.Enums.NotificationStatusEnum,System.Threading.CancellationToken)">
+            <inheritdoc />
+        </member>
+        <member name="M:VirtualAssistant.Core.Services.NotificationService.GetAssociatedIssueIdsAsync(System.Collections.Generic.IEnumerable{System.Int32},System.Threading.CancellationToken)">
+            <inheritdoc />
+        </member>
+        <member name="T:System.Text.RegularExpressions.Generated.MinutesSecondsRegex_0">
+            <summary>Custom <see cref="T:System.Text.RegularExpressions.Regex"/>-derived type for the MinutesSecondsRegex method.</summary>
+        </member>
+        <member name="F:System.Text.RegularExpressions.Generated.MinutesSecondsRegex_0.Instance">
+            <summary>Cached, thread-safe singleton instance.</summary>
+        </member>
+        <member name="M:System.Text.RegularExpressions.Generated.MinutesSecondsRegex_0.#ctor">
+            <summary>Initializes the instance.</summary>
+        </member>
+        <member name="T:System.Text.RegularExpressions.Generated.MinutesSecondsRegex_0.RunnerFactory">
+            <summary>Provides a factory for creating <see cref="T:System.Text.RegularExpressions.RegexRunner"/> instances to be used by methods on <see cref="T:System.Text.RegularExpressions.Regex"/>.</summary>
+        </member>
+        <member name="M:System.Text.RegularExpressions.Generated.MinutesSecondsRegex_0.RunnerFactory.CreateInstance">
+            <summary>Creates an instance of a <see cref="T:System.Text.RegularExpressions.RegexRunner"/> used by methods on <see cref="T:System.Text.RegularExpressions.Regex"/>.</summary>
+        </member>
+        <member name="T:System.Text.RegularExpressions.Generated.MinutesSecondsRegex_0.RunnerFactory.Runner">
+            <summary>Provides the runner that contains the custom logic implementing the specified regular expression.</summary>
+        </member>
+        <member name="M:System.Text.RegularExpressions.Generated.MinutesSecondsRegex_0.RunnerFactory.Runner.Scan(System.ReadOnlySpan{System.Char})">
+            <summary>Scan the <paramref name="inputSpan"/> starting from base.runtextstart for the next match.</summary>
+            <param name="inputSpan">The text being scanned by the regular expression.</param>
+        </member>
+        <member name="M:System.Text.RegularExpressions.Generated.MinutesSecondsRegex_0.RunnerFactory.Runner.TryFindNextPossibleStartingPosition(System.ReadOnlySpan{System.Char})">
+            <summary>Search <paramref name="inputSpan"/> starting from base.runtextpos for the next location a match could possibly start.</summary>
+            <param name="inputSpan">The text being scanned by the regular expression.</param>
+            <returns>true if a possible match was found; false if no more matches are possible.</returns>
+        </member>
+        <member name="M:System.Text.RegularExpressions.Generated.MinutesSecondsRegex_0.RunnerFactory.Runner.TryMatchAtCurrentPosition(System.ReadOnlySpan{System.Char})">
+            <summary>Determine whether <paramref name="inputSpan"/> at base.runtextpos is a match for the regular expression.</summary>
+            <param name="inputSpan">The text being scanned by the regular expression.</param>
+            <returns>true if the regular expression matches at the current position; otherwise, false.</returns>
+        </member>
+        <member name="T:System.Text.RegularExpressions.Generated.SecondsOnlyRegex_1">
+            <summary>Custom <see cref="T:System.Text.RegularExpressions.Regex"/>-derived type for the SecondsOnlyRegex method.</summary>
+        </member>
+        <member name="F:System.Text.RegularExpressions.Generated.SecondsOnlyRegex_1.Instance">
+            <summary>Cached, thread-safe singleton instance.</summary>
+        </member>
+        <member name="M:System.Text.RegularExpressions.Generated.SecondsOnlyRegex_1.#ctor">
+            <summary>Initializes the instance.</summary>
+        </member>
+        <member name="T:System.Text.RegularExpressions.Generated.SecondsOnlyRegex_1.RunnerFactory">
+            <summary>Provides a factory for creating <see cref="T:System.Text.RegularExpressions.RegexRunner"/> instances to be used by methods on <see cref="T:System.Text.RegularExpressions.Regex"/>.</summary>
+        </member>
+        <member name="M:System.Text.RegularExpressions.Generated.SecondsOnlyRegex_1.RunnerFactory.CreateInstance">
+            <summary>Creates an instance of a <see cref="T:System.Text.RegularExpressions.RegexRunner"/> used by methods on <see cref="T:System.Text.RegularExpressions.Regex"/>.</summary>
+        </member>
+        <member name="T:System.Text.RegularExpressions.Generated.SecondsOnlyRegex_1.RunnerFactory.Runner">
+            <summary>Provides the runner that contains the custom logic implementing the specified regular expression.</summary>
+        </member>
+        <member name="M:System.Text.RegularExpressions.Generated.SecondsOnlyRegex_1.RunnerFactory.Runner.Scan(System.ReadOnlySpan{System.Char})">
+            <summary>Scan the <paramref name="inputSpan"/> starting from base.runtextstart for the next match.</summary>
+            <param name="inputSpan">The text being scanned by the regular expression.</param>
+        </member>
+        <member name="M:System.Text.RegularExpressions.Generated.SecondsOnlyRegex_1.RunnerFactory.Runner.TryFindNextPossibleStartingPosition(System.ReadOnlySpan{System.Char})">
+            <summary>Search <paramref name="inputSpan"/> starting from base.runtextpos for the next location a match could possibly start.</summary>
+            <param name="inputSpan">The text being scanned by the regular expression.</param>
+            <returns>true if a possible match was found; false if no more matches are possible.</returns>
+        </member>
+        <member name="M:System.Text.RegularExpressions.Generated.SecondsOnlyRegex_1.RunnerFactory.Runner.TryMatchAtCurrentPosition(System.ReadOnlySpan{System.Char})">
+            <summary>Determine whether <paramref name="inputSpan"/> at base.runtextpos is a match for the regular expression.</summary>
+            <param name="inputSpan">The text being scanned by the regular expression.</param>
+            <returns>true if the regular expression matches at the current position; otherwise, false.</returns>
+        </member>
+        <member name="T:System.Text.RegularExpressions.Generated.Utilities">
+            <summary>Helper methods used by generated <see cref="T:System.Text.RegularExpressions.Regex"/>-derived implementations.</summary>
+        </member>
+        <member name="F:System.Text.RegularExpressions.Generated.Utilities.s_defaultTimeout">
+            <summary>Default timeout value set in <see cref="T:System.AppContext"/>, or <see cref="F:System.Text.RegularExpressions.Regex.InfiniteMatchTimeout"/> if none was set.</summary>
+        </member>
+        <member name="F:System.Text.RegularExpressions.Generated.Utilities.s_hasTimeout">
+            <summary>Whether <see cref="F:System.Text.RegularExpressions.Generated.Utilities.s_defaultTimeout"/> is non-infinite.</summary>
+        </member>
+        <member name="F:System.Text.RegularExpressions.Generated.Utilities.s_indexOfString_AD4E5E769D0D6E2E969BB8528CD476BD80E420DA2B144622670D425707CF4C84">
+            <summary>Supports searching for the string "try again in ".</summary>
+        </member>
+    </members>
+</doc>

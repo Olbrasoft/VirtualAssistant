@@ -1,0 +1,447 @@
+<?xml version="1.0"?>
+<doc>
+    <assembly>
+        <name>VirtualAssistant.Service</name>
+    </assembly>
+    <members>
+        <member name="T:Olbrasoft.VirtualAssistant.Service.Controllers.ClipboardController">
+            <summary>
+            REST API controller for clipboard operations.
+            Provides endpoints for interacting with system clipboard.
+            </summary>
+        </member>
+        <member name="M:Olbrasoft.VirtualAssistant.Service.Controllers.ClipboardController.#ctor(Microsoft.Extensions.Logging.ILogger{Olbrasoft.VirtualAssistant.Service.Controllers.ClipboardController})">
+            <summary>
+            Initializes a new instance of the ClipboardController.
+            </summary>
+            <param name="logger">The logger</param>
+        </member>
+        <member name="M:Olbrasoft.VirtualAssistant.Service.Controllers.ClipboardController.ToClipboard(VirtualAssistant.Data.Dtos.Clipboard.ClipboardRequest,System.Threading.CancellationToken)">
+            <summary>
+            Copy content to system clipboard using xclip.
+            </summary>
+            <param name="request">Clipboard request with content</param>
+            <param name="ct">Cancellation token</param>
+            <response code="200">Content copied to clipboard</response>
+            <response code="400">Invalid request or clipboard operation failed</response>
+        </member>
+        <member name="T:Olbrasoft.VirtualAssistant.Service.Controllers.GitHubWebhooksController">
+            <summary>
+            Controller for handling GitHub webhook events.
+            Supports automatic deployment on push events.
+            </summary>
+        </member>
+        <member name="M:Olbrasoft.VirtualAssistant.Service.Controllers.GitHubWebhooksController.HandleGitHubWebhook">
+            <summary>
+            Receives GitHub webhook events.
+            </summary>
+        </member>
+        <member name="T:Olbrasoft.VirtualAssistant.Service.Controllers.NotificationsController">
+            <summary>
+            REST API controller for notifications from agents.
+            Saves notifications to database and queues them for batched TTS.
+            </summary>
+        </member>
+        <member name="M:Olbrasoft.VirtualAssistant.Service.Controllers.NotificationsController.CreateNotification(Olbrasoft.VirtualAssistant.Service.Controllers.CreateNotificationRequest,System.Threading.CancellationToken)">
+            <summary>
+            Creates a new notification from an agent.
+            The notification is saved to database and queued for batched TTS processing.
+            </summary>
+        </member>
+        <member name="T:Olbrasoft.VirtualAssistant.Service.Controllers.CreateNotificationRequest">
+            <summary>
+            Request model for creating a notification.
+            </summary>
+        </member>
+        <member name="P:Olbrasoft.VirtualAssistant.Service.Controllers.CreateNotificationRequest.Text">
+            <summary>
+            Notification text content.
+            </summary>
+        </member>
+        <member name="P:Olbrasoft.VirtualAssistant.Service.Controllers.CreateNotificationRequest.Source">
+            <summary>
+            Source agent identifier (e.g., "claude-code", "opencode").
+            </summary>
+        </member>
+        <member name="P:Olbrasoft.VirtualAssistant.Service.Controllers.CreateNotificationRequest.IssueIds">
+            <summary>
+            Optional GitHub issue IDs to associate with this notification.
+            </summary>
+        </member>
+        <member name="T:Olbrasoft.VirtualAssistant.Service.Controllers.ErrorResponse">
+            <summary>
+            Error response model.
+            </summary>
+        </member>
+        <member name="P:Olbrasoft.VirtualAssistant.Service.Controllers.ErrorResponse.Error">
+            <summary>
+            Error message.
+            </summary>
+        </member>
+        <member name="T:Olbrasoft.VirtualAssistant.Service.Controllers.SpeechLockController">
+            <summary>
+            REST API controller for speech lock management.
+            Allows external services (like SpeechToText) to coordinate TTS playback
+            with recording to prevent audio interference.
+            </summary>
+        </member>
+        <member name="M:Olbrasoft.VirtualAssistant.Service.Controllers.SpeechLockController.Start(Olbrasoft.VirtualAssistant.Service.Controllers.SpeechLockStartRequest)">
+            <summary>
+            Activates speech lock (recording started).
+            Stops any current TTS playback and prevents new speech until unlocked.
+            Auto-unlocks after timeout (default 30s) for safety.
+            </summary>
+            <param name="request">Optional timeout configuration</param>
+        </member>
+        <member name="M:Olbrasoft.VirtualAssistant.Service.Controllers.SpeechLockController.Stop">
+            <summary>
+            Deactivates speech lock (recording stopped).
+            Unlocks TTS and immediately processes any queued notifications.
+            </summary>
+        </member>
+        <member name="M:Olbrasoft.VirtualAssistant.Service.Controllers.SpeechLockController.GetStatus">
+            <summary>
+            Gets current speech lock status.
+            </summary>
+        </member>
+        <member name="T:Olbrasoft.VirtualAssistant.Service.Controllers.SpeechLockStartRequest">
+            <summary>
+            Request model for starting speech lock.
+            </summary>
+        </member>
+        <member name="P:Olbrasoft.VirtualAssistant.Service.Controllers.SpeechLockStartRequest.TimeoutSeconds">
+            <summary>
+            Optional timeout in seconds after which lock auto-releases.
+            Default is 30 seconds if not specified.
+            </summary>
+        </member>
+        <member name="T:Olbrasoft.VirtualAssistant.Service.Controllers.SpeechLockResponse">
+            <summary>
+            Response model for speech lock operations.
+            </summary>
+        </member>
+        <member name="P:Olbrasoft.VirtualAssistant.Service.Controllers.SpeechLockResponse.Success">
+            <summary>
+            Whether the operation succeeded.
+            </summary>
+        </member>
+        <member name="P:Olbrasoft.VirtualAssistant.Service.Controllers.SpeechLockResponse.IsLocked">
+            <summary>
+            Current lock state after operation.
+            </summary>
+        </member>
+        <member name="P:Olbrasoft.VirtualAssistant.Service.Controllers.SpeechLockResponse.Message">
+            <summary>
+            Human-readable status message.
+            </summary>
+        </member>
+        <member name="P:Olbrasoft.VirtualAssistant.Service.Controllers.SpeechLockResponse.QueueCount">
+            <summary>
+            Total number of notifications waiting in both queues.
+            </summary>
+        </member>
+        <member name="P:Olbrasoft.VirtualAssistant.Service.Controllers.SpeechLockResponse.IsProcessing">
+            <summary>
+            Whether batch processing is currently in progress.
+            </summary>
+        </member>
+        <member name="P:Olbrasoft.VirtualAssistant.Service.Controllers.SpeechLockResponse.BatchingQueueCount">
+            <summary>
+            Number of notifications in NotificationBatchingService queue.
+            </summary>
+        </member>
+        <member name="P:Olbrasoft.VirtualAssistant.Service.Controllers.SpeechLockResponse.TtsQueueCount">
+            <summary>
+            Number of messages in TtsService queue.
+            </summary>
+        </member>
+        <member name="T:Olbrasoft.VirtualAssistant.Service.Controllers.TtsController">
+            <summary>
+            Legacy REST API controller for direct text-to-speech.
+            Note: For notifications, use NotificationsController at /api/notifications instead.
+            This controller provides direct TTS without database storage or batching.
+            </summary>
+        </member>
+        <member name="T:Olbrasoft.VirtualAssistant.Service.Controllers.TtsNotifyRequest">
+            <summary>
+            Request model for TTS notification.
+            </summary>
+        </member>
+        <member name="P:Olbrasoft.VirtualAssistant.Service.Controllers.TtsNotifyRequest.Text">
+            <summary>
+            Text to speak.
+            </summary>
+        </member>
+        <member name="P:Olbrasoft.VirtualAssistant.Service.Controllers.TtsNotifyRequest.Source">
+            <summary>
+            Source identifier for voice profile selection (e.g., "claude", "opencode").
+            </summary>
+        </member>
+        <member name="T:Olbrasoft.VirtualAssistant.Service.Dtos.ClaudeJsonResponse">
+            <summary>
+            JSON response from Claude Code headless mode.
+            </summary>
+        </member>
+        <member name="T:Olbrasoft.VirtualAssistant.Service.Extensions.ApplicationBuilderExtensions">
+            <summary>
+            Extension methods for WebApplication configuration.
+            </summary>
+        </member>
+        <member name="M:Olbrasoft.VirtualAssistant.Service.Extensions.ApplicationBuilderExtensions.ApplyDatabaseMigrations(Microsoft.AspNetCore.Builder.WebApplication)">
+            <summary>
+            Applies pending database migrations automatically.
+            </summary>
+        </member>
+        <member name="T:Olbrasoft.VirtualAssistant.Service.Extensions.EdgeTtsWebSocketExtensions">
+            <summary>
+            Extension methods for registering EdgeTTS WebSocket provider.
+            This temporarily overrides the HTTP-based EdgeTTS provider from TextToSpeech.Providers
+            with a direct WebSocket implementation during development.
+            </summary>
+        </member>
+        <member name="M:Olbrasoft.VirtualAssistant.Service.Extensions.EdgeTtsWebSocketExtensions.AddEdgeTtsWebSocketProvider(Microsoft.Extensions.DependencyInjection.IServiceCollection,Microsoft.Extensions.Configuration.IConfiguration)">
+            <summary>
+            Adds the EdgeTTS WebSocket provider to replace the HTTP-based provider.
+            </summary>
+            <param name="services">The service collection.</param>
+            <param name="configuration">The configuration.</param>
+            <returns>The service collection for chaining.</returns>
+        </member>
+        <member name="T:Olbrasoft.VirtualAssistant.Service.Extensions.AssistantSpeechStartRequest">
+            <summary>
+            Request model for assistant speech start endpoint.
+            </summary>
+        </member>
+        <member name="M:Olbrasoft.VirtualAssistant.Service.Extensions.AssistantSpeechStartRequest.#ctor(System.String)">
+            <summary>
+            Request model for assistant speech start endpoint.
+            </summary>
+        </member>
+        <member name="T:Olbrasoft.VirtualAssistant.Service.Extensions.TtsNotifyRequest">
+            <summary>
+            Request model for TTS notify endpoint (from OpenCode plugin).
+            Source identifies the AI client for voice differentiation.
+            </summary>
+        </member>
+        <member name="P:Olbrasoft.VirtualAssistant.Service.Extensions.TtsNotifyRequest.IssueIds">
+            <summary>
+            Optional GitHub issue IDs related to this notification.
+            </summary>
+        </member>
+        <member name="T:Olbrasoft.VirtualAssistant.Service.Extensions.MuteRequest">
+            <summary>
+            Request model for mute control endpoint (from PushToTalk service).
+            </summary>
+        </member>
+        <member name="M:Olbrasoft.VirtualAssistant.Service.Extensions.MuteRequest.#ctor(System.Boolean)">
+            <summary>
+            Request model for mute control endpoint (from PushToTalk service).
+            </summary>
+        </member>
+        <member name="T:Olbrasoft.VirtualAssistant.Service.Extensions.EndpointExtensions">
+            <summary>
+            Extension methods for endpoint configuration.
+            </summary>
+        </member>
+        <member name="M:Olbrasoft.VirtualAssistant.Service.Extensions.EndpointExtensions.MapVirtualAssistantEndpoints(Microsoft.AspNetCore.Builder.WebApplication)">
+            <summary>
+            Maps all VirtualAssistant API endpoints.
+            </summary>
+        </member>
+        <member name="M:Olbrasoft.VirtualAssistant.Service.Extensions.EndpointExtensions.MapAssistantSpeechEndpoints(Microsoft.AspNetCore.Builder.WebApplication)">
+            <summary>
+            Maps assistant speech tracking endpoints (for echo cancellation).
+            </summary>
+        </member>
+        <member name="M:Olbrasoft.VirtualAssistant.Service.Extensions.EndpointExtensions.MapTtsEndpoints(Microsoft.AspNetCore.Builder.WebApplication)">
+            <summary>
+            Maps TTS endpoints (speak, queue management, provider status).
+            All TTS operations delegate to TtsService (single source of truth).
+            Note: Notifications are handled by NotificationsController at /api/notifications
+            </summary>
+        </member>
+        <member name="M:Olbrasoft.VirtualAssistant.Service.Extensions.EndpointExtensions.MapMuteEndpoints(Microsoft.AspNetCore.Builder.WebApplication)">
+            <summary>
+            Maps mute control endpoints.
+            </summary>
+        </member>
+        <member name="T:Olbrasoft.VirtualAssistant.Service.Extensions.ServiceCollectionExtensions">
+            <summary>
+            Extension methods for service collection configuration.
+            </summary>
+        </member>
+        <member name="M:Olbrasoft.VirtualAssistant.Service.Extensions.ServiceCollectionExtensions.AddVirtualAssistantServices(Microsoft.Extensions.DependencyInjection.IServiceCollection,Microsoft.Extensions.Configuration.IConfiguration)">
+            <summary>
+            Adds all VirtualAssistant services to the service collection.
+            </summary>
+        </member>
+        <member name="M:Olbrasoft.VirtualAssistant.Service.Extensions.ServiceCollectionExtensions.AddCoreConfiguration(Microsoft.Extensions.DependencyInjection.IServiceCollection,Microsoft.Extensions.Configuration.IConfiguration)">
+            <summary>
+            Adds core configuration options.
+            </summary>
+        </member>
+        <member name="M:Olbrasoft.VirtualAssistant.Service.Extensions.ServiceCollectionExtensions.AddDataServices(Microsoft.Extensions.DependencyInjection.IServiceCollection,Microsoft.Extensions.Configuration.IConfiguration)">
+            <summary>
+            Adds data layer services (EF Core, CQRS handlers).
+            </summary>
+        </member>
+        <member name="M:Olbrasoft.VirtualAssistant.Service.Extensions.ServiceCollectionExtensions.AddVoiceServices(Microsoft.Extensions.DependencyInjection.IServiceCollection,Microsoft.Extensions.Configuration.IConfiguration)">
+            <summary>
+            Adds voice processing services (VAD, transcription, audio capture).
+            </summary>
+        </member>
+        <member name="M:Olbrasoft.VirtualAssistant.Service.Extensions.ServiceCollectionExtensions.AddTtsServices(Microsoft.Extensions.DependencyInjection.IServiceCollection,Microsoft.Extensions.Configuration.IConfiguration)">
+            <summary>
+            Adds TTS services with provider chain.
+            </summary>
+        </member>
+        <member name="M:Olbrasoft.VirtualAssistant.Service.Extensions.ServiceCollectionExtensions.AddLlmServices(Microsoft.Extensions.DependencyInjection.IServiceCollection,Microsoft.Extensions.Configuration.IConfiguration)">
+            <summary>
+            Adds LLM router services.
+            </summary>
+        </member>
+        <member name="M:Olbrasoft.VirtualAssistant.Service.Extensions.ServiceCollectionExtensions.AddBackgroundWorkers(Microsoft.Extensions.DependencyInjection.IServiceCollection)">
+            <summary>
+            Adds background worker services.
+            </summary>
+        </member>
+        <member name="T:Olbrasoft.VirtualAssistant.Service.Extensions.TtsConfigurationExtensions">
+            <summary>
+            Extension methods for configuring TTS providers.
+            This is where the hosting application decides how to load configuration values
+            (from appsettings.json, environment variables, database, Key Vault, etc.).
+            </summary>
+        </member>
+        <member name="M:Olbrasoft.VirtualAssistant.Service.Extensions.TtsConfigurationExtensions.ConfigureTtsProviders(Microsoft.Extensions.DependencyInjection.IServiceCollection,Microsoft.Extensions.Configuration.IConfiguration)">
+            <summary>
+            Configures all TTS providers with values from appsettings.json and environment variables.
+            </summary>
+        </member>
+        <member name="T:Olbrasoft.VirtualAssistant.Service.Program">
+            <summary>
+            VirtualAssistant Service entry point.
+            Manages service lifecycle, tray icon, and single instance locking.
+            </summary>
+        </member>
+        <member name="T:Olbrasoft.VirtualAssistant.Service.Services.ClaudeDispatchService">
+            <summary>
+            Service for dispatching tasks to Claude Code via headless mode.
+            Executes claude -p command and parses JSON output.
+            </summary>
+        </member>
+        <member name="M:Olbrasoft.VirtualAssistant.Service.Services.ClaudeDispatchService.KillProcess(System.Diagnostics.Process)">
+            <summary>
+            Kills the process and its children.
+            </summary>
+        </member>
+        <member name="M:Olbrasoft.VirtualAssistant.Service.Services.ClaudeDispatchService.NotifyErrorAsync(System.String)">
+            <summary>
+            Sends TTS notification for errors.
+            </summary>
+        </member>
+        <member name="M:Olbrasoft.VirtualAssistant.Service.Services.ClaudeDispatchService.NotifySuccessAsync(System.String)">
+            <summary>
+            Sends TTS notification for success.
+            </summary>
+        </member>
+        <member name="M:Olbrasoft.VirtualAssistant.Service.Services.ClaudeDispatchService.NotifyAsync(System.String)">
+            <summary>
+            Sends TTS notification.
+            </summary>
+        </member>
+        <member name="T:Olbrasoft.VirtualAssistant.Service.Services.StartupNotificationService">
+            <summary>
+            Background service that plays a startup notification when the application starts.
+            Phase 1: Simple static notification "Systém nastartován".
+            </summary>
+        </member>
+        <member name="T:Olbrasoft.VirtualAssistant.Service.Services.VirtualAssistantSpeaker">
+            <summary>
+            Single entry point for all TTS operations in VirtualAssistant.
+            This is the ONLY class that injects TtsService - all other components use IVirtualAssistantSpeaker.
+            Supports speech queue with cancellation for interruption scenarios.
+            </summary>
+        </member>
+        <member name="P:Olbrasoft.VirtualAssistant.Service.Services.VirtualAssistantSpeaker.IsSpeaking">
+            <summary>
+            Whether speech is currently playing.
+            </summary>
+        </member>
+        <member name="P:Olbrasoft.VirtualAssistant.Service.Services.VirtualAssistantSpeaker.QueueCount">
+            <summary>
+            Number of messages waiting in TTS queue.
+            </summary>
+        </member>
+        <member name="M:Olbrasoft.VirtualAssistant.Service.Services.VirtualAssistantSpeaker.CancelCurrentSpeech">
+            <summary>
+            Cancels currently playing speech.
+            </summary>
+        </member>
+        <member name="M:Olbrasoft.VirtualAssistant.Service.Services.VirtualAssistantSpeaker.CancelAllSpeech">
+            <summary>
+            Cancels all speech and clears queue.
+            </summary>
+        </member>
+        <member name="M:Olbrasoft.VirtualAssistant.Service.Services.VirtualAssistantSpeaker.FlushQueueAsync(System.Threading.CancellationToken)">
+            <summary>
+            Plays all queued messages immediately.
+            Called when speech lock is released to flush pending messages.
+            </summary>
+        </member>
+        <member name="T:Olbrasoft.VirtualAssistant.Service.Services.WorkspaceDetectionService">
+            <summary>
+            Detects GNOME workspaces using the window-calls extension via D-Bus.
+            Works on Wayland (unlike wmctrl which is X11-only).
+            Skips notifications when user is on the same workspace as the agent terminal.
+            </summary>
+        </member>
+        <member name="T:Olbrasoft.VirtualAssistant.Service.Tray.AppIndicator">
+            <summary>
+            P/Invoke bindings for libayatana-appindicator3.
+            Provides system tray icon functionality on Linux/GNOME.
+            </summary>
+        </member>
+        <member name="T:Olbrasoft.VirtualAssistant.Service.Tray.Gtk">
+            <summary>
+            P/Invoke bindings for GTK3.
+            </summary>
+        </member>
+        <member name="T:Olbrasoft.VirtualAssistant.Service.Tray.GLib">
+            <summary>
+            P/Invoke bindings for GLib.
+            </summary>
+        </member>
+        <member name="T:Olbrasoft.VirtualAssistant.Service.Tray.GObject">
+            <summary>
+            P/Invoke bindings for GObject.
+            </summary>
+        </member>
+        <member name="T:Olbrasoft.VirtualAssistant.Service.Tray.TrayIconService">
+            <summary>
+            System tray icon service using GTK3 and AppIndicator.
+            Runs on the main thread with GTK main loop.
+            </summary>
+        </member>
+        <member name="M:Olbrasoft.VirtualAssistant.Service.Tray.TrayIconService.Initialize(System.Action)">
+            <summary>
+            Initializes GTK and creates the tray icon.
+            Must be called from main thread before starting GTK main loop.
+            </summary>
+        </member>
+        <member name="M:Olbrasoft.VirtualAssistant.Service.Tray.TrayIconService.RunMainLoop">
+            <summary>
+            Runs the GTK main loop. This blocks until gtk_main_quit is called.
+            </summary>
+        </member>
+        <member name="M:Olbrasoft.VirtualAssistant.Service.Tray.TrayIconService.QuitMainLoop">
+            <summary>
+            Quits the GTK main loop from another thread.
+            </summary>
+        </member>
+        <member name="T:Olbrasoft.VirtualAssistant.Service.Workers.KeyboardMonitorWorker">
+            <summary>
+            Background worker that monitors keyboard for ScrollLock key to toggle mute.
+            </summary>
+        </member>
+    </members>
+</doc>

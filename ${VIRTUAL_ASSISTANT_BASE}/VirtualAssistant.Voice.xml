@@ -1,0 +1,1389 @@
+<?xml version="1.0"?>
+<doc>
+    <assembly>
+        <name>VirtualAssistant.Voice</name>
+    </assembly>
+    <members>
+        <member name="T:Olbrasoft.VirtualAssistant.Voice.Audio.SileroVadOnnxModel">
+            <summary>
+            Silero VAD ONNX model wrapper for voice activity detection.
+            Based on https://github.com/snakers4/silero-vad
+            </summary>
+        </member>
+        <member name="M:Olbrasoft.VirtualAssistant.Voice.Audio.SileroVadOnnxModel.Call(System.Single[][],System.Int32)">
+            <summary>
+            Runs inference on the audio samples.
+            </summary>
+            <param name="x">Audio samples as 2D array [batch, samples]. For single audio, use [1][samples].</param>
+            <param name="sr">Sample rate (8000 or 16000, or multiples of 16000).</param>
+            <returns>Speech probability for each batch item (0.0 - 1.0).</returns>
+        </member>
+        <member name="T:Olbrasoft.VirtualAssistant.Voice.Configuration.ExternalServicesOptions">
+            <summary>
+            Configuration options for external service endpoints.
+            Allows all service URLs to be configured via appsettings.
+            </summary>
+        </member>
+        <member name="F:Olbrasoft.VirtualAssistant.Voice.Configuration.ExternalServicesOptions.SectionName">
+            <summary>
+            Configuration section name.
+            </summary>
+        </member>
+        <member name="P:Olbrasoft.VirtualAssistant.Voice.Configuration.ExternalServicesOptions.PttRepeatUrl">
+            <summary>
+            URL of the Push-to-Talk repeat endpoint.
+            Used to repeat the last spoken text.
+            </summary>
+        </member>
+        <member name="P:Olbrasoft.VirtualAssistant.Voice.Configuration.ExternalServicesOptions.TaskDispatchUrl">
+            <summary>
+            URL of the task dispatch endpoint.
+            Used to dispatch tasks to agents.
+            </summary>
+        </member>
+        <member name="P:Olbrasoft.VirtualAssistant.Voice.Configuration.ExternalServicesOptions.VirtualAssistantBaseUrl">
+            <summary>
+            URL of the VirtualAssistant service base URL.
+            </summary>
+        </member>
+        <member name="P:Olbrasoft.VirtualAssistant.Voice.Configuration.ExternalServicesOptions.SpeechToTextBaseUrl">
+            <summary>
+            URL of the SpeechToText service base URL.
+            </summary>
+        </member>
+        <member name="T:Olbrasoft.VirtualAssistant.Voice.Configuration.SpeechToTextSettings">
+            <summary>
+            Configuration settings for SpeechToText integration.
+            </summary>
+        </member>
+        <member name="F:Olbrasoft.VirtualAssistant.Voice.Configuration.SpeechToTextSettings.SectionName">
+            <summary>
+            Configuration section name.
+            </summary>
+        </member>
+        <member name="P:Olbrasoft.VirtualAssistant.Voice.Configuration.SpeechToTextSettings.BaseUrl">
+            <summary>
+            Gets or sets the base URL of the SpeechToText application.
+            Default: http://localhost:5050
+            </summary>
+        </member>
+        <member name="P:Olbrasoft.VirtualAssistant.Voice.Configuration.SpeechToTextSettings.StatusTimeoutMs">
+            <summary>
+            Gets or sets the timeout for status requests in milliseconds.
+            Default: 1000ms (1 second)
+            </summary>
+        </member>
+        <member name="P:Olbrasoft.VirtualAssistant.Voice.Configuration.SpeechToTextSettings.PollingIntervalMs">
+            <summary>
+            Gets or sets the polling interval when waiting for speech to finish, in milliseconds.
+            Default: 500ms
+            </summary>
+        </member>
+        <member name="T:Olbrasoft.VirtualAssistant.Voice.Configuration.SystemPathsOptions">
+            <summary>
+            Configuration options for system file paths.
+            Allows all lock files and temp paths to be configured via appsettings.
+            </summary>
+        </member>
+        <member name="F:Olbrasoft.VirtualAssistant.Voice.Configuration.SystemPathsOptions.SectionName">
+            <summary>
+            Configuration section name.
+            </summary>
+        </member>
+        <member name="P:Olbrasoft.VirtualAssistant.Voice.Configuration.SystemPathsOptions.SpeechLockFile">
+            <summary>
+            Path to the speech lock file. When this file exists, TTS should not speak.
+            Used by SpeechLockService and DictationWorker.
+            </summary>
+        </member>
+        <member name="P:Olbrasoft.VirtualAssistant.Voice.Configuration.SystemPathsOptions.VirtualAssistantLockFile">
+            <summary>
+            Path to the VirtualAssistant.Service instance lock file.
+            Prevents multiple instances from running.
+            </summary>
+        </member>
+        <member name="P:Olbrasoft.VirtualAssistant.Voice.Configuration.SystemPathsOptions.PushToTalkLockFile">
+            <summary>
+            Path to the PushToTalk service instance lock file.
+            Prevents multiple instances from running.
+            </summary>
+        </member>
+        <member name="P:Olbrasoft.VirtualAssistant.Voice.Configuration.SystemPathsOptions.TtsCacheDirectory">
+            <summary>
+            Path to the TTS cache directory.
+            Supports ~ for home directory.
+            </summary>
+        </member>
+        <member name="P:Olbrasoft.VirtualAssistant.Voice.Configuration.SystemPathsOptions.SpeechLockTimeoutSeconds">
+            <summary>
+            Default timeout in seconds for speech lock auto-release.
+            If STT fails to send unlock, the lock will auto-release after this time.
+            </summary>
+        </member>
+        <member name="M:Olbrasoft.VirtualAssistant.Voice.Configuration.SystemPathsOptions.GetExpandedTtsCacheDirectory">
+            <summary>
+            Expands ~ to home directory in the TTS cache path.
+            </summary>
+        </member>
+        <member name="T:Olbrasoft.VirtualAssistant.Voice.Configuration.TtsVoiceProfilesOptions">
+            <summary>
+            Configuration options for TTS voice.
+            Single voice configuration for the Virtual Assistant.
+            </summary>
+        </member>
+        <member name="P:Olbrasoft.VirtualAssistant.Voice.Configuration.TtsVoiceProfilesOptions.Voice">
+            <summary>
+            Voice name (e.g., "cs-CZ-AntoninNeural").
+            </summary>
+        </member>
+        <member name="P:Olbrasoft.VirtualAssistant.Voice.Configuration.TtsVoiceProfilesOptions.Rate">
+            <summary>
+            Speech rate (e.g., "+10%", "-5%", "default").
+            </summary>
+        </member>
+        <member name="P:Olbrasoft.VirtualAssistant.Voice.Configuration.TtsVoiceProfilesOptions.Volume">
+            <summary>
+            Volume (e.g., "+0%", "default").
+            </summary>
+        </member>
+        <member name="P:Olbrasoft.VirtualAssistant.Voice.Configuration.TtsVoiceProfilesOptions.Pitch">
+            <summary>
+            Pitch (e.g., "+0Hz", "-5st", "default").
+            </summary>
+        </member>
+        <member name="M:Olbrasoft.VirtualAssistant.Voice.Configuration.TtsVoiceProfilesOptions.ToVoiceConfig">
+            <summary>
+            Creates VoiceConfig from these options.
+            </summary>
+        </member>
+        <member name="T:Olbrasoft.VirtualAssistant.Voice.ContinuousListenerWorker">
+             <summary>
+             Main worker that continuously listens for speech, transcribes it,
+             and uses LLM Router to determine actions (OpenCode, Respond, Ignore).
+            
+             Includes TTS echo cancellation via AssistantSpeechTrackerService.
+             Also handles PTT history repeat requests via RepeatTextIntentService.
+             </summary>
+        </member>
+        <member name="T:Olbrasoft.VirtualAssistant.Voice.Dtos.Llm.LlmChoice">
+            <summary>
+            Choice model from LLM API response.
+            </summary>
+        </member>
+        <member name="T:Olbrasoft.VirtualAssistant.Voice.Dtos.Llm.LlmMessage">
+            <summary>
+            Message model for LLM API.
+            </summary>
+        </member>
+        <member name="T:Olbrasoft.VirtualAssistant.Voice.Dtos.Llm.LlmRequest">
+            <summary>
+            Request model for LLM API calls.
+            </summary>
+        </member>
+        <member name="T:Olbrasoft.VirtualAssistant.Voice.Dtos.Llm.LlmResponse">
+            <summary>
+            Response model from LLM API.
+            </summary>
+        </member>
+        <member name="T:Olbrasoft.VirtualAssistant.Voice.Dtos.Llm.LlmRouterResponseDto">
+            <summary>
+            Response DTO from LLM router.
+            </summary>
+        </member>
+        <member name="T:Olbrasoft.VirtualAssistant.Voice.Dtos.PttRepeatResponse">
+            <summary>
+            Response from PTT repeat endpoint.
+            </summary>
+        </member>
+        <member name="M:Olbrasoft.VirtualAssistant.Voice.Dtos.PttRepeatResponse.#ctor(System.String,System.String)">
+            <summary>
+            Response from PTT repeat endpoint.
+            </summary>
+        </member>
+        <member name="T:Olbrasoft.VirtualAssistant.Voice.Dtos.VoiceDispatchTaskResponse">
+            <summary>
+            Response from dispatch task endpoint.
+            </summary>
+        </member>
+        <member name="M:Olbrasoft.VirtualAssistant.Voice.Dtos.VoiceDispatchTaskResponse.#ctor(System.Boolean,System.String,System.String,System.Nullable{System.Int32},System.Nullable{System.Int32},System.String,System.String)">
+            <summary>
+            Response from dispatch task endpoint.
+            </summary>
+        </member>
+        <member name="T:Olbrasoft.VirtualAssistant.Voice.Services.AssistantSpeechTrackerService">
+            <summary>
+            Tracks what the assistant is currently saying (TTS output).
+            Used to filter out assistant's own speech from transcriptions.
+            Now supports multiple TTS messages that arrive in sequence.
+            </summary>
+        </member>
+        <member name="P:Olbrasoft.VirtualAssistant.Voice.Services.AssistantSpeechTrackerService.IsSpeaking">
+            <summary>
+            Returns true if assistant is currently speaking (TTS active).
+            Used for AEC logging.
+            </summary>
+        </member>
+        <member name="M:Olbrasoft.VirtualAssistant.Voice.Services.AssistantSpeechTrackerService.StartSpeaking(System.String)">
+            <summary>
+            Called when assistant starts speaking. Adds to history instead of replacing.
+            </summary>
+        </member>
+        <member name="M:Olbrasoft.VirtualAssistant.Voice.Services.AssistantSpeechTrackerService.StopSpeaking">
+            <summary>
+            Called when assistant stops speaking.
+            </summary>
+        </member>
+        <member name="M:Olbrasoft.VirtualAssistant.Voice.Services.AssistantSpeechTrackerService.FilterEchoFromTranscription(System.String)">
+            <summary>
+            Filters out all TTS echo messages from the transcription.
+            Iterates through TTS history and removes matching prefixes.
+            </summary>
+            <param name="transcription">The full transcription from Whisper</param>
+            <returns>Cleaned text with TTS echoes removed</returns>
+        </member>
+        <member name="M:Olbrasoft.VirtualAssistant.Voice.Services.AssistantSpeechTrackerService.TryRemovePrefix(System.String,System.String)">
+            <summary>
+            Tries to detect if the text is an echo of a TTS message using multiple strategies:
+            1. Prefix matching (text starts with TTS content)
+            2. Substring matching (text is contained within TTS content - for partial captures)
+            </summary>
+        </member>
+        <member name="M:Olbrasoft.VirtualAssistant.Voice.Services.AssistantSpeechTrackerService.RemoveWordsFromOriginal(System.String,System.Int32)">
+            <summary>
+            Removes N words from the beginning of the original text (preserving original formatting).
+            </summary>
+        </member>
+        <member name="M:Olbrasoft.VirtualAssistant.Voice.Services.AssistantSpeechTrackerService.NormalizeText(System.String)">
+            <summary>
+            Normalizes text for comparison (lowercase, remove punctuation, trim).
+            </summary>
+        </member>
+        <member name="M:Olbrasoft.VirtualAssistant.Voice.Services.AssistantSpeechTrackerService.CalculateSimilarity(System.String,System.String)">
+            <summary>
+            Calculates similarity between two strings using the injected similarity algorithm.
+            Returns value between 0.0 (no match) and 1.0 (perfect match).
+            </summary>
+        </member>
+        <member name="M:Olbrasoft.VirtualAssistant.Voice.Services.AssistantSpeechTrackerService.RemoveDiacritics(System.String)">
+            <summary>
+            Removes diacritics from text (e.g., "úspěšně" → "uspesne").
+            Essential for comparing Czech text with potential ASR transcription errors.
+            </summary>
+        </member>
+        <member name="M:Olbrasoft.VirtualAssistant.Voice.Services.AssistantSpeechTrackerService.GetHistoryCount">
+            <summary>
+            Gets the TTS history count (for debugging).
+            </summary>
+        </member>
+        <member name="M:Olbrasoft.VirtualAssistant.Voice.Services.AssistantSpeechTrackerService.ClearHistory">
+            <summary>
+            Clears the TTS history.
+            </summary>
+        </member>
+        <member name="M:Olbrasoft.VirtualAssistant.Voice.Services.AssistantSpeechTrackerService.ContainsStopWord(System.Collections.Generic.IEnumerable{System.String})">
+            <summary>
+            Checks if any TTS message in history contains one of the stop words.
+            Used to distinguish between user's "stop" command and TTS echo.
+            </summary>
+            <param name="stopWords">Collection of stop words to check for</param>
+            <returns>True if any TTS message contains a stop word</returns>
+        </member>
+        <member name="M:Olbrasoft.VirtualAssistant.Voice.Services.AssistantSpeechTrackerService.IsAssistantSpeech(System.String)">
+            <summary>
+            Checks if a transcription matches the assistant's recent speech.
+            </summary>
+        </member>
+        <member name="M:Olbrasoft.VirtualAssistant.Voice.Services.AssistantSpeechTrackerService.GetCurrentSpeechText">
+            <summary>
+            Gets the current/recent speech text (for debugging).
+            </summary>
+        </member>
+        <member name="M:Olbrasoft.VirtualAssistant.Voice.Services.AssistantSpeechTrackerService.DetectEchoAndExtractRemaining(System.String)">
+            <summary>
+            Legacy method - now uses FilterEchoFromTranscription internally.
+            </summary>
+        </member>
+        <member name="T:Olbrasoft.VirtualAssistant.Voice.Services.AudioCaptureService">
+            <summary>
+            Service for capturing audio from PipeWire using pw-record.
+            </summary>
+        </member>
+        <member name="M:Olbrasoft.VirtualAssistant.Voice.Services.AudioCaptureService.Start">
+            <summary>
+            Starts audio capture from PipeWire.
+            Uses configured AudioSource if specified, otherwise default microphone.
+            </summary>
+        </member>
+        <member name="M:Olbrasoft.VirtualAssistant.Voice.Services.AudioCaptureService.ReadChunkAsync(System.Threading.CancellationToken)">
+            <summary>
+            Reads one chunk of audio data.
+            </summary>
+            <param name="cancellationToken">Cancellation token.</param>
+            <returns>Audio chunk data, or null if end of stream.</returns>
+        </member>
+        <member name="M:Olbrasoft.VirtualAssistant.Voice.Services.AudioCaptureService.Stop">
+            <summary>
+            Stops audio capture.
+            </summary>
+        </member>
+        <member name="T:Olbrasoft.VirtualAssistant.Voice.Services.BaseLlmRouterService">
+            <summary>
+            Base class for OpenAI-compatible LLM router services.
+            Contains shared logic for system prompt, parsing, and context management.
+            </summary>
+        </member>
+        <member name="P:Olbrasoft.VirtualAssistant.Voice.Services.BaseLlmRouterService.Provider">
+            <summary>
+            The LLM provider enum value for this service
+            </summary>
+        </member>
+        <member name="T:Olbrasoft.VirtualAssistant.Voice.Services.CerebrasRouterService">
+            <summary>
+            Cerebras LLM router service implementation.
+            Uses Cerebras Inference API (OpenAI-compatible).
+            </summary>
+        </member>
+        <member name="T:Olbrasoft.VirtualAssistant.Voice.Services.CommandDetectionService">
+            <summary>
+            Detects special commands in transcribed text.
+            </summary>
+        </member>
+        <member name="M:Olbrasoft.VirtualAssistant.Voice.Services.CommandDetectionService.IsStopCommand(System.String)">
+            <inheritdoc />
+        </member>
+        <member name="M:Olbrasoft.VirtualAssistant.Voice.Services.CommandDetectionService.IsCancelCommand(System.String)">
+            <inheritdoc />
+        </member>
+        <member name="M:Olbrasoft.VirtualAssistant.Voice.Services.CommandDetectionService.ShouldSkipLocally(System.String)">
+            <inheritdoc />
+        </member>
+        <member name="T:Olbrasoft.VirtualAssistant.Voice.Services.EchoCancellationService">
+            <summary>
+            Service for Acoustic Echo Cancellation (AEC) using SpeexDSP.
+            Removes speaker output (TTS) from microphone input before sending to Whisper.
+            </summary>
+        </member>
+        <member name="P:Olbrasoft.VirtualAssistant.Voice.Services.EchoCancellationService.FrameSize">
+            <summary>
+            Frame size in samples (must match audio chunk size).
+            </summary>
+        </member>
+        <member name="P:Olbrasoft.VirtualAssistant.Voice.Services.EchoCancellationService.FilterLength">
+            <summary>
+            Filter length in samples. Longer = better cancellation but more CPU.
+            Typical: 100-500ms worth of samples.
+            </summary>
+        </member>
+        <member name="M:Olbrasoft.VirtualAssistant.Voice.Services.EchoCancellationService.InitializeAsync(System.Threading.CancellationToken)">
+            <summary>
+            Initializes the echo canceler. Must be called before processing.
+            </summary>
+        </member>
+        <member name="M:Olbrasoft.VirtualAssistant.Voice.Services.EchoCancellationService.ProcessChunk(System.Byte[])">
+            <summary>
+            Processes a microphone audio chunk, removing echo from speaker output.
+            </summary>
+            <param name="microphoneChunk">Raw audio from microphone (16-bit PCM).</param>
+            <returns>Echo-cancelled audio chunk, or original if AEC is disabled.</returns>
+        </member>
+        <member name="P:Olbrasoft.VirtualAssistant.Voice.Services.EchoCancellationService.IsEnabled">
+            <summary>
+            Gets whether AEC is currently enabled and active.
+            </summary>
+        </member>
+        <member name="T:Olbrasoft.VirtualAssistant.Voice.Services.EvdevKeyboardMonitor">
+            <summary>
+            Keyboard monitor using Linux evdev interface.
+            Reads raw keyboard events from /dev/input/eventX devices.
+            </summary>
+        </member>
+        <member name="M:Olbrasoft.VirtualAssistant.Voice.Services.EvdevKeyboardMonitor.StartAsync(System.Threading.CancellationToken)">
+            <inheritdoc />
+        </member>
+        <member name="M:Olbrasoft.VirtualAssistant.Voice.Services.EvdevKeyboardMonitor.Stop">
+            <inheritdoc />
+        </member>
+        <member name="M:Olbrasoft.VirtualAssistant.Voice.Services.EvdevKeyboardMonitor.IsScrollLockOn">
+            <inheritdoc />
+        </member>
+        <member name="M:Olbrasoft.VirtualAssistant.Voice.Services.EvdevKeyboardMonitor.ReadLedState(System.String)">
+            <summary>
+            Reads LED state from /sys/class/leds/.
+            Note: This may not work on Wayland.
+            </summary>
+        </member>
+        <member name="M:Olbrasoft.VirtualAssistant.Voice.Services.EvdevKeyboardMonitor.FindKeyboardDevice">
+            <summary>
+            Finds the first keyboard device in /dev/input/.
+            Prefers actual keyboards over mouse-embedded keyboards.
+            </summary>
+        </member>
+        <member name="M:Olbrasoft.VirtualAssistant.Voice.Services.EvdevKeyboardMonitor.IsKeyboardDevice(System.String)">
+            <summary>
+            Checks if device is a keyboard by reading its capabilities.
+            </summary>
+        </member>
+        <member name="T:Olbrasoft.VirtualAssistant.Voice.Services.ExternalServiceClient">
+            <summary>
+            Client for calling external services (PTT, task dispatch).
+            </summary>
+        </member>
+        <member name="M:Olbrasoft.VirtualAssistant.Voice.Services.ExternalServiceClient.CallPttRepeatAsync(System.Threading.CancellationToken)">
+            <inheritdoc />
+        </member>
+        <member name="M:Olbrasoft.VirtualAssistant.Voice.Services.ExternalServiceClient.DispatchTaskAsync(System.String,System.Threading.CancellationToken)">
+            <inheritdoc />
+        </member>
+        <member name="T:Olbrasoft.VirtualAssistant.Voice.Services.GroqRouterService">
+            <summary>
+            Groq LLM router service implementation.
+            Uses Groq API (OpenAI-compatible).
+            </summary>
+        </member>
+        <member name="T:Olbrasoft.VirtualAssistant.Voice.Services.HumanizationService">
+            <summary>
+            Humanizes agent notifications using LLM with multi-provider fallback.
+            Uses LlmChainClient to automatically failover between providers (Mistral, Cerebras, Groq, OpenRouter).
+            </summary>
+        </member>
+        <member name="M:Olbrasoft.VirtualAssistant.Voice.Services.HumanizationService.FilterNotifications(System.Collections.Generic.IReadOnlyList{VirtualAssistant.Core.Services.AgentNotification})">
+            <summary>
+            Filters notifications to remove redundant ones.
+            If we have both start and complete for the same agent, keep only complete.
+            </summary>
+        </member>
+        <member name="M:Olbrasoft.VirtualAssistant.Voice.Services.HumanizationService.FallbackHumanize(System.Collections.Generic.IReadOnlyList{VirtualAssistant.Core.Services.AgentNotification})">
+            <summary>
+            Fallback humanization when LLM is unavailable.
+            Uses simple template-based approach with first-person persona.
+            VirtualAssistant speaks as "I" - never mentions agents as external entities.
+            </summary>
+        </member>
+        <member name="M:Olbrasoft.VirtualAssistant.Voice.Services.HumanizationService.FormatAgentName(System.String)">
+            <summary>
+            Formats agent name for display (e.g., "opencode" -> "OpenCode")
+            </summary>
+        </member>
+        <member name="M:Olbrasoft.VirtualAssistant.Voice.Services.HumanizationService.CleanLlmResponse(System.String)">
+            <summary>
+            Cleans LLM response by removing thinking blocks and other artifacts.
+            Qwen models (Cerebras, Groq) often output &lt;think&gt;...&lt;/think&gt; reasoning blocks.
+            </summary>
+        </member>
+        <member name="T:Olbrasoft.VirtualAssistant.Voice.Services.IAudioPlaybackService">
+            <summary>
+            Service for audio playback control.
+            Handles playing audio files and stopping playback when needed.
+            </summary>
+        </member>
+        <member name="M:Olbrasoft.VirtualAssistant.Voice.Services.IAudioPlaybackService.PlayAsync(System.String,System.Threading.CancellationToken)">
+            <summary>
+            Plays an audio file asynchronously.
+            Monitors speech lock during playback and stops if lock is acquired.
+            </summary>
+            <param name="audioFile">Path to the audio file</param>
+            <param name="cancellationToken">Cancellation token</param>
+        </member>
+        <member name="M:Olbrasoft.VirtualAssistant.Voice.Services.IAudioPlaybackService.Stop">
+            <summary>
+            Stops any currently playing audio immediately.
+            </summary>
+        </member>
+        <member name="P:Olbrasoft.VirtualAssistant.Voice.Services.IAudioPlaybackService.IsPlaying">
+            <summary>
+            Gets whether audio is currently playing.
+            </summary>
+        </member>
+        <member name="T:Olbrasoft.VirtualAssistant.Voice.Services.AudioPlaybackService">
+            <summary>
+            Audio playback service using ffplay.
+            Monitors speech lock during playback and automatically stops if lock is acquired.
+            </summary>
+        </member>
+        <member name="P:Olbrasoft.VirtualAssistant.Voice.Services.AudioPlaybackService.IsPlaying">
+            <inheritdoc />
+        </member>
+        <member name="M:Olbrasoft.VirtualAssistant.Voice.Services.AudioPlaybackService.PlayAsync(System.String,System.Threading.CancellationToken)">
+            <inheritdoc />
+        </member>
+        <member name="M:Olbrasoft.VirtualAssistant.Voice.Services.AudioPlaybackService.Stop">
+            <inheritdoc />
+        </member>
+        <member name="T:Olbrasoft.VirtualAssistant.Voice.Services.ICommandDetectionService">
+            <summary>
+            Detects special commands in transcribed text.
+            </summary>
+        </member>
+        <member name="M:Olbrasoft.VirtualAssistant.Voice.Services.ICommandDetectionService.IsStopCommand(System.String)">
+            <summary>
+            Checks if the text contains a stop command.
+            </summary>
+        </member>
+        <member name="M:Olbrasoft.VirtualAssistant.Voice.Services.ICommandDetectionService.IsCancelCommand(System.String)">
+            <summary>
+            Checks if the text contains a cancel command.
+            </summary>
+        </member>
+        <member name="M:Olbrasoft.VirtualAssistant.Voice.Services.ICommandDetectionService.ShouldSkipLocally(System.String)">
+            <summary>
+            Checks if the text should be skipped locally (noise phrases).
+            </summary>
+        </member>
+        <member name="T:Olbrasoft.VirtualAssistant.Voice.Services.IExternalServiceClient">
+            <summary>
+            Client for calling external services (PTT, task dispatch).
+            </summary>
+        </member>
+        <member name="M:Olbrasoft.VirtualAssistant.Voice.Services.IExternalServiceClient.CallPttRepeatAsync(System.Threading.CancellationToken)">
+            <summary>
+            Calls the PTT repeat endpoint to get the last text from history.
+            </summary>
+        </member>
+        <member name="M:Olbrasoft.VirtualAssistant.Voice.Services.IExternalServiceClient.DispatchTaskAsync(System.String,System.Threading.CancellationToken)">
+            <summary>
+            Dispatches a task to the specified agent.
+            </summary>
+        </member>
+        <member name="T:Olbrasoft.VirtualAssistant.Voice.Services.ISpeechBufferManager">
+            <summary>
+            Manages audio buffers for speech recording.
+            </summary>
+        </member>
+        <member name="M:Olbrasoft.VirtualAssistant.Voice.Services.ISpeechBufferManager.AddToPreBuffer(System.Byte[])">
+            <summary>
+            Adds a chunk to the pre-buffer (used before speech is detected).
+            </summary>
+        </member>
+        <member name="M:Olbrasoft.VirtualAssistant.Voice.Services.ISpeechBufferManager.TransferPreBufferToSpeech">
+            <summary>
+            Transfers all pre-buffer contents to the speech buffer.
+            </summary>
+        </member>
+        <member name="M:Olbrasoft.VirtualAssistant.Voice.Services.ISpeechBufferManager.AddToSpeechBuffer(System.Byte[])">
+            <summary>
+            Adds a chunk directly to the speech buffer.
+            </summary>
+        </member>
+        <member name="M:Olbrasoft.VirtualAssistant.Voice.Services.ISpeechBufferManager.GetCombinedSpeechData">
+            <summary>
+            Gets all speech data combined into a single array.
+            </summary>
+        </member>
+        <member name="P:Olbrasoft.VirtualAssistant.Voice.Services.ISpeechBufferManager.SpeechBufferSize">
+            <summary>
+            Gets the total size of speech buffer in bytes.
+            </summary>
+        </member>
+        <member name="M:Olbrasoft.VirtualAssistant.Voice.Services.ISpeechBufferManager.ClearSpeechBuffer">
+            <summary>
+            Clears the speech buffer.
+            </summary>
+        </member>
+        <member name="M:Olbrasoft.VirtualAssistant.Voice.Services.ISpeechBufferManager.ClearAll">
+            <summary>
+            Clears all buffers (pre-buffer and speech buffer).
+            </summary>
+        </member>
+        <member name="T:Olbrasoft.VirtualAssistant.Voice.Services.ISpeechLockService">
+            <summary>
+            Service for managing speech lock state (microphone active detection).
+            When locked, TTS playback should be paused to avoid interference with recording.
+            </summary>
+        </member>
+        <member name="P:Olbrasoft.VirtualAssistant.Voice.Services.ISpeechLockService.IsLocked">
+            <summary>
+            Gets whether speech is currently locked (microphone is active or programmatically locked).
+            </summary>
+        </member>
+        <member name="M:Olbrasoft.VirtualAssistant.Voice.Services.ISpeechLockService.Lock(System.Nullable{System.TimeSpan})">
+            <summary>
+            Activates speech lock (recording started).
+            Stops current TTS and queues new messages.
+            Auto-unlocks after timeout for safety.
+            </summary>
+            <param name="timeout">Optional timeout after which lock auto-releases. Default is 30 seconds.</param>
+        </member>
+        <member name="M:Olbrasoft.VirtualAssistant.Voice.Services.ISpeechLockService.Unlock">
+            <summary>
+            Deactivates speech lock (recording stopped).
+            Should trigger queue flush to play pending messages.
+            </summary>
+        </member>
+        <member name="T:Olbrasoft.VirtualAssistant.Voice.Services.ISpeechQueueService">
+            <summary>
+            Service for managing speech queue with cancellation support.
+            Ensures only one speech plays at a time and allows interruption.
+            </summary>
+        </member>
+        <member name="M:Olbrasoft.VirtualAssistant.Voice.Services.ISpeechQueueService.Enqueue(System.String,System.String)">
+            <summary>
+            Enqueues text for speech. Will be spoken when current speech finishes.
+            </summary>
+        </member>
+        <member name="P:Olbrasoft.VirtualAssistant.Voice.Services.ISpeechQueueService.IsSpeaking">
+            <summary>
+            Whether speech is currently playing.
+            </summary>
+        </member>
+        <member name="P:Olbrasoft.VirtualAssistant.Voice.Services.ISpeechQueueService.QueueCount">
+            <summary>
+            Number of items waiting in queue.
+            </summary>
+        </member>
+        <member name="M:Olbrasoft.VirtualAssistant.Voice.Services.ISpeechQueueService.CancelCurrent">
+            <summary>
+            Cancels currently playing speech (if any).
+            Next item in queue will start playing.
+            </summary>
+        </member>
+        <member name="M:Olbrasoft.VirtualAssistant.Voice.Services.ISpeechQueueService.CancelAll">
+            <summary>
+            Cancels current speech and clears the entire queue.
+            </summary>
+        </member>
+        <member name="P:Olbrasoft.VirtualAssistant.Voice.Services.ISpeechQueueService.CurrentSpeechToken">
+            <summary>
+            Gets the CancellationToken for current speech operation.
+            Use this when calling TTS service.
+            </summary>
+        </member>
+        <member name="M:Olbrasoft.VirtualAssistant.Voice.Services.ISpeechQueueService.BeginSpeaking">
+            <summary>
+            Call this before starting speech.
+            Returns CancellationToken to use for the speech operation.
+            </summary>
+        </member>
+        <member name="M:Olbrasoft.VirtualAssistant.Voice.Services.ISpeechQueueService.EndSpeaking">
+            <summary>
+            Call this when speech completes (success or failure).
+            </summary>
+        </member>
+        <member name="T:Olbrasoft.VirtualAssistant.Voice.Services.SpeechQueueService">
+            <summary>
+            Thread-safe speech queue with cancellation support.
+            </summary>
+        </member>
+        <member name="T:Olbrasoft.VirtualAssistant.Voice.Services.ISpeechToTextClient">
+            <summary>
+            Client for querying SpeechToText application status.
+            </summary>
+        </member>
+        <member name="M:Olbrasoft.VirtualAssistant.Voice.Services.ISpeechToTextClient.GetStatusAsync(System.Threading.CancellationToken)">
+            <summary>
+            Gets the current status of the SpeechToText application.
+            </summary>
+            <param name="cancellationToken">Cancellation token.</param>
+            <returns>Status response, or null if the service is unavailable.</returns>
+        </member>
+        <member name="T:Olbrasoft.VirtualAssistant.Voice.Services.SpeechToTextStatus">
+            <summary>
+            Status response from SpeechToText application.
+            </summary>
+        </member>
+        <member name="P:Olbrasoft.VirtualAssistant.Voice.Services.SpeechToTextStatus.IsRecording">
+            <summary>
+            Gets a value indicating whether audio recording is currently in progress.
+            </summary>
+        </member>
+        <member name="P:Olbrasoft.VirtualAssistant.Voice.Services.SpeechToTextStatus.IsTranscribing">
+            <summary>
+            Gets a value indicating whether Whisper transcription is currently in progress.
+            </summary>
+        </member>
+        <member name="P:Olbrasoft.VirtualAssistant.Voice.Services.SpeechToTextStatus.State">
+            <summary>
+            Gets the current state as a string (e.g., "Recording", "Idle", "Transcribing").
+            </summary>
+        </member>
+        <member name="P:Olbrasoft.VirtualAssistant.Voice.Services.SpeechToTextStatus.IsBusy">
+            <summary>
+            Gets a value indicating whether user is busy (recording or transcribing).
+            </summary>
+        </member>
+        <member name="T:Olbrasoft.VirtualAssistant.Voice.Services.ITtsCacheService">
+            <summary>
+            Service for managing TTS audio file cache.
+            Caches generated audio files to avoid regenerating identical text.
+            </summary>
+        </member>
+        <member name="M:Olbrasoft.VirtualAssistant.Voice.Services.ITtsCacheService.GetCachePath(System.String,Olbrasoft.VirtualAssistant.Voice.Services.VoiceConfig)">
+            <summary>
+            Gets the cache file path for the given text and voice configuration.
+            </summary>
+            <param name="text">Text to be spoken</param>
+            <param name="config">Voice configuration</param>
+            <returns>Full path to the cache file</returns>
+        </member>
+        <member name="M:Olbrasoft.VirtualAssistant.Voice.Services.ITtsCacheService.TryGetCached(System.String,Olbrasoft.VirtualAssistant.Voice.Services.VoiceConfig,System.String@)">
+            <summary>
+            Tries to get a cached audio file for the given text.
+            </summary>
+            <param name="text">Text to be spoken</param>
+            <param name="config">Voice configuration</param>
+            <param name="path">Path to cached file if found</param>
+            <returns>True if cached file exists, false otherwise</returns>
+        </member>
+        <member name="M:Olbrasoft.VirtualAssistant.Voice.Services.ITtsCacheService.SaveAsync(System.String,Olbrasoft.VirtualAssistant.Voice.Services.VoiceConfig,System.Byte[],System.Threading.CancellationToken)">
+            <summary>
+            Saves audio data to cache.
+            </summary>
+            <param name="text">Text that was spoken</param>
+            <param name="config">Voice configuration used</param>
+            <param name="audioData">Audio data to cache</param>
+            <param name="cancellationToken">Cancellation token</param>
+        </member>
+        <member name="T:Olbrasoft.VirtualAssistant.Voice.Services.TtsCacheService">
+            <summary>
+            File-based TTS cache service implementation.
+            Stores audio files in ~/.cache/virtual-assistant-tts/
+            </summary>
+        </member>
+        <member name="M:Olbrasoft.VirtualAssistant.Voice.Services.TtsCacheService.GetCachePath(System.String,Olbrasoft.VirtualAssistant.Voice.Services.VoiceConfig)">
+            <inheritdoc />
+        </member>
+        <member name="M:Olbrasoft.VirtualAssistant.Voice.Services.TtsCacheService.TryGetCached(System.String,Olbrasoft.VirtualAssistant.Voice.Services.VoiceConfig,System.String@)">
+            <inheritdoc />
+        </member>
+        <member name="M:Olbrasoft.VirtualAssistant.Voice.Services.TtsCacheService.SaveAsync(System.String,Olbrasoft.VirtualAssistant.Voice.Services.VoiceConfig,System.Byte[],System.Threading.CancellationToken)">
+            <inheritdoc />
+        </member>
+        <member name="T:Olbrasoft.VirtualAssistant.Voice.Services.TtsProviderStatus">
+            <summary>
+            Status of a TTS provider in the circuit breaker system.
+            </summary>
+        </member>
+        <member name="M:Olbrasoft.VirtualAssistant.Voice.Services.TtsProviderStatus.#ctor(System.String,System.Boolean,System.Nullable{System.DateTime},System.Nullable{System.DateTime},System.Int32)">
+            <summary>
+            Status of a TTS provider in the circuit breaker system.
+            </summary>
+        </member>
+        <member name="T:Olbrasoft.VirtualAssistant.Voice.Services.ITtsProviderChain">
+            <summary>
+            Interface for TTS provider chain with fallback support.
+            </summary>
+        </member>
+        <member name="M:Olbrasoft.VirtualAssistant.Voice.Services.ITtsProviderChain.SynthesizeAsync(System.String,Olbrasoft.VirtualAssistant.Voice.Services.VoiceConfig,System.String,System.Threading.CancellationToken)">
+            <summary>
+            Synthesizes text to audio using the provider chain.
+            Tries each provider in order until one succeeds.
+            </summary>
+        </member>
+        <member name="M:Olbrasoft.VirtualAssistant.Voice.Services.ITtsProviderChain.GetProvidersStatus">
+            <summary>
+            Gets the status of all configured providers.
+            </summary>
+        </member>
+        <member name="M:Olbrasoft.VirtualAssistant.Voice.Services.ITtsProviderChain.ResetCircuitBreaker(System.String)">
+            <summary>
+            Resets the circuit breaker state for a specific provider or all providers.
+            </summary>
+        </member>
+        <member name="T:Olbrasoft.VirtualAssistant.Voice.Services.ITtsQueueService">
+            <summary>
+            Service for managing TTS message queue.
+            Messages are queued when speech lock is active and played back when released.
+            </summary>
+        </member>
+        <member name="M:Olbrasoft.VirtualAssistant.Voice.Services.ITtsQueueService.Enqueue(System.String,System.String)">
+            <summary>
+            Enqueues a message for later playback.
+            </summary>
+            <param name="text">Text to speak</param>
+            <param name="source">Source identifier (e.g., "opencode", "claudecode")</param>
+        </member>
+        <member name="M:Olbrasoft.VirtualAssistant.Voice.Services.ITtsQueueService.TryDequeue(System.ValueTuple{System.String,System.String}@)">
+            <summary>
+            Tries to dequeue the next message.
+            </summary>
+            <param name="item">The dequeued message, if available</param>
+            <returns>True if a message was dequeued, false if queue is empty</returns>
+        </member>
+        <member name="P:Olbrasoft.VirtualAssistant.Voice.Services.ITtsQueueService.Count">
+            <summary>
+            Gets the number of messages currently in the queue.
+            </summary>
+        </member>
+        <member name="T:Olbrasoft.VirtualAssistant.Voice.Services.TtsQueueService">
+            <summary>
+            Thread-safe TTS message queue implementation using ConcurrentQueue.
+            </summary>
+        </member>
+        <member name="M:Olbrasoft.VirtualAssistant.Voice.Services.TtsQueueService.Enqueue(System.String,System.String)">
+            <inheritdoc />
+        </member>
+        <member name="M:Olbrasoft.VirtualAssistant.Voice.Services.TtsQueueService.TryDequeue(System.ValueTuple{System.String,System.String}@)">
+            <inheritdoc />
+        </member>
+        <member name="P:Olbrasoft.VirtualAssistant.Voice.Services.TtsQueueService.Count">
+            <inheritdoc />
+        </member>
+        <member name="T:Olbrasoft.VirtualAssistant.Voice.Services.LoopbackCaptureService">
+            <summary>
+            Service for capturing audio output (loopback) from PipeWire monitor source.
+            Used as reference signal for Acoustic Echo Cancellation (AEC).
+            </summary>
+        </member>
+        <member name="P:Olbrasoft.VirtualAssistant.Voice.Services.LoopbackCaptureService.MonitorSource">
+            <summary>
+            PipeWire monitor source name for loopback capture.
+            Can be configured or auto-detected.
+            </summary>
+        </member>
+        <member name="M:Olbrasoft.VirtualAssistant.Voice.Services.LoopbackCaptureService.StartAsync(System.Threading.CancellationToken)">
+            <summary>
+            Starts loopback audio capture from PipeWire monitor source.
+            </summary>
+        </member>
+        <member name="M:Olbrasoft.VirtualAssistant.Voice.Services.LoopbackCaptureService.DetectMonitorSourceAsync(System.Threading.CancellationToken)">
+            <summary>
+            Detects the PipeWire/PulseAudio monitor source for speaker output.
+            </summary>
+        </member>
+        <member name="M:Olbrasoft.VirtualAssistant.Voice.Services.LoopbackCaptureService.ReadLoopbackContinuouslyAsync(System.Threading.CancellationToken)">
+            <summary>
+            Continuously reads loopback audio in background and buffers it.
+            </summary>
+        </member>
+        <member name="M:Olbrasoft.VirtualAssistant.Voice.Services.LoopbackCaptureService.GetLatestChunk">
+            <summary>
+            Gets the latest loopback audio chunk (reference signal for AEC).
+            Returns null if no data available.
+            </summary>
+        </member>
+        <member name="P:Olbrasoft.VirtualAssistant.Voice.Services.LoopbackCaptureService.IsActive">
+            <summary>
+            Gets whether loopback capture is active.
+            </summary>
+        </member>
+        <member name="M:Olbrasoft.VirtualAssistant.Voice.Services.LoopbackCaptureService.Stop">
+            <summary>
+            Stops loopback audio capture.
+            </summary>
+        </member>
+        <member name="T:Olbrasoft.VirtualAssistant.Voice.Services.ManualMuteService">
+            <summary>
+            Thread-safe service for managing manual mute state.
+            Mute can be toggled via ScrollLock key or tray menu.
+            </summary>
+        </member>
+        <member name="P:Olbrasoft.VirtualAssistant.Voice.Services.ManualMuteService.IsMuted">
+            <inheritdoc />
+        </member>
+        <member name="M:Olbrasoft.VirtualAssistant.Voice.Services.ManualMuteService.Toggle">
+            <inheritdoc />
+        </member>
+        <member name="M:Olbrasoft.VirtualAssistant.Voice.Services.ManualMuteService.SetMuted(System.Boolean)">
+            <inheritdoc />
+        </member>
+        <member name="T:Olbrasoft.VirtualAssistant.Voice.Services.MistralRouterService">
+            <summary>
+            Mistral LLM router service implementation.
+            Uses Mistral AI API (OpenAI-compatible).
+            </summary>
+        </member>
+        <member name="T:Olbrasoft.VirtualAssistant.Voice.Services.MultiProviderLlmRouter">
+            <summary>
+            Multi-provider LLM router with intelligent round-robin and rate limit handling.
+            Uses in-memory tracking of provider status (no database required).
+            </summary>
+        </member>
+        <member name="M:Olbrasoft.VirtualAssistant.Voice.Services.MultiProviderLlmRouter.GetNextAvailableProvider">
+            <summary>
+            Gets the next available provider using round-robin.
+            Skips providers that are currently rate limited.
+            </summary>
+        </member>
+        <member name="M:Olbrasoft.VirtualAssistant.Voice.Services.MultiProviderLlmRouter.MarkProviderRateLimited(Olbrasoft.VirtualAssistant.Core.Enums.LlmProvider,System.DateTime)">
+            <summary>
+            Marks a provider as rate limited until the specified time.
+            </summary>
+        </member>
+        <member name="T:Olbrasoft.VirtualAssistant.Voice.Services.NotificationBatchingService">
+            <summary>
+            Processes agent notifications and sends them directly to TTS.
+            Notifications are processed immediately as they arrive (no batching delay).
+            Messages are queued and played sequentially - no interruption between agents.
+            Uses speech lock to coordinate with PushToTalk - waits for recording to finish.
+            </summary>
+        </member>
+        <member name="P:Olbrasoft.VirtualAssistant.Voice.Services.NotificationBatchingService.IsProcessing">
+            <summary>
+            Whether notifications are currently being processed.
+            </summary>
+        </member>
+        <member name="M:Olbrasoft.VirtualAssistant.Voice.Services.NotificationBatchingService.ProcessQueueAsync">
+            <summary>
+            Processes all pending notifications sequentially.
+            Uses semaphore to ensure only one processing loop runs at a time.
+            </summary>
+        </member>
+        <member name="M:Olbrasoft.VirtualAssistant.Voice.Services.NotificationBatchingService.ProcessSingleNotificationAsync(VirtualAssistant.Core.Services.AgentNotification)">
+            <summary>
+            Processes a single notification: updates status, waits for speech lock, speaks via TTS.
+            </summary>
+        </member>
+        <member name="M:Olbrasoft.VirtualAssistant.Voice.Services.NotificationBatchingService.FlushAsync">
+            <summary>
+            Immediately processes any pending notifications.
+            Since we now process immediately, this just ensures the queue is being processed.
+            </summary>
+        </member>
+        <member name="M:Olbrasoft.VirtualAssistant.Voice.Services.NotificationBatchingService.WaitForSpeechUnlockAsync">
+            <summary>
+            Waits for speech lock to be released before playing notification.
+            </summary>
+        </member>
+        <member name="T:Olbrasoft.VirtualAssistant.Voice.Services.IPromptLoader">
+            <summary>
+            Service for loading prompt templates from markdown files.
+            Prompts are stored in the Prompts directory and loaded at runtime.
+            </summary>
+        </member>
+        <member name="M:Olbrasoft.VirtualAssistant.Voice.Services.IPromptLoader.LoadPrompt(System.String)">
+            <summary>
+            Loads a prompt template from a markdown file.
+            </summary>
+            <param name="promptName">Name of the prompt file (without .md extension)</param>
+            <returns>The prompt content</returns>
+        </member>
+        <member name="M:Olbrasoft.VirtualAssistant.Voice.Services.IPromptLoader.LoadPromptWithValues(System.String,System.Collections.Generic.Dictionary{System.String,System.String})">
+            <summary>
+            Loads a prompt and replaces placeholders with values.
+            Placeholders use {{PlaceholderName}} syntax.
+            </summary>
+        </member>
+        <member name="T:Olbrasoft.VirtualAssistant.Voice.Services.PromptLoader">
+            <summary>
+            Loads prompts from markdown files in the Prompts directory.
+            Files are cached after first load for performance.
+            </summary>
+        </member>
+        <member name="T:Olbrasoft.VirtualAssistant.Voice.Services.IRepeatTextIntentService">
+            <summary>
+            Service for detecting "repeat last text" intent using fuzzy string matching.
+            No LLM calls - fast, deterministic, works offline.
+            </summary>
+        </member>
+        <member name="M:Olbrasoft.VirtualAssistant.Voice.Services.IRepeatTextIntentService.DetectIntentAsync(System.String,System.Threading.CancellationToken)">
+            <summary>
+            Checks if the user wants to repeat the last dictated text.
+            </summary>
+            <param name="inputText">The transcribed text to analyze</param>
+            <param name="cancellationToken">Cancellation token</param>
+            <returns>True if user wants to repeat text, false otherwise</returns>
+        </member>
+        <member name="M:Olbrasoft.VirtualAssistant.Voice.Services.IRepeatTextIntentService.GetRandomClipboardResponse">
+            <summary>
+            Gets a random response message for clipboard confirmation.
+            </summary>
+        </member>
+        <member name="T:Olbrasoft.VirtualAssistant.Voice.Services.RepeatTextIntentResult">
+            <summary>
+            Result of repeat text intent detection.
+            </summary>
+        </member>
+        <member name="T:Olbrasoft.VirtualAssistant.Voice.Services.RepeatTextIntentService">
+            <summary>
+            Implementation using fuzzy string matching for intent detection.
+            Matches against known phrases like "vrať mi to do schránky".
+            </summary>
+        </member>
+        <member name="F:Olbrasoft.VirtualAssistant.Voice.Services.RepeatTextIntentService.TargetPhrases">
+            <summary>
+            Phrases that indicate clipboard/repeat intent.
+            Includes common Whisper transcription variants.
+            </summary>
+        </member>
+        <member name="F:Olbrasoft.VirtualAssistant.Voice.Services.RepeatTextIntentService.SimilarityThreshold">
+            <summary>
+            Minimum similarity threshold (0.65 = 65%).
+            Lowered to accommodate Whisper transcription errors.
+            </summary>
+        </member>
+        <member name="T:Olbrasoft.VirtualAssistant.Voice.Services.SpeechBufferManager">
+            <summary>
+            Manages audio buffers for speech recording.
+            </summary>
+        </member>
+        <member name="P:Olbrasoft.VirtualAssistant.Voice.Services.SpeechBufferManager.SpeechBufferSize">
+            <inheritdoc />
+        </member>
+        <member name="M:Olbrasoft.VirtualAssistant.Voice.Services.SpeechBufferManager.AddToPreBuffer(System.Byte[])">
+            <inheritdoc />
+        </member>
+        <member name="M:Olbrasoft.VirtualAssistant.Voice.Services.SpeechBufferManager.TransferPreBufferToSpeech">
+            <inheritdoc />
+        </member>
+        <member name="M:Olbrasoft.VirtualAssistant.Voice.Services.SpeechBufferManager.AddToSpeechBuffer(System.Byte[])">
+            <inheritdoc />
+        </member>
+        <member name="M:Olbrasoft.VirtualAssistant.Voice.Services.SpeechBufferManager.GetCombinedSpeechData">
+            <inheritdoc />
+        </member>
+        <member name="M:Olbrasoft.VirtualAssistant.Voice.Services.SpeechBufferManager.ClearSpeechBuffer">
+            <inheritdoc />
+        </member>
+        <member name="M:Olbrasoft.VirtualAssistant.Voice.Services.SpeechBufferManager.ClearAll">
+            <inheritdoc />
+        </member>
+        <member name="T:Olbrasoft.VirtualAssistant.Voice.Services.SpeechLockService">
+            <summary>
+            Speech lock service with in-memory lock and file fallback.
+            Prevents TTS playback while user is recording/speaking.
+            Lock is released ONLY when explicitly unlocked - no timeout.
+            </summary>
+        </member>
+        <member name="P:Olbrasoft.VirtualAssistant.Voice.Services.SpeechLockService.IsLocked">
+            <inheritdoc />
+        </member>
+        <member name="M:Olbrasoft.VirtualAssistant.Voice.Services.SpeechLockService.Lock(System.Nullable{System.TimeSpan})">
+            <inheritdoc />
+        </member>
+        <member name="M:Olbrasoft.VirtualAssistant.Voice.Services.SpeechLockService.Unlock">
+            <inheritdoc />
+        </member>
+        <member name="T:Olbrasoft.VirtualAssistant.Voice.Services.SpeechToTextClient">
+            <summary>
+            HTTP client for querying SpeechToText application status.
+            </summary>
+        </member>
+        <member name="M:Olbrasoft.VirtualAssistant.Voice.Services.SpeechToTextClient.GetStatusAsync(System.Threading.CancellationToken)">
+            <inheritdoc />
+        </member>
+        <member name="T:Olbrasoft.VirtualAssistant.Voice.Services.TranscriptionService">
+            <summary>
+            Service for transcribing audio using Whisper.net.
+            Thread-safe wrapper around WhisperNetTranscriber.
+            </summary>
+        </member>
+        <member name="M:Olbrasoft.VirtualAssistant.Voice.Services.TranscriptionService.Initialize">
+            <summary>
+            Initializes Whisper transcriber (single model for all transcription).
+            </summary>
+        </member>
+        <member name="M:Olbrasoft.VirtualAssistant.Voice.Services.TranscriptionService.TranscribeAsync(System.Byte[],System.Threading.CancellationToken)">
+            <summary>
+            Transcribes audio data using the Whisper model.
+            If audio is too large, it will be truncated to prevent Whisper.net crashes.
+            </summary>
+            <param name="audioData">16-bit PCM audio data at 16kHz.</param>
+            <param name="cancellationToken">Cancellation token to abort transcription.</param>
+            <returns>Transcription result.</returns>
+        </member>
+        <member name="M:Olbrasoft.VirtualAssistant.Voice.Services.TranscriptionService.TruncateIfTooLarge(System.Byte[])">
+            <summary>
+            Truncates audio data if it exceeds the maximum segment size.
+            Takes the last MaxSegmentBytes to preserve the most recent speech.
+            </summary>
+        </member>
+        <member name="T:Olbrasoft.VirtualAssistant.Voice.Services.TtsProviderChainAdapter">
+            <summary>
+            Adapter that bridges the VirtualAssistant's ITtsProviderChain interface
+            with the new TextToSpeech library's ITtsProviderChain implementation.
+            </summary>
+            <remarks>
+            This adapter allows gradual migration - TtsService continues working unchanged
+            while we switch to the new library's implementation underneath.
+            </remarks>
+        </member>
+        <member name="M:Olbrasoft.VirtualAssistant.Voice.Services.TtsProviderChainAdapter.SynthesizeAsync(System.String,Olbrasoft.VirtualAssistant.Voice.Services.VoiceConfig,System.String,System.Threading.CancellationToken)">
+            <inheritdoc />
+        </member>
+        <member name="M:Olbrasoft.VirtualAssistant.Voice.Services.TtsProviderChainAdapter.GetProvidersStatus">
+            <inheritdoc />
+        </member>
+        <member name="M:Olbrasoft.VirtualAssistant.Voice.Services.TtsProviderChainAdapter.ResetCircuitBreaker(System.String)">
+            <inheritdoc />
+        </member>
+        <member name="M:Olbrasoft.VirtualAssistant.Voice.Services.TtsProviderChainAdapter.ParseRate(System.String)">
+            <summary>
+            Parses rate string (e.g., "+10%", "-20%", "default") to integer percentage.
+            </summary>
+        </member>
+        <member name="M:Olbrasoft.VirtualAssistant.Voice.Services.TtsProviderChainAdapter.ParsePitch(System.String)">
+            <summary>
+            Parses pitch string (e.g., "+5Hz", "-10Hz", "default") to integer.
+            </summary>
+        </member>
+        <member name="M:Olbrasoft.VirtualAssistant.Voice.Services.TtsProviderChainAdapter.ReadFileAsync(System.String,System.Threading.CancellationToken)">
+            <summary>
+            Reads file content as byte array.
+            </summary>
+        </member>
+        <member name="T:Olbrasoft.VirtualAssistant.Voice.Services.VoiceConfig">
+            <summary>
+            Voice configuration for different AI clients.
+            </summary>
+        </member>
+        <member name="M:Olbrasoft.VirtualAssistant.Voice.Services.VoiceConfig.#ctor(System.String,System.String,System.String,System.String)">
+            <summary>
+            Voice configuration for different AI clients.
+            </summary>
+        </member>
+        <member name="T:Olbrasoft.VirtualAssistant.Voice.Services.TtsService">
+            <summary>
+            Text-to-Speech service orchestrator.
+            Coordinates queue, cache, playback, and speech lock services.
+            Uses provider chain with circuit breaker for resilience.
+            </summary>
+        </member>
+        <member name="M:Olbrasoft.VirtualAssistant.Voice.Services.TtsService.GetVoiceConfig(System.String)">
+            <summary>
+            Gets the voice configuration (single config for all sources).
+            </summary>
+        </member>
+        <member name="M:Olbrasoft.VirtualAssistant.Voice.Services.TtsService.SpeakAsync(System.String,System.String,System.Boolean,System.Threading.CancellationToken)">
+            <summary>
+            Speaks text via TTS provider.
+            If speech lock is active, queues the message for later playback.
+            </summary>
+            <param name="text">Text to speak</param>
+            <param name="source">AI client identifier for voice selection (e.g., "opencode", "claudecode")</param>
+            <param name="skipCache">If true, bypasses cache and always generates fresh audio</param>
+            <param name="cancellationToken">Cancellation token</param>
+        </member>
+        <member name="M:Olbrasoft.VirtualAssistant.Voice.Services.TtsService.FlushQueueAsync(System.Threading.CancellationToken)">
+            <summary>
+            Plays all queued messages. Called by DictationWorker after dictation ends.
+            </summary>
+        </member>
+        <member name="P:Olbrasoft.VirtualAssistant.Voice.Services.TtsService.QueueCount">
+            <summary>
+            Gets the number of messages currently in the queue.
+            </summary>
+        </member>
+        <member name="M:Olbrasoft.VirtualAssistant.Voice.Services.TtsService.StopPlayback">
+            <summary>
+            Stops any currently playing TTS audio immediately.
+            Called when user presses CapsLock to start recording.
+            </summary>
+        </member>
+        <member name="M:Olbrasoft.VirtualAssistant.Voice.Services.TtsService.SpeakDirectAsync(System.String,System.String,System.Boolean,System.Threading.CancellationToken)">
+            <summary>
+            Internal method to actually speak text (no queue check).
+            Uses SemaphoreSlim to ensure only one message plays at a time.
+            </summary>
+        </member>
+        <member name="T:Olbrasoft.VirtualAssistant.Voice.Services.VadService">
+            <summary>
+            Voice Activity Detection service using Silero VAD neural network model.
+            Much more accurate than RMS-based detection, no calibration needed.
+            </summary>
+        </member>
+        <member name="M:Olbrasoft.VirtualAssistant.Voice.Services.VadService.PcmToFloat(System.Byte[])">
+            <summary>
+            Converts 16-bit PCM audio to float array normalized to -1.0 to 1.0.
+            </summary>
+        </member>
+        <member name="M:Olbrasoft.VirtualAssistant.Voice.Services.VadService.IsSpeech(System.Byte[])">
+            <summary>
+            Detects if the audio chunk contains speech using Silero VAD.
+            </summary>
+            <param name="pcmData">16-bit PCM audio data at 16kHz.</param>
+            <returns>True if speech detected, false otherwise.</returns>
+        </member>
+        <member name="M:Olbrasoft.VirtualAssistant.Voice.Services.VadService.Analyze(System.Byte[])">
+            <summary>
+            Detects if the audio chunk contains speech and returns the probability.
+            </summary>
+            <param name="pcmData">16-bit PCM audio data at 16kHz.</param>
+            <returns>Tuple of (isSpeech, probability 0.0-1.0).</returns>
+        </member>
+        <member name="M:Olbrasoft.VirtualAssistant.Voice.Services.VadService.Reset">
+            <summary>
+            Resets the internal state of the VAD model.
+            Call this when starting a new recording session.
+            </summary>
+        </member>
+        <member name="P:Olbrasoft.VirtualAssistant.Voice.Services.VadService.SpeechDetectionThreshold">
+            <summary>
+            Gets the speech detection threshold.
+            </summary>
+        </member>
+        <member name="T:Olbrasoft.VirtualAssistant.Voice.Services.WhisperNetTranscriber">
+            <summary>
+            Whisper.net based speech transcriber with CUDA GPU support.
+            Uses whisper.cpp native bindings for high-quality transcription.
+            </summary>
+        </member>
+        <member name="M:Olbrasoft.VirtualAssistant.Voice.Services.WhisperNetTranscriber.#ctor(Microsoft.Extensions.Logging.ILogger{Olbrasoft.VirtualAssistant.Voice.Services.WhisperNetTranscriber},System.String,System.String)">
+            <summary>
+            Initializes a new instance of the <see cref="T:Olbrasoft.VirtualAssistant.Voice.Services.WhisperNetTranscriber"/> class.
+            </summary>
+            <param name="logger">Logger instance.</param>
+            <param name="modelPath">Path to ggml model file (e.g., ggml-medium.bin).</param>
+            <param name="language">Language code (e.g., "cs" for Czech, "en" for English, "auto" for auto-detect).</param>
+        </member>
+        <member name="P:Olbrasoft.VirtualAssistant.Voice.Services.WhisperNetTranscriber.Language">
+            <inheritdoc/>
+        </member>
+        <member name="M:Olbrasoft.VirtualAssistant.Voice.Services.WhisperNetTranscriber.Initialize">
+            <summary>
+            Initializes the Whisper.net factory and processor (lazy initialization).
+            </summary>
+        </member>
+        <member name="M:Olbrasoft.VirtualAssistant.Voice.Services.WhisperNetTranscriber.ConvertPcmToFloat32(System.Byte[])">
+            <summary>
+            Converts PCM byte array to float32 samples normalized to [-1.0, 1.0].
+            </summary>
+        </member>
+        <member name="M:Olbrasoft.VirtualAssistant.Voice.Services.WhisperNetTranscriber.StripWavHeader(System.Byte[])">
+            <summary>
+            Strips WAV header if present (first 44 bytes).
+            </summary>
+        </member>
+        <member name="M:Olbrasoft.VirtualAssistant.Voice.Services.WhisperNetTranscriber.TranscribeAsync(System.Byte[],System.Threading.CancellationToken)">
+            <inheritdoc/>
+        </member>
+        <member name="M:Olbrasoft.VirtualAssistant.Voice.Services.WhisperNetTranscriber.TranscribeAsync(System.IO.Stream,System.Threading.CancellationToken)">
+            <inheritdoc/>
+        </member>
+        <member name="M:Olbrasoft.VirtualAssistant.Voice.Services.WhisperNetTranscriber.Dispose">
+            <inheritdoc/>
+        </member>
+        <member name="T:Olbrasoft.VirtualAssistant.Voice.Similarity.IStringSimilarity">
+            <summary>
+            Defines a contract for calculating similarity between two strings.
+            </summary>
+        </member>
+        <member name="M:Olbrasoft.VirtualAssistant.Voice.Similarity.IStringSimilarity.Similarity(System.String,System.String)">
+            <summary>
+            Calculates the similarity between two strings.
+            </summary>
+            <param name="a">The first string.</param>
+            <param name="b">The second string.</param>
+            <returns>
+            A value between 0.0 and 1.0, where:
+            - 0.0 means the strings are completely different
+            - 1.0 means the strings are identical
+            </returns>
+        </member>
+        <member name="T:Olbrasoft.VirtualAssistant.Voice.Similarity.LevenshteinSimilarity">
+            <summary>
+            Calculates string similarity using the Normalized Levenshtein distance algorithm.
+            </summary>
+            <remarks>
+            The Levenshtein distance is the minimum number of single-character edits 
+            (insertions, deletions, or substitutions) required to change one string into another.
+            This implementation normalizes the result to a value between 0.0 and 1.0.
+            </remarks>
+        </member>
+        <member name="M:Olbrasoft.VirtualAssistant.Voice.Similarity.LevenshteinSimilarity.Similarity(System.String,System.String)">
+            <inheritdoc />
+        </member>
+        <member name="T:Olbrasoft.VirtualAssistant.Voice.StateMachine.IVoiceStateMachine">
+            <summary>
+            Manages voice listener state transitions.
+            </summary>
+        </member>
+        <member name="P:Olbrasoft.VirtualAssistant.Voice.StateMachine.IVoiceStateMachine.CurrentState">
+            <summary>
+            Gets the current voice state.
+            </summary>
+        </member>
+        <member name="M:Olbrasoft.VirtualAssistant.Voice.StateMachine.IVoiceStateMachine.TransitionTo(Olbrasoft.VirtualAssistant.Voice.StateMachine.VoiceState)">
+            <summary>
+            Transitions to the specified state.
+            </summary>
+        </member>
+        <member name="M:Olbrasoft.VirtualAssistant.Voice.StateMachine.IVoiceStateMachine.ResetToWaiting">
+            <summary>
+            Resets the state machine to waiting state and clears timing data.
+            </summary>
+        </member>
+        <member name="M:Olbrasoft.VirtualAssistant.Voice.StateMachine.IVoiceStateMachine.ResetToMuted">
+            <summary>
+            Resets the state machine to muted state and clears all data.
+            </summary>
+        </member>
+        <member name="M:Olbrasoft.VirtualAssistant.Voice.StateMachine.IVoiceStateMachine.StartRecording(System.Single)">
+            <summary>
+            Starts recording with the given VAD probability.
+            </summary>
+        </member>
+        <member name="P:Olbrasoft.VirtualAssistant.Voice.StateMachine.IVoiceStateMachine.RecordingStartTime">
+            <summary>
+            Gets the time when recording started.
+            </summary>
+        </member>
+        <member name="P:Olbrasoft.VirtualAssistant.Voice.StateMachine.IVoiceStateMachine.SilenceStartTime">
+            <summary>
+            Gets or sets the time when silence started during recording.
+            </summary>
+        </member>
+        <member name="E:Olbrasoft.VirtualAssistant.Voice.StateMachine.IVoiceStateMachine.StateChanged">
+            <summary>
+            Event raised when the state changes.
+            </summary>
+        </member>
+        <member name="T:Olbrasoft.VirtualAssistant.Voice.StateMachine.VoiceState">
+            <summary>
+            Represents the current state of the voice listener.
+            </summary>
+        </member>
+        <member name="F:Olbrasoft.VirtualAssistant.Voice.StateMachine.VoiceState.Waiting">
+            <summary>
+            Waiting for speech to begin.
+            </summary>
+        </member>
+        <member name="F:Olbrasoft.VirtualAssistant.Voice.StateMachine.VoiceState.Recording">
+            <summary>
+            Currently recording speech.
+            </summary>
+        </member>
+        <member name="F:Olbrasoft.VirtualAssistant.Voice.StateMachine.VoiceState.Muted">
+            <summary>
+            Microphone is muted, not listening.
+            </summary>
+        </member>
+        <member name="T:Olbrasoft.VirtualAssistant.Voice.StateMachine.VoiceStateChangedEventArgs">
+            <summary>
+            Event arguments for voice state changes.
+            </summary>
+        </member>
+        <member name="P:Olbrasoft.VirtualAssistant.Voice.StateMachine.VoiceStateChangedEventArgs.PreviousState">
+            <summary>
+            The previous state before the transition.
+            </summary>
+        </member>
+        <member name="P:Olbrasoft.VirtualAssistant.Voice.StateMachine.VoiceStateChangedEventArgs.NewState">
+            <summary>
+            The new state after the transition.
+            </summary>
+        </member>
+        <member name="M:Olbrasoft.VirtualAssistant.Voice.StateMachine.VoiceStateChangedEventArgs.#ctor(Olbrasoft.VirtualAssistant.Voice.StateMachine.VoiceState,Olbrasoft.VirtualAssistant.Voice.StateMachine.VoiceState)">
+            <summary>
+            Creates a new instance of VoiceStateChangedEventArgs.
+            </summary>
+        </member>
+        <member name="T:Olbrasoft.VirtualAssistant.Voice.StateMachine.VoiceStateMachine">
+            <summary>
+            Manages voice listener state transitions.
+            </summary>
+        </member>
+        <member name="P:Olbrasoft.VirtualAssistant.Voice.StateMachine.VoiceStateMachine.CurrentState">
+            <inheritdoc />
+        </member>
+        <member name="P:Olbrasoft.VirtualAssistant.Voice.StateMachine.VoiceStateMachine.RecordingStartTime">
+            <inheritdoc />
+        </member>
+        <member name="P:Olbrasoft.VirtualAssistant.Voice.StateMachine.VoiceStateMachine.SilenceStartTime">
+            <inheritdoc />
+        </member>
+        <member name="E:Olbrasoft.VirtualAssistant.Voice.StateMachine.VoiceStateMachine.StateChanged">
+            <inheritdoc />
+        </member>
+        <member name="M:Olbrasoft.VirtualAssistant.Voice.StateMachine.VoiceStateMachine.TransitionTo(Olbrasoft.VirtualAssistant.Voice.StateMachine.VoiceState)">
+            <inheritdoc />
+        </member>
+        <member name="M:Olbrasoft.VirtualAssistant.Voice.StateMachine.VoiceStateMachine.StartRecording(System.Single)">
+            <inheritdoc />
+        </member>
+        <member name="M:Olbrasoft.VirtualAssistant.Voice.StateMachine.VoiceStateMachine.ResetToWaiting">
+            <inheritdoc />
+        </member>
+        <member name="M:Olbrasoft.VirtualAssistant.Voice.StateMachine.VoiceStateMachine.ResetToMuted">
+            <inheritdoc />
+        </member>
+    </members>
+</doc>

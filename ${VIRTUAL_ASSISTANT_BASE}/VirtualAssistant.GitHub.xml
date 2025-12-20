@@ -1,0 +1,356 @@
+<?xml version="1.0"?>
+<doc>
+    <assembly>
+        <name>VirtualAssistant.GitHub</name>
+    </assembly>
+    <members>
+        <member name="T:VirtualAssistant.GitHub.Configuration.GitHubSettings">
+            <summary>
+            Configuration settings for GitHub integration.
+            </summary>
+        </member>
+        <member name="F:VirtualAssistant.GitHub.Configuration.GitHubSettings.SectionName">
+            <summary>
+            Configuration section name in appsettings.json.
+            </summary>
+        </member>
+        <member name="P:VirtualAssistant.GitHub.Configuration.GitHubSettings.Token">
+            <summary>
+            Gets or sets the GitHub Personal Access Token (PAT).
+            Required for API access and higher rate limits (5000 req/hour vs 60/hour).
+            </summary>
+        </member>
+        <member name="P:VirtualAssistant.GitHub.Configuration.GitHubSettings.Owner">
+            <summary>
+            Gets or sets the default GitHub owner (user or organization).
+            </summary>
+        </member>
+        <member name="P:VirtualAssistant.GitHub.Configuration.GitHubSettings.DefaultRepo">
+            <summary>
+            Gets or sets the default GitHub repository name.
+            Used when fetching issue summaries without explicit repo specification.
+            </summary>
+        </member>
+        <member name="P:VirtualAssistant.GitHub.Configuration.GitHubSettings.IssuesApiUrl">
+            <summary>
+            Gets or sets the URL of the GitHub.Issues API for fetching Czech summaries.
+            Example: "http://localhost:5000"
+            </summary>
+        </member>
+        <member name="T:VirtualAssistant.GitHub.ServiceCollectionExtensions">
+            <summary>
+            Extension methods for registering GitHub services in the DI container.
+            </summary>
+        </member>
+        <member name="M:VirtualAssistant.GitHub.ServiceCollectionExtensions.AddGitHubServices(Microsoft.Extensions.DependencyInjection.IServiceCollection,Microsoft.Extensions.Configuration.IConfiguration)">
+            <summary>
+            Adds GitHub services to the service collection.
+            </summary>
+            <param name="services">The service collection.</param>
+            <param name="configuration">The configuration containing GitHub settings.</param>
+            <returns>The service collection for chaining.</returns>
+        </member>
+        <member name="T:VirtualAssistant.GitHub.Services.GitHubIssueStatusService">
+            <summary>
+            Implementation of GitHub issue status service using Octokit.NET.
+            </summary>
+        </member>
+        <member name="M:VirtualAssistant.GitHub.Services.GitHubIssueStatusService.GetIssueStatusAsync(System.String,System.String,System.Int32,System.Threading.CancellationToken)">
+            <inheritdoc />
+        </member>
+        <member name="T:VirtualAssistant.GitHub.Services.GitHubReferenceService">
+            <summary>
+            Service for ensuring GitHub repository and issue references exist in the database.
+            </summary>
+        </member>
+        <member name="M:VirtualAssistant.GitHub.Services.GitHubReferenceService.GitHubIssueUrlRegex">
+            <remarks>
+            Pattern:<br/>
+            <code>^https?://github\\.com/(?&lt;owner&gt;[^/]+)/(?&lt;repo&gt;[^/]+)/issues/(?&lt;number&gt;\\d+)</code><br/>
+            Options:<br/>
+            <code>RegexOptions.IgnoreCase</code><br/>
+            Explanation:<br/>
+            <code>
+            ○ Match if at the beginning of the string.<br/>
+            ○ Match a character in the set [Hh].<br/>
+            ○ Match a character in the set [Tt] exactly 2 times.<br/>
+            ○ Match a character in the set [Pp].<br/>
+            ○ Match a character in the set [Ss] atomically, optionally.<br/>
+            ○ Match the string "://".<br/>
+            ○ Match a character in the set [Gg].<br/>
+            ○ Match a character in the set [Ii].<br/>
+            ○ Match a character in the set [Tt].<br/>
+            ○ Match a character in the set [Hh].<br/>
+            ○ Match a character in the set [Uu].<br/>
+            ○ Match a character in the set [Bb].<br/>
+            ○ Match '.'.<br/>
+            ○ Match a character in the set [Cc].<br/>
+            ○ Match a character in the set [Oo].<br/>
+            ○ Match a character in the set [Mm].<br/>
+            ○ Match '/'.<br/>
+            ○ "owner" capture group.<br/>
+                ○ Match a character other than '/' atomically at least once.<br/>
+            ○ Match '/'.<br/>
+            ○ "repo" capture group.<br/>
+                ○ Match a character other than '/' atomically at least once.<br/>
+            ○ Match '/'.<br/>
+            ○ Match a character in the set [Ii].<br/>
+            ○ Match a character in the set [Ss] exactly 2 times.<br/>
+            ○ Match a character in the set [Uu].<br/>
+            ○ Match a character in the set [Ee].<br/>
+            ○ Match a character in the set [Ss].<br/>
+            ○ Match '/'.<br/>
+            ○ "number" capture group.<br/>
+                ○ Match a Unicode digit atomically at least once.<br/>
+            </code>
+            </remarks>
+        </member>
+        <member name="M:VirtualAssistant.GitHub.Services.GitHubReferenceService.EnsureRepositoryExistsAsync(System.String,System.String,System.Threading.CancellationToken)">
+            <inheritdoc />
+        </member>
+        <member name="M:VirtualAssistant.GitHub.Services.GitHubReferenceService.EnsureIssueExistsAsync(System.String,System.String,System.Int32,System.Threading.CancellationToken)">
+            <inheritdoc />
+        </member>
+        <member name="M:VirtualAssistant.GitHub.Services.GitHubReferenceService.EnsureIssueFromUrlAsync(System.String,System.Threading.CancellationToken)">
+            <inheritdoc />
+        </member>
+        <member name="T:VirtualAssistant.GitHub.Services.IGitHubIssueStatusService">
+            <summary>
+            Service for checking GitHub issue status.
+            </summary>
+        </member>
+        <member name="M:VirtualAssistant.GitHub.Services.IGitHubIssueStatusService.GetIssueStatusAsync(System.String,System.String,System.Int32,System.Threading.CancellationToken)">
+            <summary>
+            Get the status of a GitHub issue.
+            </summary>
+            <param name="owner">Repository owner</param>
+            <param name="repo">Repository name</param>
+            <param name="issueNumber">Issue number</param>
+            <param name="ct">Cancellation token</param>
+            <returns>Issue status information</returns>
+        </member>
+        <member name="T:VirtualAssistant.GitHub.Services.GitHubIssueStatus">
+            <summary>
+            GitHub issue status information.
+            </summary>
+        </member>
+        <member name="P:VirtualAssistant.GitHub.Services.GitHubIssueStatus.Number">
+            <summary>
+            Issue number.
+            </summary>
+        </member>
+        <member name="P:VirtualAssistant.GitHub.Services.GitHubIssueStatus.State">
+            <summary>
+            Issue state: "open" or "closed".
+            </summary>
+        </member>
+        <member name="P:VirtualAssistant.GitHub.Services.GitHubIssueStatus.Title">
+            <summary>
+            Issue title.
+            </summary>
+        </member>
+        <member name="P:VirtualAssistant.GitHub.Services.GitHubIssueStatus.Found">
+            <summary>
+            Whether the issue was found.
+            </summary>
+        </member>
+        <member name="P:VirtualAssistant.GitHub.Services.GitHubIssueStatus.Error">
+            <summary>
+            Error message if lookup failed.
+            </summary>
+        </member>
+        <member name="T:VirtualAssistant.GitHub.Services.IGitHubReferenceService">
+            <summary>
+            Service for ensuring GitHub repository and issue references exist in the database.
+            </summary>
+        </member>
+        <member name="M:VirtualAssistant.GitHub.Services.IGitHubReferenceService.EnsureRepositoryExistsAsync(System.String,System.String,System.Threading.CancellationToken)">
+            <summary>
+            Ensures a repository exists in the database, creating it if necessary.
+            </summary>
+            <param name="owner">Repository owner</param>
+            <param name="name">Repository name</param>
+            <param name="ct">Cancellation token</param>
+            <returns>The repository ID</returns>
+        </member>
+        <member name="M:VirtualAssistant.GitHub.Services.IGitHubReferenceService.EnsureIssueExistsAsync(System.String,System.String,System.Int32,System.Threading.CancellationToken)">
+            <summary>
+            Ensures an issue exists in the database, creating repository and issue if necessary.
+            </summary>
+            <param name="owner">Repository owner</param>
+            <param name="name">Repository name</param>
+            <param name="issueNumber">Issue number</param>
+            <param name="ct">Cancellation token</param>
+            <returns>The issue ID</returns>
+        </member>
+        <member name="M:VirtualAssistant.GitHub.Services.IGitHubReferenceService.EnsureIssueFromUrlAsync(System.String,System.Threading.CancellationToken)">
+            <summary>
+            Parses a GitHub issue URL and ensures the reference exists.
+            </summary>
+            <param name="url">GitHub issue URL (e.g., https://github.com/owner/repo/issues/123)</param>
+            <param name="ct">Cancellation token</param>
+            <returns>Parsed info and database ID, or null if URL is invalid</returns>
+        </member>
+        <member name="T:VirtualAssistant.GitHub.Services.GitHubIssueReference">
+            <summary>
+            Parsed GitHub issue reference with database ID.
+            </summary>
+        </member>
+        <member name="M:VirtualAssistant.GitHub.Services.GitHubIssueReference.#ctor(System.Int32,System.Int32,System.String,System.String,System.Int32)">
+            <summary>
+            Parsed GitHub issue reference with database ID.
+            </summary>
+        </member>
+        <member name="P:VirtualAssistant.GitHub.Services.GitHubIssueReference.Url">
+            <summary>
+            Gets the GitHub URL for this issue.
+            </summary>
+        </member>
+        <member name="T:VirtualAssistant.GitHub.Services.IIssueSummaryClient">
+            <summary>
+            Client for fetching translated issue summaries from the GitHub.Issues API.
+            </summary>
+        </member>
+        <member name="M:VirtualAssistant.GitHub.Services.IIssueSummaryClient.GetSummariesAsync(System.String,System.String,System.Collections.Generic.IEnumerable{System.Int32},System.Int32,System.Threading.CancellationToken)">
+            <summary>
+            Gets translated summaries for the specified issues.
+            If an issue is not in the database, the API will fetch it from GitHub.
+            </summary>
+            <param name="owner">Repository owner</param>
+            <param name="repo">Repository name</param>
+            <param name="issueNumbers">List of issue numbers</param>
+            <param name="languageId">Language LCID (default: 1029 = Czech)</param>
+            <param name="ct">Cancellation token</param>
+            <returns>Summaries result with found issues and any that weren't found</returns>
+        </member>
+        <member name="T:VirtualAssistant.GitHub.Services.IssueSummariesResult">
+            <summary>
+            Result from fetching issue summaries.
+            </summary>
+        </member>
+        <member name="P:VirtualAssistant.GitHub.Services.IssueSummariesResult.Summaries">
+            <summary>
+            Dictionary mapping issue numbers to their summaries.
+            </summary>
+        </member>
+        <member name="P:VirtualAssistant.GitHub.Services.IssueSummariesResult.SyncedFromGitHub">
+            <summary>
+            Issue numbers that were synced from GitHub during this request.
+            </summary>
+        </member>
+        <member name="P:VirtualAssistant.GitHub.Services.IssueSummariesResult.NotFound">
+            <summary>
+            Issue numbers that could not be found (neither in DB nor on GitHub).
+            </summary>
+        </member>
+        <member name="P:VirtualAssistant.GitHub.Services.IssueSummariesResult.Error">
+            <summary>
+            Error message if the request failed, null otherwise.
+            </summary>
+        </member>
+        <member name="T:VirtualAssistant.GitHub.Services.IssueSummary">
+            <summary>
+            Summary information for a single issue.
+            </summary>
+        </member>
+        <member name="P:VirtualAssistant.GitHub.Services.IssueSummary.IssueNumber">
+            <summary>
+            GitHub issue number.
+            </summary>
+        </member>
+        <member name="P:VirtualAssistant.GitHub.Services.IssueSummary.OriginalTitle">
+            <summary>
+            Original English title.
+            </summary>
+        </member>
+        <member name="P:VirtualAssistant.GitHub.Services.IssueSummary.CzechTitle">
+            <summary>
+            Translated Czech title.
+            </summary>
+        </member>
+        <member name="P:VirtualAssistant.GitHub.Services.IssueSummary.CzechSummary">
+            <summary>
+            AI-generated Czech summary of the issue.
+            </summary>
+        </member>
+        <member name="P:VirtualAssistant.GitHub.Services.IssueSummary.IsOpen">
+            <summary>
+            Whether the issue is currently open.
+            </summary>
+        </member>
+        <member name="P:VirtualAssistant.GitHub.Services.IssueSummary.Url">
+            <summary>
+            GitHub URL of the issue.
+            </summary>
+        </member>
+        <member name="T:VirtualAssistant.GitHub.Services.IssueSummaryClient">
+            <summary>
+            HTTP client for fetching Czech issue summaries from the GitHub.Issues API.
+            </summary>
+        </member>
+        <member name="M:VirtualAssistant.GitHub.Services.IssueSummaryClient.GetSummariesAsync(System.String,System.String,System.Collections.Generic.IEnumerable{System.Int32},System.Int32,System.Threading.CancellationToken)">
+            <inheritdoc />
+        </member>
+        <member name="T:VirtualAssistant.GitHub.Services.SearchTarget">
+            <summary>
+            Specifies which fields to search when performing semantic search.
+            </summary>
+        </member>
+        <member name="F:VirtualAssistant.GitHub.Services.SearchTarget.Title">
+            <summary>
+            Search only in issue titles.
+            </summary>
+        </member>
+        <member name="F:VirtualAssistant.GitHub.Services.SearchTarget.Body">
+            <summary>
+            Search only in issue bodies.
+            </summary>
+        </member>
+        <member name="F:VirtualAssistant.GitHub.Services.SearchTarget.Both">
+            <summary>
+            Search in both titles and bodies (default).
+            </summary>
+        </member>
+        <member name="T:System.Text.RegularExpressions.Generated.GitHubIssueUrlRegex_0">
+            <summary>Custom <see cref="T:System.Text.RegularExpressions.Regex"/>-derived type for the GitHubIssueUrlRegex method.</summary>
+        </member>
+        <member name="F:System.Text.RegularExpressions.Generated.GitHubIssueUrlRegex_0.Instance">
+            <summary>Cached, thread-safe singleton instance.</summary>
+        </member>
+        <member name="M:System.Text.RegularExpressions.Generated.GitHubIssueUrlRegex_0.#ctor">
+            <summary>Initializes the instance.</summary>
+        </member>
+        <member name="T:System.Text.RegularExpressions.Generated.GitHubIssueUrlRegex_0.RunnerFactory">
+            <summary>Provides a factory for creating <see cref="T:System.Text.RegularExpressions.RegexRunner"/> instances to be used by methods on <see cref="T:System.Text.RegularExpressions.Regex"/>.</summary>
+        </member>
+        <member name="M:System.Text.RegularExpressions.Generated.GitHubIssueUrlRegex_0.RunnerFactory.CreateInstance">
+            <summary>Creates an instance of a <see cref="T:System.Text.RegularExpressions.RegexRunner"/> used by methods on <see cref="T:System.Text.RegularExpressions.Regex"/>.</summary>
+        </member>
+        <member name="T:System.Text.RegularExpressions.Generated.GitHubIssueUrlRegex_0.RunnerFactory.Runner">
+            <summary>Provides the runner that contains the custom logic implementing the specified regular expression.</summary>
+        </member>
+        <member name="M:System.Text.RegularExpressions.Generated.GitHubIssueUrlRegex_0.RunnerFactory.Runner.Scan(System.ReadOnlySpan{System.Char})">
+            <summary>Scan the <paramref name="inputSpan"/> starting from base.runtextstart for the next match.</summary>
+            <param name="inputSpan">The text being scanned by the regular expression.</param>
+        </member>
+        <member name="M:System.Text.RegularExpressions.Generated.GitHubIssueUrlRegex_0.RunnerFactory.Runner.TryFindNextPossibleStartingPosition(System.ReadOnlySpan{System.Char})">
+            <summary>Search <paramref name="inputSpan"/> starting from base.runtextpos for the next location a match could possibly start.</summary>
+            <param name="inputSpan">The text being scanned by the regular expression.</param>
+            <returns>true if a possible match was found; false if no more matches are possible.</returns>
+        </member>
+        <member name="M:System.Text.RegularExpressions.Generated.GitHubIssueUrlRegex_0.RunnerFactory.Runner.TryMatchAtCurrentPosition(System.ReadOnlySpan{System.Char})">
+            <summary>Determine whether <paramref name="inputSpan"/> at base.runtextpos is a match for the regular expression.</summary>
+            <param name="inputSpan">The text being scanned by the regular expression.</param>
+            <returns>true if the regular expression matches at the current position; otherwise, false.</returns>
+        </member>
+        <member name="T:System.Text.RegularExpressions.Generated.Utilities">
+            <summary>Helper methods used by generated <see cref="T:System.Text.RegularExpressions.Regex"/>-derived implementations.</summary>
+        </member>
+        <member name="F:System.Text.RegularExpressions.Generated.Utilities.s_defaultTimeout">
+            <summary>Default timeout value set in <see cref="T:System.AppContext"/>, or <see cref="F:System.Text.RegularExpressions.Regex.InfiniteMatchTimeout"/> if none was set.</summary>
+        </member>
+        <member name="F:System.Text.RegularExpressions.Generated.Utilities.s_hasTimeout">
+            <summary>Whether <see cref="F:System.Text.RegularExpressions.Generated.Utilities.s_defaultTimeout"/> is non-infinite.</summary>
+        </member>
+    </members>
+</doc>

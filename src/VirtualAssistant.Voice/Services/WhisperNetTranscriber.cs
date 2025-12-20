@@ -65,8 +65,9 @@ public class WhisperNetTranscriber : ISpeechTranscriber
             _logger.LogInformation("Runtime library order: {Order}", 
                 string.Join(", ", RuntimeOptions.RuntimeLibraryOrder));
 
-            // Create factory - Whisper.net automatically selects best runtime (CUDA > CPU)
-            _whisperFactory = WhisperFactory.FromPath(_modelPath);
+            // Create factory with explicit GPU acceleration
+            var options = new WhisperFactoryOptions { UseGpu = true };
+            _whisperFactory = WhisperFactory.FromPath(_modelPath, options);
             
             // Log which library was loaded
             _logger.LogInformation("Loaded runtime library: {Library}", 

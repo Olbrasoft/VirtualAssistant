@@ -1,0 +1,947 @@
+<?xml version="1.0"?>
+<doc>
+    <assembly>
+        <name>VirtualAssistant.Data</name>
+    </assembly>
+    <members>
+        <member name="T:VirtualAssistant.Data.Dtos.ClaudeCompleteTaskRequest">
+            <summary>
+            Request model for POST /api/claude/tasks/{id}/complete endpoint.
+            Used by Claude Code to mark a task as completed.
+            </summary>
+        </member>
+        <member name="P:VirtualAssistant.Data.Dtos.ClaudeCompleteTaskRequest.SessionId">
+            <summary>
+            Claude Code session ID from the execution.
+            </summary>
+        </member>
+        <member name="P:VirtualAssistant.Data.Dtos.ClaudeCompleteTaskRequest.Result">
+            <summary>
+            Result summary of the task completion.
+            </summary>
+        </member>
+        <member name="T:VirtualAssistant.Data.Dtos.ClaudeCompleteTaskResponse">
+            <summary>
+            Response model for POST /api/claude/tasks/{id}/complete endpoint.
+            Confirms task completion.
+            </summary>
+        </member>
+        <member name="P:VirtualAssistant.Data.Dtos.ClaudeCompleteTaskResponse.Id">
+            <summary>
+            Task ID.
+            </summary>
+        </member>
+        <member name="P:VirtualAssistant.Data.Dtos.ClaudeCompleteTaskResponse.Status">
+            <summary>
+            Task status (should be "completed").
+            </summary>
+        </member>
+        <member name="P:VirtualAssistant.Data.Dtos.ClaudeCompleteTaskResponse.CompletedAt">
+            <summary>
+            When the task was completed.
+            </summary>
+        </member>
+        <member name="T:VirtualAssistant.Data.Dtos.ClaudePendingTaskResponse">
+            <summary>
+            Response model for GET /api/claude/tasks/pending endpoint.
+            Returns the oldest pending task for the Claude agent.
+            </summary>
+        </member>
+        <member name="P:VirtualAssistant.Data.Dtos.ClaudePendingTaskResponse.Id">
+            <summary>
+            Task ID.
+            </summary>
+        </member>
+        <member name="P:VirtualAssistant.Data.Dtos.ClaudePendingTaskResponse.GithubIssueUrl">
+            <summary>
+            Full GitHub issue URL.
+            </summary>
+        </member>
+        <member name="P:VirtualAssistant.Data.Dtos.ClaudePendingTaskResponse.GithubIssueNumber">
+            <summary>
+            Extracted GitHub issue number.
+            </summary>
+        </member>
+        <member name="P:VirtualAssistant.Data.Dtos.ClaudePendingTaskResponse.Summary">
+            <summary>
+            Brief description of the task.
+            </summary>
+        </member>
+        <member name="P:VirtualAssistant.Data.Dtos.ClaudePendingTaskResponse.CreatedAt">
+            <summary>
+            When the task was created.
+            </summary>
+        </member>
+        <member name="T:VirtualAssistant.Data.Dtos.Clipboard.ClipboardRequest">
+            <summary>
+            Request model for clipboard operation.
+            </summary>
+        </member>
+        <member name="P:VirtualAssistant.Data.Dtos.Clipboard.ClipboardRequest.Content">
+            <summary>
+            Content to copy to clipboard.
+            </summary>
+        </member>
+        <member name="T:VirtualAssistant.Data.Dtos.Clipboard.ClipboardResponse">
+            <summary>
+            Response model for clipboard operation.
+            </summary>
+        </member>
+        <member name="P:VirtualAssistant.Data.Dtos.Clipboard.ClipboardResponse.Success">
+            <summary>
+            Whether the operation was successful.
+            </summary>
+        </member>
+        <member name="P:VirtualAssistant.Data.Dtos.Clipboard.ClipboardResponse.Message">
+            <summary>
+            Status message.
+            </summary>
+        </member>
+        <member name="T:VirtualAssistant.Data.Dtos.Common.ErrorResponse">
+            <summary>
+            Error response model.
+            </summary>
+        </member>
+        <member name="P:VirtualAssistant.Data.Dtos.Common.ErrorResponse.Error">
+            <summary>
+            Error message.
+            </summary>
+        </member>
+        <member name="T:VirtualAssistant.Data.Dtos.CompleteTaskRequest">
+            <summary>
+            Request DTO for completing a task.
+            </summary>
+        </member>
+        <member name="P:VirtualAssistant.Data.Dtos.CompleteTaskRequest.TaskId">
+            <summary>
+            ID of the task to complete.
+            </summary>
+        </member>
+        <member name="P:VirtualAssistant.Data.Dtos.CompleteTaskRequest.Result">
+            <summary>
+            Result/outcome description.
+            </summary>
+        </member>
+        <member name="T:VirtualAssistant.Data.Dtos.CreateAndDispatchRequest">
+            <summary>
+            Request for unified task create-and-dispatch operation.
+            </summary>
+        </member>
+        <member name="P:VirtualAssistant.Data.Dtos.CreateAndDispatchRequest.GithubIssueNumber">
+            <summary>
+            GitHub issue number (required).
+            </summary>
+        </member>
+        <member name="P:VirtualAssistant.Data.Dtos.CreateAndDispatchRequest.Summary">
+            <summary>
+            Task summary/description.
+            </summary>
+        </member>
+        <member name="P:VirtualAssistant.Data.Dtos.CreateAndDispatchRequest.TargetAgent">
+            <summary>
+            Target agent name (default: "claude").
+            </summary>
+        </member>
+        <member name="T:VirtualAssistant.Data.Dtos.CreateAndDispatchResponse">
+            <summary>
+            Response from unified task create-and-dispatch operation.
+            </summary>
+        </member>
+        <member name="P:VirtualAssistant.Data.Dtos.CreateAndDispatchResponse.Success">
+            <summary>
+            Whether the operation was successful.
+            </summary>
+        </member>
+        <member name="P:VirtualAssistant.Data.Dtos.CreateAndDispatchResponse.Action">
+            <summary>
+            What action was taken: "created", "reopened", "dispatched".
+            </summary>
+        </member>
+        <member name="P:VirtualAssistant.Data.Dtos.CreateAndDispatchResponse.TaskId">
+            <summary>
+            Task ID.
+            </summary>
+        </member>
+        <member name="P:VirtualAssistant.Data.Dtos.CreateAndDispatchResponse.GithubIssueNumber">
+            <summary>
+            GitHub issue number.
+            </summary>
+        </member>
+        <member name="P:VirtualAssistant.Data.Dtos.CreateAndDispatchResponse.DispatchStatus">
+            <summary>
+            Dispatch status: "sent_to_claude", "queued".
+            </summary>
+        </member>
+        <member name="P:VirtualAssistant.Data.Dtos.CreateAndDispatchResponse.PreviousStatus">
+            <summary>
+            Previous task status (when reopening).
+            </summary>
+        </member>
+        <member name="P:VirtualAssistant.Data.Dtos.CreateAndDispatchResponse.Reason">
+            <summary>
+            Failure reason (when not successful).
+            </summary>
+        </member>
+        <member name="P:VirtualAssistant.Data.Dtos.CreateAndDispatchResponse.Message">
+            <summary>
+            Human-readable message.
+            </summary>
+        </member>
+        <member name="P:VirtualAssistant.Data.Dtos.CreateAndDispatchResponse.Error">
+            <summary>
+            Error message (when not successful).
+            </summary>
+        </member>
+        <member name="T:VirtualAssistant.Data.Dtos.CreateTaskRequest">
+            <summary>
+            Request DTO for creating a task for another agent.
+            </summary>
+        </member>
+        <member name="P:VirtualAssistant.Data.Dtos.CreateTaskRequest.GithubIssueUrl">
+            <summary>
+            Full GitHub issue URL (e.g., "https://github.com/Olbrasoft/VirtualAssistant/issues/177").
+            </summary>
+        </member>
+        <member name="P:VirtualAssistant.Data.Dtos.CreateTaskRequest.Summary">
+            <summary>
+            Brief description of the task.
+            </summary>
+        </member>
+        <member name="P:VirtualAssistant.Data.Dtos.CreateTaskRequest.TargetAgent">
+            <summary>
+            Target agent name (e.g., "claude", "opencode").
+            </summary>
+        </member>
+        <member name="P:VirtualAssistant.Data.Dtos.CreateTaskRequest.RequiresApproval">
+            <summary>
+            Whether user must approve before sending. Defaults to true.
+            </summary>
+        </member>
+        <member name="T:VirtualAssistant.Data.Dtos.DispatchTaskResult">
+            <summary>
+            Result of dispatching a task to an agent.
+            </summary>
+        </member>
+        <member name="P:VirtualAssistant.Data.Dtos.DispatchTaskResult.Success">
+            <summary>
+            Whether the dispatch was successful.
+            </summary>
+        </member>
+        <member name="P:VirtualAssistant.Data.Dtos.DispatchTaskResult.Reason">
+            <summary>
+            Reason for failure (if not successful).
+            Values: "agent_busy", "no_pending_tasks", "task_not_found"
+            </summary>
+        </member>
+        <member name="P:VirtualAssistant.Data.Dtos.DispatchTaskResult.Message">
+            <summary>
+            Human-readable message.
+            </summary>
+        </member>
+        <member name="P:VirtualAssistant.Data.Dtos.DispatchTaskResult.TaskId">
+            <summary>
+            Task ID (if dispatched successfully).
+            </summary>
+        </member>
+        <member name="P:VirtualAssistant.Data.Dtos.DispatchTaskResult.GithubIssueNumber">
+            <summary>
+            GitHub issue number (if dispatched successfully).
+            </summary>
+        </member>
+        <member name="P:VirtualAssistant.Data.Dtos.DispatchTaskResult.GithubIssueUrl">
+            <summary>
+            GitHub issue URL (if dispatched successfully).
+            </summary>
+        </member>
+        <member name="P:VirtualAssistant.Data.Dtos.DispatchTaskResult.Summary">
+            <summary>
+            Task summary/description (if dispatched successfully).
+            </summary>
+        </member>
+        <member name="M:VirtualAssistant.Data.Dtos.DispatchTaskResult.Dispatched(System.Int32,System.Nullable{System.Int32},System.String,System.String)">
+            <summary>
+            Create a success result.
+            </summary>
+        </member>
+        <member name="M:VirtualAssistant.Data.Dtos.DispatchTaskResult.AgentBusy(System.String)">
+            <summary>
+            Create a failure result for busy agent.
+            </summary>
+        </member>
+        <member name="M:VirtualAssistant.Data.Dtos.DispatchTaskResult.NoPendingTasks(System.String)">
+            <summary>
+            Create a failure result for no pending tasks.
+            </summary>
+        </member>
+        <member name="M:VirtualAssistant.Data.Dtos.DispatchTaskResult.TaskNotFound(System.Int32)">
+            <summary>
+            Create a failure result for task not found.
+            </summary>
+        </member>
+        <member name="T:VirtualAssistant.Data.Dtos.Tasks.CompleteTaskApiRequest">
+            <summary>
+            Request model for complete-task endpoint.
+            </summary>
+        </member>
+        <member name="P:VirtualAssistant.Data.Dtos.Tasks.CompleteTaskApiRequest.TaskId">
+            <summary>
+            Task ID to complete.
+            </summary>
+        </member>
+        <member name="P:VirtualAssistant.Data.Dtos.Tasks.CompleteTaskApiRequest.GithubIssueNumber">
+            <summary>
+            Alternative: GitHub issue number.
+            </summary>
+        </member>
+        <member name="P:VirtualAssistant.Data.Dtos.Tasks.CompleteTaskApiRequest.Result">
+            <summary>
+            Result/outcome description.
+            </summary>
+        </member>
+        <member name="P:VirtualAssistant.Data.Dtos.Tasks.CompleteTaskApiRequest.Status">
+            <summary>
+            Status: "completed", "failed", or "blocked".
+            </summary>
+        </member>
+        <member name="P:VirtualAssistant.Data.Dtos.Tasks.CompleteTaskApiRequest.AutoDispatch">
+            <summary>
+            Whether to automatically dispatch the next pending task after completion.
+            Default: true.
+            </summary>
+        </member>
+        <member name="T:VirtualAssistant.Data.Dtos.Tasks.CompleteTaskApiResponse">
+            <summary>
+            Response model for complete-task endpoint.
+            </summary>
+        </member>
+        <member name="P:VirtualAssistant.Data.Dtos.Tasks.CompleteTaskApiResponse.Success">
+            <summary>
+            Whether the completion was successful.
+            </summary>
+        </member>
+        <member name="P:VirtualAssistant.Data.Dtos.Tasks.CompleteTaskApiResponse.TaskId">
+            <summary>
+            Task ID that was completed.
+            </summary>
+        </member>
+        <member name="P:VirtualAssistant.Data.Dtos.Tasks.CompleteTaskApiResponse.Message">
+            <summary>
+            Confirmation message.
+            </summary>
+        </member>
+        <member name="P:VirtualAssistant.Data.Dtos.Tasks.CompleteTaskApiResponse.NextTask">
+            <summary>
+            Information about the next task that was auto-dispatched (if any).
+            </summary>
+        </member>
+        <member name="T:VirtualAssistant.Data.Dtos.Tasks.DispatchTaskRequest">
+            <summary>
+            Request model for dispatch task endpoint.
+            </summary>
+        </member>
+        <member name="P:VirtualAssistant.Data.Dtos.Tasks.DispatchTaskRequest.TargetAgent">
+            <summary>
+            Target agent (default: "claude").
+            </summary>
+        </member>
+        <member name="P:VirtualAssistant.Data.Dtos.Tasks.DispatchTaskRequest.GithubIssueNumber">
+            <summary>
+            Optional specific GitHub issue number.
+            </summary>
+        </member>
+        <member name="P:VirtualAssistant.Data.Dtos.Tasks.DispatchTaskRequest.GithubIssueUrl">
+            <summary>
+            Optional specific GitHub issue URL.
+            </summary>
+        </member>
+        <member name="T:VirtualAssistant.Data.Dtos.Tasks.DispatchTaskResponse">
+            <summary>
+            Response model for dispatch task endpoint.
+            </summary>
+        </member>
+        <member name="P:VirtualAssistant.Data.Dtos.Tasks.DispatchTaskResponse.Success">
+            <summary>
+            Whether the dispatch was successful.
+            </summary>
+        </member>
+        <member name="P:VirtualAssistant.Data.Dtos.Tasks.DispatchTaskResponse.Reason">
+            <summary>
+            Reason for failure (if not successful).
+            Values: "agent_busy", "no_pending_tasks", "task_not_found"
+            </summary>
+        </member>
+        <member name="P:VirtualAssistant.Data.Dtos.Tasks.DispatchTaskResponse.Message">
+            <summary>
+            Human-readable message.
+            </summary>
+        </member>
+        <member name="P:VirtualAssistant.Data.Dtos.Tasks.DispatchTaskResponse.TaskId">
+            <summary>
+            Task ID (if dispatched successfully).
+            </summary>
+        </member>
+        <member name="P:VirtualAssistant.Data.Dtos.Tasks.DispatchTaskResponse.GithubIssueNumber">
+            <summary>
+            GitHub issue number (if dispatched successfully).
+            </summary>
+        </member>
+        <member name="P:VirtualAssistant.Data.Dtos.Tasks.DispatchTaskResponse.GithubIssueUrl">
+            <summary>
+            GitHub issue URL (if dispatched successfully).
+            </summary>
+        </member>
+        <member name="P:VirtualAssistant.Data.Dtos.Tasks.DispatchTaskResponse.Summary">
+            <summary>
+            Task summary/description (if dispatched successfully).
+            </summary>
+        </member>
+        <member name="P:VirtualAssistant.Data.Dtos.Tasks.DispatchTaskResponse.ClaudeSessionId">
+            <summary>
+            Claude session ID from headless execution (if applicable).
+            </summary>
+        </member>
+        <member name="T:VirtualAssistant.Data.Dtos.Tasks.FetchedTaskInfo">
+            <summary>
+            Information about a fetched task.
+            </summary>
+        </member>
+        <member name="P:VirtualAssistant.Data.Dtos.Tasks.FetchedTaskInfo.Id">
+            <summary>
+            Task ID.
+            </summary>
+        </member>
+        <member name="P:VirtualAssistant.Data.Dtos.Tasks.FetchedTaskInfo.FromAgent">
+            <summary>
+            Agent that created this task.
+            </summary>
+        </member>
+        <member name="P:VirtualAssistant.Data.Dtos.Tasks.FetchedTaskInfo.Content">
+            <summary>
+            Task content/prompt.
+            </summary>
+        </member>
+        <member name="P:VirtualAssistant.Data.Dtos.Tasks.FetchedTaskInfo.CreatedAt">
+            <summary>
+            When the task was created.
+            </summary>
+        </member>
+        <member name="P:VirtualAssistant.Data.Dtos.Tasks.FetchedTaskInfo.GithubIssue">
+            <summary>
+            GitHub issue reference (e.g., "#184").
+            </summary>
+        </member>
+        <member name="T:VirtualAssistant.Data.Dtos.Tasks.FetchTaskResponse">
+            <summary>
+            Response model for fetch task endpoint.
+            </summary>
+        </member>
+        <member name="P:VirtualAssistant.Data.Dtos.Tasks.FetchTaskResponse.Success">
+            <summary>
+            Whether the operation was successful.
+            </summary>
+        </member>
+        <member name="P:VirtualAssistant.Data.Dtos.Tasks.FetchTaskResponse.Task">
+            <summary>
+            The fetched task, or null if no tasks available.
+            </summary>
+        </member>
+        <member name="P:VirtualAssistant.Data.Dtos.Tasks.FetchTaskResponse.Message">
+            <summary>
+            Optional message (e.g., "No pending tasks").
+            </summary>
+        </member>
+        <member name="T:VirtualAssistant.Data.Dtos.Tasks.NextTaskInfo">
+            <summary>
+            Information about an auto-dispatched task.
+            </summary>
+        </member>
+        <member name="P:VirtualAssistant.Data.Dtos.Tasks.NextTaskInfo.TaskId">
+            <summary>
+            Task ID of the next task.
+            </summary>
+        </member>
+        <member name="P:VirtualAssistant.Data.Dtos.Tasks.NextTaskInfo.GithubIssueNumber">
+            <summary>
+            GitHub issue number (if associated).
+            </summary>
+        </member>
+        <member name="P:VirtualAssistant.Data.Dtos.Tasks.NextTaskInfo.Summary">
+            <summary>
+            Task summary/description.
+            </summary>
+        </member>
+        <member name="T:VirtualAssistant.Data.Dtos.Tasks.SendTaskRequest">
+            <summary>
+            Request model for send task endpoint.
+            </summary>
+        </member>
+        <member name="P:VirtualAssistant.Data.Dtos.Tasks.SendTaskRequest.SourceAgent">
+            <summary>
+            Source agent name (who is sending the task).
+            </summary>
+        </member>
+        <member name="P:VirtualAssistant.Data.Dtos.Tasks.SendTaskRequest.TargetAgent">
+            <summary>
+            Target agent name (who should receive the task).
+            </summary>
+        </member>
+        <member name="P:VirtualAssistant.Data.Dtos.Tasks.SendTaskRequest.Content">
+            <summary>
+            Task content/description.
+            </summary>
+        </member>
+        <member name="P:VirtualAssistant.Data.Dtos.Tasks.SendTaskRequest.GithubIssue">
+            <summary>
+            Optional GitHub issue reference (e.g., "#123" or "123").
+            </summary>
+        </member>
+        <member name="P:VirtualAssistant.Data.Dtos.Tasks.SendTaskRequest.Priority">
+            <summary>
+            Optional priority: "normal" (default) or "high".
+            High priority tasks skip approval.
+            </summary>
+        </member>
+        <member name="T:VirtualAssistant.Data.Dtos.Tasks.SendTaskResponse">
+            <summary>
+            Response model for send task endpoint.
+            </summary>
+        </member>
+        <member name="P:VirtualAssistant.Data.Dtos.Tasks.SendTaskResponse.Success">
+            <summary>
+            Whether the task was queued successfully.
+            </summary>
+        </member>
+        <member name="P:VirtualAssistant.Data.Dtos.Tasks.SendTaskResponse.TaskId">
+            <summary>
+            ID of the created task.
+            </summary>
+        </member>
+        <member name="P:VirtualAssistant.Data.Dtos.Tasks.SendTaskResponse.Message">
+            <summary>
+            Confirmation message.
+            </summary>
+        </member>
+        <member name="T:VirtualAssistant.Data.Dtos.Tasks.TaskStatusResponse">
+            <summary>
+            Response model for task-status endpoint.
+            </summary>
+        </member>
+        <member name="P:VirtualAssistant.Data.Dtos.Tasks.TaskStatusResponse.TaskId">
+            <summary>
+            Task ID.
+            </summary>
+        </member>
+        <member name="P:VirtualAssistant.Data.Dtos.Tasks.TaskStatusResponse.GithubIssueNumber">
+            <summary>
+            GitHub issue number.
+            </summary>
+        </member>
+        <member name="P:VirtualAssistant.Data.Dtos.Tasks.TaskStatusResponse.GithubIssueUrl">
+            <summary>
+            GitHub issue URL.
+            </summary>
+        </member>
+        <member name="P:VirtualAssistant.Data.Dtos.Tasks.TaskStatusResponse.Status">
+            <summary>
+            Task status: pending, sent, completed, failed, blocked.
+            </summary>
+        </member>
+        <member name="P:VirtualAssistant.Data.Dtos.Tasks.TaskStatusResponse.Summary">
+            <summary>
+            Task summary/description.
+            </summary>
+        </member>
+        <member name="P:VirtualAssistant.Data.Dtos.Tasks.TaskStatusResponse.Result">
+            <summary>
+            Completion result (filled when completed/failed/blocked).
+            </summary>
+        </member>
+        <member name="P:VirtualAssistant.Data.Dtos.Tasks.TaskStatusResponse.CreatedByAgent">
+            <summary>
+            Agent that created this task.
+            </summary>
+        </member>
+        <member name="P:VirtualAssistant.Data.Dtos.Tasks.TaskStatusResponse.TargetAgent">
+            <summary>
+            Target agent for this task.
+            </summary>
+        </member>
+        <member name="P:VirtualAssistant.Data.Dtos.Tasks.TaskStatusResponse.CreatedAt">
+            <summary>
+            When the task was created.
+            </summary>
+        </member>
+        <member name="P:VirtualAssistant.Data.Dtos.Tasks.TaskStatusResponse.SentAt">
+            <summary>
+            When the task was sent to the target agent.
+            </summary>
+        </member>
+        <member name="P:VirtualAssistant.Data.Dtos.Tasks.TaskStatusResponse.CompletedAt">
+            <summary>
+            When the task was completed (if applicable).
+            </summary>
+        </member>
+        <member name="T:VirtualAssistant.Data.Entities.Agent">
+            <summary>
+            Represents a registered agent worker in the system.
+            Agents are AI workers like OpenCode, Claude Code, etc.
+            </summary>
+        </member>
+        <member name="P:VirtualAssistant.Data.Entities.Agent.Name">
+            <summary>
+            Unique agent identifier (e.g., "opencode", "claude").
+            </summary>
+        </member>
+        <member name="P:VirtualAssistant.Data.Entities.Agent.Label">
+            <summary>
+            GitHub label matching this agent (e.g., "agent:opencode", "agent:claude").
+            </summary>
+        </member>
+        <member name="P:VirtualAssistant.Data.Entities.Agent.IsActive">
+            <summary>
+            Whether the agent is currently active and can receive tasks.
+            </summary>
+        </member>
+        <member name="P:VirtualAssistant.Data.Entities.Agent.CreatedAt">
+            <summary>
+            When the agent was registered.
+            </summary>
+        </member>
+        <member name="P:VirtualAssistant.Data.Entities.Agent.Notifications">
+            <summary>
+            Notifications sent by this agent.
+            </summary>
+        </member>
+        <member name="T:VirtualAssistant.Data.Entities.GitHubIssue">
+            <summary>
+            Minimal reference to a GitHub issue.
+            URL can be constructed from repository + issue number.
+            </summary>
+        </member>
+        <member name="P:VirtualAssistant.Data.Entities.GitHubIssue.RepositoryId">
+            <summary>
+            Gets or sets the foreign key to the repository.
+            </summary>
+        </member>
+        <member name="P:VirtualAssistant.Data.Entities.GitHubIssue.IssueNumber">
+            <summary>
+            Gets or sets the issue number within the repository.
+            </summary>
+        </member>
+        <member name="P:VirtualAssistant.Data.Entities.GitHubIssue.Repository">
+            <summary>
+            Gets or sets the navigation property to the repository.
+            </summary>
+        </member>
+        <member name="M:VirtualAssistant.Data.Entities.GitHubIssue.GetUrl">
+            <summary>
+            Constructs the GitHub URL for this issue.
+            </summary>
+        </member>
+        <member name="T:VirtualAssistant.Data.Entities.GitHubRepository">
+            <summary>
+            Minimal reference to a GitHub repository.
+            URL can be constructed as: https://github.com/{Owner}/{Name}
+            </summary>
+        </member>
+        <member name="P:VirtualAssistant.Data.Entities.GitHubRepository.Owner">
+            <summary>
+            Gets or sets the repository owner (username or organization).
+            </summary>
+        </member>
+        <member name="P:VirtualAssistant.Data.Entities.GitHubRepository.Name">
+            <summary>
+            Gets or sets the repository name.
+            </summary>
+        </member>
+        <member name="P:VirtualAssistant.Data.Entities.GitHubRepository.Issues">
+            <summary>
+            Gets or sets the collection of issues in this repository.
+            </summary>
+        </member>
+        <member name="M:VirtualAssistant.Data.Entities.GitHubRepository.GetUrl">
+            <summary>
+            Constructs the GitHub URL for this repository.
+            </summary>
+        </member>
+        <member name="T:VirtualAssistant.Data.Entities.Notification">
+            <summary>
+            Represents a notification from an agent stored in the database.
+            </summary>
+        </member>
+        <member name="P:VirtualAssistant.Data.Entities.Notification.Text">
+            <summary>
+            Notification content/text.
+            </summary>
+        </member>
+        <member name="P:VirtualAssistant.Data.Entities.Notification.AgentId">
+            <summary>
+            Foreign key to Agent (required).
+            </summary>
+        </member>
+        <member name="P:VirtualAssistant.Data.Entities.Notification.Agent">
+            <summary>
+            Navigation property to the agent.
+            </summary>
+        </member>
+        <member name="P:VirtualAssistant.Data.Entities.Notification.CreatedAt">
+            <summary>
+            When the notification was created.
+            </summary>
+        </member>
+        <member name="P:VirtualAssistant.Data.Entities.Notification.NotificationStatusId">
+            <summary>
+            Foreign key to NotificationStatus.
+            </summary>
+        </member>
+        <member name="P:VirtualAssistant.Data.Entities.Notification.Status">
+            <summary>
+            Navigation property to the notification status.
+            </summary>
+        </member>
+        <member name="P:VirtualAssistant.Data.Entities.Notification.NotificationGitHubIssues">
+            <summary>
+            Navigation property to associated GitHub issues (many-to-many via junction table).
+            </summary>
+        </member>
+        <member name="T:VirtualAssistant.Data.Entities.NotificationGitHubIssue">
+            <summary>
+            Junction entity for many-to-many relationship between Notification and GitHub issues.
+            Stores the GitHub issue ID associated with a notification.
+            </summary>
+        </member>
+        <member name="P:VirtualAssistant.Data.Entities.NotificationGitHubIssue.NotificationId">
+            <summary>
+            Foreign key to Notification.
+            </summary>
+        </member>
+        <member name="P:VirtualAssistant.Data.Entities.NotificationGitHubIssue.GitHubIssueId">
+            <summary>
+            GitHub issue ID (from GitHub.Issues database or GitHub API).
+            </summary>
+        </member>
+        <member name="P:VirtualAssistant.Data.Entities.NotificationGitHubIssue.Notification">
+            <summary>
+            Navigation property to the notification.
+            </summary>
+        </member>
+        <member name="T:VirtualAssistant.Data.Entities.NotificationStatus">
+            <summary>
+            Reference table for notification statuses.
+            Predefined statuses: NewlyReceived, Announced, WaitingForPlayback.
+            </summary>
+        </member>
+        <member name="P:VirtualAssistant.Data.Entities.NotificationStatus.Name">
+            <summary>
+            Status name (e.g., "NewlyReceived", "Announced", "WaitingForPlayback").
+            </summary>
+        </member>
+        <member name="P:VirtualAssistant.Data.Entities.NotificationStatus.Notifications">
+            <summary>
+            Notifications with this status.
+            </summary>
+        </member>
+        <member name="T:VirtualAssistant.Data.Entities.ShutdownType">
+            <summary>
+            Represents how the system was shut down.
+            </summary>
+        </member>
+        <member name="F:VirtualAssistant.Data.Entities.ShutdownType.Unknown">
+            <summary>
+            Unknown shutdown reason.
+            </summary>
+        </member>
+        <member name="F:VirtualAssistant.Data.Entities.ShutdownType.Clean">
+            <summary>
+            Clean shutdown.
+            </summary>
+        </member>
+        <member name="F:VirtualAssistant.Data.Entities.ShutdownType.Crash">
+            <summary>
+            Crash or unexpected shutdown.
+            </summary>
+        </member>
+        <member name="T:VirtualAssistant.Data.Entities.StartupType">
+            <summary>
+            Represents the type of system startup.
+            </summary>
+        </member>
+        <member name="F:VirtualAssistant.Data.Entities.StartupType.Normal">
+            <summary>
+            Normal startup.
+            </summary>
+        </member>
+        <member name="F:VirtualAssistant.Data.Entities.StartupType.AfterCrash">
+            <summary>
+            Startup after a crash.
+            </summary>
+        </member>
+        <member name="F:VirtualAssistant.Data.Entities.StartupType.FrequentRestart">
+            <summary>
+            Frequent restart detected.
+            </summary>
+        </member>
+        <member name="F:VirtualAssistant.Data.Entities.StartupType.Development">
+            <summary>
+            Development mode startup.
+            </summary>
+        </member>
+        <member name="T:VirtualAssistant.Data.Entities.SystemStartup">
+            <summary>
+            Represents a system startup record for tracking starts and shutdowns.
+            </summary>
+        </member>
+        <member name="P:VirtualAssistant.Data.Entities.SystemStartup.StartedAt">
+            <summary>
+            Gets or sets when the system started.
+            </summary>
+        </member>
+        <member name="P:VirtualAssistant.Data.Entities.SystemStartup.ShutdownAt">
+            <summary>
+            Gets or sets when the system shut down (null = crash or still running).
+            </summary>
+        </member>
+        <member name="P:VirtualAssistant.Data.Entities.SystemStartup.ShutdownType">
+            <summary>
+            Gets or sets how the system shut down.
+            </summary>
+        </member>
+        <member name="P:VirtualAssistant.Data.Entities.SystemStartup.StartupType">
+            <summary>
+            Gets or sets what type of startup this was (determined at startup).
+            </summary>
+        </member>
+        <member name="P:VirtualAssistant.Data.Entities.SystemStartup.GreetingSpoken">
+            <summary>
+            Gets or sets the greeting that was spoken (for debugging/history).
+            </summary>
+        </member>
+        <member name="T:VirtualAssistant.Data.Entities.VoiceTranscription">
+            <summary>
+            Represents a voice transcription from Whisper.
+            </summary>
+        </member>
+        <member name="P:VirtualAssistant.Data.Entities.VoiceTranscription.TranscribedText">
+            <summary>
+            Gets or sets the transcribed text from Whisper.
+            </summary>
+        </member>
+        <member name="P:VirtualAssistant.Data.Entities.VoiceTranscription.SourceApp">
+            <summary>
+            Gets or sets which application was focused when dictating (optional).
+            </summary>
+        </member>
+        <member name="P:VirtualAssistant.Data.Entities.VoiceTranscription.DurationMs">
+            <summary>
+            Gets or sets the recording duration in milliseconds (optional).
+            </summary>
+        </member>
+        <member name="P:VirtualAssistant.Data.Entities.VoiceTranscription.CreatedAt">
+            <summary>
+            Gets or sets when the transcription was created.
+            </summary>
+        </member>
+        <member name="T:VirtualAssistant.Data.Enums.MessagePhase">
+            <summary>
+            Represents the phase of an agent message in a task workflow.
+            </summary>
+        </member>
+        <member name="F:VirtualAssistant.Data.Enums.MessagePhase.Start">
+            <summary>
+            Agent is starting work on a task.
+            </summary>
+        </member>
+        <member name="F:VirtualAssistant.Data.Enums.MessagePhase.Progress">
+            <summary>
+            Progress update during task execution.
+            </summary>
+        </member>
+        <member name="F:VirtualAssistant.Data.Enums.MessagePhase.Complete">
+            <summary>
+            Task is complete with final summary.
+            </summary>
+        </member>
+        <member name="T:VirtualAssistant.Data.Enums.NotificationStatusEnum">
+            <summary>
+            Enum representing all possible notification statuses in the workflow.
+            Values match the Id in NotificationStatus reference table.
+            </summary>
+        </member>
+        <member name="F:VirtualAssistant.Data.Enums.NotificationStatusEnum.NewlyReceived">
+            <summary>
+            Notification just received from agent, waiting to be processed.
+            </summary>
+        </member>
+        <member name="F:VirtualAssistant.Data.Enums.NotificationStatusEnum.Processing">
+            <summary>
+            VirtualAssistant picked up the notification for processing.
+            </summary>
+        </member>
+        <member name="F:VirtualAssistant.Data.Enums.NotificationStatusEnum.SentForSummarization">
+            <summary>
+            Sent to LLM for summarization.
+            </summary>
+        </member>
+        <member name="F:VirtualAssistant.Data.Enums.NotificationStatusEnum.Summarized">
+            <summary>
+            Returned from LLM, summarized.
+            </summary>
+        </member>
+        <member name="F:VirtualAssistant.Data.Enums.NotificationStatusEnum.SentForTranslation">
+            <summary>
+            Sent for translation.
+            </summary>
+        </member>
+        <member name="F:VirtualAssistant.Data.Enums.NotificationStatusEnum.Translated">
+            <summary>
+            Returned translated.
+            </summary>
+        </member>
+        <member name="F:VirtualAssistant.Data.Enums.NotificationStatusEnum.Announced">
+            <summary>
+            User was notified about pending notifications (e.g., "You have 4 new messages").
+            </summary>
+        </member>
+        <member name="F:VirtualAssistant.Data.Enums.NotificationStatusEnum.WaitingForPlayback">
+            <summary>
+            Waiting for user to decide whether to play the notification.
+            </summary>
+        </member>
+        <member name="F:VirtualAssistant.Data.Enums.NotificationStatusEnum.Played">
+            <summary>
+            Notification was played to the user.
+            </summary>
+        </member>
+        <member name="T:VirtualAssistant.Data.ITranscriptionRepository">
+            <summary>
+            Repository for managing voice transcription records.
+            </summary>
+        </member>
+        <member name="M:VirtualAssistant.Data.ITranscriptionRepository.SaveTranscriptionAsync(System.String,System.String,System.Nullable{System.Int32},System.Threading.CancellationToken)">
+            <summary>
+            Saves a new transcription record.
+            </summary>
+            <param name="text">The transcribed text.</param>
+            <param name="sourceApp">The application that was focused during dictation (optional).</param>
+            <param name="durationMs">The recording duration in milliseconds (optional).</param>
+            <param name="ct">Cancellation token.</param>
+            <returns>The saved transcription entity.</returns>
+        </member>
+        <member name="M:VirtualAssistant.Data.ITranscriptionRepository.GetRecentAsync(System.Int32,System.Threading.CancellationToken)">
+            <summary>
+            Gets the most recent transcriptions.
+            </summary>
+            <param name="count">Maximum number of transcriptions to return.</param>
+            <param name="ct">Cancellation token.</param>
+            <returns>List of recent transcriptions ordered by creation date descending.</returns>
+        </member>
+        <member name="M:VirtualAssistant.Data.ITranscriptionRepository.SearchAsync(System.String,System.Threading.CancellationToken)">
+            <summary>
+            Searches for transcriptions containing the specified query.
+            </summary>
+            <param name="query">The search query.</param>
+            <param name="ct">Cancellation token.</param>
+            <returns>List of matching transcriptions.</returns>
+        </member>
+    </members>
+</doc>

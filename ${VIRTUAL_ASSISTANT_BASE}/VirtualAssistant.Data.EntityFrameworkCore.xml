@@ -1,0 +1,397 @@
+<?xml version="1.0"?>
+<doc>
+    <assembly>
+        <name>VirtualAssistant.Data.EntityFrameworkCore</name>
+    </assembly>
+    <members>
+        <member name="T:VirtualAssistant.Data.EntityFrameworkCore.Configurations.AgentConfiguration">
+            <summary>
+            EF Core configuration for Agent entity with PostgreSQL snake_case naming.
+            </summary>
+        </member>
+        <member name="T:VirtualAssistant.Data.EntityFrameworkCore.Configurations.GitHubIssueConfiguration">
+            <summary>
+            EF Core configuration for GitHubIssue entity.
+            Minimal reference table with (repository_id, issue_number) unique constraint.
+            </summary>
+        </member>
+        <member name="T:VirtualAssistant.Data.EntityFrameworkCore.Configurations.GitHubRepositoryConfiguration">
+            <summary>
+            EF Core configuration for GitHubRepository entity.
+            Minimal reference table with (owner, name) unique constraint.
+            </summary>
+        </member>
+        <member name="T:VirtualAssistant.Data.EntityFrameworkCore.Configurations.NotificationConfiguration">
+            <summary>
+            EF Core configuration for Notification entity.
+            </summary>
+        </member>
+        <member name="T:VirtualAssistant.Data.EntityFrameworkCore.Configurations.NotificationGitHubIssueConfiguration">
+            <summary>
+            EF Core configuration for NotificationGitHubIssue junction entity.
+            Enables many-to-many relationship between Notification and GitHub issues.
+            </summary>
+        </member>
+        <member name="T:VirtualAssistant.Data.EntityFrameworkCore.Configurations.NotificationStatusConfiguration">
+            <summary>
+            EF Core configuration for NotificationStatus entity.
+            </summary>
+        </member>
+        <member name="T:VirtualAssistant.Data.EntityFrameworkCore.Configurations.SystemStartupConfiguration">
+            <summary>
+            EF Core configuration for SystemStartup entity with PostgreSQL snake_case naming.
+            </summary>
+        </member>
+        <member name="T:VirtualAssistant.Data.EntityFrameworkCore.Configurations.VoiceTranscriptionConfiguration">
+            <summary>
+            EF Core configuration for VoiceTranscription entity with PostgreSQL snake_case naming.
+            </summary>
+        </member>
+        <member name="T:VirtualAssistant.Data.EntityFrameworkCore.DesignTimeVirtualAssistantDbContextFactory">
+            <summary>
+            Factory for creating VirtualAssistantDbContext at design time (for EF Core migrations).
+            </summary>
+        </member>
+        <member name="T:VirtualAssistant.Data.EntityFrameworkCore.Migrations.InitialCreate">
+            <inheritdoc />
+        </member>
+        <member name="M:VirtualAssistant.Data.EntityFrameworkCore.Migrations.InitialCreate.Up(Microsoft.EntityFrameworkCore.Migrations.MigrationBuilder)">
+            <inheritdoc />
+        </member>
+        <member name="M:VirtualAssistant.Data.EntityFrameworkCore.Migrations.InitialCreate.Down(Microsoft.EntityFrameworkCore.Migrations.MigrationBuilder)">
+            <inheritdoc />
+        </member>
+        <member name="M:VirtualAssistant.Data.EntityFrameworkCore.Migrations.InitialCreate.BuildTargetModel(Microsoft.EntityFrameworkCore.ModelBuilder)">
+            <inheritdoc />
+        </member>
+        <member name="T:VirtualAssistant.Data.EntityFrameworkCore.Migrations.AddVoiceTranscriptionAndSystemStartup">
+            <inheritdoc />
+        </member>
+        <member name="M:VirtualAssistant.Data.EntityFrameworkCore.Migrations.AddVoiceTranscriptionAndSystemStartup.Up(Microsoft.EntityFrameworkCore.Migrations.MigrationBuilder)">
+            <inheritdoc />
+        </member>
+        <member name="M:VirtualAssistant.Data.EntityFrameworkCore.Migrations.AddVoiceTranscriptionAndSystemStartup.Down(Microsoft.EntityFrameworkCore.Migrations.MigrationBuilder)">
+            <inheritdoc />
+        </member>
+        <member name="M:VirtualAssistant.Data.EntityFrameworkCore.Migrations.AddVoiceTranscriptionAndSystemStartup.BuildTargetModel(Microsoft.EntityFrameworkCore.ModelBuilder)">
+            <inheritdoc />
+        </member>
+        <member name="T:VirtualAssistant.Data.EntityFrameworkCore.Migrations.AddGitHubEntities">
+            <inheritdoc />
+        </member>
+        <member name="M:VirtualAssistant.Data.EntityFrameworkCore.Migrations.AddGitHubEntities.Up(Microsoft.EntityFrameworkCore.Migrations.MigrationBuilder)">
+            <inheritdoc />
+        </member>
+        <member name="M:VirtualAssistant.Data.EntityFrameworkCore.Migrations.AddGitHubEntities.Down(Microsoft.EntityFrameworkCore.Migrations.MigrationBuilder)">
+            <inheritdoc />
+        </member>
+        <member name="M:VirtualAssistant.Data.EntityFrameworkCore.Migrations.AddGitHubEntities.BuildTargetModel(Microsoft.EntityFrameworkCore.ModelBuilder)">
+            <inheritdoc />
+        </member>
+        <member name="T:VirtualAssistant.Data.EntityFrameworkCore.Migrations.AddGitHubIssueAgents">
+            <inheritdoc />
+        </member>
+        <member name="M:VirtualAssistant.Data.EntityFrameworkCore.Migrations.AddGitHubIssueAgents.Up(Microsoft.EntityFrameworkCore.Migrations.MigrationBuilder)">
+            <inheritdoc />
+        </member>
+        <member name="M:VirtualAssistant.Data.EntityFrameworkCore.Migrations.AddGitHubIssueAgents.Down(Microsoft.EntityFrameworkCore.Migrations.MigrationBuilder)">
+            <inheritdoc />
+        </member>
+        <member name="M:VirtualAssistant.Data.EntityFrameworkCore.Migrations.AddGitHubIssueAgents.BuildTargetModel(Microsoft.EntityFrameworkCore.ModelBuilder)">
+            <inheritdoc />
+        </member>
+        <member name="T:VirtualAssistant.Data.EntityFrameworkCore.Migrations.AddAgentMessage">
+            <inheritdoc />
+        </member>
+        <member name="M:VirtualAssistant.Data.EntityFrameworkCore.Migrations.AddAgentMessage.Up(Microsoft.EntityFrameworkCore.Migrations.MigrationBuilder)">
+            <inheritdoc />
+        </member>
+        <member name="M:VirtualAssistant.Data.EntityFrameworkCore.Migrations.AddAgentMessage.Down(Microsoft.EntityFrameworkCore.Migrations.MigrationBuilder)">
+            <inheritdoc />
+        </member>
+        <member name="M:VirtualAssistant.Data.EntityFrameworkCore.Migrations.AddAgentMessage.BuildTargetModel(Microsoft.EntityFrameworkCore.ModelBuilder)">
+            <inheritdoc />
+        </member>
+        <member name="T:VirtualAssistant.Data.EntityFrameworkCore.Migrations.AddIssueEmbeddings">
+            <inheritdoc />
+        </member>
+        <member name="M:VirtualAssistant.Data.EntityFrameworkCore.Migrations.AddIssueEmbeddings.Up(Microsoft.EntityFrameworkCore.Migrations.MigrationBuilder)">
+            <inheritdoc />
+        </member>
+        <member name="M:VirtualAssistant.Data.EntityFrameworkCore.Migrations.AddIssueEmbeddings.Down(Microsoft.EntityFrameworkCore.Migrations.MigrationBuilder)">
+            <inheritdoc />
+        </member>
+        <member name="M:VirtualAssistant.Data.EntityFrameworkCore.Migrations.AddIssueEmbeddings.BuildTargetModel(Microsoft.EntityFrameworkCore.ModelBuilder)">
+            <inheritdoc />
+        </member>
+        <member name="T:VirtualAssistant.Data.EntityFrameworkCore.Migrations.ChangeEmbeddingDimensions">
+            <inheritdoc />
+            <remarks>
+            Changes embedding dimensions from 1536 (text-embedding-3-small) to 768 (nomic-embed-text).
+            Existing embeddings are cleared and must be regenerated.
+            </remarks>
+        </member>
+        <member name="M:VirtualAssistant.Data.EntityFrameworkCore.Migrations.ChangeEmbeddingDimensions.Up(Microsoft.EntityFrameworkCore.Migrations.MigrationBuilder)">
+            <inheritdoc />
+        </member>
+        <member name="M:VirtualAssistant.Data.EntityFrameworkCore.Migrations.ChangeEmbeddingDimensions.Down(Microsoft.EntityFrameworkCore.Migrations.MigrationBuilder)">
+            <inheritdoc />
+        </member>
+        <member name="M:VirtualAssistant.Data.EntityFrameworkCore.Migrations.ChangeEmbeddingDimensions.BuildTargetModel(Microsoft.EntityFrameworkCore.ModelBuilder)">
+            <inheritdoc />
+        </member>
+        <member name="T:VirtualAssistant.Data.EntityFrameworkCore.Migrations.AddMessagePhaseAndParent">
+            <inheritdoc />
+        </member>
+        <member name="M:VirtualAssistant.Data.EntityFrameworkCore.Migrations.AddMessagePhaseAndParent.Up(Microsoft.EntityFrameworkCore.Migrations.MigrationBuilder)">
+            <inheritdoc />
+        </member>
+        <member name="M:VirtualAssistant.Data.EntityFrameworkCore.Migrations.AddMessagePhaseAndParent.Down(Microsoft.EntityFrameworkCore.Migrations.MigrationBuilder)">
+            <inheritdoc />
+        </member>
+        <member name="M:VirtualAssistant.Data.EntityFrameworkCore.Migrations.AddMessagePhaseAndParent.BuildTargetModel(Microsoft.EntityFrameworkCore.ModelBuilder)">
+            <inheritdoc />
+        </member>
+        <member name="T:VirtualAssistant.Data.EntityFrameworkCore.Migrations.AddSessionIdAndLogging">
+            <inheritdoc />
+        </member>
+        <member name="M:VirtualAssistant.Data.EntityFrameworkCore.Migrations.AddSessionIdAndLogging.Up(Microsoft.EntityFrameworkCore.Migrations.MigrationBuilder)">
+            <inheritdoc />
+        </member>
+        <member name="M:VirtualAssistant.Data.EntityFrameworkCore.Migrations.AddSessionIdAndLogging.Down(Microsoft.EntityFrameworkCore.Migrations.MigrationBuilder)">
+            <inheritdoc />
+        </member>
+        <member name="M:VirtualAssistant.Data.EntityFrameworkCore.Migrations.AddSessionIdAndLogging.BuildTargetModel(Microsoft.EntityFrameworkCore.ModelBuilder)">
+            <inheritdoc />
+        </member>
+        <member name="T:VirtualAssistant.Data.EntityFrameworkCore.Migrations.AddAgentTaskQueue">
+            <inheritdoc />
+        </member>
+        <member name="M:VirtualAssistant.Data.EntityFrameworkCore.Migrations.AddAgentTaskQueue.Up(Microsoft.EntityFrameworkCore.Migrations.MigrationBuilder)">
+            <inheritdoc />
+        </member>
+        <member name="M:VirtualAssistant.Data.EntityFrameworkCore.Migrations.AddAgentTaskQueue.Down(Microsoft.EntityFrameworkCore.Migrations.MigrationBuilder)">
+            <inheritdoc />
+        </member>
+        <member name="M:VirtualAssistant.Data.EntityFrameworkCore.Migrations.AddAgentTaskQueue.BuildTargetModel(Microsoft.EntityFrameworkCore.ModelBuilder)">
+            <inheritdoc />
+        </member>
+        <member name="T:VirtualAssistant.Data.EntityFrameworkCore.Migrations.AddAgentTaskNotifiedAt">
+            <inheritdoc />
+        </member>
+        <member name="M:VirtualAssistant.Data.EntityFrameworkCore.Migrations.AddAgentTaskNotifiedAt.Up(Microsoft.EntityFrameworkCore.Migrations.MigrationBuilder)">
+            <inheritdoc />
+        </member>
+        <member name="M:VirtualAssistant.Data.EntityFrameworkCore.Migrations.AddAgentTaskNotifiedAt.Down(Microsoft.EntityFrameworkCore.Migrations.MigrationBuilder)">
+            <inheritdoc />
+        </member>
+        <member name="M:VirtualAssistant.Data.EntityFrameworkCore.Migrations.AddAgentTaskNotifiedAt.BuildTargetModel(Microsoft.EntityFrameworkCore.ModelBuilder)">
+            <inheritdoc />
+        </member>
+        <member name="T:VirtualAssistant.Data.EntityFrameworkCore.Migrations.AddAgentResponse">
+            <inheritdoc />
+        </member>
+        <member name="M:VirtualAssistant.Data.EntityFrameworkCore.Migrations.AddAgentResponse.Up(Microsoft.EntityFrameworkCore.Migrations.MigrationBuilder)">
+            <inheritdoc />
+        </member>
+        <member name="M:VirtualAssistant.Data.EntityFrameworkCore.Migrations.AddAgentResponse.Down(Microsoft.EntityFrameworkCore.Migrations.MigrationBuilder)">
+            <inheritdoc />
+        </member>
+        <member name="M:VirtualAssistant.Data.EntityFrameworkCore.Migrations.AddAgentResponse.BuildTargetModel(Microsoft.EntityFrameworkCore.ModelBuilder)">
+            <inheritdoc />
+        </member>
+        <member name="T:VirtualAssistant.Data.EntityFrameworkCore.Migrations.RemoveConversationsAndMessages">
+            <inheritdoc />
+        </member>
+        <member name="M:VirtualAssistant.Data.EntityFrameworkCore.Migrations.RemoveConversationsAndMessages.Up(Microsoft.EntityFrameworkCore.Migrations.MigrationBuilder)">
+            <inheritdoc />
+        </member>
+        <member name="M:VirtualAssistant.Data.EntityFrameworkCore.Migrations.RemoveConversationsAndMessages.Down(Microsoft.EntityFrameworkCore.Migrations.MigrationBuilder)">
+            <inheritdoc />
+        </member>
+        <member name="M:VirtualAssistant.Data.EntityFrameworkCore.Migrations.RemoveConversationsAndMessages.BuildTargetModel(Microsoft.EntityFrameworkCore.ModelBuilder)">
+            <inheritdoc />
+        </member>
+        <member name="T:VirtualAssistant.Data.EntityFrameworkCore.Migrations.AddAgentTaskDispatchColumns">
+            <inheritdoc />
+        </member>
+        <member name="M:VirtualAssistant.Data.EntityFrameworkCore.Migrations.AddAgentTaskDispatchColumns.Up(Microsoft.EntityFrameworkCore.Migrations.MigrationBuilder)">
+            <inheritdoc />
+        </member>
+        <member name="M:VirtualAssistant.Data.EntityFrameworkCore.Migrations.AddAgentTaskDispatchColumns.Down(Microsoft.EntityFrameworkCore.Migrations.MigrationBuilder)">
+            <inheritdoc />
+        </member>
+        <member name="M:VirtualAssistant.Data.EntityFrameworkCore.Migrations.AddAgentTaskDispatchColumns.BuildTargetModel(Microsoft.EntityFrameworkCore.ModelBuilder)">
+            <inheritdoc />
+        </member>
+        <member name="T:VirtualAssistant.Data.EntityFrameworkCore.Migrations.RefactorAgentResponseWithTaskLink">
+            <inheritdoc />
+        </member>
+        <member name="M:VirtualAssistant.Data.EntityFrameworkCore.Migrations.RefactorAgentResponseWithTaskLink.Up(Microsoft.EntityFrameworkCore.Migrations.MigrationBuilder)">
+            <inheritdoc />
+        </member>
+        <member name="M:VirtualAssistant.Data.EntityFrameworkCore.Migrations.RefactorAgentResponseWithTaskLink.Down(Microsoft.EntityFrameworkCore.Migrations.MigrationBuilder)">
+            <inheritdoc />
+        </member>
+        <member name="M:VirtualAssistant.Data.EntityFrameworkCore.Migrations.RefactorAgentResponseWithTaskLink.BuildTargetModel(Microsoft.EntityFrameworkCore.ModelBuilder)">
+            <inheritdoc />
+        </member>
+        <member name="T:VirtualAssistant.Data.EntityFrameworkCore.Migrations.AddUniqueIndexGithubIssueNumber">
+            <inheritdoc />
+        </member>
+        <member name="M:VirtualAssistant.Data.EntityFrameworkCore.Migrations.AddUniqueIndexGithubIssueNumber.Up(Microsoft.EntityFrameworkCore.Migrations.MigrationBuilder)">
+            <inheritdoc />
+        </member>
+        <member name="M:VirtualAssistant.Data.EntityFrameworkCore.Migrations.AddUniqueIndexGithubIssueNumber.Down(Microsoft.EntityFrameworkCore.Migrations.MigrationBuilder)">
+            <inheritdoc />
+        </member>
+        <member name="M:VirtualAssistant.Data.EntityFrameworkCore.Migrations.AddUniqueIndexGithubIssueNumber.BuildTargetModel(Microsoft.EntityFrameworkCore.ModelBuilder)">
+            <inheritdoc />
+        </member>
+        <member name="T:VirtualAssistant.Data.EntityFrameworkCore.Migrations.ReduceGitHubSchemaToMinimal">
+            <inheritdoc />
+        </member>
+        <member name="M:VirtualAssistant.Data.EntityFrameworkCore.Migrations.ReduceGitHubSchemaToMinimal.Up(Microsoft.EntityFrameworkCore.Migrations.MigrationBuilder)">
+            <inheritdoc />
+        </member>
+        <member name="M:VirtualAssistant.Data.EntityFrameworkCore.Migrations.ReduceGitHubSchemaToMinimal.Down(Microsoft.EntityFrameworkCore.Migrations.MigrationBuilder)">
+            <inheritdoc />
+        </member>
+        <member name="M:VirtualAssistant.Data.EntityFrameworkCore.Migrations.ReduceGitHubSchemaToMinimal.BuildTargetModel(Microsoft.EntityFrameworkCore.ModelBuilder)">
+            <inheritdoc />
+        </member>
+        <member name="T:VirtualAssistant.Data.EntityFrameworkCore.Migrations.DropAgentMessagingTables">
+            <inheritdoc />
+        </member>
+        <member name="M:VirtualAssistant.Data.EntityFrameworkCore.Migrations.DropAgentMessagingTables.Up(Microsoft.EntityFrameworkCore.Migrations.MigrationBuilder)">
+            <inheritdoc />
+        </member>
+        <member name="M:VirtualAssistant.Data.EntityFrameworkCore.Migrations.DropAgentMessagingTables.Down(Microsoft.EntityFrameworkCore.Migrations.MigrationBuilder)">
+            <inheritdoc />
+        </member>
+        <member name="M:VirtualAssistant.Data.EntityFrameworkCore.Migrations.DropAgentMessagingTables.BuildTargetModel(Microsoft.EntityFrameworkCore.ModelBuilder)">
+            <inheritdoc />
+        </member>
+        <member name="T:VirtualAssistant.Data.EntityFrameworkCore.Migrations.DropAgentTasksTable">
+            <inheritdoc />
+        </member>
+        <member name="M:VirtualAssistant.Data.EntityFrameworkCore.Migrations.DropAgentTasksTable.Up(Microsoft.EntityFrameworkCore.Migrations.MigrationBuilder)">
+            <inheritdoc />
+        </member>
+        <member name="M:VirtualAssistant.Data.EntityFrameworkCore.Migrations.DropAgentTasksTable.Down(Microsoft.EntityFrameworkCore.Migrations.MigrationBuilder)">
+            <inheritdoc />
+        </member>
+        <member name="M:VirtualAssistant.Data.EntityFrameworkCore.Migrations.DropAgentTasksTable.BuildTargetModel(Microsoft.EntityFrameworkCore.ModelBuilder)">
+            <inheritdoc />
+        </member>
+        <member name="T:VirtualAssistant.Data.EntityFrameworkCore.Migrations.AddNotificationSystem">
+            <inheritdoc />
+        </member>
+        <member name="M:VirtualAssistant.Data.EntityFrameworkCore.Migrations.AddNotificationSystem.Up(Microsoft.EntityFrameworkCore.Migrations.MigrationBuilder)">
+            <inheritdoc />
+        </member>
+        <member name="M:VirtualAssistant.Data.EntityFrameworkCore.Migrations.AddNotificationSystem.Down(Microsoft.EntityFrameworkCore.Migrations.MigrationBuilder)">
+            <inheritdoc />
+        </member>
+        <member name="M:VirtualAssistant.Data.EntityFrameworkCore.Migrations.AddNotificationSystem.BuildTargetModel(Microsoft.EntityFrameworkCore.ModelBuilder)">
+            <inheritdoc />
+        </member>
+        <member name="T:VirtualAssistant.Data.EntityFrameworkCore.Migrations.AddNotificationStatusWorkflow">
+            <inheritdoc />
+        </member>
+        <member name="M:VirtualAssistant.Data.EntityFrameworkCore.Migrations.AddNotificationStatusWorkflow.Up(Microsoft.EntityFrameworkCore.Migrations.MigrationBuilder)">
+            <inheritdoc />
+        </member>
+        <member name="M:VirtualAssistant.Data.EntityFrameworkCore.Migrations.AddNotificationStatusWorkflow.Down(Microsoft.EntityFrameworkCore.Migrations.MigrationBuilder)">
+            <inheritdoc />
+        </member>
+        <member name="M:VirtualAssistant.Data.EntityFrameworkCore.Migrations.AddNotificationStatusWorkflow.BuildTargetModel(Microsoft.EntityFrameworkCore.ModelBuilder)">
+            <inheritdoc />
+        </member>
+        <member name="T:VirtualAssistant.Data.EntityFrameworkCore.Migrations.AddNotificationGitHubIssuesJunctionTable">
+            <inheritdoc />
+        </member>
+        <member name="M:VirtualAssistant.Data.EntityFrameworkCore.Migrations.AddNotificationGitHubIssuesJunctionTable.Up(Microsoft.EntityFrameworkCore.Migrations.MigrationBuilder)">
+            <inheritdoc />
+        </member>
+        <member name="M:VirtualAssistant.Data.EntityFrameworkCore.Migrations.AddNotificationGitHubIssuesJunctionTable.Down(Microsoft.EntityFrameworkCore.Migrations.MigrationBuilder)">
+            <inheritdoc />
+        </member>
+        <member name="M:VirtualAssistant.Data.EntityFrameworkCore.Migrations.AddNotificationGitHubIssuesJunctionTable.BuildTargetModel(Microsoft.EntityFrameworkCore.ModelBuilder)">
+            <inheritdoc />
+        </member>
+        <member name="T:VirtualAssistant.Data.EntityFrameworkCore.ServiceCollectionExtensions">
+            <summary>
+            Extension methods for registering VirtualAssistant data services in DI container.
+            </summary>
+        </member>
+        <member name="M:VirtualAssistant.Data.EntityFrameworkCore.ServiceCollectionExtensions.AddVirtualAssistantData(Microsoft.Extensions.DependencyInjection.IServiceCollection,System.String,Microsoft.Extensions.DependencyInjection.ServiceLifetime)">
+            <summary>
+            Adds VirtualAssistant DbContext and CQRS handlers to the service collection.
+            </summary>
+            <param name="services">The service collection.</param>
+            <param name="connectionString">PostgreSQL connection string.</param>
+            <param name="lifetime">Service lifetime for CQRS handlers (default: Scoped).</param>
+            <returns>The service collection for chaining.</returns>
+        </member>
+        <member name="T:VirtualAssistant.Data.EntityFrameworkCore.TranscriptionRepository">
+            <summary>
+            Entity Framework Core implementation of ITranscriptionRepository.
+            </summary>
+        </member>
+        <member name="M:VirtualAssistant.Data.EntityFrameworkCore.TranscriptionRepository.SaveTranscriptionAsync(System.String,System.String,System.Nullable{System.Int32},System.Threading.CancellationToken)">
+            <inheritdoc />
+        </member>
+        <member name="M:VirtualAssistant.Data.EntityFrameworkCore.TranscriptionRepository.GetRecentAsync(System.Int32,System.Threading.CancellationToken)">
+            <inheritdoc />
+        </member>
+        <member name="M:VirtualAssistant.Data.EntityFrameworkCore.TranscriptionRepository.SearchAsync(System.String,System.Threading.CancellationToken)">
+            <inheritdoc />
+        </member>
+        <member name="T:VirtualAssistant.Data.EntityFrameworkCore.VirtualAssistantDbContext">
+            <summary>
+            Database context for VirtualAssistant using PostgreSQL.
+            </summary>
+        </member>
+        <member name="P:VirtualAssistant.Data.EntityFrameworkCore.VirtualAssistantDbContext.VoiceTranscriptions">
+            <summary>
+            Gets or sets the VoiceTranscriptions DbSet.
+            </summary>
+        </member>
+        <member name="P:VirtualAssistant.Data.EntityFrameworkCore.VirtualAssistantDbContext.SystemStartups">
+            <summary>
+            Gets or sets the SystemStartups DbSet.
+            </summary>
+        </member>
+        <member name="P:VirtualAssistant.Data.EntityFrameworkCore.VirtualAssistantDbContext.GitHubRepositories">
+            <summary>
+            Gets or sets the GitHubRepositories DbSet.
+            </summary>
+        </member>
+        <member name="P:VirtualAssistant.Data.EntityFrameworkCore.VirtualAssistantDbContext.GitHubIssues">
+            <summary>
+            Gets or sets the GitHubIssues DbSet.
+            </summary>
+        </member>
+        <member name="P:VirtualAssistant.Data.EntityFrameworkCore.VirtualAssistantDbContext.Agents">
+            <summary>
+            Gets or sets the Agents DbSet for registered agent workers.
+            </summary>
+        </member>
+        <member name="P:VirtualAssistant.Data.EntityFrameworkCore.VirtualAssistantDbContext.NotificationStatuses">
+            <summary>
+            Gets or sets the NotificationStatuses DbSet (reference table).
+            </summary>
+        </member>
+        <member name="P:VirtualAssistant.Data.EntityFrameworkCore.VirtualAssistantDbContext.Notifications">
+            <summary>
+            Gets or sets the Notifications DbSet for agent notifications.
+            </summary>
+        </member>
+        <member name="P:VirtualAssistant.Data.EntityFrameworkCore.VirtualAssistantDbContext.NotificationGitHubIssues">
+            <summary>
+            Gets or sets the NotificationGitHubIssues DbSet (junction table).
+            </summary>
+        </member>
+    </members>
+</doc>
