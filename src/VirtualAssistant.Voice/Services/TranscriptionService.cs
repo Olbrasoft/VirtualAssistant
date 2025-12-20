@@ -41,9 +41,10 @@ public class TranscriptionService : IDisposable
 
         // Use single model for everything to avoid SIGSEGV crashes
         // Two WhisperFactory instances sharing CUDA context cause segfaults
-        _logger.LogInformation("Loading Whisper model from: {Path}", _options.WhisperModelPath);
+        var modelPath = _options.GetFullWhisperModelPath();
+        _logger.LogInformation("Loading Whisper model from: {Path}", modelPath);
         var whisperLogger = loggerFactory.CreateLogger<WhisperNetTranscriber>();
-        _transcriber = new WhisperNetTranscriber(whisperLogger, _options.WhisperModelPath, _options.WhisperLanguage);
+        _transcriber = new WhisperNetTranscriber(whisperLogger, modelPath, _options.WhisperLanguage);
         _logger.LogInformation("Whisper model loaded (single model for all transcription)");
     }
 

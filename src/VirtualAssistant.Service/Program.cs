@@ -22,8 +22,10 @@ public class Program
     public static void Main(string[] args)
     {
         // Load configuration early to get lock file path
+        // In production: /opt/olbrasoft/virtual-assistant/app/../config/appsettings.json
+        var configPath = Path.Combine(AppContext.BaseDirectory, "../config/appsettings.json");
         var earlyConfig = new ConfigurationBuilder()
-            .AddJsonFile("appsettings.json", optional: true)
+            .AddJsonFile(configPath, optional: true)
             .AddEnvironmentVariables()
             .Build();
 
@@ -52,7 +54,7 @@ public class Program
 
         // Configuration
         builder.Configuration
-            .AddJsonFile("appsettings.json", optional: true, reloadOnChange: true)
+            .AddJsonFile(configPath, optional: true, reloadOnChange: true)
             .AddEnvironmentVariables();
 
         // Register all services

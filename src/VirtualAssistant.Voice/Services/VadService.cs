@@ -32,10 +32,11 @@ public class VadService : IDisposable
         configuration.GetSection(ContinuousListenerOptions.SectionName).Bind(_options);
 
         // Load Silero VAD model - resolve relative path
+        // If relative, models are in ../models/ (outside app/ directory)
         var modelPath = _options.SileroVadModelPath;
         if (!Path.IsPathRooted(modelPath))
         {
-            modelPath = Path.Combine(AppContext.BaseDirectory, modelPath);
+            modelPath = Path.Combine(AppContext.BaseDirectory, "..", modelPath);
         }
 
         _logger.LogInformation("Loading Silero VAD model from: {Path}", modelPath);

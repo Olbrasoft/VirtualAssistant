@@ -84,4 +84,23 @@ public class ContinuousListenerOptions
     public int ChunkSizeBytes => SampleRate * VadChunkMs / 1000 * 2; // 16-bit = 2 bytes per sample
     public int PreBufferMaxBytes => SampleRate * PreBufferMs / 1000 * 2;
     public int MaxSegmentBytes => SampleRate * MaxSegmentMs / 1000 * 2; // Max audio size for transcription
+
+    /// <summary>
+    /// Gets the full path for WhisperModelPath, resolving relative paths.
+    /// If WhisperModelPath is just a filename (no path separators), uses WhisperModelLocator
+    /// to find the model in FHS-compliant locations (~/.local/share/whisper-models/).
+    /// </summary>
+    public string GetFullWhisperModelPath()
+    {
+        // If it's just a filename (no path separators), use WhisperModelLocator
+        if (!Path.IsPathRooted(WhisperModelPath) && !WhisperModelPath.Contains('/') && !WhisperModelPath.Contains('\\'))
+        {
+            return WhisperModelLocator.GetModelPath(WhisperModelPath);
+        }
+
+        // Legacy: absolute path or relative to base directory
+        return Path.IsPathRooted(WhisperModelPath)
+            ? WhisperModelPath
+            : Path.Combine(AppContext.BaseDirectory, WhisperModelPath);
+    }
 }
