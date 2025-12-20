@@ -121,8 +121,8 @@ public class NotificationBatchingService : INotificationBatchingService, IDispos
             // Wait for speech lock to be released before speaking
             await WaitForSpeechUnlockAsync();
 
-            // Speak the text directly
-            await _speaker.SpeakAsync(text, notification.Agent);
+            // Speak the text directly - skip cache for notifications (each is unique with timestamps/dynamic content)
+            await _speaker.SpeakAsync(text, notification.Agent, skipCache: true);
 
             // Update status to Played after successful TTS
             if (notification.NotificationId.HasValue)

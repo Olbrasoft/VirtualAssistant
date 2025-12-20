@@ -95,7 +95,7 @@ public class NotificationBatchingServiceTests : IDisposable
         // Assert - notification was processed immediately (queue is empty)
         Assert.Equal(0, _sut.PendingCount);
         _speakerMock.Verify(
-            x => x.SpeakAsync("Test notification", "test-agent"),
+            x => x.SpeakAsync("Test notification", "test-agent", true, It.IsAny<CancellationToken>()),
             Times.Once);
     }
 
@@ -125,9 +125,9 @@ public class NotificationBatchingServiceTests : IDisposable
         // Act
         await _sut.FlushAsync();
 
-        // Assert - text goes directly to TTS
+        // Assert - text goes directly to TTS (with skipCache=true for notifications)
         _speakerMock.Verify(
-            x => x.SpeakAsync("Začínám pracovat na úkolu.", "claude-code"),
+            x => x.SpeakAsync("Začínám pracovat na úkolu.", "claude-code", true, It.IsAny<CancellationToken>()),
             Times.Once);
     }
 
@@ -138,8 +138,8 @@ public class NotificationBatchingServiceTests : IDisposable
         var processedTexts = new List<string>();
 
         _speakerMock
-            .Setup(x => x.SpeakAsync(It.IsAny<string>(), It.IsAny<string?>(), It.IsAny<CancellationToken>()))
-            .Callback<string, string?, CancellationToken>((text, _, _) => processedTexts.Add(text))
+            .Setup(x => x.SpeakAsync(It.IsAny<string>(), It.IsAny<string?>(), It.IsAny<bool>(), It.IsAny<CancellationToken>()))
+            .Callback<string, string?, bool, CancellationToken>((text, _, _, _) => processedTexts.Add(text))
             .Returns(Task.CompletedTask);
 
         var notification1 = new AgentNotification
@@ -178,7 +178,7 @@ public class NotificationBatchingServiceTests : IDisposable
 
         // Assert
         _speakerMock.Verify(
-            x => x.SpeakAsync(It.IsAny<string>(), It.IsAny<string?>()),
+            x => x.SpeakAsync(It.IsAny<string>(), It.IsAny<string?>(), It.IsAny<bool>(), It.IsAny<CancellationToken>()),
             Times.Never);
     }
 
@@ -208,9 +208,9 @@ public class NotificationBatchingServiceTests : IDisposable
         // Wait for async processing (including polling delays)
         await Task.Delay(1500);
 
-        // Assert - notification was eventually processed
+        // Assert - notification was eventually processed (with skipCache=true)
         _speakerMock.Verify(
-            x => x.SpeakAsync("Test notification", "test-agent"),
+            x => x.SpeakAsync("Test notification", "test-agent", true, It.IsAny<CancellationToken>()),
             Times.Once);
     }
 }

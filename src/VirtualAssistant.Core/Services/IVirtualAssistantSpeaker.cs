@@ -23,8 +23,9 @@ public interface IVirtualAssistantSpeaker
     /// </summary>
     /// <param name="text">Text to speak</param>
     /// <param name="agentName">Optional agent name for workspace detection (e.g., "opencode", "claude")</param>
+    /// <param name="skipCache">If true, bypasses TTS cache and always generates fresh audio (use for notifications with dynamic content)</param>
     /// <param name="ct">Cancellation token</param>
-    Task SpeakAsync(string text, string? agentName = null, CancellationToken ct = default);
+    Task SpeakAsync(string text, string? agentName = null, bool skipCache = false, CancellationToken ct = default);
 
     /// <summary>
     /// Cancels currently playing speech.

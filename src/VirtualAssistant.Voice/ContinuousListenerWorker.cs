@@ -445,17 +445,17 @@ public class ContinuousListenerWorker : BackgroundService
             var preview = response.Text?.Length > 50 ? response.Text[..50] + "..." : response.Text;
             _logger.LogInformation("Text copied to clipboard: \"{Text}\"", preview);
             var phrase = _repeatTextIntent.GetRandomClipboardResponse();
-            await _speaker.SpeakAsync(phrase, agentName: null, cancellationToken);
+            await _speaker.SpeakAsync(phrase, agentName: null, ct: cancellationToken);
         }
         else if (error == "No text in history")
         {
             _logger.LogWarning("No text in history");
-            await _speaker.SpeakAsync("Zadny text v historii.", agentName: null, cancellationToken);
+            await _speaker.SpeakAsync("Zadny text v historii.", agentName: null, ct: cancellationToken);
         }
         else
         {
             _logger.LogError("PTT repeat failed: {Error}", error);
-            await _speaker.SpeakAsync("Nepodarilo se ziskat text.", agentName: null, cancellationToken);
+            await _speaker.SpeakAsync("Nepodarilo se ziskat text.", agentName: null, ct: cancellationToken);
         }
     }
 
@@ -472,7 +472,7 @@ public class ContinuousListenerWorker : BackgroundService
             var ttsMessage = response.GithubIssueNumber.HasValue
                 ? $"Posilam ukol cislo {response.GithubIssueNumber}."
                 : "Ukol odeslan.";
-            await _speaker.SpeakAsync(ttsMessage, agentName: null, cancellationToken);
+            await _speaker.SpeakAsync(ttsMessage, agentName: null, ct: cancellationToken);
         }
         else if (response != null)
         {
@@ -484,12 +484,12 @@ public class ContinuousListenerWorker : BackgroundService
                 "no_pending_tasks" => "Zadne cekajici ukoly.",
                 _ => response.Message ?? "Nepodarilo se odeslat ukol."
             };
-            await _speaker.SpeakAsync(ttsMessage, agentName: null, cancellationToken);
+            await _speaker.SpeakAsync(ttsMessage, agentName: null, ct: cancellationToken);
         }
         else
         {
             _logger.LogError("Dispatch failed: {Error}", error);
-            await _speaker.SpeakAsync("Chyba pri odesilani ukolu.", agentName: null, cancellationToken);
+            await _speaker.SpeakAsync("Chyba pri odesilani ukolu.", agentName: null, ct: cancellationToken);
         }
     }
 

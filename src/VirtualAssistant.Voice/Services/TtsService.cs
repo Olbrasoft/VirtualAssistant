@@ -59,8 +59,9 @@ public sealed class TtsService : IDisposable
     /// </summary>
     /// <param name="text">Text to speak</param>
     /// <param name="source">AI client identifier for voice selection (e.g., "opencode", "claudecode")</param>
+    /// <param name="skipCache">If true, bypasses cache and always generates fresh audio</param>
     /// <param name="cancellationToken">Cancellation token</param>
-    public async Task SpeakAsync(string text, string? source = null, CancellationToken cancellationToken = default)
+    public async Task SpeakAsync(string text, string? source = null, bool skipCache = false, CancellationToken cancellationToken = default)
     {
         try
         {
@@ -73,7 +74,7 @@ public sealed class TtsService : IDisposable
                 return;
             }
 
-            await SpeakDirectAsync(text, source, cancellationToken);
+            await SpeakDirectAsync(text, source, skipCache, cancellationToken);
         }
         catch (Exception ex)
         {
@@ -107,7 +108,7 @@ public sealed class TtsService : IDisposable
                 return;
             }
 
-            await SpeakDirectAsync(item.Text, item.Source, cancellationToken);
+            await SpeakDirectAsync(item.Text, item.Source, skipCache: false, cancellationToken);
         }
 
         _logger.LogDebug("FlushQueue: All messages played");
@@ -131,7 +132,7 @@ public sealed class TtsService : IDisposable
     /// Internal method to actually speak text (no queue check).
     /// Uses SemaphoreSlim to ensure only one message plays at a time.
     /// </summary>
-    private async Task SpeakDirectAsync(string text, string? source, CancellationToken cancellationToken)
+    private async Task SpeakDirectAsync(string text, string? source, bool skipCache, CancellationToken cancellationToken)
     {
         var voiceConfig = GetVoiceConfig(source);
 
@@ -146,8 +147,8 @@ public sealed class TtsService : IDisposable
                 return;
             }
 
-            // Check cache first
-            if (_cacheService.TryGetCached(text, voiceConfig, out var cacheFile))
+            // Check cache first (unless skipCache is true)
+            if (!skipCache && _cacheService.TryGetCached(text, voiceConfig, out var cacheFile))
             {
                 _logger.LogDebug("Playing from cache: {Text} (source: {Source})", text, source ?? "default");
 
@@ -161,6 +162,11 @@ public sealed class TtsService : IDisposable
 
                 await _playbackService.PlayAsync(cacheFile, cancellationToken);
                 return;
+            }
+
+            if (skipCache)
+            {
+                _logger.LogDebug("Skipping cache (skipCache=true): {Text}", text);
             }
 
             // Generate new audio via provider chain (with circuit breaker)

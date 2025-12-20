@@ -53,7 +53,7 @@ public class VirtualAssistantSpeaker : IVirtualAssistantSpeaker
         _ttsService.StopPlayback();
     }
 
-    public async Task SpeakAsync(string text, string? agentName = null, CancellationToken ct = default)
+    public async Task SpeakAsync(string text, string? agentName = null, bool skipCache = false, CancellationToken ct = default)
     {
         if (string.IsNullOrWhiteSpace(text))
         {
@@ -61,7 +61,7 @@ public class VirtualAssistantSpeaker : IVirtualAssistantSpeaker
             return;
         }
 
-        _logger.LogDebug("Speaking text: {Text}", TruncateText(text, 50));
+        _logger.LogDebug("Speaking text: {Text} (skipCache: {SkipCache})", TruncateText(text, 50), skipCache);
 
         // Begin speaking - get cancellation token for this speech
         var speechToken = _speechQueueService.BeginSpeaking();
@@ -72,7 +72,7 @@ public class VirtualAssistantSpeaker : IVirtualAssistantSpeaker
         try
         {
             // Use "assistant" as the voice source for all VirtualAssistant speech
-            await _ttsService.SpeakAsync(text, source: "assistant", linkedCts.Token);
+            await _ttsService.SpeakAsync(text, source: "assistant", skipCache, linkedCts.Token);
         }
         catch (OperationCanceledException)
         {
