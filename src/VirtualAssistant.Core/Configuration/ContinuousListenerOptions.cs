@@ -35,13 +35,15 @@ public class ContinuousListenerOptions
 
     /// <summary>
     /// Path to Silero VAD ONNX model file (relative to application directory).
+    /// MUST be configured in appsettings.json.
     /// </summary>
-    public string SileroVadModelPath { get; set; } = "models/silero_vad.onnx";
+    public string SileroVadModelPath { get; set; } = string.Empty;
 
     /// <summary>
     /// Path to Whisper model file for transcription (relative to application directory).
+    /// MUST be configured in appsettings.json.
     /// </summary>
-    public string WhisperModelPath { get; set; } = "asr-models/ggml-medium.bin";
+    public string WhisperModelPath { get; set; } = string.Empty;
 
     /// <summary>
     /// Language for Whisper transcription.
