@@ -34,15 +34,15 @@
     <PackageReference Include="F23.StringSimilarity" Version="5.1.0" />
   </ItemGroup>
 
-  <!-- TextToSpeech Library (NuGet packages) -->
+  <!-- TextToSpeech Library (NuGet packages) - using floating version 1.* to always get latest -->
   <ItemGroup>
-    <PackageReference Include="Olbrasoft.TextToSpeech.Core" Version="1.1.13" />
-    <PackageReference Include="Olbrasoft.TextToSpeech.Providers" Version="1.1.13" />
-    <PackageReference Include="Olbrasoft.TextToSpeech.Providers.EdgeTTS" Version="1.1.13">
+    <PackageReference Include="Olbrasoft.TextToSpeech.Core" Version="1.*" />
+    <PackageReference Include="Olbrasoft.TextToSpeech.Providers" Version="1.*" />
+    <PackageReference Include="Olbrasoft.TextToSpeech.Providers.EdgeTTS" Version="1.*">
       <Aliases>EdgeTtsWebSocket</Aliases>
     </PackageReference>
-    <PackageReference Include="Olbrasoft.TextToSpeech.Providers.Piper" Version="1.1.13" />
-    <PackageReference Include="Olbrasoft.TextToSpeech.Orchestration" Version="1.1.13" />
+    <PackageReference Include="Olbrasoft.TextToSpeech.Providers.Piper" Version="1.*" />
+    <PackageReference Include="Olbrasoft.TextToSpeech.Orchestration" Version="1.*" />
   </ItemGroup>
 
   <!-- Copy prompt files to output directory -->
