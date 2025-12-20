@@ -6,7 +6,11 @@
 cd ~/Olbrasoft/VirtualAssistant && ./deploy/deploy.sh
 ```
 
-Target: `~/apps/virtual-assistant/` (defined in deploy/virtual-assistant.service WorkingDirectory)
+**Target path configuration (SINGLE SOURCE OF TRUTH):**
+- Defined in: `~/.config/systemd/user/virtual-assistant.env`
+- Variable: `VIRTUAL_ASSISTANT_BASE=%h/apps/virtual-assistant`
+- All systemd services reference this environment file
+- All code uses relative paths resolved with `AppContext.BaseDirectory`
 
 Manual (emergency):
 ```bash
