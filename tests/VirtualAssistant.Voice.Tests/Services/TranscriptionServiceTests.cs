@@ -10,6 +10,7 @@ namespace VirtualAssistant.Voice.Tests.Services;
 public class TranscriptionServiceTests
 {
     private readonly Mock<ILogger<TranscriptionService>> _loggerMock;
+    private readonly Mock<ISpeechTranscriber> _transcriberMock;
     private readonly Mock<IConfiguration> _configurationMock;
     private readonly Mock<IConfigurationSection> _configSectionMock;
     private readonly TranscriptionService _sut;
@@ -17,52 +18,52 @@ public class TranscriptionServiceTests
     public TranscriptionServiceTests()
     {
         _loggerMock = new Mock<ILogger<TranscriptionService>>();
+        _transcriberMock = new Mock<ISpeechTranscriber>();
         _configurationMock = new Mock<IConfiguration>();
         _configSectionMock = new Mock<IConfigurationSection>();
 
         // Setup configuration with minimal required values
-        _configSectionMock.Setup(x => x["WhisperModelPath"]).Returns("/fake/path/model.bin");
-        _configSectionMock.Setup(x => x["WhisperLanguage"]).Returns("en");
         _configSectionMock.Setup(x => x["MaxSegmentBytes"]).Returns("10485760");
         _configurationMock.Setup(x => x.GetSection("ContinuousListener")).Returns(_configSectionMock.Object);
 
-        _sut = new TranscriptionService(_loggerMock.Object, _configurationMock.Object);
+        _sut = new TranscriptionService(_loggerMock.Object, _transcriberMock.Object, _configurationMock.Object);
     }
 
     [Fact]
-    public async Task TranscribeAsync_WithCancelledToken_ThrowsOperationCanceledException()
+    public async Task TranscribeAsync_WithCancelledToken_PassesToTranscriber()
     {
         // Arrange
         var audioData = new byte[1000];
         var cts = new CancellationTokenSource();
-        cts.Cancel(); // Cancel immediately
+        cts.Cancel();
+
+        _transcriberMock
+            .Setup(x => x.TranscribeAsync(It.IsAny<byte[]>(), It.IsAny<CancellationToken>()))
+            .ThrowsAsync(new OperationCanceledException());
 
         // Act & Assert
-        // Note: Will throw InvalidOperationException first because service isn't initialized,
-        // but the important thing is that CancellationToken parameter is accepted
-        var exception = await Assert.ThrowsAnyAsync<Exception>(
+        await Assert.ThrowsAsync<OperationCanceledException>(
             async () => await _sut.TranscribeAsync(audioData, cts.Token)
-        );
-
-        // Verify that either InvalidOperationException (not initialized)
-        // or OperationCanceledException (token was cancelled) is thrown
-        Assert.True(
-            exception is InvalidOperationException || exception is OperationCanceledException,
-            $"Expected InvalidOperationException or OperationCanceledException, got {exception.GetType().Name}"
         );
     }
 
     [Fact]
-    public async Task TranscribeAsync_NotInitialized_ThrowsInvalidOperationException()
+    public async Task TranscribeAsync_DelegatesToTranscriber()
     {
         // Arrange
         var audioData = new byte[1000];
+        var expectedResult = new TranscriptionResult("test transcription", 0.95f);
 
-        // Act & Assert
-        var exception = await Assert.ThrowsAsync<InvalidOperationException>(
-            async () => await _sut.TranscribeAsync(audioData)
-        );
-        Assert.Contains("not initialized", exception.Message, StringComparison.OrdinalIgnoreCase);
+        _transcriberMock
+            .Setup(x => x.TranscribeAsync(It.IsAny<byte[]>(), It.IsAny<CancellationToken>()))
+            .ReturnsAsync(expectedResult);
+
+        // Act
+        var result = await _sut.TranscribeAsync(audioData);
+
+        // Assert
+        Assert.Equal(expectedResult.Text, result.Text);
+        _transcriberMock.Verify(x => x.TranscribeAsync(It.IsAny<byte[]>(), It.IsAny<CancellationToken>()), Times.Once);
     }
 
     [Fact]

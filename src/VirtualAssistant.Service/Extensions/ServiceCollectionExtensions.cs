@@ -2,6 +2,7 @@ using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Options;
 using Olbrasoft.VirtualAssistant.Core.Configuration;
 using Olbrasoft.VirtualAssistant.Core.Services;
+using Olbrasoft.VirtualAssistant.Core.Speech;
 using Olbrasoft.VirtualAssistant.Core.TextInput;
 using Olbrasoft.VirtualAssistant.Voice;
 using Olbrasoft.VirtualAssistant.Voice.Audio;
@@ -113,7 +114,8 @@ public static class ServiceCollectionExtensions
 
         services.AddSingleton<AudioCaptureService>();
         services.AddSingleton<VadService>();
-        services.AddSingleton<WhisperNetTranscriber>();
+        // Use SpeechToText gRPC microservice instead of local Whisper.net
+        services.AddSingleton<ISpeechTranscriber, SpeechToTextGrpcClient>();
         services.AddSingleton<TranscriptionService>();
 
         // Repeat text intent detection service (for PTT history feature)

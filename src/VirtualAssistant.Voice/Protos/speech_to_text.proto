@@ -1,0 +1,38 @@
+syntax = "proto3";
+
+package speechtotext;
+
+option csharp_namespace = "Olbrasoft.SpeechToText.Service";
+
+service SpeechToText {
+  // One-shot transcription (primary use case)
+  rpc Transcribe (TranscribeRequest) returns (TranscribeResponse);
+
+  // Streaming transcription (future enhancement)
+  rpc TranscribeStream (stream AudioChunk) returns (stream PartialResult);
+}
+
+message TranscribeRequest {
+  bytes audio = 1;                    // Raw PCM 16kHz audio data
+  optional string language = 2;        // "cs", "en", null = auto-detect
+  optional string model = 3;           // Model override (default from config)
+}
+
+message TranscribeResponse {
+  bool success = 1;
+  string text = 2;
+  optional string detected_language = 3;
+  float duration_seconds = 4;
+  optional string error_message = 5;
+}
+
+message AudioChunk {
+  bytes data = 1;
+  bool is_final = 2;
+}
+
+message PartialResult {
+  string text = 1;
+  bool is_final = 2;
+  float confidence = 3;
+}
