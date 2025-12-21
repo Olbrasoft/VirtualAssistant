@@ -13,13 +13,12 @@ namespace Olbrasoft.VirtualAssistant.Service;
 public class Program
 {
     private static WebApplication? _app;
-    private static TrayIconService? _trayService;
+    private static VirtualAssistantTrayService? _trayService;
     private static CancellationTokenSource? _cts;
     private static FileStream? _lockFile;
     private static string _lockFilePath = "/tmp/virtual-assistant.lock"; // Default, overridden from config
 
-    [STAThread]
-    public static void Main(string[] args)
+    public static async Task Main(string[] args)
     {
         // Load configuration early to get lock file path
         // In production: /opt/olbrasoft/virtual-assistant/app/../config/appsettings.json
@@ -66,15 +65,12 @@ public class Program
         _app.ApplyDatabaseMigrations();
         _app.MapVirtualAssistantEndpoints();
 
-        // Create tray icon service
-        var muteService = _app.Services.GetRequiredService<IManualMuteService>();
-        var options = _app.Services.GetRequiredService<IOptions<ContinuousListenerOptions>>();
-        var trayLogger = _app.Services.GetRequiredService<ILogger<TrayIconService>>();
-        _trayService = new TrayIconService(muteService, trayLogger, options.Value.LogViewerPort);
+        // Get tray icon service from DI
+        _trayService = _app.Services.GetRequiredService<VirtualAssistantTrayService>();
 
         try
         {
-            RunApplication(listenerPort);
+            await RunApplicationAsync(listenerPort);
         }
         catch (Exception ex)
         {
@@ -90,25 +86,15 @@ public class Program
         Console.WriteLine("VirtualAssistant stopped");
     }
 
-    private static void RunApplication(int listenerPort)
+    private static async Task RunApplicationAsync(int listenerPort)
     {
-        // Initialize tray (must be on main thread)
-        _trayService!.Initialize(OnQuitRequested);
+        // Initialize tray icon (async, non-blocking)
+        await _trayService!.InitializeAsync();
         Console.WriteLine("Tray icon initialized");
         Console.WriteLine($"API listening on http://localhost:{listenerPort}");
 
-        // Start WebApplication in background
-        var hostTask = Task.Run(async () =>
-        {
-            try
-            {
-                await _app!.RunAsync(_cts!.Token);
-            }
-            catch (OperationCanceledException)
-            {
-                // Normal shutdown
-            }
-        });
+        // Subscribe to quit event
+        _trayService.OnQuitRequested += OnQuitRequested;
 
         // Handle Ctrl+C
         Console.CancelKeyPress += (_, e) =>
@@ -116,18 +102,21 @@ public class Program
             e.Cancel = true;
             Console.WriteLine("\nCtrl+C pressed - shutting down...");
             OnQuitRequested();
-            _trayService!.QuitMainLoop();
         };
 
         Console.WriteLine("VirtualAssistant running - tray icon active");
         Console.WriteLine("Press Ctrl+C or use tray menu to exit");
         Console.WriteLine();
 
-        // Run GTK main loop (blocks until quit)
-        _trayService.RunMainLoop();
-
-        // Wait for host to finish
-        hostTask.Wait(TimeSpan.FromSeconds(5));
+        // Run WebApplication (blocks until cancellation)
+        try
+        {
+            await _app!.RunAsync(_cts!.Token);
+        }
+        catch (OperationCanceledException)
+        {
+            // Normal shutdown
+        }
     }
 
     private static void PrintBanner()

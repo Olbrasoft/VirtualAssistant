@@ -14,6 +14,8 @@
     <AssemblyVersion>1.0.0.0</AssemblyVersion>
     <FileVersion>1.0.0.0</FileVersion>
     <InformationalVersion>1.0.0</InformationalVersion>
+    <!-- Emit source generator output to file for debugging -->
+    <EmitCompilerGeneratedFiles>true</EmitCompilerGeneratedFiles>
   </PropertyGroup>
 
   <ItemGroup>
@@ -38,10 +40,23 @@
       <IncludeAssets>runtime; build; native; contentfiles; analyzers; buildtransitive</IncludeAssets>
       <PrivateAssets>all</PrivateAssets>
     </PackageReference>
+    <PackageReference Include="Olbrasoft.SystemTray.Linux" Version="1.1.2" />
     <!-- EdgeTTS WebSocket provider with extern alias (used by EdgeTtsWebSocketExtensions.cs) - using floating version 1.* to always get latest -->
     <PackageReference Include="Olbrasoft.TextToSpeech.Providers.EdgeTTS" Version="1.*">
       <Aliases>EdgeTtsWebSocket</Aliases>
     </PackageReference>
+    <PackageReference Include="SkiaSharp.NativeAssets.Linux" Version="3.119.1" />
+    <PackageReference Include="Tmds.DBus.SourceGenerator" Version="0.0.21" PrivateAssets="all" />
+  </ItemGroup>
+
+  <!-- D-Bus source generator needs this to see DBusGeneratorMode metadata -->
+  <ItemGroup>
+    <CompilerVisibleItemMetadata Include="AdditionalFiles" MetadataName="DBusGeneratorMode" />
+  </ItemGroup>
+
+  <!-- D-Bus XML interface for DBusMenu (context menu) -->
+  <ItemGroup>
+    <AdditionalFiles Include="DBusXml/com.canonical.dbusmenu.xml" DBusGeneratorMode="Handler" />
   </ItemGroup>
 
 </Project>
