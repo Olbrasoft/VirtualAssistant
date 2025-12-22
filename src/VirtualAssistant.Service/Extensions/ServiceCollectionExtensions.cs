@@ -24,6 +24,8 @@ using Olbrasoft.TextToSpeech.Providers.Extensions;
 using Olbrasoft.TextToSpeech.Providers.Piper.Extensions;
 using Olbrasoft.TextToSpeech.Orchestration.Extensions;
 using LibraryChain = Olbrasoft.TextToSpeech.Orchestration.ITtsProviderChain;
+// NotificationAudio Library
+using Olbrasoft.NotificationAudio.Providers.Linux;
 // SystemTray Library
 using Olbrasoft.SystemTray.Linux;
 
@@ -210,6 +212,10 @@ public static class ServiceCollectionExtensions
         services.AddSingleton<ISpeechLockService, SpeechLockService>();
         services.AddSingleton<ITtsQueueService, TtsQueueService>();
         services.AddSingleton<ITtsCacheService, TtsCacheService>();
+
+        // NotificationAudio - priority-based audio playback (PipeWire → PulseAudio → FFmpeg)
+        services.AddNotificationAudio();
+
         services.AddSingleton<IAudioPlaybackService, AudioPlaybackService>();
         services.AddSingleton<TtsService>();
 
