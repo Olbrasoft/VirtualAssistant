@@ -52,6 +52,11 @@
     <PackageReference Include="Olbrasoft.TextToSpeech.Orchestration" Version="1.*" />
   </ItemGroup>
 
+  <!-- NotificationAudio Library (NuGet package) - using floating version 1.* to always get latest -->
+  <ItemGroup>
+    <PackageReference Include="Olbrasoft.NotificationAudio.Providers.Linux" Version="1.*" />
+  </ItemGroup>
+
   <!-- Copy prompt files to output directory -->
   <ItemGroup>
     <Content Include="Prompts\**\*.md">
