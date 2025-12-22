@@ -1,5 +1,5 @@
-using System.Diagnostics;
 using Microsoft.Extensions.Logging;
+using Olbrasoft.NotificationAudio.Abstractions;
 
 namespace Olbrasoft.VirtualAssistant.Voice.Services;
 
@@ -29,20 +29,24 @@ public interface IAudioPlaybackService
 }
 
 /// <summary>
-/// Audio playback service using ffplay.
+/// Audio playback service using NotificationAudio library.
 /// Monitors speech lock during playback and automatically stops if lock is acquired.
 /// </summary>
 public sealed class AudioPlaybackService : IAudioPlaybackService, IDisposable
 {
     private readonly ILogger<AudioPlaybackService> _logger;
     private readonly ISpeechLockService _speechLockService;
-    private Process? _currentProcess;
-    private readonly object _processLock = new();
+    private readonly INotificationPlayer _player;
+    private Task? _playbackTask;
+    private readonly object _playbackLock = new();
+    private CancellationTokenSource? _playbackCts;
 
     public AudioPlaybackService(
+        INotificationPlayer player,
         ILogger<AudioPlaybackService> logger,
         ISpeechLockService speechLockService)
     {
+        _player = player;
         _logger = logger;
         _speechLockService = speechLockService;
     }
@@ -52,9 +56,9 @@ public sealed class AudioPlaybackService : IAudioPlaybackService, IDisposable
     {
         get
         {
-            lock (_processLock)
+            lock (_playbackLock)
             {
-                return _currentProcess != null && !_currentProcess.HasExited;
+                return _playbackTask != null && !_playbackTask.IsCompleted;
             }
         }
     }
@@ -62,77 +66,70 @@ public sealed class AudioPlaybackService : IAudioPlaybackService, IDisposable
     /// <inheritdoc />
     public async Task PlayAsync(string audioFile, CancellationToken cancellationToken = default)
     {
-        using var process = new Process
-        {
-            StartInfo = new ProcessStartInfo
-            {
-                FileName = "/usr/bin/ffplay",
-                Arguments = $"-nodisp -autoexit -loglevel quiet \"{audioFile}\"",
-                RedirectStandardOutput = true,
-                RedirectStandardError = true,
-                UseShellExecute = false,
-                CreateNoWindow = true
-            }
-        };
+        // Create cancellation token source for playback control
+        var cts = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
 
-        lock (_processLock)
+        lock (_playbackLock)
         {
-            _currentProcess = process;
+            _playbackCts = cts;
         }
 
         try
         {
-            process.Start();
+            // Start playback in background task
+            var playbackTask = Task.Run(async () =>
+            {
+                try
+                {
+                    await _player.PlayAsync(audioFile, cts.Token);
+                }
+                catch (OperationCanceledException)
+                {
+                    // Expected when stopped
+                }
+            }, cts.Token);
+
+            lock (_playbackLock)
+            {
+                _playbackTask = playbackTask;
+            }
 
             // Monitor for speech lock while playing - check every 50ms
-            while (!process.HasExited)
+            while (!playbackTask.IsCompleted)
             {
                 // Check if user started recording (speech lock acquired)
                 if (_speechLockService.IsLocked)
                 {
                     _logger.LogInformation("🛑 Speech lock detected during playback - stopping");
-                    try
-                    {
-                        process.Kill();
-                    }
-                    catch
-                    {
-                        // Process may have exited already
-                    }
+                    _player.Stop();
+                    cts.Cancel();
                     break;
                 }
 
-                // Wait 50ms before next check, or until process exits
+                // Wait 50ms before next check, or until playback completes
                 try
                 {
                     await Task.Delay(50, cancellationToken);
                 }
                 catch (OperationCanceledException)
                 {
-                    try
-                    {
-                        process.Kill();
-                    }
-                    catch
-                    {
-                        // Ignore
-                    }
+                    _player.Stop();
+                    cts.Cancel();
                     throw;
                 }
             }
 
-            // Ensure process has exited
-            if (!process.HasExited)
-            {
-                await process.WaitForExitAsync(cancellationToken);
-            }
+            // Wait for playback to complete
+            await playbackTask;
         }
         finally
         {
-            lock (_processLock)
+            lock (_playbackLock)
             {
-                _currentProcess = null;
+                _playbackTask = null;
+                _playbackCts = null;
             }
+            cts.Dispose();
         }
     }
 
@@ -141,16 +138,17 @@ public sealed class AudioPlaybackService : IAudioPlaybackService, IDisposable
     {
         try
         {
-            Process? process;
-            lock (_processLock)
+            CancellationTokenSource? cts;
+            lock (_playbackLock)
             {
-                process = _currentProcess;
+                cts = _playbackCts;
             }
 
-            if (process != null && !process.HasExited)
+            if (cts != null && !cts.IsCancellationRequested)
             {
                 _logger.LogInformation("🛑 Stopping audio playback");
-                process.Kill();
+                _player.Stop();
+                cts.Cancel();
             }
         }
         catch (Exception ex)
