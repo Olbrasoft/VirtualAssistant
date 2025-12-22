@@ -18,6 +18,15 @@ public interface IAudioPlaybackService
     Task PlayAsync(string audioFile, CancellationToken cancellationToken = default);
 
     /// <summary>
+    /// Plays audio from a stream asynchronously.
+    /// Monitors speech lock during playback and stops if lock is acquired.
+    /// </summary>
+    /// <param name="audioStream">Audio data stream</param>
+    /// <param name="fileExtension">File extension hint (e.g., ".mp3", ".wav")</param>
+    /// <param name="cancellationToken">Cancellation token</param>
+    Task PlayAsync(Stream audioStream, string fileExtension = ".mp3", CancellationToken cancellationToken = default);
+
+    /// <summary>
     /// Stops any currently playing audio immediately.
     /// </summary>
     void Stop();
@@ -101,6 +110,76 @@ public sealed class AudioPlaybackService : IAudioPlaybackService, IDisposable
                 if (_speechLockService.IsLocked)
                 {
                     _logger.LogInformation("🛑 Speech lock detected during playback - stopping");
+                    _player.Stop();
+                    cts.Cancel();
+                    break;
+                }
+
+                // Wait 50ms before next check, or until playback completes
+                try
+                {
+                    await Task.Delay(50, cancellationToken);
+                }
+                catch (OperationCanceledException)
+                {
+                    _player.Stop();
+                    cts.Cancel();
+                    throw;
+                }
+            }
+
+            // Wait for playback to complete
+            await playbackTask;
+        }
+        finally
+        {
+            lock (_playbackLock)
+            {
+                _playbackTask = null;
+                _playbackCts = null;
+            }
+            cts.Dispose();
+        }
+    }
+
+    /// <inheritdoc />
+    public async Task PlayAsync(Stream audioStream, string fileExtension = ".mp3", CancellationToken cancellationToken = default)
+    {
+        // Create cancellation token source for playback control
+        var cts = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
+
+        lock (_playbackLock)
+        {
+            _playbackCts = cts;
+        }
+
+        try
+        {
+            // Start playback in background task
+            var playbackTask = Task.Run(async () =>
+            {
+                try
+                {
+                    await _player.PlayAsync(audioStream, fileExtension, cts.Token);
+                }
+                catch (OperationCanceledException)
+                {
+                    // Expected when stopped
+                }
+            }, cts.Token);
+
+            lock (_playbackLock)
+            {
+                _playbackTask = playbackTask;
+            }
+
+            // Monitor for speech lock while playing - check every 50ms
+            while (!playbackTask.IsCompleted)
+            {
+                // Check if user started recording (speech lock acquired)
+                if (_speechLockService.IsLocked)
+                {
+                    _logger.LogInformation("🛑 Speech lock detected during stream playback - stopping");
                     _player.Stop();
                     cts.Cancel();
                     break;
