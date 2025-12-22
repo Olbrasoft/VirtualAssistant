@@ -268,4 +268,169 @@ public class AudioPlaybackServiceTests : IDisposable
         // At least 3-4 checks (200ms / 50ms = 4 checks)
         Assert.True(checkCount >= 3, $"Expected at least 3 lock checks, but got {checkCount}");
     }
+
+    #region Stream Playback Tests
+
+    [Fact]
+    public async Task PlayAsync_ValidStream_CallsPlayerPlayAsync()
+    {
+        // Arrange
+        var audioData = new byte[] { 0x01, 0x02, 0x03 };
+        using var stream = new MemoryStream(audioData);
+
+        _playerMock
+            .Setup(x => x.PlayAsync(It.IsAny<Stream>(), ".mp3", It.IsAny<CancellationToken>()))
+            .Returns(Task.CompletedTask);
+
+        // Act
+        await _sut.PlayAsync(stream, ".mp3");
+
+        // Assert
+        _playerMock.Verify(x => x.PlayAsync(It.IsAny<Stream>(), ".mp3", It.IsAny<CancellationToken>()), Times.Once);
+    }
+
+    [Fact]
+    public async Task PlayAsync_StreamWhenSpeechLockAcquired_StopsPlayback()
+    {
+        // Arrange
+        var audioData = new byte[] { 0x01, 0x02, 0x03 };
+        using var stream = new MemoryStream(audioData);
+        var tcs = new TaskCompletionSource();
+
+        _playerMock
+            .Setup(x => x.PlayAsync(It.IsAny<Stream>(), ".mp3", It.IsAny<CancellationToken>()))
+            .Returns(async () =>
+            {
+                await tcs.Task; // Keep playing until we complete the task
+            });
+
+        // Start with unlocked, then acquire lock after playback starts
+        var callCount = 0;
+        _speechLockServiceMock
+            .Setup(x => x.IsLocked)
+            .Returns(() =>
+            {
+                callCount++;
+                if (callCount > 2)
+                {
+                    tcs.TrySetResult(); // Complete playback when lock is checked
+                    return true; // Lock acquired
+                }
+                return false;
+            });
+
+        // Act
+        await _sut.PlayAsync(stream, ".mp3");
+
+        // Assert - Stop should be called when lock is acquired
+        _playerMock.Verify(x => x.Stop(), Times.Once);
+    }
+
+    [Fact]
+    public async Task PlayAsync_StreamWhenCancelled_StopsPlayback()
+    {
+        // Arrange
+        var audioData = new byte[] { 0x01, 0x02, 0x03 };
+        using var stream = new MemoryStream(audioData);
+        var cts = new CancellationTokenSource();
+        var tcs = new TaskCompletionSource();
+
+        _playerMock
+            .Setup(x => x.PlayAsync(It.IsAny<Stream>(), ".mp3", It.IsAny<CancellationToken>()))
+            .Returns(async () =>
+            {
+                await tcs.Task;
+            });
+
+        // Act
+        var playTask = Task.Run(async () =>
+        {
+            try
+            {
+                await _sut.PlayAsync(stream, ".mp3", cts.Token);
+            }
+            catch (OperationCanceledException)
+            {
+                // Expected
+            }
+        });
+
+        // Wait a bit for playback to start
+        await Task.Delay(100);
+
+        // Cancel playback
+        cts.Cancel();
+
+        // Complete the mock playback
+        tcs.SetResult();
+
+        // Wait for completion
+        await playTask;
+
+        // Assert
+        _playerMock.Verify(x => x.Stop(), Times.Once);
+    }
+
+    [Fact]
+    public async Task IsPlaying_DuringStreamPlayback_ReturnsTrue()
+    {
+        // Arrange
+        var audioData = new byte[] { 0x01, 0x02, 0x03 };
+        using var stream = new MemoryStream(audioData);
+        var tcs = new TaskCompletionSource();
+
+        _playerMock
+            .Setup(x => x.PlayAsync(It.IsAny<Stream>(), ".mp3", It.IsAny<CancellationToken>()))
+            .Returns(tcs.Task);
+
+        // Act - start playback in background
+        var playTask = Task.Run(async () => await _sut.PlayAsync(stream, ".mp3"));
+
+        // Wait for playback to start
+        await Task.Delay(100);
+
+        // Assert - should be playing
+        Assert.True(_sut.IsPlaying);
+
+        // Complete playback
+        tcs.SetResult();
+        await playTask;
+
+        // Assert - should not be playing anymore
+        Assert.False(_sut.IsPlaying);
+    }
+
+    [Fact]
+    public async Task PlayAsync_StreamMonitorsSpeechLockEvery50Ms()
+    {
+        // Arrange
+        var audioData = new byte[] { 0x01, 0x02, 0x03 };
+        using var stream = new MemoryStream(audioData);
+        var checkCount = 0;
+
+        _playerMock
+            .Setup(x => x.PlayAsync(It.IsAny<Stream>(), ".mp3", It.IsAny<CancellationToken>()))
+            .Returns(async () =>
+            {
+                // Simulate playback taking 200ms
+                await Task.Delay(200);
+            });
+
+        _speechLockServiceMock
+            .Setup(x => x.IsLocked)
+            .Returns(() =>
+            {
+                checkCount++;
+                return false; // Never locked
+            });
+
+        // Act
+        await _sut.PlayAsync(stream, ".mp3");
+
+        // Assert - should check lock multiple times during 200ms playback
+        // At least 3-4 checks (200ms / 50ms = 4 checks)
+        Assert.True(checkCount >= 3, $"Expected at least 3 lock checks, but got {checkCount}");
+    }
+
+    #endregion
 }
