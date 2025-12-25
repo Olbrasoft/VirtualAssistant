@@ -36,15 +36,62 @@ public sealed class TtsProviderChainAdapter : ITtsProviderChain
         string? sourceProfile = null,
         CancellationToken cancellationToken = default)
     {
-        // Convert VoiceConfig to TtsRequest
+        // Convert VoiceConfig to TtsRequest (legacy method)
         var request = new TtsRequest
         {
             Text = text,
             Voice = config.Voice,
             Rate = ParseRate(config.Rate) ?? 0,
             Pitch = ParsePitch(config.Pitch) ?? 0,
-            PreferredProvider = sourceProfile // sourceProfile can indicate preferred provider
+            PreferredProvider = sourceProfile // Legacy sourceProfile for provider selection
         };
+
+        // Call the library
+        var result = await _libraryChain.SynthesizeAsync(request, cancellationToken);
+
+        if (!result.Success || result.Audio == null)
+        {
+            _logger.LogWarning("TTS synthesis failed: {Error}", result.ErrorMessage);
+            return (null, result.ProviderUsed);
+        }
+
+        // Convert IAudioData to byte[]
+        byte[]? audioBytes = result.Audio switch
+        {
+            MemoryAudioData memory => memory.Data,
+            FileAudioData file => await ReadFileAsync(file.FilePath, cancellationToken),
+            _ => null
+        };
+
+        return (audioBytes, result.ProviderUsed);
+    }
+
+    /// <inheritdoc />
+    public async Task<(byte[]? Audio, string? ProviderUsed)> SynthesizeAdvancedAsync(
+        string text,
+        VoiceConfig config,
+        TtsContext context,
+        CancellationToken cancellationToken = default)
+    {
+        // Convert VoiceConfig and TtsContext to TtsRequest (advanced method)
+        var request = new TtsRequest
+        {
+            Text = text,
+            Voice = context.Voice ?? config.Voice, // Context voice overrides config voice
+            Rate = ParseRate(config.Rate) ?? 0,
+            Pitch = ParsePitch(config.Pitch) ?? 0,
+            AgentName = context.AgentName,
+            AgentInstanceId = context.AgentInstanceId,
+            ProviderFallbackChain = context.ProviderFallbackChain,
+            PreferredProvider = context.SourceProfile // Legacy fallback
+        };
+
+        _logger.LogDebug(
+            "Advanced TTS request from agent '{Agent}' (instance: {Instance}) with voice '{Voice}' and {ChainLength} providers",
+            context.AgentName ?? "Unknown",
+            context.AgentInstanceId ?? "N/A",
+            request.Voice,
+            context.ProviderFallbackChain?.Count ?? 0);
 
         // Call the library
         var result = await _libraryChain.SynthesizeAsync(request, cancellationToken);

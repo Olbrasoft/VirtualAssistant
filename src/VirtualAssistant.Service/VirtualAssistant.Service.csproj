@@ -41,12 +41,15 @@
       <PrivateAssets>all</PrivateAssets>
     </PackageReference>
     <PackageReference Include="Olbrasoft.SystemTray.Linux" Version="1.*" />
-    <!-- EdgeTTS WebSocket provider with extern alias (used by EdgeTtsWebSocketExtensions.cs) - using floating version 1.* to always get latest -->
-    <PackageReference Include="Olbrasoft.TextToSpeech.Providers.EdgeTTS" Version="1.*">
-      <Aliases>EdgeTtsWebSocket</Aliases>
-    </PackageReference>
     <PackageReference Include="SkiaSharp.NativeAssets.Linux" Version="3.119.1" />
     <PackageReference Include="Tmds.DBus.SourceGenerator" Version="0.0.21" PrivateAssets="all" />
+  </ItemGroup>
+
+  <!-- EdgeTTS WebSocket provider with extern alias (used by EdgeTtsWebSocketExtensions.cs) -->
+  <ItemGroup>
+    <ProjectReference Include="../../../TextToSpeech/src/TextToSpeech.Providers.EdgeTTS/TextToSpeech.Providers.EdgeTTS.csproj">
+      <Aliases>EdgeTtsWebSocket</Aliases>
+    </ProjectReference>
   </ItemGroup>
 
   <!-- D-Bus source generator needs this to see DBusGeneratorMode metadata -->

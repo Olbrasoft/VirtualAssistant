@@ -41,15 +41,16 @@
     <PackageReference Include="F23.StringSimilarity" Version="5.1.0" />
   </ItemGroup>
 
-  <!-- TextToSpeech Library (NuGet packages) - using floating version 1.* to always get latest -->
+  <!-- TextToSpeech Library - using ProjectReference for development -->
   <ItemGroup>
-    <PackageReference Include="Olbrasoft.TextToSpeech.Core" Version="1.*" />
-    <PackageReference Include="Olbrasoft.TextToSpeech.Providers" Version="1.*" />
-    <PackageReference Include="Olbrasoft.TextToSpeech.Providers.EdgeTTS" Version="1.*">
+    <ProjectReference Include="../../../TextToSpeech/src/TextToSpeech.Core/TextToSpeech.Core.csproj" />
+    <ProjectReference Include="../../../TextToSpeech/src/TextToSpeech.Providers/TextToSpeech.Providers.csproj" />
+    <ProjectReference Include="../../../TextToSpeech/src/TextToSpeech.Providers.EdgeTTS/TextToSpeech.Providers.EdgeTTS.csproj">
       <Aliases>EdgeTtsWebSocket</Aliases>
-    </PackageReference>
-    <PackageReference Include="Olbrasoft.TextToSpeech.Providers.Piper" Version="1.*" />
-    <PackageReference Include="Olbrasoft.TextToSpeech.Orchestration" Version="1.*" />
+    </ProjectReference>
+    <ProjectReference Include="../../../TextToSpeech/src/TextToSpeech.Providers.Piper/TextToSpeech.Providers.Piper.csproj" />
+    <ProjectReference Include="../../../TextToSpeech/src/TextToSpeech.Providers.GoogleCloud/TextToSpeech.Providers.GoogleCloud.csproj" />
+    <ProjectReference Include="../../../TextToSpeech/src/TextToSpeech.Orchestration/TextToSpeech.Orchestration.csproj" />
   </ItemGroup>
 
   <!-- NotificationAudio Library (NuGet package) - using floating version 1.* to always get latest -->

@@ -189,6 +189,9 @@ public static class ServiceCollectionExtensions
         // Register EdgeTTS WebSocket provider (overrides HTTP-based provider during development)
         services.AddEdgeTtsWebSocketProvider(configuration);
 
+        // Register Google Cloud TTS provider (Chirp3-HD voices - NOT in active chain yet)
+        services.AddGoogleCloudTtsProvider(configuration);
+
         // Register Piper provider (separate due to ONNX dependency)
         services.AddPiperTts(configuration);
 

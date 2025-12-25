@@ -62,6 +62,62 @@ public class NotificationsController : ControllerBase
 
         return Ok(new { success = true, id = notificationId, text = request.Text, source = request.Source });
     }
+
+    /// <summary>
+    /// Creates a new notification with advanced TTS options (agent-specific voice, provider chain).
+    /// This is the NEW endpoint for testing agent-specific voices and dynamic provider fallbacks.
+    /// The notification is saved to database and queued for batched TTS processing with custom voice settings.
+    /// </summary>
+    [HttpPost("advanced")]
+    [ProducesResponseType(StatusCodes.Status200OK)]
+    [ProducesResponseType(typeof(ErrorResponse), StatusCodes.Status400BadRequest)]
+    public async Task<ActionResult> CreateAdvancedNotification([FromBody] CreateAdvancedNotificationRequest request, CancellationToken ct)
+    {
+        if (string.IsNullOrWhiteSpace(request.Text))
+        {
+            return BadRequest(new ErrorResponse { Error = "Text is required" });
+        }
+
+        if (string.IsNullOrWhiteSpace(request.AgentName))
+        {
+            return BadRequest(new ErrorResponse { Error = "AgentName is required" });
+        }
+
+        _logger.LogInformation(
+            "Advanced notification from agent '{Agent}' (instance: {Instance}) with voice '{Voice}' and {Providers} providers: {Text}",
+            request.AgentName,
+            request.AgentInstanceId ?? "N/A",
+            request.Voice ?? "default",
+            request.ProviderFallbackChain?.Count ?? 0,
+            request.Text);
+
+        // Save to database (with optional issue IDs)
+        var notificationId = await _notificationService.CreateNotificationAsync(request.Text, request.AgentName, request.IssueIds, ct);
+
+        // Queue for batched TTS processing with advanced options
+        var agentNotification = new AgentNotification
+        {
+            NotificationId = notificationId,
+            Agent = request.AgentName,
+            Type = "status",
+            Content = request.Text
+        };
+        _batchingService.QueueNotification(agentNotification);
+
+        // TODO: Store advanced TTS options (Voice, ProviderFallbackChain, AgentInstanceId) for processing
+        // This will be implemented when voice pool management is ready
+
+        return Ok(new
+        {
+            success = true,
+            id = notificationId,
+            text = request.Text,
+            agentName = request.AgentName,
+            agentInstanceId = request.AgentInstanceId,
+            voice = request.Voice,
+            providerChainLength = request.ProviderFallbackChain?.Count ?? 0
+        });
+    }
 }
 
 /// <summary>

@@ -3,6 +3,7 @@ using Olbrasoft.TextToSpeech.Providers.Azure;
 using Olbrasoft.TextToSpeech.Providers.Configuration;
 using Olbrasoft.TextToSpeech.Providers.EdgeTTS;
 using Olbrasoft.TextToSpeech.Providers.Google;
+using Olbrasoft.TextToSpeech.Providers.GoogleCloud;
 using Olbrasoft.TextToSpeech.Providers.Piper;
 using Olbrasoft.TextToSpeech.Providers.VoiceRss;
 
@@ -64,9 +65,23 @@ public static class TtsConfigurationExtensions
             }
         });
 
-        // Google TTS configuration
+        // Google TTS configuration (legacy gTTS provider)
         services.Configure<GoogleTtsConfiguration>(
             configuration.GetSection(GoogleTtsConfiguration.SectionName));
+
+        // Google Cloud TTS configuration (Chirp3-HD voices)
+        services.Configure<GoogleCloudTtsConfiguration>(options =>
+        {
+            var section = configuration.GetSection(GoogleCloudTtsConfiguration.SectionName);
+            section.Bind(options);
+
+            // Load API key from environment variables (hosting app responsibility)
+            var envKey = Environment.GetEnvironmentVariable("GOOGLE_CLOUD_TTS_API_KEY");
+            if (!string.IsNullOrEmpty(envKey))
+            {
+                options.ApiKey = envKey;
+            }
+        });
 
         // Piper TTS configuration
         services.Configure<PiperConfiguration>(
@@ -75,6 +90,20 @@ public static class TtsConfigurationExtensions
         // Orchestration configuration (circuit breaker, fallback chain)
         services.Configure<OrchestrationConfig>(
             configuration.GetSection(OrchestrationConfig.SectionName));
+
+        return services;
+    }
+
+    /// <summary>
+    /// Adds the Google Cloud TTS provider (Chirp3-HD voices).
+    /// NOTE: Hosting app must call services.Configure&lt;GoogleCloudTtsConfiguration&gt;() first.
+    /// </summary>
+    public static IServiceCollection AddGoogleCloudTtsProvider(
+        this IServiceCollection services,
+        IConfiguration configuration)
+    {
+        // Register provider - configuration is already set up in ConfigureTtsProviders
+        services.AddSingleton<Olbrasoft.TextToSpeech.Core.Interfaces.ITtsProvider, GoogleCloudTtsProvider>();
 
         return services;
     }
