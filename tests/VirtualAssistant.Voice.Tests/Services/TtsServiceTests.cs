@@ -296,4 +296,133 @@ public class TtsServiceTests : IDisposable
         // Note: Second dispose may throw ObjectDisposedException which is acceptable
         // We're mainly testing that the first dispose doesn't throw
     }
+
+    [Fact]
+    public async Task SpeakAsync_WithSkipCache_BypassesCache()
+    {
+        // Arrange
+        _speechLockServiceMock.Setup(x => x.IsLocked).Returns(false);
+        var cachePath = "/tmp/cached.mp3";
+        _cacheServiceMock
+            .Setup(x => x.TryGetCached(It.IsAny<string>(), It.IsAny<VoiceConfig>(), out cachePath))
+            .Returns(true); // Cache exists
+
+        _cacheServiceMock
+            .Setup(x => x.GetCachePath(It.IsAny<string>(), It.IsAny<VoiceConfig>()))
+            .Returns("/tmp/new.mp3");
+
+        var audioData = new byte[] { 1, 2, 3 };
+        _ttsProviderChainMock
+            .Setup(x => x.SynthesizeAsync(It.IsAny<string>(), It.IsAny<VoiceConfig>(), It.IsAny<string?>(), It.IsAny<CancellationToken>()))
+            .ReturnsAsync((audioData, "MockProvider"));
+
+        // Act
+        await _sut.SpeakAsync("Test message", skipCache: true);
+
+        // Assert - should NOT use cache, should generate new audio
+        _cacheServiceMock.Verify(x => x.TryGetCached(It.IsAny<string>(), It.IsAny<VoiceConfig>(), out It.Ref<string>.IsAny), Times.Never);
+        _ttsProviderChainMock.Verify(x => x.SynthesizeAsync("Test message", It.IsAny<VoiceConfig>(), It.IsAny<string?>(), It.IsAny<CancellationToken>()), Times.Once);
+        _cacheServiceMock.Verify(x => x.SaveAsync("Test message", It.IsAny<VoiceConfig>(), audioData, It.IsAny<CancellationToken>()), Times.Once);
+    }
+
+    [Fact]
+    public async Task SpeakAsync_WhenAllProvidersFail_DoesNotPlay()
+    {
+        // Arrange
+        _speechLockServiceMock.Setup(x => x.IsLocked).Returns(false);
+        var cachePath = "";
+        _cacheServiceMock
+            .Setup(x => x.TryGetCached(It.IsAny<string>(), It.IsAny<VoiceConfig>(), out cachePath))
+            .Returns(false);
+
+        // Provider returns null (all providers failed)
+        _ttsProviderChainMock
+            .Setup(x => x.SynthesizeAsync(It.IsAny<string>(), It.IsAny<VoiceConfig>(), It.IsAny<string?>(), It.IsAny<CancellationToken>()))
+            .ReturnsAsync(((byte[]?)null, "Failed"));
+
+        // Act
+        await _sut.SpeakAsync("Test message");
+
+        // Assert - should not play or save to cache
+        _playbackServiceMock.Verify(x => x.PlayAsync(It.IsAny<string>(), It.IsAny<CancellationToken>()), Times.Never);
+        _cacheServiceMock.Verify(x => x.SaveAsync(It.IsAny<string>(), It.IsAny<VoiceConfig>(), It.IsAny<byte[]>(), It.IsAny<CancellationToken>()), Times.Never);
+    }
+
+    [Fact]
+    public async Task SpeakAsync_WhenProviderReturnsEmptyAudio_DoesNotPlay()
+    {
+        // Arrange
+        _speechLockServiceMock.Setup(x => x.IsLocked).Returns(false);
+        var cachePath = "";
+        _cacheServiceMock
+            .Setup(x => x.TryGetCached(It.IsAny<string>(), It.IsAny<VoiceConfig>(), out cachePath))
+            .Returns(false);
+
+        // Provider returns empty array
+        _ttsProviderChainMock
+            .Setup(x => x.SynthesizeAsync(It.IsAny<string>(), It.IsAny<VoiceConfig>(), It.IsAny<string?>(), It.IsAny<CancellationToken>()))
+            .ReturnsAsync((Array.Empty<byte>(), "Provider"));
+
+        // Act
+        await _sut.SpeakAsync("Test message");
+
+        // Assert - should not play or save to cache
+        _playbackServiceMock.Verify(x => x.PlayAsync(It.IsAny<string>(), It.IsAny<CancellationToken>()), Times.Never);
+        _cacheServiceMock.Verify(x => x.SaveAsync(It.IsAny<string>(), It.IsAny<VoiceConfig>(), It.IsAny<byte[]>(), It.IsAny<CancellationToken>()), Times.Never);
+    }
+
+    [Fact]
+    public async Task SpeakAsync_WhenLockAcquiredDuringGeneration_QueuesMessage()
+    {
+        // Arrange
+        var lockAcquiredDuringGeneration = false;
+        _speechLockServiceMock.Setup(x => x.IsLocked).Returns(() => lockAcquiredDuringGeneration);
+
+        var cachePath = "";
+        _cacheServiceMock
+            .Setup(x => x.TryGetCached(It.IsAny<string>(), It.IsAny<VoiceConfig>(), out cachePath))
+            .Returns(false);
+
+        var audioData = new byte[] { 1, 2, 3 };
+        _ttsProviderChainMock
+            .Setup(x => x.SynthesizeAsync(It.IsAny<string>(), It.IsAny<VoiceConfig>(), It.IsAny<string?>(), It.IsAny<CancellationToken>()))
+            .ReturnsAsync(() =>
+            {
+                // Simulate lock being acquired during audio generation
+                lockAcquiredDuringGeneration = true;
+                return (audioData, "MockProvider");
+            });
+
+        _cacheServiceMock
+            .Setup(x => x.GetCachePath(It.IsAny<string>(), It.IsAny<VoiceConfig>()))
+            .Returns("/tmp/new.mp3");
+
+        // Act
+        await _sut.SpeakAsync("Test message");
+
+        // Assert - message should be queued, not played
+        _queueServiceMock.Verify(x => x.Enqueue("Test message", null), Times.Once);
+        _playbackServiceMock.Verify(x => x.PlayAsync(It.IsAny<string>(), It.IsAny<CancellationToken>()), Times.Never);
+    }
+
+    [Fact]
+    public async Task SpeakAsync_WhenExceptionThrown_LogsErrorAndContinues()
+    {
+        // Arrange
+        _speechLockServiceMock.Setup(x => x.IsLocked).Returns(false);
+        var cachePath = "";
+        _cacheServiceMock
+            .Setup(x => x.TryGetCached(It.IsAny<string>(), It.IsAny<VoiceConfig>(), out cachePath))
+            .Returns(false);
+
+        _ttsProviderChainMock
+            .Setup(x => x.SynthesizeAsync(It.IsAny<string>(), It.IsAny<VoiceConfig>(), It.IsAny<string?>(), It.IsAny<CancellationToken>()))
+            .ThrowsAsync(new InvalidOperationException("Provider failed"));
+
+        // Act - should not throw, should catch and log
+        var exception = await Record.ExceptionAsync(async () => await _sut.SpeakAsync("Test message"));
+
+        // Assert - no exception should be thrown to caller
+        Assert.Null(exception);
+    }
 }
