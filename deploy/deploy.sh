@@ -39,8 +39,7 @@ echo
 echo "🔨 Publishing to $BASE_DIR/app..."
 dotnet publish src/VirtualAssistant.Service/VirtualAssistant.Service.csproj \
   -c Release \
-  -o "$BASE_DIR/app" \
-  --no-self-contained
+  -o "$BASE_DIR/app"
 
 echo "✅ Published to $BASE_DIR/app"
 echo

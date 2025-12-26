@@ -53,7 +53,7 @@ public static class EndpointExtensions
     /// </summary>
     public static WebApplication MapAssistantSpeechEndpoints(this WebApplication app)
     {
-        var speechTracker = app.Services.GetRequiredService<AssistantSpeechTrackerService>();
+        var speechTracker = app.Services.GetRequiredService<IAssistantSpeechTrackerService>();
 
         app.MapPost("/api/assistant-speech/start", (AssistantSpeechStartRequest request, ILogger<Program> logger) =>
         {
