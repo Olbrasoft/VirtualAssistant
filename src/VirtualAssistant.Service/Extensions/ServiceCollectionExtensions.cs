@@ -1,6 +1,7 @@
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Options;
 using Olbrasoft.VirtualAssistant.Core.Configuration;
+using Olbrasoft.VirtualAssistant.Core.Events;
 using Olbrasoft.VirtualAssistant.Core.Services;
 using Olbrasoft.VirtualAssistant.Core.Speech;
 using Olbrasoft.VirtualAssistant.Core.TextInput;
@@ -9,6 +10,7 @@ using Olbrasoft.VirtualAssistant.Voice.Audio;
 using Olbrasoft.VirtualAssistant.Voice.Configuration;
 using Olbrasoft.VirtualAssistant.Voice.Services;
 using Olbrasoft.VirtualAssistant.Voice.Similarity;
+using Olbrasoft.VirtualAssistant.Voice.Workers;
 using Olbrasoft.VirtualAssistant.Core.StateMachine;
 using Olbrasoft.VirtualAssistant.Service.Services;
 using Olbrasoft.VirtualAssistant.Service.Tray;
@@ -151,6 +153,9 @@ public static class ServiceCollectionExtensions
 
         // External service client (extracted from ContinuousListenerWorker)
         services.AddSingleton<IExternalServiceClient, ExternalServiceClient>();
+
+        // EventBus for worker communication (issue #332)
+        services.AddSingleton<IEventBus, InMemoryEventBus>();
 
         // Keyboard monitor
         services.AddSingleton<IKeyboardMonitor>(sp =>
@@ -316,7 +321,15 @@ public static class ServiceCollectionExtensions
     public static IServiceCollection AddBackgroundWorkers(this IServiceCollection services)
     {
         services.AddHostedService<KeyboardMonitorWorker>();
-        services.AddHostedService<ContinuousListenerWorker>();
+
+        // New event-driven workers (issue #332 - SOLID refactoring)
+        services.AddHostedService<AudioCapturerWorker>();
+        services.AddHostedService<VoiceActivityWorker>();
+        services.AddHostedService<TranscriptionRouterWorker>();
+        services.AddHostedService<ActionExecutorWorker>();
+
+        // TODO: Remove after testing new workers
+        // services.AddHostedService<ContinuousListenerWorker>();
 
         // Startup notification (Phase 1: simple "System started")
         services.AddHostedService<StartupNotificationService>();
