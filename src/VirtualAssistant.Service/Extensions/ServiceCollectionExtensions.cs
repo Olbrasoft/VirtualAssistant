@@ -1,6 +1,7 @@
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Options;
 using Olbrasoft.VirtualAssistant.Core.Configuration;
+using Olbrasoft.VirtualAssistant.Core.Exceptions;
 using Olbrasoft.VirtualAssistant.Core.Services;
 using Olbrasoft.VirtualAssistant.Core.Speech;
 using Olbrasoft.VirtualAssistant.Core.TextInput;
@@ -83,7 +84,9 @@ public static class ServiceCollectionExtensions
         IConfiguration configuration)
     {
         var connectionString = configuration.GetConnectionString("VirtualAssistantDb")
-            ?? throw new InvalidOperationException("Connection string 'VirtualAssistantDb' not found.");
+            ?? throw new ConfigurationException(
+                "Connection string 'VirtualAssistantDb' not found in configuration.",
+                "ConnectionStrings:VirtualAssistantDb");
         services.AddVirtualAssistantData(connectionString);
 
         // GitHub sync services

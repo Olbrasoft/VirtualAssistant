@@ -2,6 +2,7 @@ using System.Diagnostics;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.Logging;
 using Olbrasoft.VirtualAssistant.Core.Configuration;
+using Olbrasoft.VirtualAssistant.Core.Exceptions;
 
 namespace Olbrasoft.VirtualAssistant.Voice.Services;
 
@@ -77,7 +78,7 @@ public class AudioCaptureService : IDisposable
     {
         if (_audioStream == null)
         {
-            throw new InvalidOperationException("Audio capture not started");
+            throw new AudioCaptureException("Audio capture not started. Call Start() before reading chunks.");
         }
 
         var buffer = new byte[_options.ChunkSizeBytes];

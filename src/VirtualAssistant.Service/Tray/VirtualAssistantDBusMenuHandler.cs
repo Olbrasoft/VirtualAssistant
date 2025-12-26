@@ -1,5 +1,6 @@
 using Microsoft.Extensions.Logging;
 using Olbrasoft.SystemTray.Linux;
+using Olbrasoft.VirtualAssistant.Core.Exceptions;
 using Tmds.DBus.Protocol;
 using Tmds.DBus.SourceGenerator;
 
@@ -53,7 +54,7 @@ internal class VirtualAssistantDBusMenuHandler : ComCanonicalDbusmenuHandler, IT
         IconThemePath = Array.Empty<string>();
     }
 
-    public override Connection Connection => _connection ?? throw new InvalidOperationException("Connection not set. Call RegisterWithDbus first.");
+    public override Connection Connection => _connection ?? throw new TrayServiceException("D-Bus connection not set. Call RegisterWithDbus first.");
 
     /// <summary>
     /// Registers the menu handler with D-Bus connection.
