@@ -169,6 +169,8 @@ public class AudioCapturerWorkerTests : IDisposable
         // Act
         _cts.Cancel();
         await executeTask;
+        await _sut.StopAsync(default);
+        _sut.Dispose();
 
         // Assert
         _audioCaptureServiceMock.Verify(x => x.Stop(), Times.Once);
