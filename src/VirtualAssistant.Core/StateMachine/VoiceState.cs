@@ -1,4 +1,4 @@
-namespace Olbrasoft.VirtualAssistant.Voice.StateMachine;
+namespace Olbrasoft.VirtualAssistant.Core.StateMachine;
 
 /// <summary>
 /// Represents the current state of the voice listener.
