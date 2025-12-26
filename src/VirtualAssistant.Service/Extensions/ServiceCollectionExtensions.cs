@@ -1,6 +1,7 @@
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Options;
 using Olbrasoft.VirtualAssistant.Core.Configuration;
+using Olbrasoft.VirtualAssistant.Core.Events;
 using Olbrasoft.VirtualAssistant.Core.Services;
 using Olbrasoft.VirtualAssistant.Core.Speech;
 using Olbrasoft.VirtualAssistant.Core.TextInput;
@@ -71,6 +72,9 @@ public static class ServiceCollectionExtensions
 
         services.Configure<ExternalServicesOptions>(
             configuration.GetSection(ExternalServicesOptions.SectionName));
+
+        // Event bus for decoupled communication
+        services.AddSingleton<IEventBus, EventBus>();
 
         return services;
     }
