@@ -7,7 +7,7 @@ using Olbrasoft.VirtualAssistant.Core.Services;
 using Olbrasoft.VirtualAssistant.Core.TextInput;
 using Olbrasoft.VirtualAssistant.Voice.Audio;
 using Olbrasoft.VirtualAssistant.Voice.Services;
-using Olbrasoft.VirtualAssistant.Voice.StateMachine;
+using Olbrasoft.VirtualAssistant.Core.StateMachine;
 using VirtualAssistant.Core.Services;
 using KeyCode = Olbrasoft.VirtualAssistant.Core.Services.KeyCode;
 

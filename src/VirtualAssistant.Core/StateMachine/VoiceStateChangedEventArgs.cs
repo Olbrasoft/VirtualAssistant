@@ -1,4 +1,4 @@
-namespace Olbrasoft.VirtualAssistant.Voice.StateMachine;
+namespace Olbrasoft.VirtualAssistant.Core.StateMachine;
 
 /// <summary>
 /// Event arguments for voice state changes.

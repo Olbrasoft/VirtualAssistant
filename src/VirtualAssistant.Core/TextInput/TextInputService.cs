@@ -7,7 +7,7 @@ namespace Olbrasoft.VirtualAssistant.Core.TextInput;
 /// Service for sending text to OpenCode via HTTP API.
 /// Uses OpenCode.DotnetClient for TUI API communication.
 /// </summary>
-public class TextInputService
+public class TextInputService : ITextInputService
 {
     private readonly ILogger<TextInputService> _logger;
     private readonly OpenCodeClient _openCodeClient;

@@ -1,4 +1,4 @@
-namespace Olbrasoft.VirtualAssistant.Voice.StateMachine;
+namespace Olbrasoft.VirtualAssistant.Core.StateMachine;
 
 /// <summary>
 /// Manages voice listener state transitions.

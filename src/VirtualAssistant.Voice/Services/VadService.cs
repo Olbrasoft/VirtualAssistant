@@ -9,7 +9,7 @@ namespace Olbrasoft.VirtualAssistant.Voice.Services;
 /// Voice Activity Detection service using Silero VAD neural network model.
 /// Much more accurate than RMS-based detection, no calibration needed.
 /// </summary>
-public class VadService : IDisposable
+public class VadService : IVadService
 {
     private readonly ILogger<VadService> _logger;
     private readonly ContinuousListenerOptions _options;
