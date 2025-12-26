@@ -21,11 +21,6 @@ using VirtualAssistant.GitHub;
 using VirtualAssistant.Core;
 using VirtualAssistant.Core.Services;
 using VirtualAssistant.LlmChain;
-// TextToSpeech Library
-using Olbrasoft.TextToSpeech.Providers.Extensions;
-using Olbrasoft.TextToSpeech.Providers.Piper.Extensions;
-using Olbrasoft.TextToSpeech.Orchestration.Extensions;
-using LibraryChain = Olbrasoft.TextToSpeech.Orchestration.ITtsProviderChain;
 // NotificationAudio Library
 using Olbrasoft.NotificationAudio.Providers.Linux;
 // SystemTray Library
@@ -73,6 +68,9 @@ public static class ServiceCollectionExtensions
 
         services.Configure<ExternalServicesOptions>(
             configuration.GetSection(ExternalServicesOptions.SectionName));
+
+        // Dependent services manager (manages TextToSpeech.Service lifecycle)
+        services.AddSingleton<IDependentServiceManager, DependentServicesManager>();
 
         return services;
     }
@@ -183,25 +181,10 @@ public static class ServiceCollectionExtensions
         services.Configure<TtsVoiceProfilesOptions>(
             configuration.GetSection(TtsVoiceProfilesOptions.SectionName));
 
-        // ========== TextToSpeech Library Integration ==========
-        // IMPORTANT: Configure TTS providers FIRST (hosting app decides where values come from)
-        // This is where we load configuration from appsettings.json, environment variables, etc.
-        services.ConfigureTtsProviders(configuration);
-
-        // Register providers from the new library (Azure, EdgeTTS, VoiceRSS, Google)
-        services.AddTtsProviders(configuration);
-
-        // Register EdgeTTS WebSocket provider (overrides HTTP-based provider during development)
-        services.AddEdgeTtsWebSocketProvider(configuration);
-
-        // Register Piper provider (separate due to ONNX dependency)
-        services.AddPiperTts(configuration);
-
-        // Register orchestration (circuit breaker, fallback chain)
-        services.AddTtsOrchestration(configuration);
-
-        // Adapter that bridges VirtualAssistant's ITtsProviderChain with the library
-        services.AddSingleton<ITtsProviderChain, TtsProviderChainAdapter>();
+        // ========== TextToSpeech.Service HTTP Client ==========
+        // VirtualAssistant now delegates all TTS to centralized TextToSpeech.Service (port 5060)
+        // No more direct Azure/EdgeTTS/Piper provider integration - everything goes through the service
+        services.AddSingleton<ITtsProviderChain, TextToSpeechHttpClient>();
         // =======================================================
 
         // TTS focused services (SRP compliant)
@@ -299,6 +282,7 @@ public static class ServiceCollectionExtensions
             var logger = sp.GetRequiredService<ILogger<VirtualAssistantTrayService>>();
             var manager = sp.GetRequiredService<TrayIconManager>();
             var muteService = sp.GetRequiredService<IManualMuteService>();
+            var dependentServiceManager = sp.GetRequiredService<IDependentServiceManager>();
             var menuHandler = sp.GetRequiredService<ITrayMenuHandler>();
             var options = sp.GetRequiredService<IOptions<ContinuousListenerOptions>>();
             var iconsPath = Path.Combine(AppContext.BaseDirectory, "icons");
@@ -307,6 +291,7 @@ public static class ServiceCollectionExtensions
                 logger,
                 manager,
                 muteService,
+                dependentServiceManager,
                 iconsPath,
                 options.Value.LogViewerPort,
                 menuHandler);

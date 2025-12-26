@@ -14,6 +14,7 @@ public class VirtualAssistantTrayService : IDisposable
     private readonly TrayIconManager _manager;
     private readonly string _iconsPath;
     private readonly IManualMuteService _muteService;
+    private readonly IDependentServiceManager _dependentServiceManager;
     private readonly int _logViewerPort;
     private readonly ITrayMenuHandler? _menuHandler;
     private ITrayIcon? _trayIcon;
@@ -32,6 +33,7 @@ public class VirtualAssistantTrayService : IDisposable
         ILogger<VirtualAssistantTrayService> logger,
         TrayIconManager manager,
         IManualMuteService muteService,
+        IDependentServiceManager dependentServiceManager,
         string iconsPath,
         int logViewerPort = 5053,
         ITrayMenuHandler? menuHandler = null)
@@ -39,6 +41,7 @@ public class VirtualAssistantTrayService : IDisposable
         _logger = logger ?? throw new ArgumentNullException(nameof(logger));
         _manager = manager ?? throw new ArgumentNullException(nameof(manager));
         _muteService = muteService ?? throw new ArgumentNullException(nameof(muteService));
+        _dependentServiceManager = dependentServiceManager ?? throw new ArgumentNullException(nameof(dependentServiceManager));
         _iconsPath = iconsPath;
         _logViewerPort = logViewerPort;
         _menuHandler = menuHandler;
@@ -46,12 +49,22 @@ public class VirtualAssistantTrayService : IDisposable
         // Subscribe to mute state changes
         _muteService.MuteStateChanged += OnMuteStateChanged;
 
+        // Subscribe to service status changes
+        _dependentServiceManager.ServiceStatusChanged += OnServiceStatusChanged;
+
         // Wire up menu handler events if provided
         if (_menuHandler is VirtualAssistantDBusMenuHandler handler)
         {
             handler.OnQuitRequested += () => OnQuitRequested?.Invoke();
             handler.OnMuteToggleRequested += HandleMuteToggle;
             handler.OnShowLogsRequested += HandleShowLogs;
+            handler.OnRefreshServiceStatusRequested += HandleRefreshServiceStatus;
+            handler.OnToggleServiceRequested += HandleToggleService;
+            _logger.LogDebug("Menu handler events wired up successfully");
+        }
+        else
+        {
+            _logger.LogWarning("Menu handler is not VirtualAssistantDBusMenuHandler type: {Type}", _menuHandler?.GetType().FullName ?? "null");
         }
     }
 
@@ -81,6 +94,13 @@ public class VirtualAssistantTrayService : IDisposable
                 if (_menuHandler is VirtualAssistantDBusMenuHandler handler)
                 {
                     handler.UpdateMuteState(_muteService.IsMuted);
+
+                    // Update menu handler with initial service status
+                    var servicesStatus = _dependentServiceManager.GetServicesStatus();
+                    foreach (var (serviceName, isRunning) in servicesStatus)
+                    {
+                        handler.UpdateServiceStatus(serviceName, isRunning);
+                    }
                 }
             }
         }
@@ -117,6 +137,25 @@ public class VirtualAssistantTrayService : IDisposable
         catch (Exception ex)
         {
             _logger.LogError(ex, "Failed to update tray icon for mute state");
+        }
+    }
+
+    private void OnServiceStatusChanged(object? sender, ServiceStatusChangedEventArgs e)
+    {
+        try
+        {
+            // Update menu handler with service status
+            if (_menuHandler is VirtualAssistantDBusMenuHandler handler)
+            {
+                handler.UpdateServiceStatus(e.ServiceName, e.IsRunning);
+            }
+
+            _logger.LogDebug("Tray menu updated to reflect service status: {ServiceName} = {IsRunning}",
+                e.ServiceName, e.IsRunning);
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Failed to update tray menu for service status");
         }
     }
 
@@ -162,6 +201,53 @@ public class VirtualAssistantTrayService : IDisposable
         }
     }
 
+    /// <summary>
+    /// Handles refresh service status request from menu.
+    /// Checks if TextToSpeech.Service is running and updates menu.
+    /// </summary>
+    private async void HandleRefreshServiceStatus()
+    {
+        try
+        {
+            _logger.LogInformation("Refreshing TextToSpeech.Service status via tray menu");
+            await _dependentServiceManager.RefreshServiceStatusAsync("TextToSpeech.Service");
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Failed to refresh service status from tray menu");
+        }
+    }
+
+    /// <summary>
+    /// Handles toggle service request from menu.
+    /// Starts or stops TextToSpeech.Service based on current state.
+    /// </summary>
+    private async void HandleToggleService()
+    {
+        _logger.LogInformation("HandleToggleService called");
+        try
+        {
+            var servicesStatus = _dependentServiceManager.GetServicesStatus();
+            var isRunning = servicesStatus.TryGetValue("TextToSpeech.Service", out var status) && status;
+            _logger.LogDebug("Service status: isRunning={IsRunning}", isRunning);
+
+            if (isRunning)
+            {
+                _logger.LogInformation("Stopping TextToSpeech.Service via tray menu");
+                await _dependentServiceManager.StopServiceAsync("TextToSpeech.Service");
+            }
+            else
+            {
+                _logger.LogInformation("Starting TextToSpeech.Service via tray menu");
+                await _dependentServiceManager.StartServiceAsync("TextToSpeech.Service");
+            }
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Failed to toggle service from tray menu");
+        }
+    }
+
     public void Dispose()
     {
         if (_disposed)
@@ -171,6 +257,9 @@ public class VirtualAssistantTrayService : IDisposable
 
         // Unsubscribe from mute service
         _muteService.MuteStateChanged -= OnMuteStateChanged;
+
+        // Unsubscribe from dependent service manager
+        _dependentServiceManager.ServiceStatusChanged -= OnServiceStatusChanged;
 
         // Remove tray icon
         if (_trayIcon != null)

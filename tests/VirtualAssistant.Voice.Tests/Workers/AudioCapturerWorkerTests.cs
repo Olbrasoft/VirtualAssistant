@@ -1,6 +1,7 @@
 using Microsoft.Extensions.Logging;
 using Moq;
 using Olbrasoft.VirtualAssistant.Core.Events;
+using Olbrasoft.VirtualAssistant.Core.Services;
 using Olbrasoft.VirtualAssistant.Voice.Services;
 using Olbrasoft.VirtualAssistant.Voice.Workers;
 
@@ -15,6 +16,7 @@ public class AudioCapturerWorkerTests : IDisposable
     private readonly Mock<ILogger<AudioCapturerWorker>> _loggerMock;
     private readonly Mock<IAudioCaptureService> _audioCaptureServiceMock;
     private readonly Mock<IEventBus> _eventBusMock;
+    private readonly Mock<IManualMuteService> _muteServiceMock;
     private readonly AudioCapturerWorker _sut;
     private readonly CancellationTokenSource _cts;
 
@@ -23,12 +25,17 @@ public class AudioCapturerWorkerTests : IDisposable
         _loggerMock = new Mock<ILogger<AudioCapturerWorker>>();
         _audioCaptureServiceMock = new Mock<IAudioCaptureService>();
         _eventBusMock = new Mock<IEventBus>();
+        _muteServiceMock = new Mock<IManualMuteService>();
         _cts = new CancellationTokenSource();
+
+        // Default: unmuted
+        _muteServiceMock.Setup(x => x.IsMuted).Returns(false);
 
         _sut = new AudioCapturerWorker(
             _loggerMock.Object,
             _audioCaptureServiceMock.Object,
-            _eventBusMock.Object);
+            _eventBusMock.Object,
+            _muteServiceMock.Object);
     }
 
     public void Dispose()

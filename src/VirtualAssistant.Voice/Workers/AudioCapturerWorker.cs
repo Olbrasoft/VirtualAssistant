@@ -1,6 +1,7 @@
 using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Logging;
 using Olbrasoft.VirtualAssistant.Core.Events;
+using Olbrasoft.VirtualAssistant.Core.Services;
 using Olbrasoft.VirtualAssistant.Voice.Audio;
 using Olbrasoft.VirtualAssistant.Voice.Services;
 
@@ -10,32 +11,68 @@ namespace Olbrasoft.VirtualAssistant.Voice.Workers;
 /// Worker responsible for capturing audio from the microphone.
 /// Publishes AudioChunkCapturedEvent for each chunk.
 /// Single Responsibility: Audio I/O only.
+/// Respects mute state - only captures when unmuted.
 /// </summary>
 public class AudioCapturerWorker : BackgroundService
 {
     private readonly ILogger<AudioCapturerWorker> _logger;
     private readonly IAudioCaptureService _audioCapture;
     private readonly IEventBus _eventBus;
+    private readonly IManualMuteService _muteService;
 
     public AudioCapturerWorker(
         ILogger<AudioCapturerWorker> logger,
         IAudioCaptureService audioCapture,
-        IEventBus eventBus)
+        IEventBus eventBus,
+        IManualMuteService muteService)
     {
         _logger = logger;
         _audioCapture = audioCapture;
         _eventBus = eventBus;
+        _muteService = muteService;
+
+        // Subscribe to mute state changes
+        _muteService.MuteStateChanged += OnMuteStateChanged;
+    }
+
+    private void OnMuteStateChanged(object? sender, bool isMuted)
+    {
+        if (isMuted)
+        {
+            _logger.LogInformation("Mute detected - stopping audio capture");
+            _audioCapture.Stop();
+        }
+        else
+        {
+            _logger.LogInformation("Unmute detected - starting audio capture");
+            _audioCapture.Start();
+        }
     }
 
     protected override async Task ExecuteAsync(CancellationToken stoppingToken)
     {
         try
         {
-            _audioCapture.Start();
-            _logger.LogInformation("AudioCapturerWorker started - capturing audio");
+            // Only start audio capture if not muted
+            if (_muteService.IsMuted)
+            {
+                _logger.LogInformation("AudioCapturerWorker started - MUTED (no audio capture)");
+            }
+            else
+            {
+                _audioCapture.Start();
+                _logger.LogInformation("AudioCapturerWorker started - capturing audio");
+            }
 
             while (!stoppingToken.IsCancellationRequested)
             {
+                // If muted, wait and skip capturing
+                if (_muteService.IsMuted)
+                {
+                    await Task.Delay(100, stoppingToken);
+                    continue;
+                }
+
                 var chunk = await _audioCapture.ReadChunkAsync(stoppingToken);
                 if (chunk == null)
                 {
@@ -82,5 +119,11 @@ public class AudioCapturerWorker : BackgroundService
         }
 
         return (float)Math.Sqrt(sum / (double)sampleCount);
+    }
+
+    public override void Dispose()
+    {
+        _muteService.MuteStateChanged -= OnMuteStateChanged;
+        base.Dispose();
     }
 }
