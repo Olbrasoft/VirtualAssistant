@@ -5,14 +5,16 @@ Linux virtuální asistent pro ovládání desktopu a integraci s AI coding agen
 ## Funkce
 
 - **Voice-to-OpenCode** – hlasové příkazy směrované do AI coding agenta
-- **Push-to-Talk diktování** – přepis hlasu do aktivního okna
-- **Kontinuální poslech** – VAD (Voice Activity Detection) s Silero ONNX
+- **Kontinuální poslech** – 4 specializované workery (Audio Capture, VAD, Transcription, Action Executor)
+- **VAD (Voice Activity Detection)** – Silero ONNX model pro detekci hlasu
 - **Multi-provider LLM routing** – Groq, Cerebras, Mistral s automatickým fallbackem
-- **Lokální ASR** – WhisperNet s large-v3 modelem
+- **Lokální ASR** – Whisper.NET s large-v3 modelem (FHS-compliant umístění)
 - **Inter-agent komunikace** – Hub API pro komunikaci mezi AI agenty
-- **Task Queue** – Automatická distribuce úkolů mezi agenty
+- **Task Queue** – Automatická distribuce úkolů mezi agenty (ClaudeCode headless mode)
 - **GitHub synchronizace** – Synchronizace issues s embeddings pro sémantické vyhledávání
-- **TTS notifikace** – Text-to-speech notifikace s rozlišením zdroje
+- **TTS s fallbackem** – AzureTTS (primární), EdgeTTS, VoiceRSS, Google, Piper s circuit breaker pattern
+- **DependentServicesManager** – Správa závislých služeb (TextToSpeech.Service)
+- **Manuální mute** – Tlačítko myši pro dočasné ztlumení poslechu
 
 ## Architektura
 
@@ -20,40 +22,45 @@ Linux virtuální asistent pro ovládání desktopu a integraci s AI coding agen
 ┌─────────────────────────────────────────────────────────────────────────────┐
 │                            VirtualAssistant                                  │
 ├─────────────────────────────────────────────────────────────────────────────┤
-│  VirtualAssistant.Voice          │  VirtualAssistant.PushToTalk            │
-│  - Kontinuální poslech           │  - PTT diktování                        │
-│  - VAD (Silero ONNX)             │  - Whisper ASR                          │
-│  - LLM routing                   │  - Text typing (xdotool)                │
+│  VirtualAssistant.Voice          │  VirtualAssistant.Service               │
+│  - 4 background workers:         │  - ASP.NET Core API (port 5055)         │
+│    • AudioCapturerWorker         │  - Tray ikona (GTK)                     │
+│    • VoiceActivityWorker         │  - DependentServicesManager             │
+│    • TranscriptionRouterWorker   │  - REST API controllers                 │
+│    • ActionExecutorWorker        │                                         │
+│  - TTS Provider Chain            │                                         │
+│  - Whisper.NET (STT)             │                                         │
 ├─────────────────────────────────────────────────────────────────────────────┤
-│  VirtualAssistant.Core           │  VirtualAssistant.Service               │
-│  - AgentHubService               │  - Systemd worker (port 5055)           │
-│  - AgentTaskService              │  - Tray ikona (GTK)                     │
-│  - TaskDistributionService       │  - REST API endpointy                   │
+│  VirtualAssistant.Core           │  VirtualAssistant.GitHub                │
+│  - AgentHubService               │  - GitHub API integrace                 │
+│  - AgentTaskService              │  - Synchronizace issues                 │
+│  - TaskDistributionService       │  - Sémantické vyhledávání (pgvector)    │
+│  - IManualMuteService            │  - Ollama embeddings                    │
 ├─────────────────────────────────────────────────────────────────────────────┤
-│  VirtualAssistant.Data           │  VirtualAssistant.GitHub                │
-│  - Entity Framework Core         │  - GitHub API integrace                 │
-│  - PostgreSQL + pgvector         │  - Synchronizace issues                 │
-│  - CQRS handlers                 │  - Sémantické vyhledávání               │
+│  VirtualAssistant.Data           │  TextToSpeech.Service (External)        │
+│  - Entity Framework Core         │  - Separate TTS service                 │
+│  - PostgreSQL + pgvector         │  - Managed by DependentServicesManager  │
+│  - CQRS handlers                 │                                         │
 └─────────────────────────────────────────────────────────────────────────────┘
 ```
+
+**Note:** Push-to-Talk is now a [separate project](https://github.com/Olbrasoft/PushToTalk).
 
 ## Projekty
 
 | Projekt | Popis |
 |---------|-------|
-| `VirtualAssistant.Core` | Sdílené služby: AgentHubService, AgentTaskService, TaskDistributionService |
-| `VirtualAssistant.Voice` | Kontinuální poslech, VAD, LLM routing, TTS |
-| `VirtualAssistant.PushToTalk` | Push-to-Talk knihovna |
-| `VirtualAssistant.PushToTalk.Service` | PTT služba (port 5050) |
-| `VirtualAssistant.Service` | Hlavní služba s tray ikonou (port 5055) |
+| `VirtualAssistant.Core` | Business logic: AgentHubService, AgentTaskService, TaskDistributionService, DependentServicesManager, IManualMuteService |
+| `VirtualAssistant.Voice` | 4 background workers, TTS provider chain, Whisper STT, LLM routing |
+| `VirtualAssistant.Service` | ASP.NET Core hlavní služba s tray ikonou (port 5055) |
 | `VirtualAssistant.Data` | Entity, enumy, DTO |
-| `VirtualAssistant.Data.EntityFrameworkCore` | DbContext, konfigurace, migrace |
-| `VirtualAssistant.GitHub` | GitHub API klient, synchronizace issues |
-| `VirtualAssistant.Api` | REST API endpoint |
-| `VirtualAssistant.Tray` | Standalone tray aplikace |
-| `VirtualAssistant.Agent` | AI agent (WIP) |
-| `VirtualAssistant.Desktop` | Desktop integrace (WIP) |
-| `VirtualAssistant.Plugins` | Plugin systém (WIP) |
+| `VirtualAssistant.Data.EntityFrameworkCore` | DbContext, konfigurace, migrace (auto-apply on startup) |
+| `VirtualAssistant.GitHub` | GitHub API klient, synchronizace issues, embeddings (Ollama) |
+| `VirtualAssistant.Tray` | Standalone tray aplikace (GTK) |
+| `VirtualAssistant.Desktop` | Desktop komponenty |
+| `VirtualAssistant.Plugins` | Plugin framework (placeholder) |
+| `VirtualAssistant.Agent` | Agent modul (placeholder) |
+| `VirtualAssistant.Api` | Minimal API (development) |
 
 ## API Endpointy
 
@@ -269,12 +276,12 @@ Log startů systému.
 ## Požadavky
 
 - .NET 10
-- Linux (testováno na Debian 13)
-- PostgreSQL 16+ s pgvector
-- ALSA nebo PulseAudio
-- xdotool / dotool (pro text input)
-- Whisper model (`ggml-large-v3.bin`)
-- Silero VAD model (`silero_vad.onnx`)
+- Linux (testováno na Debian 13, GNOME)
+- PostgreSQL 16+ s pgvector extension
+- PipeWire/PulseAudio (audio capture)
+- Whisper model (`ggml-large-v3.bin`) v `~/.local/share/whisper-models/` (FHS-compliant)
+- Silero VAD model (`silero_vad.onnx`) v `/opt/olbrasoft/virtual-assistant/models/`
+- Ollama (embeddings pro GitHub search)
 
 ## Instalace
 
@@ -286,17 +293,15 @@ cd VirtualAssistant
 # Build
 dotnet build
 
-# Testy
-dotnet test
-
-# Migrace databáze
-cd src/VirtualAssistant.Service
-dotnet ef database update
+# Testy (bez integračních testů)
+dotnet test --filter "FullyQualifiedName!~IntegrationTests"
 ```
+
+**Note:** Migrace databáze se aplikují automaticky při startu služby.
 
 ## Konfigurace
 
-### Connection String
+### Development Configuration
 
 `src/VirtualAssistant.Service/appsettings.json`:
 
@@ -306,52 +311,82 @@ dotnet ef database update
     "VirtualAssistantDb": "Host=localhost;Database=virtual_assistant;Username=user;Password=pass"
   },
   "ListenerApiPort": 5055,
-  "OpenCodeUrl": "http://localhost:4096"
-}
-```
-
-### Push-to-Talk služba
-
-`src/VirtualAssistant.PushToTalk.Service/appsettings.json`:
-
-```json
-{
-  "Whisper": {
-    "ModelPath": "/cesta/k/ggml-large-v3.bin"
+  "OpenCodeUrl": "http://localhost:4096",
+  "Audio": {
+    "WhisperModelPath": "~/.local/share/whisper-models/ggml-large-v3.bin",
+    "SileroVadModelPath": "/opt/olbrasoft/virtual-assistant/models/silero_vad.onnx"
   },
-  "PushToTalk": {
-    "DevicePath": "/dev/input/event0"
+  "TtsProviderChain": {
+    "Providers": ["AzureTTS", "HttpEdgeTts", "VoiceRss", "Google", "Piper"]
   }
 }
 ```
 
-### Voice služba
+### Production Secrets
 
-Prompty jsou v `src/VirtualAssistant.Voice/Prompts/`:
-- `VoiceRouterSystem.md` – hlavní system prompt pro routing
+**CRITICAL:** Production secrets are in systemd EnvironmentFile:
+
+`~/.config/systemd/user/virtual-assistant.env`:
+```bash
+# Azure TTS (Primary provider)
+AzureTTS__SubscriptionKey=xxxxx
+AZURE_SPEECH_REGION=westeurope
+
+# GitHub
+GitHub__Token=ghp_xxxxx
+
+# LLM Providers
+GROQ_API_KEY=xxxxx
+CEREBRAS_API_KEY=xxxxx
+MISTRAL_API_KEY=xxxxx
+```
+
+### Voice Prompts
+
+System prompts v `/opt/olbrasoft/virtual-assistant/app/Prompts/`:
+- `VoiceRouterSystem.md` – hlavní system prompt pro LLM routing
 - `DiscussionActiveWarning.md` – varování pro diskuzní mód
 
 ## Deployment
 
 ```bash
-# Deploy - RECOMMENDED: Use ./deploy/deploy.sh instead
-# Deploy path is defined in ~/.config/systemd/user/virtual-assistant.env (SINGLE SOURCE OF TRUTH)
-# Variable: VIRTUAL_ASSISTANT_BASE=%h/apps/virtual-assistant
+# RECOMMENDED: Always use deployment script
+cd ~/Olbrasoft/VirtualAssistant
+./deploy/deploy.sh /opt/olbrasoft/virtual-assistant
 
-# Manual deploy (emergency only):
+# Manual deploy (emergency only - script is safer!)
 dotnet publish src/VirtualAssistant.Service/VirtualAssistant.Service.csproj \
-  -c Release -o ~/apps/virtual-assistant --no-self-contained
+  -c Release \
+  -o /opt/olbrasoft/virtual-assistant/app \
+  --no-self-contained
 
-dotnet publish src/VirtualAssistant.PushToTalk.Service/VirtualAssistant.PushToTalk.Service.csproj \
-  -c Release -o ~/apps/virtual-assistant/push-to-talk --no-self-contained
+# Copy config (without secrets!)
+cp src/VirtualAssistant.Service/appsettings.json /opt/olbrasoft/virtual-assistant/config/
 
 # Systemd služby
+systemctl --user daemon-reload
 systemctl --user enable virtual-assistant.service
 systemctl --user start virtual-assistant.service
 
-systemctl --user enable push-to-talk-dictation.service
-systemctl --user start push-to-talk-dictation.service
+# Verify deployment
+systemctl --user status virtual-assistant
+curl http://localhost:5055/health
+
+# Check logs for errors (especially "not configured")
+journalctl --user -u virtual-assistant -n 50
 ```
+
+**Production directory structure:**
+```
+/opt/olbrasoft/virtual-assistant/
+├── app/                 # Binaries (from dotnet publish)
+├── config/              # appsettings.json (NO secrets!)
+├── data/                # Runtime data, databases
+├── models/              # silero_vad.onnx
+└── icons/               # Tray icons
+```
+
+**Secrets:** `~/.config/systemd/user/virtual-assistant.env` (loaded via systemd EnvironmentFile)
 
 ## Testování
 
@@ -374,53 +409,86 @@ Voice router podporuje více LLM providerů s automatickým fallbackem při rate
 2. **Cerebras** (fallback) – `llama-3.3-70b`
 3. **Mistral** (fallback) – `mistral-large-latest`
 
-## TTS (Text-to-Speech) Fallback
+## TTS Provider Chain (Circuit Breaker Pattern)
 
-Systém podporuje automatický fallback pro TTS:
+Systém podporuje automatický fallback mezi TTS providery:
 
-1. **EdgeTTS** (primární) – Microsoft Edge TTS přes `http://localhost:5555`
-2. **Piper TTS** (fallback) – lokální offline syntéza s českým hlasem `cs_CZ-jirka-medium`
+1. **AzureTTS** (primární) – Azure Speech Service (0.5M chars/month free tier)
+2. **HttpEdgeTts** (fallback) – Microsoft Edge TTS přes WebSocket server (`http://localhost:5555`)
+3. **VoiceRss** (fallback) – VoiceRSS cloud TTS
+4. **Google** (fallback) – Google Cloud TTS
+5. **Piper** (fallback) – lokální offline syntéza
 
-### Piper TTS Fallback
+### Circuit Breaker Behavior
 
-Když EdgeTTS selže (např. Microsoft WebSocket problémy), automaticky se použije Piper:
+- Provider se přeskočí po 3 neúspěšných pokusech (`MaxConsecutiveFailures`)
+- Circuit breaker se resetuje po 300 sekundách (`CircuitBreakerTimeoutSeconds`)
+- Automatický fallback na další provider v řetězci
 
-- Model path: Relativní cesta `piper-voices/cs/cs_CZ-jirka-medium.onnx` (resolved from `AppContext.BaseDirectory`)
-- Base directory je definován v `~/.config/systemd/user/virtual-assistant.env`
-- Respektuje CapsLock stav (stejný algoritmus jako EdgeTTS):
-  - Kontroluje před spuštěním syntézy
-  - Kontroluje po generování ale před přehráváním
-  - Polluje každých 100ms během přehrávání a okamžitě zastaví při stisku CapsLock
+### Azure TTS (Primary Provider)
 
-### Instalace Piper
+**Credentials:** `~/.config/systemd/user/virtual-assistant.env`
+```bash
+AzureTTS__SubscriptionKey=xxxxx
+AZURE_SPEECH_REGION=westeurope
+```
+
+**Výhody:**
+- 0.5M znaků/měsíc zdarma
+- Vysoká kvalita hlasu
+- Rychlá odezva
+
+### EdgeTTS Fallback Server
 
 ```bash
-pipx install piper-tts
+# Install
+pip install edge-tts
 
-# Stáhnout český model (do base directory z environment file)
-# Default base: ~/apps/virtual-assistant
-mkdir -p ~/apps/virtual-assistant/piper-voices/cs
-cd ~/apps/virtual-assistant/piper-voices/cs
-wget https://huggingface.co/rhasspy/piper-voices/resolve/main/cs/cs_CZ/jirka/medium/cs_CZ-jirka-medium.onnx
-wget https://huggingface.co/rhasspy/piper-voices/resolve/main/cs/cs_CZ/jirka/medium/cs_CZ-jirka-medium.onnx.json
+# Run server
+edge-tts-server --port 5555
+
+# Or via systemd
+systemctl --user start edge-tts-server
 ```
 
 ## Background Services
 
+### Voice Workers (4 specialized workers)
+
+#### 1. AudioCapturerWorker
+- Kontinuální audio capture přes PipeWire (pw-record)
+- Respektuje mute stav (IManualMuteService)
+- Publikuje AudioChunkCapturedEvent s RMS kalkulací
+
+#### 2. VoiceActivityWorker
+- Voice Activity Detection (Silero VAD ONNX)
+- Detekuje začátek a konec řeči
+- Publikuje VoiceActivityDetectedEvent
+
+#### 3. TranscriptionRouterWorker
+- Whisper.NET transcription (large-v3 model)
+- LLM routing (Groq → Cerebras → Mistral fallback)
+- Rozhodování o akci (opencode, respond, ignore, savenote, etc.)
+
+#### 4. ActionExecutorWorker
+- Provádí akce z LLM rozhodnutí
+- Volá OpenCode API, TTS, nebo ukládá poznámky
+
 ### TaskDistributionService
 
-Automaticky distribuuje schválené úkoly nečinným agentům. Kontroluje každých 10 sekund.
+Automaticky distribuuje schválené úkoly nečinným agentům (každých 10s).
 
 Workflow:
 1. Agent vytvoří task přes `/api/tasks/create`
 2. Uživatel schválí přes `/api/tasks/{id}/approve` (pokud `requires_approval=true`)
 3. TaskDistributionService zjistí že cílový agent je nečinný
-4. Odešle task přes Hub API (`/api/hub/start`)
-5. Notifikuje uživatele přes TTS
+4. Odešle task přes `/api/hub/dispatch-task`
+5. Pro ClaudeCode: headless mode (`claude -p "..." --output-format json`)
+6. Notifikuje uživatele přes TTS
 
 ### GitHubSyncBackgroundService
 
-Periodicky synchronizuje GitHub issues a generuje embeddings.
+Periodicky synchronizuje GitHub issues a generuje embeddings (Ollama).
 
 ## Licence
 
