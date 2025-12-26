@@ -63,7 +63,7 @@ public class VirtualAssistantTrayService : IDisposable
         try
         {
             // Determine initial icon based on mute state
-            var iconFileName = _muteService.IsMuted ? "virtual-assistant-muted.svg" : "virtual-assistant-active.svg";
+            var iconFileName = _muteService.IsMuted ? "virtual-assistant-muted.svg" : "virtual-assistant-listening.svg";
             var iconPath = Path.Combine(_iconsPath, iconFileName);
             var tooltip = "VirtualAssistant - poslouchám";
 
@@ -100,7 +100,7 @@ public class VirtualAssistantTrayService : IDisposable
                 return;
 
             // Update icon
-            var iconFileName = isMuted ? "virtual-assistant-muted.svg" : "virtual-assistant-active.svg";
+            var iconFileName = isMuted ? "virtual-assistant-muted.svg" : "virtual-assistant-listening.svg";
             var iconPath = Path.Combine(_iconsPath, iconFileName);
             _currentIconPath = iconPath;
 
