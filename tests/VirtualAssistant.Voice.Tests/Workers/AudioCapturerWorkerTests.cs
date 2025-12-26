@@ -13,7 +13,7 @@ namespace VirtualAssistant.Voice.Tests.Workers;
 public class AudioCapturerWorkerTests : IDisposable
 {
     private readonly Mock<ILogger<AudioCapturerWorker>> _loggerMock;
-    private readonly Mock<AudioCaptureService> _audioCaptureServiceMock;
+    private readonly Mock<IAudioCaptureService> _audioCaptureServiceMock;
     private readonly Mock<IEventBus> _eventBusMock;
     private readonly AudioCapturerWorker _sut;
     private readonly CancellationTokenSource _cts;
@@ -21,7 +21,7 @@ public class AudioCapturerWorkerTests : IDisposable
     public AudioCapturerWorkerTests()
     {
         _loggerMock = new Mock<ILogger<AudioCapturerWorker>>();
-        _audioCaptureServiceMock = new Mock<AudioCaptureService>();
+        _audioCaptureServiceMock = new Mock<IAudioCaptureService>();
         _eventBusMock = new Mock<IEventBus>();
         _cts = new CancellationTokenSource();
 
@@ -120,8 +120,8 @@ public class AudioCapturerWorkerTests : IDisposable
 
         // Assert
         Assert.NotNull(publishedEvent);
-        // RMS = sqrt((100^2 + 100^2 + 200^2 + 200^2) / 4) = sqrt(90000 / 4) = sqrt(22500) = 150
-        Assert.InRange(publishedEvent.Rms, 149f, 151f);
+        // RMS = sqrt((100^2 + 100^2 + 200^2 + 200^2) / 4) = sqrt(100000 / 4) = sqrt(25000) ≈ 158.11
+        Assert.InRange(publishedEvent.Rms, 157f, 159f);
     }
 
     [Fact]

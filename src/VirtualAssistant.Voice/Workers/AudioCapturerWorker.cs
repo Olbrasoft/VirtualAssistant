@@ -14,12 +14,12 @@ namespace Olbrasoft.VirtualAssistant.Voice.Workers;
 public class AudioCapturerWorker : BackgroundService
 {
     private readonly ILogger<AudioCapturerWorker> _logger;
-    private readonly AudioCaptureService _audioCapture;
+    private readonly IAudioCaptureService _audioCapture;
     private readonly IEventBus _eventBus;
 
     public AudioCapturerWorker(
         ILogger<AudioCapturerWorker> logger,
-        AudioCaptureService audioCapture,
+        IAudioCaptureService audioCapture,
         IEventBus eventBus)
     {
         _logger = logger;

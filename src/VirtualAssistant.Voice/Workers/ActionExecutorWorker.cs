@@ -18,7 +18,7 @@ public class ActionExecutorWorker : BackgroundService
 {
     private readonly ILogger<ActionExecutorWorker> _logger;
     private readonly IEventBus _eventBus;
-    private readonly TextInputService _textInput;
+    private readonly ITextInputService _textInput;
     private readonly IVirtualAssistantSpeaker _speaker;
     private readonly IExternalServiceClient _externalService;
     private readonly IRepeatTextIntentService _repeatTextIntent;
@@ -27,7 +27,7 @@ public class ActionExecutorWorker : BackgroundService
     public ActionExecutorWorker(
         ILogger<ActionExecutorWorker> logger,
         IEventBus eventBus,
-        TextInputService textInput,
+        ITextInputService textInput,
         IVirtualAssistantSpeaker speaker,
         IExternalServiceClient externalService,
         IRepeatTextIntentService repeatTextIntent)

@@ -17,7 +17,7 @@ public class VoiceActivityWorkerTests : IDisposable
 {
     private readonly Mock<ILogger<VoiceActivityWorker>> _loggerMock;
     private readonly Mock<IEventBus> _eventBusMock;
-    private readonly Mock<VadService> _vadServiceMock;
+    private readonly Mock<IVadService> _vadServiceMock;
     private readonly Mock<IVoiceStateMachine> _stateMachineMock;
     private readonly Mock<ISpeechBufferManager> _bufferManagerMock;
     private readonly IOptions<ContinuousListenerOptions> _options;
@@ -28,7 +28,7 @@ public class VoiceActivityWorkerTests : IDisposable
     {
         _loggerMock = new Mock<ILogger<VoiceActivityWorker>>();
         _eventBusMock = new Mock<IEventBus>();
-        _vadServiceMock = new Mock<VadService>();
+        _vadServiceMock = new Mock<IVadService>();
         _stateMachineMock = new Mock<IVoiceStateMachine>();
         _bufferManagerMock = new Mock<ISpeechBufferManager>();
 

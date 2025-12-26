@@ -17,9 +17,9 @@ public class TranscriptionRouterWorkerTests : IDisposable
 {
     private readonly Mock<ILogger<TranscriptionRouterWorker>> _loggerMock;
     private readonly Mock<IEventBus> _eventBusMock;
-    private readonly Mock<TranscriptionService> _transcriptionServiceMock;
+    private readonly Mock<ITranscriptionService> _transcriptionServiceMock;
     private readonly Mock<ILlmRouterService> _llmRouterMock;
-    private readonly Mock<AssistantSpeechTrackerService> _speechTrackerMock;
+    private readonly Mock<IAssistantSpeechTrackerService> _speechTrackerMock;
     private readonly Mock<ICommandDetectionService> _commandDetectionMock;
     private readonly Mock<IRepeatTextIntentService> _repeatTextIntentMock;
     private readonly TranscriptionRouterWorker _sut;
@@ -30,9 +30,9 @@ public class TranscriptionRouterWorkerTests : IDisposable
     {
         _loggerMock = new Mock<ILogger<TranscriptionRouterWorker>>();
         _eventBusMock = new Mock<IEventBus>();
-        _transcriptionServiceMock = new Mock<TranscriptionService>();
+        _transcriptionServiceMock = new Mock<ITranscriptionService>();
         _llmRouterMock = new Mock<ILlmRouterService>();
-        _speechTrackerMock = new Mock<AssistantSpeechTrackerService>();
+        _speechTrackerMock = new Mock<IAssistantSpeechTrackerService>();
         _commandDetectionMock = new Mock<ICommandDetectionService>();
         _repeatTextIntentMock = new Mock<IRepeatTextIntentService>();
 

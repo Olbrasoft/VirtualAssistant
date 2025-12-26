@@ -111,7 +111,7 @@ public static class ServiceCollectionExtensions
         services.AddSingleton<IStringSimilarity, LevenshteinSimilarity>();
 
         // Assistant speech tracker for echo cancellation
-        services.AddSingleton<AssistantSpeechTrackerService>();
+        services.AddSingleton<IAssistantSpeechTrackerService, AssistantSpeechTrackerService>();
 
         // Silero VAD model
         services.AddSingleton<SileroVadOnnxModel>(sp =>
@@ -120,11 +120,11 @@ public static class ServiceCollectionExtensions
             return new SileroVadOnnxModel(options.Value.SileroVadModelPath);
         });
 
-        services.AddSingleton<AudioCaptureService>();
-        services.AddSingleton<VadService>();
+        services.AddSingleton<IAudioCaptureService, AudioCaptureService>();
+        services.AddSingleton<IVadService, VadService>();
         // Use SpeechToText gRPC microservice instead of local Whisper.net
         services.AddSingleton<ISpeechTranscriber, SpeechToTextGrpcClient>();
-        services.AddSingleton<TranscriptionService>();
+        services.AddSingleton<ITranscriptionService, TranscriptionService>();
 
         // Repeat text intent detection service (for PTT history feature)
         services.AddSingleton<IRepeatTextIntentService, RepeatTextIntentService>();
@@ -132,7 +132,7 @@ public static class ServiceCollectionExtensions
         // Text input service for OpenCode
         var openCodeUrl = configuration["OpenCodeUrl"] ?? "http://localhost:4096";
         services.AddSingleton(new OpenCodeClient(openCodeUrl));
-        services.AddSingleton<TextInputService>();
+        services.AddSingleton<ITextInputService, TextInputService>();
 
         // Mute service (shared between tray, keyboard monitor, and continuous listener)
         services.AddSingleton<IManualMuteService, ManualMuteService>();

@@ -17,9 +17,9 @@ public class TranscriptionRouterWorker : BackgroundService
 {
     private readonly ILogger<TranscriptionRouterWorker> _logger;
     private readonly IEventBus _eventBus;
-    private readonly TranscriptionService _transcription;
+    private readonly ITranscriptionService _transcription;
     private readonly ILlmRouterService _llmRouter;
-    private readonly AssistantSpeechTrackerService _speechTracker;
+    private readonly IAssistantSpeechTrackerService _speechTracker;
     private readonly ICommandDetectionService _commandDetection;
     private readonly IRepeatTextIntentService _repeatTextIntent;
     private readonly IDisposable _speechEndedSubscription;
@@ -31,9 +31,9 @@ public class TranscriptionRouterWorker : BackgroundService
     public TranscriptionRouterWorker(
         ILogger<TranscriptionRouterWorker> logger,
         IEventBus eventBus,
-        TranscriptionService transcription,
+        ITranscriptionService transcription,
         ILlmRouterService llmRouter,
-        AssistantSpeechTrackerService speechTracker,
+        IAssistantSpeechTrackerService speechTracker,
         ICommandDetectionService commandDetection,
         IRepeatTextIntentService repeatTextIntent)
     {

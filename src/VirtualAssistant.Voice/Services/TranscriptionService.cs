@@ -9,7 +9,7 @@ namespace Olbrasoft.VirtualAssistant.Voice.Services;
 /// Service for transcribing audio using SpeechToText gRPC microservice.
 /// Wrapper that delegates to ISpeechTranscriber (SpeechToTextGrpcClient).
 /// </summary>
-public class TranscriptionService : IDisposable
+public class TranscriptionService : ITranscriptionService
 {
     private readonly ILogger<TranscriptionService> _logger;
     private readonly ISpeechTranscriber _transcriber;

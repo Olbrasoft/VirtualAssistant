@@ -20,8 +20,7 @@ public class ActionExecutorWorkerTests : IDisposable
 {
     private readonly Mock<ILogger<ActionExecutorWorker>> _loggerMock;
     private readonly Mock<IEventBus> _eventBusMock;
-    private readonly Mock<OpenCodeClient> _openCodeClientMock;
-    private readonly TextInputService _textInputService;
+    private readonly Mock<ITextInputService> _textInputServiceMock;
     private readonly Mock<IVirtualAssistantSpeaker> _speakerMock;
     private readonly Mock<IExternalServiceClient> _externalServiceMock;
     private readonly Mock<IRepeatTextIntentService> _repeatTextIntentMock;
@@ -32,10 +31,7 @@ public class ActionExecutorWorkerTests : IDisposable
     {
         _loggerMock = new Mock<ILogger<ActionExecutorWorker>>();
         _eventBusMock = new Mock<IEventBus>();
-        _openCodeClientMock = new Mock<OpenCodeClient>("http://localhost:4096");
-        _textInputService = new TextInputService(
-            Mock.Of<ILogger<TextInputService>>(),
-            _openCodeClientMock.Object);
+        _textInputServiceMock = new Mock<ITextInputService>();
         _speakerMock = new Mock<IVirtualAssistantSpeaker>();
         _externalServiceMock = new Mock<IExternalServiceClient>();
         _repeatTextIntentMock = new Mock<IRepeatTextIntentService>();
@@ -48,7 +44,7 @@ public class ActionExecutorWorkerTests : IDisposable
         _sut = new ActionExecutorWorker(
             _loggerMock.Object,
             _eventBusMock.Object,
-            _textInputService,
+            _textInputServiceMock.Object,
             _speakerMock.Object,
             _externalServiceMock.Object,
             _repeatTextIntentMock.Object);
@@ -77,15 +73,15 @@ public class ActionExecutorWorkerTests : IDisposable
             "run tests",
             PromptType: PromptType.Command);
 
-        _openCodeClientMock.Setup(x => x.SendToTuiAsync(It.IsAny<string>(), It.IsAny<CancellationToken>()))
-            .Returns(Task.CompletedTask);
+        _textInputServiceMock.Setup(x => x.SendMessageToSessionAsync(It.IsAny<string>(), It.IsAny<string>(), It.IsAny<CancellationToken>()))
+            .ReturnsAsync(true);
 
         // Act
         await _actionRequestedHandler!(@event, CancellationToken.None);
 
         // Assert
-        _openCodeClientMock.Verify(
-            x => x.SendToTuiAsync(It.Is<string>(s => s.Contains("run tests") && s.Contains("BUILD")), It.IsAny<CancellationToken>()),
+        _textInputServiceMock.Verify(
+            x => x.SendMessageToSessionAsync("run tests", "build", It.IsAny<CancellationToken>()),
             Times.Once);
     }
 
@@ -98,15 +94,15 @@ public class ActionExecutorWorkerTests : IDisposable
             "what is this code doing",
             PromptType: PromptType.Question);
 
-        _openCodeClientMock.Setup(x => x.SendToTuiAsync(It.IsAny<string>(), It.IsAny<CancellationToken>()))
-            .Returns(Task.CompletedTask);
+        _textInputServiceMock.Setup(x => x.SendMessageToSessionAsync(It.IsAny<string>(), It.IsAny<string>(), It.IsAny<CancellationToken>()))
+            .ReturnsAsync(true);
 
         // Act
         await _actionRequestedHandler!(@event, CancellationToken.None);
 
         // Assert
-        _openCodeClientMock.Verify(
-            x => x.SendToTuiAsync(It.Is<string>(s => s.Contains("what is this code doing") && s.Contains("PLAN")), It.IsAny<CancellationToken>()),
+        _textInputServiceMock.Verify(
+            x => x.SendMessageToSessionAsync("what is this code doing", "plan", It.IsAny<CancellationToken>()),
             Times.Once);
     }
 
@@ -119,15 +115,15 @@ public class ActionExecutorWorkerTests : IDisposable
             "ls -la",
             PromptType: PromptType.Command);
 
-        _openCodeClientMock.Setup(x => x.SendToTuiAsync(It.IsAny<string>(), It.IsAny<CancellationToken>()))
-            .Returns(Task.CompletedTask);
+        _textInputServiceMock.Setup(x => x.SendMessageToSessionAsync(It.IsAny<string>(), It.IsAny<string>(), It.IsAny<CancellationToken>()))
+            .ReturnsAsync(true);
 
         // Act
         await _actionRequestedHandler!(@event, CancellationToken.None);
 
         // Assert
-        _openCodeClientMock.Verify(
-            x => x.SendToTuiAsync(It.Is<string>(s => s.Contains("ls -la") && s.Contains("BUILD")), It.IsAny<CancellationToken>()),
+        _textInputServiceMock.Verify(
+            x => x.SendMessageToSessionAsync("ls -la", "build", It.IsAny<CancellationToken>()),
             Times.Once);
     }
 
@@ -144,7 +140,7 @@ public class ActionExecutorWorkerTests : IDisposable
         await _actionRequestedHandler!(@event, CancellationToken.None);
 
         // Assert - should just log, no other calls
-        _openCodeClientMock.VerifyNoOtherCalls();
+        _textInputServiceMock.VerifyNoOtherCalls();
         _speakerMock.VerifyNoOtherCalls();
     }
 
@@ -161,7 +157,7 @@ public class ActionExecutorWorkerTests : IDisposable
         await _actionRequestedHandler!(@event, CancellationToken.None);
 
         // Assert - should complete without errors
-        _openCodeClientMock.VerifyNoOtherCalls();
+        _textInputServiceMock.VerifyNoOtherCalls();
     }
 
     [Fact]
@@ -285,7 +281,7 @@ public class ActionExecutorWorkerTests : IDisposable
         await _actionRequestedHandler!(@event, CancellationToken.None);
 
         // Assert - should just log
-        _openCodeClientMock.VerifyNoOtherCalls();
+        _textInputServiceMock.VerifyNoOtherCalls();
         _speakerMock.VerifyNoOtherCalls();
     }
 
@@ -301,7 +297,7 @@ public class ActionExecutorWorkerTests : IDisposable
         await _actionRequestedHandler!(@event, CancellationToken.None);
 
         // Assert
-        _openCodeClientMock.VerifyNoOtherCalls();
+        _textInputServiceMock.VerifyNoOtherCalls();
         _speakerMock.VerifyNoOtherCalls();
         _externalServiceMock.VerifyNoOtherCalls();
     }
@@ -315,7 +311,7 @@ public class ActionExecutorWorkerTests : IDisposable
             "test",
             PromptType: PromptType.Command);
 
-        _openCodeClientMock.Setup(x => x.SendToTuiAsync(It.IsAny<string>(), It.IsAny<CancellationToken>()))
+        _textInputServiceMock.Setup(x => x.SendMessageToSessionAsync(It.IsAny<string>(), It.IsAny<string>(), It.IsAny<CancellationToken>()))
             .ThrowsAsync(new Exception("Test exception"));
 
         // Act

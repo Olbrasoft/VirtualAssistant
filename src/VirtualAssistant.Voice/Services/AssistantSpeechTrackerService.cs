@@ -10,7 +10,7 @@ namespace Olbrasoft.VirtualAssistant.Voice.Services;
 /// Used to filter out assistant's own speech from transcriptions.
 /// Now supports multiple TTS messages that arrive in sequence.
 /// </summary>
-public class AssistantSpeechTrackerService
+public class AssistantSpeechTrackerService : IAssistantSpeechTrackerService
 {
     private readonly ILogger<AssistantSpeechTrackerService> _logger;
     private readonly IStringSimilarity _stringSimilarity;

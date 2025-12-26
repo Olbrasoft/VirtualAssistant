@@ -18,7 +18,7 @@ public class VoiceActivityWorker : BackgroundService
 {
     private readonly ILogger<VoiceActivityWorker> _logger;
     private readonly IEventBus _eventBus;
-    private readonly VadService _vad;
+    private readonly IVadService _vad;
     private readonly IVoiceStateMachine _stateMachine;
     private readonly ISpeechBufferManager _bufferManager;
     private readonly int _maxSilenceDurationMs;
@@ -28,7 +28,7 @@ public class VoiceActivityWorker : BackgroundService
     public VoiceActivityWorker(
         ILogger<VoiceActivityWorker> logger,
         IEventBus eventBus,
-        VadService vad,
+        IVadService vad,
         IVoiceStateMachine stateMachine,
         ISpeechBufferManager bufferManager,
         IOptions<ContinuousListenerOptions> options)

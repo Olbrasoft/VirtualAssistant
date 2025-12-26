@@ -8,7 +8,7 @@ namespace Olbrasoft.VirtualAssistant.Voice.Services;
 /// <summary>
 /// Service for capturing audio from PipeWire using pw-record.
 /// </summary>
-public class AudioCaptureService : IDisposable
+public class AudioCaptureService : IAudioCaptureService
 {
     private readonly ILogger<AudioCaptureService> _logger;
     private readonly ContinuousListenerOptions _options;
