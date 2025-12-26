@@ -3,6 +3,7 @@ using Microsoft.Extensions.Options;
 using Olbrasoft.VirtualAssistant.Core.Configuration;
 using Olbrasoft.VirtualAssistant.Core.Services;
 using Olbrasoft.VirtualAssistant.Core.Speech;
+using Olbrasoft.VirtualAssistant.Service.Factories;
 using Olbrasoft.VirtualAssistant.Core.TextInput;
 using Olbrasoft.VirtualAssistant.Voice;
 using Olbrasoft.VirtualAssistant.Voice.Audio;
@@ -288,23 +289,14 @@ public static class ServiceCollectionExtensions
             return new VirtualAssistantDBusMenuHandler(logger);
         });
 
-        // VirtualAssistant tray service (wrapper for tray functionality)
+        // VirtualAssistant tray service factory (encapsulates complex creation logic)
+        services.AddSingleton<VirtualAssistantTrayServiceFactory>();
+
+        // VirtualAssistant tray service (created via factory)
         services.AddSingleton(sp =>
         {
-            var logger = sp.GetRequiredService<ILogger<VirtualAssistantTrayService>>();
-            var manager = sp.GetRequiredService<TrayIconManager>();
-            var muteService = sp.GetRequiredService<IManualMuteService>();
-            var menuHandler = sp.GetRequiredService<ITrayMenuHandler>();
-            var options = sp.GetRequiredService<IOptions<ContinuousListenerOptions>>();
-            var iconsPath = Path.Combine(AppContext.BaseDirectory, "icons");
-
-            return new VirtualAssistantTrayService(
-                logger,
-                manager,
-                muteService,
-                iconsPath,
-                options.Value.LogViewerPort,
-                menuHandler);
+            var factory = sp.GetRequiredService<VirtualAssistantTrayServiceFactory>();
+            return factory.Create();
         });
 
         return services;
