@@ -295,15 +295,22 @@ public static class ServiceCollectionExtensions
             var manager = sp.GetRequiredService<TrayIconManager>();
             var muteService = sp.GetRequiredService<IManualMuteService>();
             var menuHandler = sp.GetRequiredService<ITrayMenuHandler>();
-            var options = sp.GetRequiredService<IOptions<ContinuousListenerOptions>>();
-            var iconsPath = Path.Combine(AppContext.BaseDirectory, "icons");
+            var listenerOptions = sp.GetRequiredService<IOptions<ContinuousListenerOptions>>();
+            var systemPaths = sp.GetRequiredService<IOptions<SystemPathsOptions>>();
+
+            // Resolve icons path (relative to app directory if not absolute)
+            var iconsPath = systemPaths.Value.IconsPath;
+            if (!Path.IsPathRooted(iconsPath))
+            {
+                iconsPath = Path.Combine(AppContext.BaseDirectory, iconsPath);
+            }
 
             return new VirtualAssistantTrayService(
                 logger,
                 manager,
                 muteService,
                 iconsPath,
-                options.Value.LogViewerPort,
+                listenerOptions.Value.LogViewerPort,
                 menuHandler);
         });
 

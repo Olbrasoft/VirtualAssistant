@@ -42,6 +42,13 @@ public class SystemPathsOptions
     public int SpeechLockTimeoutSeconds { get; set; } = 30;
 
     /// <summary>
+    /// Gets or sets the directory containing tray icon SVG files.
+    /// Default: icons (relative to app directory)
+    /// Production: /opt/olbrasoft/virtual-assistant/icons
+    /// </summary>
+    public string IconsPath { get; set; } = "icons";
+
+    /// <summary>
     /// Expands ~ to home directory in the TTS cache path.
     /// </summary>
     public string GetExpandedTtsCacheDirectory()
