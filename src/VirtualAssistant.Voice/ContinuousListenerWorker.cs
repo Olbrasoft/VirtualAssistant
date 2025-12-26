@@ -23,9 +23,9 @@ namespace Olbrasoft.VirtualAssistant.Voice;
 public class ContinuousListenerWorker : BackgroundService
 {
     private readonly ILogger<ContinuousListenerWorker> _logger;
-    private readonly AudioCaptureService _audioCapture;
-    private readonly VadService _vad;
-    private readonly TranscriptionService _transcription;
+    private readonly IAudioCaptureService _audioCapture;
+    private readonly IVadService _vad;
+    private readonly ITranscriptionService _transcription;
     private readonly ILlmRouterService _llmRouter;
     private readonly TextInputService _textInput;
     private readonly ContinuousListenerOptions _options;
@@ -47,9 +47,9 @@ public class ContinuousListenerWorker : BackgroundService
 
     public ContinuousListenerWorker(
         ILogger<ContinuousListenerWorker> logger,
-        AudioCaptureService audioCapture,
-        VadService vad,
-        TranscriptionService transcription,
+        IAudioCaptureService audioCapture,
+        IVadService vad,
+        ITranscriptionService transcription,
         ILlmRouterService llmRouter,
         TextInputService textInput,
         IOptions<ContinuousListenerOptions> options,

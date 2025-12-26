@@ -118,11 +118,11 @@ public static class ServiceCollectionExtensions
             return new SileroVadOnnxModel(options.Value.SileroVadModelPath);
         });
 
-        services.AddSingleton<AudioCaptureService>();
-        services.AddSingleton<VadService>();
+        services.AddSingleton<IAudioCaptureService, AudioCaptureService>();
+        services.AddSingleton<IVadService, VadService>();
         // Use SpeechToText gRPC microservice instead of local Whisper.net
         services.AddSingleton<ISpeechTranscriber, SpeechToTextGrpcClient>();
-        services.AddSingleton<TranscriptionService>();
+        services.AddSingleton<ITranscriptionService, TranscriptionService>();
 
         // Repeat text intent detection service (for PTT history feature)
         services.AddSingleton<IRepeatTextIntentService, RepeatTextIntentService>();
