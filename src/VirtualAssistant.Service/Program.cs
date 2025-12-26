@@ -2,6 +2,7 @@ using Microsoft.Extensions.Options;
 using Olbrasoft.VirtualAssistant.Core.Configuration;
 using Olbrasoft.VirtualAssistant.Core.Services;
 using Olbrasoft.VirtualAssistant.Service.Extensions;
+using Olbrasoft.VirtualAssistant.Service.Middleware;
 using Olbrasoft.VirtualAssistant.Service.Tray;
 
 namespace Olbrasoft.VirtualAssistant.Service;
@@ -60,6 +61,9 @@ public class Program
         builder.Services.AddVirtualAssistantServices(builder.Configuration);
 
         _app = builder.Build();
+
+        // Add correlation ID middleware (must be early in pipeline)
+        _app.UseMiddleware<CorrelationIdMiddleware>();
 
         // Apply migrations and configure endpoints
         _app.ApplyDatabaseMigrations();

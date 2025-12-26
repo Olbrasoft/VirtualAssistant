@@ -1,4 +1,5 @@
 using Microsoft.Extensions.DependencyInjection;
+using VirtualAssistant.Core.Logging;
 using VirtualAssistant.Core.Services;
 
 namespace VirtualAssistant.Core;
@@ -15,6 +16,10 @@ public static class ServiceCollectionExtensions
     /// <returns>The service collection for chaining</returns>
     public static IServiceCollection AddCoreServices(this IServiceCollection services)
     {
+        // Logging infrastructure
+        services.AddSingleton<ICorrelationIdProvider, CorrelationIdProvider>();
+
+        // Core services
         services.AddScoped<INotificationService, NotificationService>();
 
         return services;
