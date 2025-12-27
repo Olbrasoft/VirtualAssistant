@@ -376,13 +376,35 @@ public static class ServiceCollectionExtensions
         services.AddHostedService<KeyboardMonitorWorker>();
 
         // New event-driven workers (issue #332 - SOLID refactoring)
+        // NOTE: These workers are for continuous listening mode (currently muted by default)
         services.AddHostedService<AudioCapturerWorker>();
         services.AddHostedService<VoiceActivityWorker>();
         services.AddHostedService<TranscriptionRouterWorker>();
         services.AddHostedService<ActionExecutorWorker>();
 
         // Dictation worker (Phase 5 - keyboard-triggered dictation)
-        services.AddHostedService<DictationWorker>();
+        // Uses dedicated AudioCaptureService instance (not shared with continuous listening)
+        services.AddHostedService(sp =>
+        {
+            var logger = sp.GetRequiredService<ILogger<DictationWorker>>();
+            var keyboardMonitor = sp.GetRequiredService<IKeyboardMonitor>();
+            var stateMachine = sp.GetRequiredService<Olbrasoft.VirtualAssistant.Voice.StateMachine.IDictationStateMachine>();
+            var transcriptionService = sp.GetRequiredService<ITranscriptionService>();
+            var textInputService = sp.GetRequiredService<ITextInputService>();
+
+            // Create dedicated AudioCaptureService for dictation (independent from continuous listening)
+            var audioCaptureLogger = sp.GetRequiredService<ILogger<AudioCaptureService>>();
+            var configuration = sp.GetRequiredService<IConfiguration>();
+            var audioCaptureService = new AudioCaptureService(audioCaptureLogger, configuration);
+
+            return new DictationWorker(
+                logger,
+                keyboardMonitor,
+                stateMachine,
+                audioCaptureService,
+                transcriptionService,
+                textInputService);
+        });
 
         // TODO: Remove after testing new workers
         // services.AddHostedService<ContinuousListenerWorker>();

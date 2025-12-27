@@ -1,9 +1,9 @@
 using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Logging;
-using Olbrasoft.VirtualAssistant.Core.Events;
 using Olbrasoft.VirtualAssistant.Core.Services;
 using Olbrasoft.VirtualAssistant.Core.Speech;
 using Olbrasoft.VirtualAssistant.Core.TextInput;
+using Olbrasoft.VirtualAssistant.Voice.Audio;
 using Olbrasoft.VirtualAssistant.Voice.Services;
 using Olbrasoft.VirtualAssistant.Voice.StateMachine;
 
@@ -12,13 +12,14 @@ namespace Olbrasoft.VirtualAssistant.Service.Workers;
 /// <summary>
 /// Background worker for keyboard-triggered dictation workflow.
 /// Manages audio recording, transcription, and text insertion based on CapsLock state.
+/// Uses dedicated audio capture instance (independent from continuous listening).
 /// </summary>
 public class DictationWorker : BackgroundService
 {
     private readonly ILogger<DictationWorker> _logger;
     private readonly IKeyboardMonitor _keyboardMonitor;
     private readonly IDictationStateMachine _stateMachine;
-    private readonly IEventBus _eventBus;
+    private readonly IAudioCaptureService _audioCapture;
     private readonly ITranscriptionService _transcriptionService;
     private readonly ITextInputService _textInputService;
 
@@ -26,20 +27,20 @@ public class DictationWorker : BackgroundService
     private CancellationTokenSource? _transcriptionCts;
     private List<byte> _audioBuffer = new();
     private readonly object _bufferLock = new();
-    private IDisposable? _audioEventSubscription;
+    private Task? _recordingTask;
 
     public DictationWorker(
         ILogger<DictationWorker> logger,
         IKeyboardMonitor keyboardMonitor,
         IDictationStateMachine stateMachine,
-        IEventBus eventBus,
+        IAudioCaptureService audioCapture,
         ITranscriptionService transcriptionService,
         ITextInputService textInputService)
     {
         _logger = logger ?? throw new ArgumentNullException(nameof(logger));
         _keyboardMonitor = keyboardMonitor ?? throw new ArgumentNullException(nameof(keyboardMonitor));
         _stateMachine = stateMachine ?? throw new ArgumentNullException(nameof(stateMachine));
-        _eventBus = eventBus ?? throw new ArgumentNullException(nameof(eventBus));
+        _audioCapture = audioCapture ?? throw new ArgumentNullException(nameof(audioCapture));
         _transcriptionService = transcriptionService ?? throw new ArgumentNullException(nameof(transcriptionService));
         _textInputService = textInputService ?? throw new ArgumentNullException(nameof(textInputService));
     }
@@ -52,9 +53,6 @@ public class DictationWorker : BackgroundService
         {
             // Subscribe to keyboard events
             _keyboardMonitor.KeyReleased += OnKeyReleased;
-
-            // Subscribe to audio chunk events via EventBus
-            _audioEventSubscription = _eventBus.Subscribe<AudioChunkCapturedEvent>(OnAudioChunkCaptured);
 
             // Wait for cancellation
             await Task.Delay(Timeout.Infinite, stoppingToken);
@@ -71,7 +69,6 @@ public class DictationWorker : BackgroundService
         finally
         {
             _keyboardMonitor.KeyReleased -= OnKeyReleased;
-            _audioEventSubscription?.Dispose();
 
             // Stop recording if active
             if (_stateMachine.CurrentState == DictationState.Recording)
@@ -130,22 +127,6 @@ public class DictationWorker : BackgroundService
         }
     }
 
-    private Task OnAudioChunkCaptured(AudioChunkCapturedEvent evt, CancellationToken cancellationToken)
-    {
-        if (_stateMachine.CurrentState != DictationState.Recording)
-            return Task.CompletedTask;
-
-        lock (_bufferLock)
-        {
-            _audioBuffer.AddRange(evt.AudioData);
-        }
-
-        _logger.LogDebug("Audio data buffered: {Bytes} bytes (total: {Total})",
-            evt.AudioData.Length, _audioBuffer.Count);
-
-        return Task.CompletedTask;
-    }
-
     private async Task StartRecordingAsync()
     {
         try
@@ -162,6 +143,12 @@ public class DictationWorker : BackgroundService
             // Create cancellation token for recording
             _recordingCts = new CancellationTokenSource();
 
+            // Start audio capture
+            _audioCapture.Start();
+
+            // Start recording task to capture audio chunks
+            _recordingTask = Task.Run(async () => await CaptureAudioAsync(_recordingCts.Token), _recordingCts.Token);
+
             _logger.LogInformation("Recording started");
         }
         catch (Exception ex)
@@ -171,14 +158,64 @@ public class DictationWorker : BackgroundService
         }
     }
 
+    /// <summary>
+    /// Captures audio chunks from the audio capture service and buffers them.
+    /// </summary>
+    private async Task CaptureAudioAsync(CancellationToken cancellationToken)
+    {
+        try
+        {
+            while (!cancellationToken.IsCancellationRequested && _stateMachine.CurrentState == DictationState.Recording)
+            {
+                var chunk = await _audioCapture.ReadChunkAsync(cancellationToken);
+                if (chunk != null)
+                {
+                    lock (_bufferLock)
+                    {
+                        _audioBuffer.AddRange(chunk);
+                    }
+
+                    _logger.LogDebug("Audio chunk captured: {Bytes} bytes (total: {Total})", chunk.Length, _audioBuffer.Count);
+                }
+            }
+        }
+        catch (OperationCanceledException)
+        {
+            _logger.LogDebug("Audio capture canceled");
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Error capturing audio");
+        }
+    }
+
     private async Task StopAndTranscribeAsync()
     {
         try
         {
-            // Cancel recording
+            // Cancel recording task
             _recordingCts?.Cancel();
+
+            // Wait for recording task to complete
+            if (_recordingTask != null)
+            {
+                try
+                {
+                    await _recordingTask;
+                }
+                catch (OperationCanceledException)
+                {
+                    // Expected when canceling
+                }
+            }
+
+            // Stop audio capture
+            _audioCapture.Stop();
+
+            // Cleanup
             _recordingCts?.Dispose();
             _recordingCts = null;
+            _recordingTask = null;
 
             // Get recorded audio
             byte[] audioData;
@@ -246,10 +283,29 @@ public class DictationWorker : BackgroundService
         {
             _logger.LogWarning("Emergency stop triggered");
 
-            // Cancel recording
+            // Cancel recording task
             _recordingCts?.Cancel();
+
+            // Wait for recording task to complete
+            if (_recordingTask != null)
+            {
+                try
+                {
+                    await _recordingTask;
+                }
+                catch (OperationCanceledException)
+                {
+                    // Expected
+                }
+            }
+
+            // Stop audio capture
+            _audioCapture.Stop();
+
+            // Cleanup
             _recordingCts?.Dispose();
             _recordingCts = null;
+            _recordingTask = null;
 
             // Clear buffer
             lock (_bufferLock)
@@ -295,9 +351,36 @@ public class DictationWorker : BackgroundService
     {
         _logger.LogInformation("Stopping recording on worker shutdown");
 
+        // Cancel recording task
         _recordingCts?.Cancel();
+
+        // Wait for recording task to complete
+        if (_recordingTask != null)
+        {
+            try
+            {
+                await _recordingTask;
+            }
+            catch (OperationCanceledException)
+            {
+                // Expected
+            }
+        }
+
+        // Stop audio capture
+        try
+        {
+            _audioCapture.Stop();
+        }
+        catch (Exception ex)
+        {
+            _logger.LogDebug(ex, "Error stopping audio capture on shutdown");
+        }
+
+        // Cleanup
         _recordingCts?.Dispose();
         _recordingCts = null;
+        _recordingTask = null;
 
         lock (_bufferLock)
         {
