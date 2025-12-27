@@ -49,6 +49,26 @@ public class VirtualAssistantDbContext : DbContext
     /// </summary>
     public DbSet<NotificationGitHubIssue> NotificationGitHubIssues => Set<NotificationGitHubIssue>();
 
+    /// <summary>
+    /// Gets or sets the WhisperTranscriptions DbSet.
+    /// </summary>
+    public DbSet<WhisperTranscription> WhisperTranscriptions => Set<WhisperTranscription>();
+
+    /// <summary>
+    /// Gets or sets the LlmCorrections DbSet.
+    /// </summary>
+    public DbSet<LlmCorrection> LlmCorrections => Set<LlmCorrection>();
+
+    /// <summary>
+    /// Gets or sets the LlmErrors DbSet.
+    /// </summary>
+    public DbSet<LlmError> LlmErrors => Set<LlmError>();
+
+    /// <summary>
+    /// Gets or sets the TranscriptionCorrections DbSet.
+    /// </summary>
+    public DbSet<TranscriptionCorrection> TranscriptionCorrections => Set<TranscriptionCorrection>();
+
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {
         base.OnModelCreating(modelBuilder);

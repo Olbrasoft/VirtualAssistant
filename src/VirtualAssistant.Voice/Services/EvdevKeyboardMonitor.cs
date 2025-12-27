@@ -80,6 +80,12 @@ public class EvdevKeyboardMonitor : IKeyboardMonitor
         return ReadLedState("scrolllock");
     }
 
+    /// <inheritdoc />
+    public bool IsCapsLockOn()
+    {
+        return ReadLedState("capslock");
+    }
+
     private void MonitorLoop(CancellationToken cancellationToken)
     {
         var buffer = new byte[InputEventSize];

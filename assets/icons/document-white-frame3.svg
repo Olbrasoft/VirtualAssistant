@@ -1,0 +1,8 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 16 16">
+  <!-- Dokument s 2 čárami -->
+  <rect x="3" y="2" width="10" height="12" rx="0.5" 
+        style="fill:none;stroke:#ffffff;stroke-width:2;"/>
+  <rect x="4.5" y="4.5" width="7" height="1.2" style="fill:#ffffff;"/>
+  <rect x="4.5" y="7" width="7" height="1.2" style="fill:#ffffff;"/>
+</svg>

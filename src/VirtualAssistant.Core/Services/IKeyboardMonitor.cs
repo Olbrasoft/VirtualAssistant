@@ -31,6 +31,12 @@ public interface IKeyboardMonitor : IDisposable
     /// Note: May not work on Wayland, use internal state tracking instead.
     /// </summary>
     bool IsScrollLockOn();
+
+    /// <summary>
+    /// Gets whether CapsLock LED is currently on.
+    /// Note: May not work on Wayland, use internal state tracking instead.
+    /// </summary>
+    bool IsCapsLockOn();
 }
 
 /// <summary>

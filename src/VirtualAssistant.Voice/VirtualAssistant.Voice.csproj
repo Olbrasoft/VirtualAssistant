@@ -63,6 +63,18 @@
       <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
     </Content>
   </ItemGroup>
+
+  <!-- Embed prompt files as resources for fallback -->
+  <ItemGroup>
+    <EmbeddedResource Include="Prompts\**\*.md" />
+  </ItemGroup>
+
+  <!-- Copy filter configuration to output directory -->
+  <ItemGroup>
+    <Content Include="Filters\**\*.json">
+      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+    </Content>
+  </ItemGroup>
   <ItemGroup>
     <ProjectReference Include="..\VirtualAssistant.LlmChain\VirtualAssistant.LlmChain.csproj" />
     <ProjectReference Include="..\VirtualAssistant.GitHub\VirtualAssistant.GitHub.csproj" />

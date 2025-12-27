@@ -1,0 +1,130 @@
+using Microsoft.EntityFrameworkCore;
+using Microsoft.Extensions.DependencyInjection;
+using Microsoft.Extensions.Logging;
+using VirtualAssistant.Data.Entities;
+using VirtualAssistant.Data.EntityFrameworkCore;
+
+namespace Olbrasoft.VirtualAssistant.Voice.Filters;
+
+/// <summary>
+/// Filter strategy that applies database-driven text corrections with priority ordering.
+/// Corrections are cached for 5 minutes for performance.
+/// </summary>
+public class DatabaseCorrectionFilterStrategy : ITextFilterStrategy
+{
+    private readonly ILogger<DatabaseCorrectionFilterStrategy> _logger;
+    private readonly IServiceScopeFactory? _serviceScopeFactory;
+
+    // Database corrections cache
+    private IReadOnlyList<TranscriptionCorrection> _cachedCorrections = Array.Empty<TranscriptionCorrection>();
+    private DateTime _cacheExpiry = DateTime.MinValue;
+    private static readonly TimeSpan CacheDuration = TimeSpan.FromMinutes(5);
+    private readonly object _lock = new();
+
+    public DatabaseCorrectionFilterStrategy(
+        ILogger<DatabaseCorrectionFilterStrategy> logger,
+        IServiceScopeFactory? serviceScopeFactory = null)
+    {
+        _logger = logger ?? throw new ArgumentNullException(nameof(logger));
+        _serviceScopeFactory = serviceScopeFactory;
+    }
+
+    /// <inheritdoc/>
+    public string Name => "Database Corrections";
+
+    /// <inheritdoc/>
+    public bool IsEnabled => _serviceScopeFactory != null;
+
+    /// <inheritdoc/>
+    public string Apply(string text)
+    {
+        if (string.IsNullOrWhiteSpace(text))
+            return text;
+
+        // Refresh database corrections cache if needed
+        RefreshCorrectionsCache();
+
+        if (_cachedCorrections.Count == 0)
+            return text;
+
+        var result = text;
+
+        // Apply corrections in priority order (highest first)
+        foreach (var correction in _cachedCorrections)
+        {
+            var comparison = correction.CaseSensitive
+                ? StringComparison.Ordinal
+                : StringComparison.OrdinalIgnoreCase;
+
+            if (result.Contains(correction.IncorrectText, comparison))
+            {
+                result = result.Replace(
+                    correction.IncorrectText,
+                    correction.CorrectText,
+                    comparison);
+
+                _logger.LogDebug(
+                    "Applied DB correction: '{Incorrect}' → '{Correct}' (priority: {Priority})",
+                    correction.IncorrectText,
+                    correction.CorrectText,
+                    correction.Priority);
+            }
+        }
+
+        return result;
+    }
+
+    /// <summary>
+    /// Refreshes the database corrections cache if expired.
+    /// </summary>
+    private void RefreshCorrectionsCache()
+    {
+        if (_serviceScopeFactory == null)
+            return;
+
+        if (DateTime.UtcNow < _cacheExpiry)
+            return;
+
+        lock (_lock)
+        {
+            // Double-check after acquiring lock
+            if (DateTime.UtcNow < _cacheExpiry)
+                return;
+
+            try
+            {
+                // Create a new scope to get scoped DbContext
+                using var scope = _serviceScopeFactory.CreateScope();
+                var dbContext = scope.ServiceProvider.GetService<VirtualAssistantDbContext>();
+
+                if (dbContext == null)
+                {
+                    _logger.LogWarning("VirtualAssistantDbContext not available");
+                    _cacheExpiry = DateTime.UtcNow.AddSeconds(30);
+                    return;
+                }
+
+                // Load active corrections ordered by priority (descending)
+                _cachedCorrections = dbContext.TranscriptionCorrections
+                    .Where(c => c.IsActive)
+                    .OrderByDescending(c => c.Priority)
+                    .AsNoTracking()
+                    .ToList();
+
+                _cacheExpiry = DateTime.UtcNow.Add(CacheDuration);
+
+                _logger.LogInformation(
+                    "Refreshed corrections cache: {Count} active corrections (expires: {Expiry})",
+                    _cachedCorrections.Count,
+                    _cacheExpiry);
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(ex, "Failed to refresh corrections cache");
+
+                // Retry in 30 seconds on error
+                _cacheExpiry = DateTime.UtcNow.AddSeconds(30);
+            }
+        }
+    }
+}

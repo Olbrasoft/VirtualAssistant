@@ -2,6 +2,7 @@ using System.Diagnostics;
 using Microsoft.Extensions.Logging;
 using Olbrasoft.SystemTray.Linux;
 using Olbrasoft.VirtualAssistant.Core.Services;
+using Olbrasoft.VirtualAssistant.Service.Services;
 
 namespace Olbrasoft.VirtualAssistant.Service.Tray;
 
@@ -17,6 +18,7 @@ public class VirtualAssistantTrayService : IDisposable
     private readonly IDependentServiceManager _dependentServiceManager;
     private readonly int _logViewerPort;
     private readonly ITrayMenuHandler? _menuHandler;
+    private readonly SpeechToTextServiceManager? _sttServiceManager;
     private ITrayIcon? _trayIcon;
     private bool _disposed;
 
@@ -36,7 +38,8 @@ public class VirtualAssistantTrayService : IDisposable
         IDependentServiceManager dependentServiceManager,
         string iconsPath,
         int logViewerPort = 5053,
-        ITrayMenuHandler? menuHandler = null)
+        ITrayMenuHandler? menuHandler = null,
+        SpeechToTextServiceManager? sttServiceManager = null)
     {
         _logger = logger ?? throw new ArgumentNullException(nameof(logger));
         _manager = manager ?? throw new ArgumentNullException(nameof(manager));
@@ -45,6 +48,7 @@ public class VirtualAssistantTrayService : IDisposable
         _iconsPath = iconsPath;
         _logViewerPort = logViewerPort;
         _menuHandler = menuHandler;
+        _sttServiceManager = sttServiceManager;
 
         // Subscribe to mute state changes
         _muteService.MuteStateChanged += OnMuteStateChanged;
@@ -60,6 +64,8 @@ public class VirtualAssistantTrayService : IDisposable
             handler.OnShowLogsRequested += HandleShowLogs;
             handler.OnRefreshServiceStatusRequested += HandleRefreshServiceStatus;
             handler.OnToggleServiceRequested += HandleToggleService;
+            handler.OnStartSpeechToTextRequested += HandleStartSpeechToTextService;
+            handler.OnStopSpeechToTextRequested += HandleStopSpeechToTextService;
             _logger.LogDebug("Menu handler events wired up successfully");
         }
         else
@@ -101,6 +107,9 @@ public class VirtualAssistantTrayService : IDisposable
                     {
                         handler.UpdateServiceStatus(serviceName, isRunning);
                     }
+
+                    // Refresh SpeechToText status
+                    await RefreshSpeechToTextStatus();
                 }
             }
         }
@@ -245,6 +254,84 @@ public class VirtualAssistantTrayService : IDisposable
         catch (Exception ex)
         {
             _logger.LogError(ex, "Failed to toggle service from tray menu");
+        }
+    }
+
+    /// <summary>
+    /// Handles start SpeechToText service request from menu.
+    /// </summary>
+    private async void HandleStartSpeechToTextService()
+    {
+        if (_sttServiceManager == null)
+        {
+            _logger.LogWarning("SpeechToTextServiceManager not available");
+            return;
+        }
+
+        try
+        {
+            _logger.LogInformation("Starting SpeechToText.Service via tray menu");
+            var success = await _sttServiceManager.StartAsync();
+
+            if (success)
+            {
+                // Refresh status after starting
+                await RefreshSpeechToTextStatus();
+            }
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Failed to start SpeechToText service from tray menu");
+        }
+    }
+
+    /// <summary>
+    /// Handles stop SpeechToText service request from menu.
+    /// </summary>
+    private async void HandleStopSpeechToTextService()
+    {
+        if (_sttServiceManager == null)
+        {
+            _logger.LogWarning("SpeechToTextServiceManager not available");
+            return;
+        }
+
+        try
+        {
+            _logger.LogInformation("Stopping SpeechToText.Service via tray menu");
+            var success = await _sttServiceManager.StopAsync();
+
+            if (success)
+            {
+                // Refresh status after stopping
+                await RefreshSpeechToTextStatus();
+            }
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Failed to stop SpeechToText service from tray menu");
+        }
+    }
+
+    /// <summary>
+    /// Refreshes SpeechToText service status and updates menu.
+    /// </summary>
+    private async Task RefreshSpeechToTextStatus()
+    {
+        if (_sttServiceManager == null || _menuHandler is not VirtualAssistantDBusMenuHandler handler)
+            return;
+
+        try
+        {
+            var isRunning = await _sttServiceManager.IsRunningAsync();
+            var version = _sttServiceManager.GetVersion();
+            handler.UpdateSpeechToTextStatus(isRunning, version);
+            _logger.LogDebug("SpeechToText status updated: Running={IsRunning}, Version={Version}",
+                isRunning, version);
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Failed to refresh SpeechToText status");
         }
     }
 

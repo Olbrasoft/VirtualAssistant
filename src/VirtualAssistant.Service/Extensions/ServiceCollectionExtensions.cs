@@ -143,6 +143,9 @@ public static class ServiceCollectionExtensions
             return new VoiceStateMachine(logger, options.Value.StartMuted);
         });
 
+        // Dictation state machine (for keyboard-triggered dictation - Phase 5)
+        services.AddSingleton<Olbrasoft.VirtualAssistant.Voice.StateMachine.IDictationStateMachine, Olbrasoft.VirtualAssistant.Voice.StateMachine.DictationStateMachine>();
+
         // Speech buffer manager (extracted from ContinuousListenerWorker)
         services.AddSingleton<ISpeechBufferManager, SpeechBufferManager>();
 
@@ -162,6 +165,52 @@ public static class ServiceCollectionExtensions
             var options = sp.GetRequiredService<IOptions<ContinuousListenerOptions>>();
             return new EvdevKeyboardMonitor(logger, options.Value.KeyboardDevice);
         });
+
+        // Mistral LLM for Czech ASR correction (Phase 2 - from PushToTalk)
+        services.Configure<Olbrasoft.VirtualAssistant.Voice.Configuration.MistralOptions>(
+            configuration.GetSection(Olbrasoft.VirtualAssistant.Voice.Configuration.MistralOptions.SectionName));
+
+        // Prompt cache for Mistral (wraps IPromptLoader with reload capability)
+        services.AddSingleton<Olbrasoft.VirtualAssistant.Voice.Services.IPromptCache>(sp =>
+        {
+            var loader = sp.GetRequiredService<Olbrasoft.VirtualAssistant.Voice.Services.IPromptLoader>();
+            var logger = sp.GetRequiredService<ILogger<Olbrasoft.VirtualAssistant.Voice.Services.ReloadablePromptCache>>();
+            return new Olbrasoft.VirtualAssistant.Voice.Services.ReloadablePromptCache(loader, logger);
+        });
+
+        services.AddHttpClient<Olbrasoft.VirtualAssistant.Voice.Services.ILlmProvider, Olbrasoft.VirtualAssistant.Voice.Services.MistralProvider>();
+
+        // Text filtering pipeline (Phase 3 - from PushToTalk)
+        // Strategy pattern filters registered individually
+        var textFiltersConfigPath = Path.Combine(AppContext.BaseDirectory, "Filters", "text-filters.json");
+
+        services.AddSingleton<Olbrasoft.VirtualAssistant.Voice.Filters.ITextFilterStrategy>(sp =>
+        {
+            var logger = sp.GetRequiredService<ILogger<Olbrasoft.VirtualAssistant.Voice.Filters.DatabaseCorrectionFilterStrategy>>();
+            var scopeFactory = sp.GetService<IServiceScopeFactory>();
+            return new Olbrasoft.VirtualAssistant.Voice.Filters.DatabaseCorrectionFilterStrategy(logger, scopeFactory);
+        });
+
+        services.AddSingleton<Olbrasoft.VirtualAssistant.Voice.Filters.ITextFilterStrategy>(sp =>
+        {
+            var logger = sp.GetRequiredService<ILogger<Olbrasoft.VirtualAssistant.Voice.Filters.FileReplacementFilterStrategy>>();
+            return new Olbrasoft.VirtualAssistant.Voice.Filters.FileReplacementFilterStrategy(logger, textFiltersConfigPath);
+        });
+
+        services.AddSingleton<Olbrasoft.VirtualAssistant.Voice.Filters.ITextFilterStrategy>(sp =>
+        {
+            var logger = sp.GetRequiredService<ILogger<Olbrasoft.VirtualAssistant.Voice.Filters.RemovePatternsFilterStrategy>>();
+            return new Olbrasoft.VirtualAssistant.Voice.Filters.RemovePatternsFilterStrategy(logger, textFiltersConfigPath);
+        });
+
+        services.AddSingleton<Olbrasoft.VirtualAssistant.Voice.Filters.ITextFilterStrategy>(sp =>
+        {
+            var logger = sp.GetRequiredService<ILogger<Olbrasoft.VirtualAssistant.Voice.Filters.WhitespaceFilterStrategy>>();
+            return new Olbrasoft.VirtualAssistant.Voice.Filters.WhitespaceFilterStrategy(logger);
+        });
+
+        // Composite filter orchestrates all strategies
+        services.AddSingleton<Olbrasoft.VirtualAssistant.Voice.Filters.ITextFilter, Olbrasoft.VirtualAssistant.Voice.Filters.CompositeTextFilter>();
 
         return services;
     }
@@ -233,8 +282,18 @@ public static class ServiceCollectionExtensions
         this IServiceCollection services,
         IConfiguration configuration)
     {
-        // Prompt loader for LLM routers
-        services.AddSingleton<IPromptLoader, PromptLoader>();
+        // Prompt loader for LLM routers - upgraded to HybridPromptLoader (file + embedded resource fallback)
+        services.AddSingleton<Olbrasoft.VirtualAssistant.Voice.Services.IPromptLoader>(sp =>
+        {
+            var logger = sp.GetRequiredService<ILogger<Olbrasoft.VirtualAssistant.Voice.Services.HybridPromptLoader>>();
+            var embeddedLoader = new Olbrasoft.VirtualAssistant.Voice.Services.EmbeddedPromptLoader();
+            var promptsPath = Path.Combine(AppContext.BaseDirectory, "Prompts");
+
+            return new Olbrasoft.VirtualAssistant.Voice.Services.HybridPromptLoader(
+                promptsPath,
+                embeddedLoader,
+                logger);
+        });
 
         // HttpClient
         services.AddHttpClient();
@@ -276,6 +335,9 @@ public static class ServiceCollectionExtensions
             return new VirtualAssistantDBusMenuHandler(logger);
         });
 
+        // SpeechToText service manager for controlling SpeechToText microservice
+        services.AddSingleton<SpeechToTextServiceManager>();
+
         // VirtualAssistant tray service (wrapper for tray functionality)
         services.AddSingleton(sp =>
         {
@@ -284,6 +346,7 @@ public static class ServiceCollectionExtensions
             var muteService = sp.GetRequiredService<IManualMuteService>();
             var dependentServiceManager = sp.GetRequiredService<IDependentServiceManager>();
             var menuHandler = sp.GetRequiredService<ITrayMenuHandler>();
+            var sttServiceManager = sp.GetRequiredService<SpeechToTextServiceManager>();
             var options = sp.GetRequiredService<IOptions<ContinuousListenerOptions>>();
             var iconsPath = Path.Combine(AppContext.BaseDirectory, "icons");
 
@@ -294,7 +357,8 @@ public static class ServiceCollectionExtensions
                 dependentServiceManager,
                 iconsPath,
                 options.Value.LogViewerPort,
-                menuHandler);
+                menuHandler,
+                sttServiceManager);
         });
 
         return services;
@@ -312,6 +376,9 @@ public static class ServiceCollectionExtensions
         services.AddHostedService<VoiceActivityWorker>();
         services.AddHostedService<TranscriptionRouterWorker>();
         services.AddHostedService<ActionExecutorWorker>();
+
+        // Dictation worker (Phase 5 - keyboard-triggered dictation)
+        services.AddHostedService<DictationWorker>();
 
         // TODO: Remove after testing new workers
         // services.AddHostedService<ContinuousListenerWorker>();
