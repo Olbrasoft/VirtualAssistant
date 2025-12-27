@@ -348,6 +348,7 @@ public static class ServiceCollectionExtensions
             var menuHandler = sp.GetRequiredService<ITrayMenuHandler>();
             var sttServiceManager = sp.GetRequiredService<SpeechToTextServiceManager>();
             var mistralProvider = sp.GetService<Olbrasoft.VirtualAssistant.Voice.Services.MistralProvider>();
+            var dictationStateMachine = sp.GetRequiredService<Olbrasoft.VirtualAssistant.Voice.StateMachine.IDictationStateMachine>();
             var options = sp.GetRequiredService<IOptions<ContinuousListenerOptions>>();
             var iconsPath = Path.Combine(AppContext.BaseDirectory, "icons");
 
@@ -360,7 +361,8 @@ public static class ServiceCollectionExtensions
                 options.Value.LogViewerPort,
                 menuHandler,
                 sttServiceManager,
-                mistralProvider);
+                mistralProvider,
+                dictationStateMachine);
         });
 
         return services;

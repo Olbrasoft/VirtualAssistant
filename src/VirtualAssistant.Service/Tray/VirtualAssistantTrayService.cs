@@ -4,6 +4,7 @@ using Olbrasoft.SystemTray.Linux;
 using Olbrasoft.VirtualAssistant.Core.Services;
 using Olbrasoft.VirtualAssistant.Service.Services;
 using Olbrasoft.VirtualAssistant.Voice.Services;
+using Olbrasoft.VirtualAssistant.Voice.StateMachine;
 
 namespace Olbrasoft.VirtualAssistant.Service.Tray;
 
@@ -21,7 +22,9 @@ public class VirtualAssistantTrayService : IDisposable
     private readonly ITrayMenuHandler? _menuHandler;
     private readonly SpeechToTextServiceManager? _sttServiceManager;
     private readonly MistralProvider? _mistralProvider;
+    private readonly IDictationStateMachine? _dictationStateMachine;
     private ITrayIcon? _trayIcon;
+    private ITrayIcon? _sttIcon;
     private bool _disposed;
 
     // Track current icon state
@@ -42,7 +45,8 @@ public class VirtualAssistantTrayService : IDisposable
         int logViewerPort = 5053,
         ITrayMenuHandler? menuHandler = null,
         SpeechToTextServiceManager? sttServiceManager = null,
-        MistralProvider? mistralProvider = null)
+        MistralProvider? mistralProvider = null,
+        IDictationStateMachine? dictationStateMachine = null)
     {
         _logger = logger ?? throw new ArgumentNullException(nameof(logger));
         _manager = manager ?? throw new ArgumentNullException(nameof(manager));
@@ -53,9 +57,16 @@ public class VirtualAssistantTrayService : IDisposable
         _menuHandler = menuHandler;
         _sttServiceManager = sttServiceManager;
         _mistralProvider = mistralProvider;
+        _dictationStateMachine = dictationStateMachine;
 
         // Subscribe to mute state changes
         _muteService.MuteStateChanged += OnMuteStateChanged;
+
+        // Subscribe to dictation state changes
+        if (_dictationStateMachine != null)
+        {
+            _dictationStateMachine.StateChanged += OnDictationStateChanged;
+        }
 
         // Subscribe to service status changes
         _dependentServiceManager.ServiceStatusChanged += OnServiceStatusChanged;
@@ -387,6 +398,130 @@ public class VirtualAssistantTrayService : IDisposable
         }
     }
 
+    /// <summary>
+    /// Handles dictation state changes and updates STT icon accordingly.
+    /// </summary>
+    private async void OnDictationStateChanged(object? sender, DictationState newState)
+    {
+        try
+        {
+            _logger.LogInformation("Dictation state changed to: {State}", newState);
+
+            switch (newState)
+            {
+                case DictationState.Idle:
+                    await HideSttIconAsync();
+                    break;
+
+                case DictationState.Recording:
+                    await ShowSttIconAsync("push-to-talk-recording.svg", "Recording...");
+                    break;
+
+                case DictationState.Transcribing:
+                    await ShowSttIconWithAnimationAsync();
+                    break;
+            }
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Failed to update STT icon for state: {State}", newState);
+        }
+    }
+
+    /// <summary>
+    /// Shows STT icon with the specified icon and tooltip.
+    /// </summary>
+    private async Task ShowSttIconAsync(string iconFileName, string tooltip)
+    {
+        try
+        {
+            // Remove existing icon first
+            if (_sttIcon != null)
+            {
+                _manager.RemoveIcon("virtual-assistant-stt");
+                _sttIcon = null;
+            }
+
+            var iconPath = Path.Combine(_iconsPath, iconFileName);
+            _sttIcon = await _manager.CreateIconAsync("virtual-assistant-stt", iconPath, tooltip, null);
+
+            if (_sttIcon != null)
+            {
+                _logger.LogDebug("STT icon created: {Icon}", iconFileName);
+            }
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Failed to create STT icon: {Icon}", iconFileName);
+        }
+    }
+
+    /// <summary>
+    /// Shows STT icon with animation (transcribing state).
+    /// </summary>
+    private async Task ShowSttIconWithAnimationAsync()
+    {
+        try
+        {
+            // Remove existing icon first
+            if (_sttIcon != null)
+            {
+                _manager.RemoveIcon("virtual-assistant-stt");
+                _sttIcon = null;
+            }
+
+            // Animation frames for transcribing
+            var animationFrames = new[]
+            {
+                Path.Combine(_iconsPath, "document-white-frame1.svg"),
+                Path.Combine(_iconsPath, "document-white-frame2.svg"),
+                Path.Combine(_iconsPath, "document-white-frame3.svg"),
+                Path.Combine(_iconsPath, "document-white-frame4.svg"),
+                Path.Combine(_iconsPath, "document-white-frame5.svg")
+            };
+
+            _sttIcon = await _manager.CreateIconAsync(
+                "virtual-assistant-stt",
+                animationFrames[0],
+                "Transcribing...",
+                null
+            );
+
+            if (_sttIcon != null)
+            {
+                _sttIcon.StartAnimation(animationFrames, intervalMs: 200);
+                _logger.LogDebug("STT icon animation started");
+            }
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Failed to create animated STT icon");
+        }
+    }
+
+    /// <summary>
+    /// Hides the STT icon.
+    /// </summary>
+    private Task HideSttIconAsync()
+    {
+        try
+        {
+            if (_sttIcon != null)
+            {
+                _sttIcon.StopAnimation();
+                _manager.RemoveIcon("virtual-assistant-stt");
+                _sttIcon = null;
+                _logger.LogDebug("STT icon hidden");
+            }
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Failed to hide STT icon");
+        }
+
+        return Task.CompletedTask;
+    }
+
     public void Dispose()
     {
         if (_disposed)
@@ -397,8 +532,22 @@ public class VirtualAssistantTrayService : IDisposable
         // Unsubscribe from mute service
         _muteService.MuteStateChanged -= OnMuteStateChanged;
 
+        // Unsubscribe from dictation state machine
+        if (_dictationStateMachine != null)
+        {
+            _dictationStateMachine.StateChanged -= OnDictationStateChanged;
+        }
+
         // Unsubscribe from dependent service manager
         _dependentServiceManager.ServiceStatusChanged -= OnServiceStatusChanged;
+
+        // Remove STT icon
+        if (_sttIcon != null)
+        {
+            _sttIcon.StopAnimation();
+            _manager.RemoveIcon("virtual-assistant-stt");
+            _sttIcon = null;
+        }
 
         // Remove tray icon
         if (_trayIcon != null)
