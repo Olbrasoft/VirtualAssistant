@@ -3,6 +3,7 @@ using Microsoft.Extensions.Logging;
 using Olbrasoft.SystemTray.Linux;
 using Olbrasoft.VirtualAssistant.Core.Services;
 using Olbrasoft.VirtualAssistant.Service.Services;
+using Olbrasoft.VirtualAssistant.Voice.Services;
 
 namespace Olbrasoft.VirtualAssistant.Service.Tray;
 
@@ -19,6 +20,7 @@ public class VirtualAssistantTrayService : IDisposable
     private readonly int _logViewerPort;
     private readonly ITrayMenuHandler? _menuHandler;
     private readonly SpeechToTextServiceManager? _sttServiceManager;
+    private readonly MistralProvider? _mistralProvider;
     private ITrayIcon? _trayIcon;
     private bool _disposed;
 
@@ -39,7 +41,8 @@ public class VirtualAssistantTrayService : IDisposable
         string iconsPath,
         int logViewerPort = 5053,
         ITrayMenuHandler? menuHandler = null,
-        SpeechToTextServiceManager? sttServiceManager = null)
+        SpeechToTextServiceManager? sttServiceManager = null,
+        MistralProvider? mistralProvider = null)
     {
         _logger = logger ?? throw new ArgumentNullException(nameof(logger));
         _manager = manager ?? throw new ArgumentNullException(nameof(manager));
@@ -49,6 +52,7 @@ public class VirtualAssistantTrayService : IDisposable
         _logViewerPort = logViewerPort;
         _menuHandler = menuHandler;
         _sttServiceManager = sttServiceManager;
+        _mistralProvider = mistralProvider;
 
         // Subscribe to mute state changes
         _muteService.MuteStateChanged += OnMuteStateChanged;
@@ -66,6 +70,8 @@ public class VirtualAssistantTrayService : IDisposable
             handler.OnToggleServiceRequested += HandleToggleService;
             handler.OnStartSpeechToTextRequested += HandleStartSpeechToTextService;
             handler.OnStopSpeechToTextRequested += HandleStopSpeechToTextService;
+            handler.OnLlmCorrectionToggled += HandleLlmCorrectionToggle;
+            handler.OnReloadPromptRequested += HandleReloadPrompt;
             _logger.LogDebug("Menu handler events wired up successfully");
         }
         else
@@ -332,6 +338,52 @@ public class VirtualAssistantTrayService : IDisposable
         catch (Exception ex)
         {
             _logger.LogError(ex, "Failed to refresh SpeechToText status");
+        }
+    }
+
+    /// <summary>
+    /// Handles LLM correction toggle request from menu.
+    /// </summary>
+    private void HandleLlmCorrectionToggle(bool enabled)
+    {
+        if (_mistralProvider == null)
+        {
+            _logger.LogWarning("MistralProvider not available");
+            return;
+        }
+
+        try
+        {
+            _logger.LogInformation("Toggling LLM correction to: {Enabled}", enabled);
+            _mistralProvider.SetEnabled(enabled);
+            _logger.LogInformation("LLM correction successfully {Status}", enabled ? "enabled" : "disabled");
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Failed to toggle LLM correction");
+        }
+    }
+
+    /// <summary>
+    /// Handles reload LLM prompt request from menu.
+    /// </summary>
+    private void HandleReloadPrompt()
+    {
+        if (_mistralProvider == null)
+        {
+            _logger.LogWarning("MistralProvider not available");
+            return;
+        }
+
+        try
+        {
+            _logger.LogInformation("Reloading Mistral LLM prompt");
+            _mistralProvider.ReloadPrompt();
+            _logger.LogInformation("Mistral prompt reloaded successfully");
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Failed to reload Mistral prompt");
         }
     }
 

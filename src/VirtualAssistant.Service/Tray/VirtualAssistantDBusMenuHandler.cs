@@ -23,10 +23,13 @@ internal class VirtualAssistantDBusMenuHandler : ComCanonicalDbusmenuHandler, IT
     private const int Separator1Id = 3;
     private const int SpeechToTextServiceId = 4;
     private const int Separator2Id = 5;
-    private const int MuteToggleId = 6;
-    private const int ShowLogsId = 7;
+    private const int LlmCorrectionId = 6;
+    private const int ReloadPromptId = 7;
     private const int Separator3Id = 8;
-    private const int QuitId = 9;
+    private const int MuteToggleId = 9;
+    private const int ShowLogsId = 10;
+    private const int Separator4Id = 11;
+    private const int QuitId = 12;
 
     /// <summary>
     /// Event fired when user selects Quit from the menu.
@@ -63,10 +66,21 @@ internal class VirtualAssistantDBusMenuHandler : ComCanonicalDbusmenuHandler, IT
     /// </summary>
     public event Action? OnStartSpeechToTextRequested;
 
+    /// <summary>
+    /// Event fired when user toggles LLM correction.
+    /// </summary>
+    public event Action<bool>? OnLlmCorrectionToggled;
+
+    /// <summary>
+    /// Event fired when user wants to reload the Mistral prompt.
+    /// </summary>
+    public event Action? OnReloadPromptRequested;
+
     private bool _isMuted;
     private bool _isTextToSpeechServiceRunning;
     private string _sttServiceStatus = "Checking...";
     private string _sttServiceVersion = "Unknown";
+    private bool _llmCorrectionEnabled = true;
 
     public VirtualAssistantDBusMenuHandler(ILogger logger) : base(emitOnCapturedContext: false)
     {
@@ -160,6 +174,18 @@ internal class VirtualAssistantDBusMenuHandler : ComCanonicalDbusmenuHandler, IT
     }
 
     /// <summary>
+    /// Updates LLM correction enabled status in menu.
+    /// </summary>
+    public void UpdateLlmCorrectionStatus(bool enabled)
+    {
+        _llmCorrectionEnabled = enabled;
+        _revision++;
+
+        // Emit LayoutUpdated signal to notify menu changed
+        EmitLayoutUpdated(_revision, RootId);
+    }
+
+    /// <summary>
     /// Returns the menu layout starting from the specified parent ID.
     /// </summary>
     protected override ValueTask<(uint Revision, (int, Dictionary<string, VariantValue>, VariantValue[]) Layout)> OnGetLayoutAsync(
@@ -194,6 +220,7 @@ internal class VirtualAssistantDBusMenuHandler : ComCanonicalDbusmenuHandler, IT
                     ? "✅ TextToSpeech - Vypnout"
                     : "❌ TextToSpeech - Zapnout";
                 var sttServiceLabel = $"STT Service: {_sttServiceStatus} (v{_sttServiceVersion})";
+                var llmCorrectionLabel = GetLlmCorrectionLabel();
                 children = new VariantValue[]
                 {
                     CreateChildVariant(StatusId, "VirtualAssistant - poslouchám", false, enabled: false),
@@ -201,9 +228,12 @@ internal class VirtualAssistantDBusMenuHandler : ComCanonicalDbusmenuHandler, IT
                     CreateChildVariant(Separator1Id, "", true),
                     CreateChildVariant(SpeechToTextServiceId, sttServiceLabel, false),
                     CreateChildVariant(Separator2Id, "", true),
+                    CreateChildVariant(LlmCorrectionId, llmCorrectionLabel, false),
+                    CreateChildVariant(ReloadPromptId, "🔄 Reload LLM Prompt", false),
+                    CreateChildVariant(Separator3Id, "", true),
                     CreateChildVariant(MuteToggleId, muteLabel, false),
                     CreateChildVariant(ShowLogsId, "Zobrazit logy", false),
-                    CreateChildVariant(Separator3Id, "", true),
+                    CreateChildVariant(Separator4Id, "", true),
                     CreateChildVariant(QuitId, "Ukončit", false)
                 };
             }
@@ -238,6 +268,13 @@ internal class VirtualAssistantDBusMenuHandler : ComCanonicalDbusmenuHandler, IT
         return Struct.Create(id, props, children);
     }
 
+    private string GetLlmCorrectionLabel()
+    {
+        return _llmCorrectionEnabled
+            ? "✅ Posílání do LLM - Vypnout"
+            : "❌ Posílání do LLM - Zapnout";
+    }
+
     private (int, Dictionary<string, VariantValue>, VariantValue[]) GetMenuItemLayout(int id)
     {
         var props = new Dictionary<string, VariantValue>();
@@ -252,6 +289,7 @@ internal class VirtualAssistantDBusMenuHandler : ComCanonicalDbusmenuHandler, IT
             case Separator1Id:
             case Separator2Id:
             case Separator3Id:
+            case Separator4Id:
                 props["type"] = VariantValue.String("separator");
                 props["visible"] = VariantValue.Bool(true);
                 break;
@@ -266,6 +304,16 @@ internal class VirtualAssistantDBusMenuHandler : ComCanonicalDbusmenuHandler, IT
                     ? "✅ TextToSpeech - Vypnout"
                     : "❌ TextToSpeech - Zapnout";
                 props["label"] = VariantValue.String(ttsToggleLabel);
+                props["enabled"] = VariantValue.Bool(true);
+                props["visible"] = VariantValue.Bool(true);
+                break;
+            case LlmCorrectionId:
+                props["label"] = VariantValue.String(GetLlmCorrectionLabel());
+                props["enabled"] = VariantValue.Bool(true);
+                props["visible"] = VariantValue.Bool(true);
+                break;
+            case ReloadPromptId:
+                props["label"] = VariantValue.String("🔄 Reload LLM Prompt");
                 props["enabled"] = VariantValue.Bool(true);
                 props["visible"] = VariantValue.Bool(true);
                 break;
@@ -309,6 +357,7 @@ internal class VirtualAssistantDBusMenuHandler : ComCanonicalDbusmenuHandler, IT
             ? "✅ TextToSpeech - Vypnout"
             : "❌ TextToSpeech - Zapnout";
         var sttServiceLabel = $"STT Service: {_sttServiceStatus} (v{_sttServiceVersion})";
+        var llmCorrectionLabel = GetLlmCorrectionLabel();
 
         return id switch
         {
@@ -322,7 +371,7 @@ internal class VirtualAssistantDBusMenuHandler : ComCanonicalDbusmenuHandler, IT
                 ["enabled"] = VariantValue.Bool(false),
                 ["visible"] = VariantValue.Bool(true)
             }),
-            Separator1Id or Separator2Id or Separator3Id => (id, new Dictionary<string, VariantValue>
+            Separator1Id or Separator2Id or Separator3Id or Separator4Id => (id, new Dictionary<string, VariantValue>
             {
                 ["type"] = VariantValue.String("separator"),
                 ["visible"] = VariantValue.Bool(true)
@@ -336,6 +385,18 @@ internal class VirtualAssistantDBusMenuHandler : ComCanonicalDbusmenuHandler, IT
             TextToSpeechToggleId => (id, new Dictionary<string, VariantValue>
             {
                 ["label"] = VariantValue.String(ttsToggleLabel),
+                ["enabled"] = VariantValue.Bool(true),
+                ["visible"] = VariantValue.Bool(true)
+            }),
+            LlmCorrectionId => (id, new Dictionary<string, VariantValue>
+            {
+                ["label"] = VariantValue.String(llmCorrectionLabel),
+                ["enabled"] = VariantValue.Bool(true),
+                ["visible"] = VariantValue.Bool(true)
+            }),
+            ReloadPromptId => (id, new Dictionary<string, VariantValue>
+            {
+                ["label"] = VariantValue.String("🔄 Reload LLM Prompt"),
                 ["enabled"] = VariantValue.Bool(true),
                 ["visible"] = VariantValue.Bool(true)
             }),
@@ -416,6 +477,18 @@ internal class VirtualAssistantDBusMenuHandler : ComCanonicalDbusmenuHandler, IT
                     {
                         OnStartSpeechToTextRequested?.Invoke();
                     }
+                    break;
+                case LlmCorrectionId:
+                    _logger.LogInformation("LLM Correction menu item clicked (current: {Enabled})", _llmCorrectionEnabled);
+                    // Toggle LLM correction
+                    _llmCorrectionEnabled = !_llmCorrectionEnabled;
+                    OnLlmCorrectionToggled?.Invoke(_llmCorrectionEnabled);
+                    // Update menu to reflect new state
+                    UpdateLlmCorrectionStatus(_llmCorrectionEnabled);
+                    break;
+                case ReloadPromptId:
+                    _logger.LogInformation("Reload LLM Prompt menu item clicked");
+                    OnReloadPromptRequested?.Invoke();
                     break;
                 default:
                     _logger.LogWarning("Unknown menu item clicked: id={Id}", id);
