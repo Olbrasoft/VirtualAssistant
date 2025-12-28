@@ -27,11 +27,15 @@ public class VirtualAssistantTrayService : IDisposable
     private readonly DictationWorker? _dictationWorker;
     private ITrayIcon? _trayIcon;
     private ITrayIcon? _sttIcon;
+    private ITrayIcon? _leftHandIcon;
+    private ITrayIcon? _rightHandIcon;
     private bool _disposed;
 
     // Track current icon state
     private string _currentIconPath = string.Empty;
     private string _currentTooltip = string.Empty;
+    private string _currentLeftHandIcon = "default-left-hand.svg";
+    private string _currentRightHandIcon = "default-right-hand.svg";
 
     /// <summary>
     /// Event fired when user requests to quit the application.
@@ -99,13 +103,26 @@ public class VirtualAssistantTrayService : IDisposable
     }
 
     /// <summary>
-    /// Initializes and shows the tray icon.
+    /// Initializes and shows the tray icons (left hand, VirtualAssistant, right hand).
     /// </summary>
     public async Task InitializeAsync()
     {
         try
         {
-            // Determine initial icon based on mute state
+            // Create left hand icon (appears first on startup)
+            var leftHandPath = Path.Combine(_iconsPath, "hands", _currentLeftHandIcon);
+            _leftHandIcon = await _manager.CreateIconAsync(
+                "virtual-assistant-left-hand",
+                leftHandPath,
+                "VirtualAssistant - Left Hand",
+                null);
+
+            if (_leftHandIcon != null)
+            {
+                _logger.LogInformation("Left hand icon initialized: {Icon}", _currentLeftHandIcon);
+            }
+
+            // Determine initial center icon based on mute state
             var iconFileName = _muteService.IsMuted ? "virtual-assistant-muted.svg" : "virtual-assistant-listening.svg";
             var iconPath = Path.Combine(_iconsPath, iconFileName);
             var tooltip = "VirtualAssistant - poslouchám";
@@ -113,7 +130,7 @@ public class VirtualAssistantTrayService : IDisposable
             _currentIconPath = iconPath;
             _currentTooltip = tooltip;
 
-            // Create tray icon with menu handler
+            // Create center tray icon with menu handler
             _trayIcon = await _manager.CreateIconAsync("virtual-assistant-service", iconPath, tooltip, _menuHandler);
 
             if (_trayIcon != null)
@@ -139,10 +156,25 @@ public class VirtualAssistantTrayService : IDisposable
                     await RefreshLogViewerStatus();
                 }
             }
+
+            // Create right hand icon (appears when VA icon is displayed)
+            var rightHandPath = Path.Combine(_iconsPath, "hands", _currentRightHandIcon);
+            _rightHandIcon = await _manager.CreateIconAsync(
+                "virtual-assistant-right-hand",
+                rightHandPath,
+                "VirtualAssistant - Right Hand",
+                null);
+
+            if (_rightHandIcon != null)
+            {
+                _logger.LogInformation("Right hand icon initialized: {Icon}", _currentRightHandIcon);
+            }
+
+            _logger.LogInformation("All tray icons initialized (left hand, VirtualAssistant, right hand)");
         }
         catch (Exception ex)
         {
-            _logger.LogError(ex, "Failed to initialize tray icon");
+            _logger.LogError(ex, "Failed to initialize tray icons");
             throw;
         }
     }
@@ -684,6 +716,56 @@ public class VirtualAssistantTrayService : IDisposable
     }
 
     /// <summary>
+    /// Sets the left hand icon to the specified icon file.
+    /// </summary>
+    /// <param name="iconFileName">Icon file name (e.g., "default-left-hand.svg", "fist-left-hand.svg")</param>
+    public void SetLeftHandIcon(string iconFileName)
+    {
+        try
+        {
+            if (_leftHandIcon == null)
+            {
+                _logger.LogWarning("Left hand icon not initialized");
+                return;
+            }
+
+            var iconPath = Path.Combine(_iconsPath, "hands", iconFileName);
+            _leftHandIcon.SetIcon(iconPath, "VirtualAssistant - Left Hand");
+            _currentLeftHandIcon = iconFileName;
+            _logger.LogDebug("Left hand icon changed to: {Icon}", iconFileName);
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Failed to set left hand icon: {Icon}", iconFileName);
+        }
+    }
+
+    /// <summary>
+    /// Sets the right hand icon to the specified icon file.
+    /// </summary>
+    /// <param name="iconFileName">Icon file name (e.g., "default-right-hand.svg", "fist-right-hand.svg")</param>
+    public void SetRightHandIcon(string iconFileName)
+    {
+        try
+        {
+            if (_rightHandIcon == null)
+            {
+                _logger.LogWarning("Right hand icon not initialized");
+                return;
+            }
+
+            var iconPath = Path.Combine(_iconsPath, "hands", iconFileName);
+            _rightHandIcon.SetIcon(iconPath, "VirtualAssistant - Right Hand");
+            _currentRightHandIcon = iconFileName;
+            _logger.LogDebug("Right hand icon changed to: {Icon}", iconFileName);
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Failed to set right hand icon: {Icon}", iconFileName);
+        }
+    }
+
+    /// <summary>
     /// Releases resources used by the tray service, including removing tray icons and unsubscribing from events.
     /// </summary>
     public void Dispose()
@@ -711,6 +793,20 @@ public class VirtualAssistantTrayService : IDisposable
             _sttIcon.StopAnimation();
             _manager.RemoveIcon("virtual-assistant-stt");
             _sttIcon = null;
+        }
+
+        // Remove left hand icon
+        if (_leftHandIcon != null)
+        {
+            _manager.RemoveIcon("virtual-assistant-left-hand");
+            _leftHandIcon = null;
+        }
+
+        // Remove right hand icon
+        if (_rightHandIcon != null)
+        {
+            _manager.RemoveIcon("virtual-assistant-right-hand");
+            _rightHandIcon = null;
         }
 
         // Remove tray icon
