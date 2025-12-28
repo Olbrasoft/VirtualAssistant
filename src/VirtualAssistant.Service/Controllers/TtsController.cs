@@ -139,7 +139,14 @@ public class TtsController : ControllerBase
             aplayProcess.WaitForExit(60000);
 
             // Cleanup
-            try { System.IO.File.Delete(tempWav); } catch { }
+            try
+            {
+                System.IO.File.Delete(tempWav);
+            }
+            catch (Exception ex)
+            {
+                _logger.LogDebug(ex, "Failed to delete temporary WAV file: {TempWav}", tempWav);
+            }
 
             _logger.LogInformation("Piper TTS completed successfully");
         }

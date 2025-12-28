@@ -151,7 +151,7 @@ public class WorkspaceDetectionService : IWorkspaceDetectionService
         }
     }
 
-    private static async Task<string> RunCommandAsync(string command, string arguments, CancellationToken ct)
+    private async Task<string> RunCommandAsync(string command, string arguments, CancellationToken ct)
     {
         using var process = new Process
         {
@@ -179,7 +179,14 @@ public class WorkspaceDetectionService : IWorkspaceDetectionService
         }
         catch (OperationCanceledException)
         {
-            try { process.Kill(); } catch { }
+            try
+            {
+                process.Kill();
+            }
+            catch (Exception ex)
+            {
+                _logger.LogDebug(ex, "Failed to kill process during cleanup");
+            }
             return string.Empty;
         }
     }

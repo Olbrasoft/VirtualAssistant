@@ -18,6 +18,12 @@ namespace Olbrasoft.VirtualAssistant.Service.Workers;
 /// </summary>
 public class DictationWorker : BackgroundService
 {
+    /// <summary>
+    /// Delay in milliseconds to allow keyboard LED state to settle after key release.
+    /// Required for reliable CapsLock state detection.
+    /// </summary>
+    private const int KEYBOARD_LED_SETTLE_TIME_MS = 50;
+
     private readonly ILogger<DictationWorker> _logger;
     private readonly IKeyboardMonitor _keyboardMonitor;
     private readonly IDictationStateMachine _stateMachine;
@@ -105,7 +111,7 @@ public class DictationWorker : BackgroundService
         }
     }
 
-    private void OnKeyReleased(object? sender, KeyEventArgs e)
+    private async void OnKeyReleased(object? sender, KeyEventArgs e)
     {
         try
         {
@@ -126,7 +132,7 @@ public class DictationWorker : BackgroundService
                 return;
 
             // Small delay to ensure LED state is updated by kernel
-            Thread.Sleep(50);
+            await Task.Delay(KEYBOARD_LED_SETTLE_TIME_MS);
 
             var capsLockOn = _keyboardMonitor.IsCapsLockOn();
             var currentState = _stateMachine.CurrentState;

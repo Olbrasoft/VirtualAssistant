@@ -440,13 +440,6 @@ public static class ServiceCollectionExtensions
     {
         services.AddHostedService<KeyboardMonitorWorker>();
 
-        // New event-driven workers (issue #332 - SOLID refactoring)
-        // NOTE: Disabled - continuous listening not used, only dictation mode active
-        // services.AddHostedService<AudioCapturerWorker>();
-        // services.AddHostedService<VoiceActivityWorker>();
-        // services.AddHostedService<TranscriptionRouterWorker>();
-        // services.AddHostedService<ActionExecutorWorker>();
-
         // Dictation worker (Phase 5 - keyboard-triggered dictation)
         // Uses dedicated AudioCaptureService and TranscriptionService instances (not shared with continuous listening)
         // Register as singleton first so it can be injected into TrayService
