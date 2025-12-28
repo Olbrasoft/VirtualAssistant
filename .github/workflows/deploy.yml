@@ -50,23 +50,27 @@ jobs:
             --no-self-contained
 
       - name: Copy assets (icons and sounds)
-        working-directory: VirtualAssistant
         run: |
           # Read deploy path from systemd service
-          DEPLOY_PATH=$(grep "^WorkingDirectory=" deploy/virtual-assistant.service | cut -d'=' -f2)
+          DEPLOY_PATH=$(grep "^WorkingDirectory=" VirtualAssistant/deploy/virtual-assistant.service | cut -d'=' -f2)
+
+          # Source path for assets (from working directory, not Git checkout)
+          ASSETS_SOURCE="/home/jirka/Olbrasoft/VirtualAssistant/assets"
 
           # Copy icons
+          echo "Copying icons from: $ASSETS_SOURCE/icons"
           echo "Copying icons to: $DEPLOY_PATH/icons"
           mkdir -p "$DEPLOY_PATH/icons"
-          cp -r assets/icons/* "$DEPLOY_PATH/icons/" || true
+          cp -r "$ASSETS_SOURCE/icons/"* "$DEPLOY_PATH/icons/" || true
 
           # Copy sounds (to parent directory, as code uses AppContext.BaseDirectory/../sounds)
           SOUNDS_PATH="$(dirname "$DEPLOY_PATH")/sounds"
+          echo "Copying sounds from: $ASSETS_SOURCE/sounds"
           echo "Copying sounds to: $SOUNDS_PATH"
           mkdir -p "$SOUNDS_PATH"
-          cp -r assets/sounds/* "$SOUNDS_PATH/" || true
+          cp -r "$ASSETS_SOURCE/sounds/"* "$SOUNDS_PATH/" || true
 
-          echo "Assets copied successfully"
+          echo "Assets copied successfully from working directory"
 
       - name: Restart service
         run: |
