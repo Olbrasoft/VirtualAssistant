@@ -32,7 +32,7 @@ public class DictationWorker : BackgroundService
     private List<byte> _audioBuffer = new();
     private readonly object _bufferLock = new();
     private Task? _recordingTask;
-    private bool _dictationEnabled = true;
+    private bool _dictationEnabled = false;
 
     public DictationWorker(
         ILogger<DictationWorker> logger,
