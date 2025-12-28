@@ -219,7 +219,9 @@ internal class VirtualAssistantDBusMenuHandler : ComCanonicalDbusmenuHandler, IT
                 var ttsToggleLabel = _isTextToSpeechServiceRunning
                     ? "✅ TextToSpeech - Vypnout"
                     : "❌ TextToSpeech - Zapnout";
-                var sttServiceLabel = $"STT Service: {_sttServiceStatus} (v{_sttServiceVersion})";
+                var sttServiceLabel = _sttServiceStatus == "Running"
+                    ? "✅ STT Service - Vypnout"
+                    : "❌ STT Service - Zapnout";
                 var llmCorrectionLabel = GetLlmCorrectionLabel();
                 children = new VariantValue[]
                 {
@@ -294,7 +296,9 @@ internal class VirtualAssistantDBusMenuHandler : ComCanonicalDbusmenuHandler, IT
                 props["visible"] = VariantValue.Bool(true);
                 break;
             case SpeechToTextServiceId:
-                var sttServiceLabel = $"STT Service: {_sttServiceStatus} (v{_sttServiceVersion})";
+                var sttServiceLabel = _sttServiceStatus == "Running"
+                    ? "✅ STT Service - Vypnout"
+                    : "❌ STT Service - Zapnout";
                 props["label"] = VariantValue.String(sttServiceLabel);
                 props["enabled"] = VariantValue.Bool(true);
                 props["visible"] = VariantValue.Bool(true);
@@ -356,7 +360,9 @@ internal class VirtualAssistantDBusMenuHandler : ComCanonicalDbusmenuHandler, IT
         var ttsToggleLabel = _isTextToSpeechServiceRunning
             ? "✅ TextToSpeech - Vypnout"
             : "❌ TextToSpeech - Zapnout";
-        var sttServiceLabel = $"STT Service: {_sttServiceStatus} (v{_sttServiceVersion})";
+        var sttServiceLabel = _sttServiceStatus == "Running"
+            ? "✅ STT Service - Vypnout"
+            : "❌ STT Service - Zapnout";
         var llmCorrectionLabel = GetLlmCorrectionLabel();
 
         return id switch
