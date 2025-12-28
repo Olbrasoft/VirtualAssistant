@@ -445,7 +445,7 @@ public static class ServiceCollectionExtensions
             return ActivatorUtilities.CreateInstance<SpeechToTextGrpcClient>(
                 sp,
                 options.Value.WhisperLanguage,
-                options.Value.WhisperModelPath); // Uses DictationOptions model (large-v3-turbo)
+                options.Value.GetFullWhisperModelPath()); // Uses DictationOptions model (large-v3-turbo)
         });
 
         // Dedicated TranscriptionService for dictation using dictation transcriber
