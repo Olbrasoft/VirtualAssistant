@@ -60,10 +60,11 @@ jobs:
           mkdir -p "$DEPLOY_PATH/icons"
           cp -r assets/icons/* "$DEPLOY_PATH/icons/" || true
 
-          # Copy sounds
-          echo "Copying sounds to: $DEPLOY_PATH/sounds"
-          mkdir -p "$DEPLOY_PATH/sounds"
-          cp -r assets/sounds/* "$DEPLOY_PATH/sounds/" || true
+          # Copy sounds (to parent directory, as code uses AppContext.BaseDirectory/../sounds)
+          SOUNDS_PATH="$(dirname "$DEPLOY_PATH")/sounds"
+          echo "Copying sounds to: $SOUNDS_PATH"
+          mkdir -p "$SOUNDS_PATH"
+          cp -r assets/sounds/* "$SOUNDS_PATH/" || true
 
           echo "Assets copied successfully"
 
