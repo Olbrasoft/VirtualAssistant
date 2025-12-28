@@ -369,7 +369,7 @@ public class VirtualAssistantTrayService : IDisposable
             var startInfo = new ProcessStartInfo
             {
                 FileName = "systemctl",
-                Arguments = "--user start virtual-assistant-logs.service",
+                Arguments = "--user start log-viewer.service",
                 UseShellExecute = false,
                 CreateNoWindow = true
             };
@@ -404,7 +404,7 @@ public class VirtualAssistantTrayService : IDisposable
             var startInfo = new ProcessStartInfo
             {
                 FileName = "systemctl",
-                Arguments = "--user stop virtual-assistant-logs.service",
+                Arguments = "--user stop log-viewer.service",
                 UseShellExecute = false,
                 CreateNoWindow = true
             };
@@ -441,7 +441,7 @@ public class VirtualAssistantTrayService : IDisposable
             var startInfo = new ProcessStartInfo
             {
                 FileName = "systemctl",
-                Arguments = "--user is-active virtual-assistant-logs.service",
+                Arguments = "--user is-active log-viewer.service",
                 UseShellExecute = false,
                 RedirectStandardOutput = true,
                 CreateNoWindow = true
