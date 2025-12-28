@@ -81,6 +81,8 @@ public class VirtualAssistantTrayService : IDisposable
             handler.OnToggleServiceRequested += HandleToggleService;
             handler.OnStartSpeechToTextRequested += HandleStartSpeechToTextService;
             handler.OnStopSpeechToTextRequested += HandleStopSpeechToTextService;
+            handler.OnStartLogViewerRequested += HandleStartLogViewerService;
+            handler.OnStopLogViewerRequested += HandleStopLogViewerService;
             handler.OnLlmCorrectionToggled += HandleLlmCorrectionToggle;
             handler.OnReloadPromptRequested += HandleReloadPrompt;
             _logger.LogDebug("Menu handler events wired up successfully");
@@ -127,6 +129,9 @@ public class VirtualAssistantTrayService : IDisposable
 
                     // Refresh SpeechToText status
                     await RefreshSpeechToTextStatus();
+
+                    // Refresh log-viewer status
+                    await RefreshLogViewerStatus();
                 }
             }
         }
@@ -349,6 +354,112 @@ public class VirtualAssistantTrayService : IDisposable
         catch (Exception ex)
         {
             _logger.LogError(ex, "Failed to refresh SpeechToText status");
+        }
+    }
+
+    /// <summary>
+    /// Handles start log-viewer service request from menu.
+    /// </summary>
+    private async void HandleStartLogViewerService()
+    {
+        try
+        {
+            _logger.LogInformation("Starting log-viewer service via tray menu");
+
+            var startInfo = new ProcessStartInfo
+            {
+                FileName = "systemctl",
+                Arguments = "--user start virtual-assistant-logs.service",
+                UseShellExecute = false,
+                CreateNoWindow = true
+            };
+
+            using var process = Process.Start(startInfo);
+            if (process != null)
+            {
+                await process.WaitForExitAsync();
+
+                // Wait a bit for service to start
+                await Task.Delay(500);
+
+                // Refresh status
+                await RefreshLogViewerStatus();
+            }
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Failed to start log-viewer service from tray menu");
+        }
+    }
+
+    /// <summary>
+    /// Handles stop log-viewer service request from menu.
+    /// </summary>
+    private async void HandleStopLogViewerService()
+    {
+        try
+        {
+            _logger.LogInformation("Stopping log-viewer service via tray menu");
+
+            var startInfo = new ProcessStartInfo
+            {
+                FileName = "systemctl",
+                Arguments = "--user stop virtual-assistant-logs.service",
+                UseShellExecute = false,
+                CreateNoWindow = true
+            };
+
+            using var process = Process.Start(startInfo);
+            if (process != null)
+            {
+                await process.WaitForExitAsync();
+
+                // Wait a bit for service to stop
+                await Task.Delay(500);
+
+                // Refresh status
+                await RefreshLogViewerStatus();
+            }
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Failed to stop log-viewer service from tray menu");
+        }
+    }
+
+    /// <summary>
+    /// Refreshes log-viewer service status and updates menu.
+    /// </summary>
+    private async Task RefreshLogViewerStatus()
+    {
+        if (_menuHandler is not VirtualAssistantDBusMenuHandler handler)
+            return;
+
+        try
+        {
+            // Check if service is running
+            var startInfo = new ProcessStartInfo
+            {
+                FileName = "systemctl",
+                Arguments = "--user is-active virtual-assistant-logs.service",
+                UseShellExecute = false,
+                RedirectStandardOutput = true,
+                CreateNoWindow = true
+            };
+
+            using var process = Process.Start(startInfo);
+            if (process != null)
+            {
+                await process.WaitForExitAsync();
+                var isRunning = process.ExitCode == 0;
+
+                handler.UpdateLogViewerStatus(isRunning);
+                _logger.LogDebug("Log-viewer status updated: Running={IsRunning}", isRunning);
+            }
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Failed to refresh log-viewer status");
         }
     }
 
