@@ -6,7 +6,7 @@ namespace Olbrasoft.VirtualAssistant.Core.Speech;
 public class TranscriptionResult
 {
     /// <summary>
-    /// Gets the transcribed text.
+    /// Gets the transcribed text (final result after all processing).
     /// </summary>
     public string Text { get; }
 
@@ -24,6 +24,18 @@ public class TranscriptionResult
     /// Gets the error message if transcription failed.
     /// </summary>
     public string? ErrorMessage { get; }
+
+    /// <summary>
+    /// Gets the original text from Whisper before any filtering or LLM correction.
+    /// Null if no processing was applied or if transcription failed.
+    /// </summary>
+    public string? OriginalText { get; init; }
+
+    /// <summary>
+    /// Gets the text after filtering but before LLM correction.
+    /// Null if text filter was not applied or if transcription failed.
+    /// </summary>
+    public string? FilteredText { get; init; }
 
     /// <summary>
     /// Initializes a new instance for successful transcription.

@@ -1,10 +1,14 @@
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Options;
+using Olbrasoft.VirtualAssistant.Core.Audio;
+using Olbrasoft.VirtualAssistant.Core.Clipboard;
 using Olbrasoft.VirtualAssistant.Core.Configuration;
 using Olbrasoft.VirtualAssistant.Core.Events;
+using Olbrasoft.VirtualAssistant.Core.Keyboard;
 using Olbrasoft.VirtualAssistant.Core.Services;
 using Olbrasoft.VirtualAssistant.Core.Speech;
 using Olbrasoft.VirtualAssistant.Core.TextInput;
+using Olbrasoft.VirtualAssistant.Core.WindowManagement;
 using Olbrasoft.VirtualAssistant.Voice;
 using Olbrasoft.VirtualAssistant.Voice.Audio;
 using Olbrasoft.VirtualAssistant.Voice.Configuration;
@@ -14,9 +18,10 @@ using Olbrasoft.VirtualAssistant.Voice.Workers;
 using Olbrasoft.VirtualAssistant.Core.StateMachine;
 using Olbrasoft.VirtualAssistant.Service.Services;
 using Olbrasoft.VirtualAssistant.Service.Tray;
+using VirtualAssistant.Data;
+using VirtualAssistant.Data.EntityFrameworkCore;
 using Olbrasoft.VirtualAssistant.Service.Workers;
 using OpenCode.DotnetClient;
-using VirtualAssistant.Data.EntityFrameworkCore;
 using VirtualAssistant.GitHub;
 using VirtualAssistant.Core;
 using VirtualAssistant.Core.Services;
@@ -86,6 +91,10 @@ public static class ServiceCollectionExtensions
             ?? throw new InvalidOperationException("Connection string 'VirtualAssistantDb' not found.");
         services.AddVirtualAssistantData(connectionString);
 
+        // Whisper transcription and LLM correction repositories
+        services.AddScoped<IWhisperTranscriptionRepository, WhisperTranscriptionRepository>();
+        services.AddScoped<ILlmCorrectionRepository, LlmCorrectionRepository>();
+
         // GitHub sync services
         services.AddGitHubServices(configuration);
 
@@ -122,7 +131,18 @@ public static class ServiceCollectionExtensions
         services.AddSingleton<IVadService, VadService>();
         // Use SpeechToText gRPC microservice instead of local Whisper.net
         services.AddSingleton<ISpeechTranscriber, SpeechToTextGrpcClient>();
-        services.AddSingleton<ITranscriptionService, TranscriptionService>();
+
+        // TranscriptionService with LLM correction and text filtering
+        services.AddSingleton<ITranscriptionService>(sp =>
+        {
+            var logger = sp.GetRequiredService<ILogger<TranscriptionService>>();
+            var transcriber = sp.GetRequiredService<ISpeechTranscriber>();
+            var configuration = sp.GetRequiredService<IConfiguration>();
+            var textFilter = sp.GetRequiredService<Olbrasoft.VirtualAssistant.Voice.Filters.ITextFilter>();
+            var llmProvider = sp.GetRequiredService<Olbrasoft.VirtualAssistant.Voice.Services.ILlmProvider>();
+
+            return new TranscriptionService(logger, transcriber, configuration, textFilter, llmProvider);
+        });
 
         // Repeat text intent detection service (for PTT history feature)
         services.AddSingleton<IRepeatTextIntentService, RepeatTextIntentService>();
@@ -131,6 +151,21 @@ public static class ServiceCollectionExtensions
         var openCodeUrl = configuration["OpenCodeUrl"] ?? "http://localhost:4096";
         services.AddSingleton(new OpenCodeClient(openCodeUrl));
         services.AddSingleton<ITextInputService, TextInputService>();
+
+        // Keyboard simulation service for dictation (clipboard-based with dotool)
+        services.AddSingleton<IClipboardManager, WlClipboardManager>();
+        services.AddSingleton<ITerminalDetector, WaylandTerminalDetector>();
+        services.AddSingleton<IKeyboardSimulationService, XDoToolKeyboardService>();
+
+        // Typing sound player for dictation feedback
+        services.AddSingleton(sp =>
+        {
+            var logger = sp.GetRequiredService<ILogger<TypingSoundPlayer>>();
+            var configuration = sp.GetRequiredService<IConfiguration>();
+            var soundsPath = Path.Combine(AppContext.BaseDirectory, "..", "sounds");
+            var audioSink = configuration["NotificationAudio:AudioSink"];
+            return TypingSoundPlayer.CreateFromDirectory(logger, soundsPath, "write.mp3", audioSink);
+        });
 
         // Mute service (shared between tray, keyboard monitor, and continuous listener)
         services.AddSingleton<IManualMuteService, ManualMuteService>();
@@ -178,7 +213,18 @@ public static class ServiceCollectionExtensions
             return new Olbrasoft.VirtualAssistant.Voice.Services.ReloadablePromptCache(loader, logger);
         });
 
-        services.AddHttpClient<Olbrasoft.VirtualAssistant.Voice.Services.ILlmProvider, Olbrasoft.VirtualAssistant.Voice.Services.MistralProvider>();
+        // Register MistralProvider as SINGLETON (not transient) so toggle state is shared across all consumers
+        services.AddHttpClient("Mistral");
+        services.AddSingleton<Olbrasoft.VirtualAssistant.Voice.Services.ILlmProvider>(sp =>
+        {
+            var httpClientFactory = sp.GetRequiredService<IHttpClientFactory>();
+            var httpClient = httpClientFactory.CreateClient("Mistral");
+            var options = sp.GetRequiredService<IOptions<Olbrasoft.VirtualAssistant.Voice.Configuration.MistralOptions>>();
+            var promptCache = sp.GetRequiredService<Olbrasoft.VirtualAssistant.Voice.Services.IPromptCache>();
+            var logger = sp.GetRequiredService<ILogger<Olbrasoft.VirtualAssistant.Voice.Services.MistralProvider>>();
+
+            return new Olbrasoft.VirtualAssistant.Voice.Services.MistralProvider(httpClient, options, promptCache, logger);
+        });
 
         // Text filtering pipeline (Phase 3 - from PushToTalk)
         // Strategy pattern filters registered individually
@@ -347,7 +393,7 @@ public static class ServiceCollectionExtensions
             var dependentServiceManager = sp.GetRequiredService<IDependentServiceManager>();
             var menuHandler = sp.GetRequiredService<ITrayMenuHandler>();
             var sttServiceManager = sp.GetRequiredService<SpeechToTextServiceManager>();
-            var mistralProvider = sp.GetService<Olbrasoft.VirtualAssistant.Voice.Services.MistralProvider>();
+            var mistralProvider = sp.GetService<Olbrasoft.VirtualAssistant.Voice.Services.ILlmProvider>() as Olbrasoft.VirtualAssistant.Voice.Services.MistralProvider;
             var dictationStateMachine = sp.GetRequiredService<Olbrasoft.VirtualAssistant.Voice.StateMachine.IDictationStateMachine>();
             var options = sp.GetRequiredService<IOptions<ContinuousListenerOptions>>();
             var iconsPath = Path.Combine(AppContext.BaseDirectory, "icons");
@@ -383,27 +429,51 @@ public static class ServiceCollectionExtensions
         services.AddHostedService<ActionExecutorWorker>();
 
         // Dictation worker (Phase 5 - keyboard-triggered dictation)
-        // Uses dedicated AudioCaptureService instance (not shared with continuous listening)
+        // Uses dedicated AudioCaptureService and TranscriptionService instances (not shared with continuous listening)
         services.AddHostedService(sp =>
         {
             var logger = sp.GetRequiredService<ILogger<DictationWorker>>();
             var keyboardMonitor = sp.GetRequiredService<IKeyboardMonitor>();
             var stateMachine = sp.GetRequiredService<Olbrasoft.VirtualAssistant.Voice.StateMachine.IDictationStateMachine>();
-            var transcriptionService = sp.GetRequiredService<ITranscriptionService>();
-            var textInputService = sp.GetRequiredService<ITextInputService>();
+            var keyboardSimulation = sp.GetRequiredService<IKeyboardSimulationService>();
+            var typingSound = sp.GetRequiredService<TypingSoundPlayer>();
+            var scopeFactory = sp.GetRequiredService<IServiceScopeFactory>();
 
             // Create dedicated AudioCaptureService for dictation (independent from continuous listening)
             var audioCaptureLogger = sp.GetRequiredService<ILogger<AudioCaptureService>>();
             var configuration = sp.GetRequiredService<IConfiguration>();
             var audioCaptureService = new AudioCaptureService(audioCaptureLogger, configuration);
 
+            // Create dedicated TranscriptionService for Dictation with large-v3-turbo model
+            var dictationOptions = new Olbrasoft.VirtualAssistant.Core.Configuration.DictationOptions();
+            configuration.GetSection(Olbrasoft.VirtualAssistant.Core.Configuration.DictationOptions.SectionName).Bind(dictationOptions);
+
+            var transcriberLogger = sp.GetRequiredService<ILogger<SpeechToTextGrpcClient>>();
+            var dictationTranscriber = new SpeechToTextGrpcClient(
+                transcriberLogger,
+                dictationOptions.WhisperLanguage,
+                dictationOptions.WhisperModelPath); // Pass model to override service default
+
+            var transcriptionLogger = sp.GetRequiredService<ILogger<TranscriptionService>>();
+            var textFilter = sp.GetRequiredService<Olbrasoft.VirtualAssistant.Voice.Filters.ITextFilter>();
+            var llmProvider = sp.GetRequiredService<Olbrasoft.VirtualAssistant.Voice.Services.ILlmProvider>();
+
+            var dictationTranscriptionService = new TranscriptionService(
+                transcriptionLogger,
+                dictationTranscriber,
+                configuration,
+                textFilter,
+                llmProvider);
+
             return new DictationWorker(
                 logger,
                 keyboardMonitor,
                 stateMachine,
                 audioCaptureService,
-                transcriptionService,
-                textInputService);
+                dictationTranscriptionService,
+                keyboardSimulation,
+                typingSound,
+                scopeFactory);
         });
 
         // TODO: Remove after testing new workers

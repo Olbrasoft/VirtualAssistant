@@ -63,7 +63,9 @@ public class TranscriptionService : ITranscriptionService
         if (!result.Success || string.IsNullOrWhiteSpace(result.Text))
             return result;
 
+        var originalText = result.Text;  // Whisper raw output
         var processedText = result.Text;
+        string? filteredText = null;
 
         // 1. Apply text filtering (database corrections, file replacements, remove patterns, whitespace normalization)
         if (_textFilter != null && _textFilter.IsEnabled)
@@ -73,6 +75,7 @@ public class TranscriptionService : ITranscriptionService
 
             if (beforeFilter != processedText)
             {
+                filteredText = processedText;  // Save filtered text
                 _logger.LogInformation("Text filtering applied: '{Before}' → '{After}'",
                     beforeFilter, processedText);
             }
@@ -100,9 +103,13 @@ public class TranscriptionService : ITranscriptionService
         }
 
         // Return new result with processed text if it changed
-        if (processedText != result.Text)
+        if (processedText != originalText)
         {
-            return new TranscriptionResult(processedText, result.Confidence);
+            return new TranscriptionResult(processedText, result.Confidence)
+            {
+                OriginalText = originalText,  // Whisper output before processing
+                FilteredText = filteredText   // Text after filtering but before LLM (null if no filtering)
+            };
         }
 
         return result;
