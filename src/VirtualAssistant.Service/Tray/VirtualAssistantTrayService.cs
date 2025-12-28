@@ -141,6 +141,15 @@ public class VirtualAssistantTrayService : IDisposable
                 {
                     handler.UpdateMuteState(_muteService.IsMuted);
 
+                    // Initialize dictation state (sync menu with DictationWorker default)
+                    // DictationWorker starts with dictation enabled by default
+                    handler.UpdateDictationStatus(true);
+                    if (_dictationWorker != null)
+                    {
+                        _dictationWorker.SetDictationEnabled(true);
+                        _logger.LogInformation("Dictation initialized as enabled on startup");
+                    }
+
                     // Update menu handler with initial service status
                     var servicesStatus = _dependentServiceManager.GetServicesStatus();
                     foreach (var (serviceName, isRunning) in servicesStatus)
