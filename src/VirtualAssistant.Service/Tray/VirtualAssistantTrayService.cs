@@ -592,7 +592,7 @@ public class VirtualAssistantTrayService : IDisposable
     }
 
     /// <summary>
-    /// Handles dictation state changes and updates STT icon accordingly.
+    /// Handles dictation state changes and updates STT icon and right hand icon accordingly.
     /// </summary>
     private async void OnDictationStateChanged(object? sender, DictationState newState)
     {
@@ -604,20 +604,25 @@ public class VirtualAssistantTrayService : IDisposable
             {
                 case DictationState.Idle:
                     await HideSttIconAsync();
+                    // Return right hand to default position
+                    SetRightHandIcon("default-right-hand.svg");
                     break;
 
                 case DictationState.Recording:
                     await ShowSttIconAsync("push-to-talk-recording.svg", "Recording...");
+                    // Show right hand holding microphone
+                    SetRightHandIcon("holding-up-a-microphone-right-hand.svg");
                     break;
 
                 case DictationState.Transcribing:
                     await ShowSttIconWithAnimationAsync();
+                    // Keep microphone icon during transcription
                     break;
             }
         }
         catch (Exception ex)
         {
-            _logger.LogError(ex, "Failed to update STT icon for state: {State}", newState);
+            _logger.LogError(ex, "Failed to update icons for dictation state: {State}", newState);
         }
     }
 
