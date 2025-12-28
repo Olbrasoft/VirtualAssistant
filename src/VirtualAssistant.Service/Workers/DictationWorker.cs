@@ -274,11 +274,15 @@ public class DictationWorker : BackgroundService
                 using var scope = _scopeFactory.CreateScope();
                 var whisperRepo = scope.ServiceProvider.GetRequiredService<IWhisperTranscriptionRepository>();
 
+                // Calculate audio duration from audio data (16-bit mono @ 16kHz)
+                // duration_ms = (bytes / 2 bytes_per_sample) / 16000 samples_per_second * 1000 ms_per_second
+                var audioDurationMs = (int)((audioData.Length / 2.0) / 16000.0 * 1000.0);
+
                 // Save original Whisper transcription (before LLM correction)
                 var originalText = result.OriginalText ?? result.Text;
                 var transcription = await whisperRepo.SaveAsync(
                     originalText,
-                    durationMs: null, // We don't track audio duration in DictationWorker yet
+                    durationMs: audioDurationMs,
                     _transcriptionCts.Token);
 
                 whisperTranscriptionId = transcription.Id;
