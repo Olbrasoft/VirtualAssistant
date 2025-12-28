@@ -616,7 +616,8 @@ public class VirtualAssistantTrayService : IDisposable
 
                 case DictationState.Transcribing:
                     await ShowSttIconWithAnimationAsync();
-                    // Keep microphone icon during transcription
+                    // Return right hand to default position after recording ends
+                    SetRightHandIcon("default-right-hand.svg");
                     break;
             }
         }
