@@ -8,6 +8,11 @@ namespace Olbrasoft.VirtualAssistant.Core.Services;
 /// </summary>
 public class DependentServicesManager : IDependentServiceManager
 {
+    /// <summary>
+    /// Delay in milliseconds to allow service to start before health check.
+    /// </summary>
+    private const int SERVICE_STARTUP_DELAY_MS = 2000;
+
     private readonly ILogger<DependentServicesManager> _logger;
     private readonly IHttpClientFactory _httpClientFactory;
     private readonly Dictionary<string, DependentServiceInfo> _services = new();
@@ -72,7 +77,7 @@ public class DependentServicesManager : IDependentServiceManager
                 }
 
                 // Wait a bit for service to start
-                await Task.Delay(2000, cancellationToken);
+                await Task.Delay(SERVICE_STARTUP_DELAY_MS, cancellationToken);
 
                 // Verify service is healthy
                 isHealthy = await CheckHealthAsync(service, cancellationToken);
