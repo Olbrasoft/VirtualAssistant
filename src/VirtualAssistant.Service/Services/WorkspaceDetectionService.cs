@@ -179,7 +179,14 @@ public class WorkspaceDetectionService : IWorkspaceDetectionService
         }
         catch (OperationCanceledException)
         {
-            try { process.Kill(); } catch { }
+            try
+            {
+                process.Kill();
+            }
+            catch (InvalidOperationException)
+            {
+                // Process already exited - expected condition, safe to ignore
+            }
             return string.Empty;
         }
     }

@@ -55,8 +55,9 @@ public sealed class SpeechLockService : ISpeechLockService, IDisposable
             {
                 return File.Exists(_lockFilePath);
             }
-            catch
+            catch (Exception ex)
             {
+                _logger.LogDebug(ex, "Failed to check lock file existence: {Path}", _lockFilePath);
                 return false;
             }
         }

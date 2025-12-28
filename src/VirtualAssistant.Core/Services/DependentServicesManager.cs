@@ -380,8 +380,23 @@ public class DependentServicesManager : IDependentServiceManager
             var response = await httpClient.GetAsync(service.HealthCheckUrl, cancellationToken);
             return response.IsSuccessStatusCode;
         }
-        catch (Exception)
+        catch (HttpRequestException ex)
         {
+            _logger.LogDebug(ex, "Health check failed for {ServiceName}: HTTP error", service.Name);
+            return false;
+        }
+        catch (TaskCanceledException ex) when (cancellationToken.IsCancellationRequested)
+        {
+            throw; // Propagate cancellation
+        }
+        catch (TaskCanceledException)
+        {
+            _logger.LogDebug("Health check timeout for {ServiceName}", service.Name);
+            return false;
+        }
+        catch (Exception ex)
+        {
+            _logger.LogWarning(ex, "Unexpected error during health check for {ServiceName}", service.Name);
             return false;
         }
     }
