@@ -105,7 +105,7 @@ public class DictationWorker : BackgroundService
         }
     }
 
-    private void OnKeyReleased(object? sender, KeyEventArgs e)
+    private async void OnKeyReleased(object? sender, KeyEventArgs e)
     {
         try
         {
@@ -126,7 +126,7 @@ public class DictationWorker : BackgroundService
                 return;
 
             // Small delay to ensure LED state is updated by kernel
-            Thread.Sleep(50);
+            await Task.Delay(50);
 
             var capsLockOn = _keyboardMonitor.IsCapsLockOn();
             var currentState = _stateMachine.CurrentState;
