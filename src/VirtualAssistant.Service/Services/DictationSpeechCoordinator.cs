@@ -80,19 +80,26 @@ public class DictationSpeechCoordinator : IHostedService, IDisposable
     /// <summary>
     /// Handles active dictation state (Recording or Transcribing).
     /// Locks TTS and cancels any currently playing speech.
+    /// Only cancels if audio is actually playing (user can hear it).
+    /// During generation phase, lock will naturally queue the message.
     /// </summary>
     private void HandleDictationActive()
     {
-        _logger.LogInformation("Dictation active - locking TTS and canceling current speech");
+        _logger.LogInformation("Dictation active - locking TTS");
 
         // Lock TTS to prevent new playback (no timeout - explicit unlock on completion)
         _lockService.Lock(timeout: null);
 
-        // Cancel currently playing speech (user chose to interrupt)
-        if (_speaker.IsSpeaking)
+        // Cancel ONLY if audio is actually playing (user can hear it)
+        // During generation phase, IsPlaying=false, so message gets queued naturally
+        if (_speaker.IsPlaying)
         {
             _logger.LogInformation("Canceling current TTS playback (queue count: {QueueCount})", _speaker.QueueCount);
             _speaker.CancelCurrentSpeech();
+        }
+        else if (_speaker.IsSpeaking)
+        {
+            _logger.LogInformation("TTS is generating audio (not playing yet) - will queue naturally (queue count: {QueueCount})", _speaker.QueueCount);
         }
     }
 

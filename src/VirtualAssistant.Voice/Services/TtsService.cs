@@ -120,6 +120,11 @@ public sealed class TtsService : IDisposable
     public int QueueCount => _queueService.Count;
 
     /// <summary>
+    /// Gets whether audio is currently playing (excludes generation phase).
+    /// </summary>
+    public bool IsPlaying => _playbackService.IsPlaying;
+
+    /// <summary>
     /// Stops any currently playing TTS audio immediately.
     /// Called when user presses CapsLock to start recording.
     /// </summary>

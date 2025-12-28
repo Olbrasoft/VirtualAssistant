@@ -8,9 +8,15 @@ namespace VirtualAssistant.Core.Services;
 public interface IVirtualAssistantSpeaker
 {
     /// <summary>
-    /// Whether speech is currently playing.
+    /// Whether speech is currently playing (includes both generation and playback).
     /// </summary>
     bool IsSpeaking { get; }
+
+    /// <summary>
+    /// Whether audio is currently playing (excludes generation phase).
+    /// Use this to check if user can actually hear the speech.
+    /// </summary>
+    bool IsPlaying { get; }
 
     /// <summary>
     /// Number of messages waiting in TTS queue.

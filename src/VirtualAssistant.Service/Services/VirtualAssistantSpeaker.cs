@@ -26,9 +26,15 @@ public class VirtualAssistantSpeaker : IVirtualAssistantSpeaker
     }
 
     /// <summary>
-    /// Whether speech is currently playing.
+    /// Whether speech is currently playing (includes both generation and playback).
     /// </summary>
     public bool IsSpeaking => _speechQueueService.IsSpeaking;
+
+    /// <summary>
+    /// Whether audio is currently playing (excludes generation phase).
+    /// Use this to check if user can actually hear the speech.
+    /// </summary>
+    public bool IsPlaying => _ttsService.IsPlaying;
 
     /// <summary>
     /// Number of messages waiting in TTS queue.
