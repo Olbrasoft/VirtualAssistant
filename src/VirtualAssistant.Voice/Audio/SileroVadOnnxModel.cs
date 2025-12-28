@@ -31,6 +31,10 @@ public class SileroVadOnnxModel : IDisposable
         ResetStates();
     }
 
+    /// <summary>
+    /// Resets the internal state and context of the VAD model.
+    /// Call this when starting a new audio stream or when sample rate changes.
+    /// </summary>
     public void ResetStates()
     {
         _state = new float[2][][];
@@ -43,6 +47,9 @@ public class SileroVadOnnxModel : IDisposable
         _lastBatchSize = 0;
     }
 
+    /// <summary>
+    /// Releases resources used by the Silero VAD ONNX model, including the inference session.
+    /// </summary>
     public void Dispose()
     {
         _session?.Dispose();

@@ -24,6 +24,9 @@ public class MultiProviderLlmRouter : ILlmRouterService
     private readonly LlmProvider[] _providerOrder;
     private readonly object _lockObject = new();
 
+    /// <summary>
+    /// Gets the provider name identifier for multi-provider router.
+    /// </summary>
     public string ProviderName => "MultiProvider";
 
     public MultiProviderLlmRouter(
@@ -44,6 +47,13 @@ public class MultiProviderLlmRouter : ILlmRouterService
             string.Join(", ", _providerMap.Keys));
     }
 
+    /// <summary>
+    /// Routes text input to available LLM providers using round-robin with automatic failover.
+    /// </summary>
+    /// <param name="inputText">The transcribed text to route to LLM.</param>
+    /// <param name="isDiscussionActive">Whether an active discussion context exists.</param>
+    /// <param name="cancellationToken">Cancellation token.</param>
+    /// <returns>Router result with action decision and provider information.</returns>
     public async Task<LlmRouterResult> RouteAsync(string inputText, bool isDiscussionActive = false, CancellationToken cancellationToken = default)
     {
         if (string.IsNullOrWhiteSpace(inputText))

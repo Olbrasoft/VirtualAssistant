@@ -18,7 +18,14 @@ public class MistralProvider : ILlmProvider
     private Dictionary<string, string> _lastRateLimitHeaders = new();
     private bool _runtimeEnabled;
 
+    /// <summary>
+    /// Gets the provider name identifier ("mistral").
+    /// </summary>
     public string ProviderName => "mistral";
+
+    /// <summary>
+    /// Gets the Mistral model name being used (e.g., "mistral-large-latest").
+    /// </summary>
     public string ModelName => _options.Model;
 
     public MistralProvider(
@@ -72,6 +79,15 @@ public class MistralProvider : ILlmProvider
         _logger.LogInformation("Mistral prompt cache cleared, will reload on next request");
     }
 
+    /// <summary>
+    /// Corrects Czech ASR transcription using Mistral AI LLM.
+    /// </summary>
+    /// <param name="text">The transcribed text to correct.</param>
+    /// <param name="cancellationToken">Cancellation token.</param>
+    /// <returns>Corrected text, or original text if correction is skipped (disabled/short text).</returns>
+    /// <exception cref="HttpRequestException">Thrown when HTTP request to Mistral API fails.</exception>
+    /// <exception cref="TaskCanceledException">Thrown when request times out.</exception>
+    /// <exception cref="InvalidOperationException">Thrown when API returns empty response.</exception>
     public async Task<string> CorrectTextAsync(string text, CancellationToken cancellationToken = default)
     {
         // Skip LLM correction if disabled at runtime

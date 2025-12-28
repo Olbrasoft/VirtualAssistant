@@ -29,11 +29,34 @@ public interface IRepeatTextIntentService
 /// </summary>
 public record RepeatTextIntentResult
 {
+    /// <summary>
+    /// Gets a value indicating whether the transcribed text represents a repeat/clipboard intent.
+    /// </summary>
     public bool IsRepeatTextIntent { get; init; }
+
+    /// <summary>
+    /// Gets the confidence score (0.0 to 1.0) for the intent detection.
+    /// </summary>
     public float Confidence { get; init; }
+
+    /// <summary>
+    /// Gets the reason for the detection result (e.g., matched phrase, similarity score).
+    /// </summary>
     public string? Reason { get; init; }
+
+    /// <summary>
+    /// Gets the response time in milliseconds for intent detection.
+    /// </summary>
     public int ResponseTimeMs { get; init; }
+
+    /// <summary>
+    /// Gets a value indicating whether intent detection was successful (true) or encountered an error (false).
+    /// </summary>
     public bool Success { get; init; }
+
+    /// <summary>
+    /// Gets the error message if detection failed, otherwise null.
+    /// </summary>
     public string? ErrorMessage { get; init; }
 
     public static RepeatTextIntentResult NotRepeat(string? reason = null, int responseTimeMs = 0)

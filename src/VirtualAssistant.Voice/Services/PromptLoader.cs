@@ -53,6 +53,12 @@ public class PromptLoader : IPromptLoader
         _logger.LogInformation("Prompts directory: {Directory}", _promptsDirectory);
     }
 
+    /// <summary>
+    /// Loads a prompt from the file system with caching support.
+    /// </summary>
+    /// <param name="promptName">The name of the prompt file (without .md extension).</param>
+    /// <returns>The content of the prompt file.</returns>
+    /// <exception cref="FileNotFoundException">Thrown when the prompt file is not found.</exception>
     public string LoadPrompt(string promptName)
     {
         if (_cache.TryGetValue(promptName, out var cached))
@@ -75,15 +81,21 @@ public class PromptLoader : IPromptLoader
         return content;
     }
 
+    /// <summary>
+    /// Loads a prompt from the file system and replaces placeholders with provided values.
+    /// </summary>
+    /// <param name="promptName">The name of the prompt file (without .md extension).</param>
+    /// <param name="values">Dictionary of placeholder keys and their replacement values.</param>
+    /// <returns>The prompt content with placeholders replaced.</returns>
     public string LoadPromptWithValues(string promptName, Dictionary<string, string> values)
     {
         var template = LoadPrompt(promptName);
-        
+
         foreach (var (key, value) in values)
         {
             template = template.Replace($"{{{{{key}}}}}", value);
         }
-        
+
         return template;
     }
 
