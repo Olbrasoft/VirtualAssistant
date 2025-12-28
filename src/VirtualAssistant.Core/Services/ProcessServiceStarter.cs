@@ -13,10 +13,10 @@ public class ProcessServiceStarter : IProcessServiceStarter
 
     public ProcessServiceStarter(
         ILogger<ProcessServiceStarter> logger,
-        IProcessManager _processManager)
+        IProcessManager processManager)
     {
         _logger = logger ?? throw new ArgumentNullException(nameof(logger));
-        this._processManager = _processManager ?? throw new ArgumentNullException(nameof(_processManager));
+        _processManager = processManager ?? throw new ArgumentNullException(nameof(processManager));
     }
 
     /// <inheritdoc/>

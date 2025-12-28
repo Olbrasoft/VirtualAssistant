@@ -31,7 +31,7 @@ public class ServiceHealthMonitor : IServiceHealthMonitor
             using var httpClient = _httpClientFactory.CreateClient();
             httpClient.Timeout = TimeSpan.FromSeconds(2);
 
-            var response = await httpClient.GetAsync(service.HealthCheckUrl, cancellationToken);
+            using var response = await httpClient.GetAsync(service.HealthCheckUrl, cancellationToken);
             return response.IsSuccessStatusCode;
         }
         catch (Exception)
@@ -52,8 +52,6 @@ public class ServiceHealthMonitor : IServiceHealthMonitor
         {
             try
             {
-                await Task.Delay(TimeSpan.FromSeconds(HEALTH_CHECK_INTERVAL_SECONDS), cancellationToken);
-
                 foreach (var service in services)
                 {
                     var wasRunning = service.IsRunning;
@@ -67,6 +65,8 @@ public class ServiceHealthMonitor : IServiceHealthMonitor
                         onStatusChanged(service.Name, isHealthy);
                     }
                 }
+
+                await Task.Delay(TimeSpan.FromSeconds(HEALTH_CHECK_INTERVAL_SECONDS), cancellationToken);
             }
             catch (OperationCanceledException)
             {

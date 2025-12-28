@@ -52,6 +52,7 @@ public class DependentServicesManager : IDependentServiceManager
             try
             {
                 await _lifecycle.StartServiceAsync(service, cancellationToken);
+                OnServiceStatusChanged(service.Name, service.IsRunning);
             }
             catch (Exception ex)
             {
@@ -150,6 +151,7 @@ public class DependentServicesManager : IDependentServiceManager
         }
 
         await _lifecycle.StartServiceAsync(service, cancellationToken);
+        OnServiceStatusChanged(service.Name, service.IsRunning);
     }
 
     /// <summary>
@@ -164,6 +166,7 @@ public class DependentServicesManager : IDependentServiceManager
         }
 
         await _lifecycle.StopServiceAsync(service, cancellationToken);
+        OnServiceStatusChanged(service.Name, service.IsRunning);
     }
 
     private void OnServiceStatusChanged(string serviceName, bool isRunning)
@@ -180,6 +183,8 @@ public class DependentServicesManager : IDependentServiceManager
         if (_disposed)
             return;
 
+        _disposed = true;
+
         _monitoringCts.Cancel();
         _monitoringCts.Dispose();
 
@@ -188,7 +193,5 @@ public class DependentServicesManager : IDependentServiceManager
         {
             service.Process?.Dispose();
         }
-
-        _disposed = true;
     }
 }

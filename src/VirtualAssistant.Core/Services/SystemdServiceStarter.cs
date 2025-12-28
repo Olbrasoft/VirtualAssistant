@@ -25,7 +25,7 @@ public class SystemdServiceStarter : ISystemdServiceStarter
         try
         {
             // Check if systemd service exists
-            var checkProcess = _processManager.Start(new ProcessStartInfo
+            using var checkProcess = _processManager.Start(new ProcessStartInfo
             {
                 FileName = "systemctl",
                 Arguments = $"--user status {service.SystemdServiceName}",
@@ -47,7 +47,7 @@ public class SystemdServiceStarter : ISystemdServiceStarter
             }
 
             // Try to start it
-            var startProcess = _processManager.Start(new ProcessStartInfo
+            using var startProcess = _processManager.Start(new ProcessStartInfo
             {
                 FileName = "systemctl",
                 Arguments = $"--user start {service.SystemdServiceName}",
@@ -82,7 +82,7 @@ public class SystemdServiceStarter : ISystemdServiceStarter
     {
         try
         {
-            var stopProcess = _processManager.Start(new ProcessStartInfo
+            using var stopProcess = _processManager.Start(new ProcessStartInfo
             {
                 FileName = "systemctl",
                 Arguments = $"--user stop {service.SystemdServiceName}",
