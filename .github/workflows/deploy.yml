@@ -49,6 +49,19 @@ jobs:
             -o "$DEPLOY_PATH" \
             --no-self-contained
 
+      - name: Copy icons
+        working-directory: VirtualAssistant
+        run: |
+          # Read deploy path from systemd service
+          DEPLOY_PATH=$(grep "^WorkingDirectory=" deploy/virtual-assistant.service | cut -d'=' -f2)
+          echo "Copying icons to: $DEPLOY_PATH/icons"
+
+          # Copy all icons from assets/icons/ to production
+          mkdir -p "$DEPLOY_PATH/icons"
+          cp -r assets/icons/* "$DEPLOY_PATH/icons/" || true
+
+          echo "Icons copied successfully"
+
       - name: Restart service
         run: |
           systemctl --user restart virtual-assistant.service || true
