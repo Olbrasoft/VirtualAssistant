@@ -134,29 +134,20 @@ public static class ServiceCollectionExtensions
         services.AddSingleton<IVadService, VadService>();
 
         // Use SpeechToText gRPC microservice instead of local Whisper.net
-        // IMPORTANT: Use Dictation config for model selection (not ContinuousListener)
+        // Uses ContinuousListener config for continuous listening (default registration)
         services.AddSingleton<ISpeechTranscriber>(sp =>
         {
-            var logger = sp.GetRequiredService<ILogger<SpeechToTextGrpcClient>>();
-            var dictationOptions = sp.GetRequiredService<IOptions<DictationOptions>>();
+            var options = sp.GetRequiredService<IOptions<ContinuousListenerOptions>>();
 
-            return new SpeechToTextGrpcClient(
-                logger,
-                dictationOptions.Value.WhisperLanguage,
-                dictationOptions.Value.WhisperModelPath);
+            return ActivatorUtilities.CreateInstance<SpeechToTextGrpcClient>(
+                sp,
+                options.Value.WhisperLanguage,
+                options.Value.GetFullWhisperModelPath());
         });
 
         // TranscriptionService with LLM correction and text filtering
-        services.AddSingleton<ITranscriptionService>(sp =>
-        {
-            var logger = sp.GetRequiredService<ILogger<TranscriptionService>>();
-            var transcriber = sp.GetRequiredService<ISpeechTranscriber>();
-            var configuration = sp.GetRequiredService<IConfiguration>();
-            var textFilter = sp.GetRequiredService<Olbrasoft.VirtualAssistant.Voice.Filters.ITextFilter>();
-            var llmProvider = sp.GetRequiredService<Olbrasoft.VirtualAssistant.Voice.Services.ILlmProvider>();
-
-            return new TranscriptionService(logger, transcriber, configuration, textFilter, llmProvider);
-        });
+        // All dependencies resolved from DI - no manual 'new'
+        services.AddSingleton<ITranscriptionService, TranscriptionService>();
 
         // Repeat text intent detection service (for PTT history feature)
         services.AddSingleton<IRepeatTextIntentService, RepeatTextIntentService>();
@@ -440,8 +431,34 @@ public static class ServiceCollectionExtensions
     {
         services.AddHostedService<KeyboardMonitorWorker>();
 
-        // Dictation worker (Phase 5 - keyboard-triggered dictation)
-        // Uses dedicated AudioCaptureService and TranscriptionService instances (not shared with continuous listening)
+        // Keyed services for Dictation (Phase 5 - keyboard-triggered dictation)
+        // Dedicated instances with DictationOptions config (not shared with continuous listening)
+
+        // Dedicated AudioCaptureService for dictation
+        services.AddKeyedSingleton<IAudioCaptureService, AudioCaptureService>("dictation");
+
+        // Dedicated SpeechTranscriber for dictation with DictationOptions model
+        services.AddKeyedSingleton<ISpeechTranscriber>("dictation", (sp, key) =>
+        {
+            var options = sp.GetRequiredService<IOptions<DictationOptions>>();
+
+            return ActivatorUtilities.CreateInstance<SpeechToTextGrpcClient>(
+                sp,
+                options.Value.WhisperLanguage,
+                options.Value.WhisperModelPath); // Uses DictationOptions model (large-v3-turbo)
+        });
+
+        // Dedicated TranscriptionService for dictation using dictation transcriber
+        services.AddKeyedSingleton<ITranscriptionService>("dictation", (sp, key) =>
+        {
+            var transcriber = sp.GetRequiredKeyedService<ISpeechTranscriber>("dictation");
+
+            return ActivatorUtilities.CreateInstance<TranscriptionService>(
+                sp,
+                transcriber);
+        });
+
+        // DictationWorker registration - all dependencies resolved from DI (no manual 'new')
         // Register as singleton first so it can be injected into TrayService
         services.AddSingleton(sp =>
         {
@@ -452,34 +469,12 @@ public static class ServiceCollectionExtensions
             var typingSound = sp.GetRequiredService<TypingSoundPlayer>();
             var scopeFactory = sp.GetRequiredService<IServiceScopeFactory>();
 
-            // Create dedicated AudioCaptureService for dictation (independent from continuous listening)
-            var audioCaptureLogger = sp.GetRequiredService<ILogger<AudioCaptureService>>();
-            var configuration = sp.GetRequiredService<IConfiguration>();
-            var audioCaptureService = new AudioCaptureService(audioCaptureLogger, configuration);
+            // Get dedicated dictation services from keyed registrations
+            var audioCaptureService = sp.GetRequiredKeyedService<IAudioCaptureService>("dictation");
+            var dictationTranscriptionService = sp.GetRequiredKeyedService<ITranscriptionService>("dictation");
 
-            // Create dedicated TranscriptionService for Dictation with large-v3-turbo model
-            var dictationOptions = new Olbrasoft.VirtualAssistant.Core.Configuration.DictationOptions();
-            configuration.GetSection(Olbrasoft.VirtualAssistant.Core.Configuration.DictationOptions.SectionName).Bind(dictationOptions);
-
-            var transcriberLogger = sp.GetRequiredService<ILogger<SpeechToTextGrpcClient>>();
-            var dictationTranscriber = new SpeechToTextGrpcClient(
-                transcriberLogger,
-                dictationOptions.WhisperLanguage,
-                dictationOptions.WhisperModelPath); // Pass model to override service default
-
-            var transcriptionLogger = sp.GetRequiredService<ILogger<TranscriptionService>>();
-            var textFilter = sp.GetRequiredService<Olbrasoft.VirtualAssistant.Voice.Filters.ITextFilter>();
-            var llmProvider = sp.GetRequiredService<Olbrasoft.VirtualAssistant.Voice.Services.ILlmProvider>();
-
-            var dictationTranscriptionService = new TranscriptionService(
-                transcriptionLogger,
-                dictationTranscriber,
-                configuration,
-                textFilter,
-                llmProvider);
-
-            return new DictationWorker(
-                logger,
+            return ActivatorUtilities.CreateInstance<DictationWorker>(
+                sp,
                 keyboardMonitor,
                 stateMachine,
                 audioCaptureService,
