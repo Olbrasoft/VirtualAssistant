@@ -1,3 +1,6 @@
+using Microsoft.Extensions.Configuration;
+using Microsoft.Extensions.DependencyInjection;
+using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
 using Olbrasoft.VirtualAssistant.Core.Audio;
 using Olbrasoft.VirtualAssistant.Core.Clipboard;
@@ -12,6 +15,8 @@ using Olbrasoft.VirtualAssistant.Core.WindowManagement;
 using Olbrasoft.VirtualAssistant.Service.Services;
 using Olbrasoft.VirtualAssistant.Voice;
 using Olbrasoft.VirtualAssistant.Voice.Audio;
+using Olbrasoft.VirtualAssistant.Voice.Configuration;
+using Olbrasoft.VirtualAssistant.Voice.Filters;
 using Olbrasoft.VirtualAssistant.Voice.Services;
 using Olbrasoft.VirtualAssistant.Voice.Similarity;
 using VirtualAssistant.Core.Services;
@@ -71,8 +76,8 @@ public static class VoiceServicesExtensions
             var logger = sp.GetRequiredService<ILogger<TranscriptionService>>();
             var transcriber = sp.GetRequiredService<ISpeechTranscriber>();
             var configuration = sp.GetRequiredService<IConfiguration>();
-            var textFilter = sp.GetRequiredService<Olbrasoft.VirtualAssistant.Voice.Filters.ITextFilter>();
-            var llmProvider = sp.GetRequiredService<Olbrasoft.VirtualAssistant.Voice.Services.ILlmProvider>();
+            var textFilter = sp.GetRequiredService<ITextFilter>();
+            var llmProvider = sp.GetRequiredService<ILlmProvider>();
 
             return new TranscriptionService(logger, transcriber, configuration, textFilter, llmProvider);
         });
@@ -82,7 +87,7 @@ public static class VoiceServicesExtensions
 
         // Text input service for OpenCode
         var openCodeUrl = configuration["OpenCodeUrl"] ?? "http://localhost:4096";
-        services.AddSingleton(new OpenCodeClient(openCodeUrl));
+        services.AddSingleton<OpenCodeClient>(_ => new OpenCodeClient(openCodeUrl));
         services.AddSingleton<ITextInputService, TextInputService>();
 
         // Keyboard simulation service for dictation (clipboard-based with dotool)

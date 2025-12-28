@@ -1,3 +1,6 @@
+using Microsoft.Extensions.Configuration;
+using Microsoft.Extensions.DependencyInjection;
+using Microsoft.Extensions.Logging;
 using VirtualAssistant.Data;
 using VirtualAssistant.Data.EntityFrameworkCore;
 using VirtualAssistant.GitHub;

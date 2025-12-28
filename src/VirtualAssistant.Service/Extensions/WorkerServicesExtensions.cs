@@ -1,3 +1,7 @@
+using Microsoft.Extensions.Configuration;
+using Microsoft.Extensions.DependencyInjection;
+using Microsoft.Extensions.Logging;
+using Microsoft.Extensions.Options;
 using Olbrasoft.VirtualAssistant.Core.Audio;
 using Olbrasoft.VirtualAssistant.Core.Configuration;
 using Olbrasoft.VirtualAssistant.Core.Keyboard;
@@ -6,6 +10,7 @@ using Olbrasoft.VirtualAssistant.Core.Speech;
 using Olbrasoft.VirtualAssistant.Service.Services;
 using Olbrasoft.VirtualAssistant.Service.Workers;
 using Olbrasoft.VirtualAssistant.Voice;
+using Olbrasoft.VirtualAssistant.Voice.Filters;
 using Olbrasoft.VirtualAssistant.Voice.Services;
 
 namespace Olbrasoft.VirtualAssistant.Service.Extensions;
@@ -40,8 +45,7 @@ public static class WorkerServicesExtensions
             var audioCaptureService = new AudioCaptureService(audioCaptureLogger, configuration);
 
             // Create dedicated TranscriptionService for Dictation with large-v3-turbo model
-            var dictationOptions = new DictationOptions();
-            configuration.GetSection(DictationOptions.SectionName).Bind(dictationOptions);
+            var dictationOptions = sp.GetRequiredService<IOptions<DictationOptions>>().Value;
 
             var transcriberLogger = sp.GetRequiredService<ILogger<SpeechToTextGrpcClient>>();
             var dictationTranscriber = new SpeechToTextGrpcClient(
@@ -50,8 +54,8 @@ public static class WorkerServicesExtensions
                 dictationOptions.WhisperModelPath); // Pass model to override service default
 
             var transcriptionLogger = sp.GetRequiredService<ILogger<TranscriptionService>>();
-            var textFilter = sp.GetRequiredService<Olbrasoft.VirtualAssistant.Voice.Filters.ITextFilter>();
-            var llmProvider = sp.GetRequiredService<Olbrasoft.VirtualAssistant.Voice.Services.ILlmProvider>();
+            var textFilter = sp.GetRequiredService<ITextFilter>();
+            var llmProvider = sp.GetRequiredService<ILlmProvider>();
 
             var dictationTranscriptionService = new TranscriptionService(
                 transcriptionLogger,
