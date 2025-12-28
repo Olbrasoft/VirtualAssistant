@@ -77,7 +77,15 @@ public static class ServiceCollectionExtensions
         services.Configure<ExternalServicesOptions>(
             configuration.GetSection(ExternalServicesOptions.SectionName));
 
-        // Dependent services manager (manages TextToSpeech.Service lifecycle)
+        // Dependent services infrastructure (SRP-compliant components)
+        services.AddSingleton<IPortChecker, PortChecker>();
+        services.AddSingleton<IProcessManager, ProcessManager>();
+        services.AddSingleton<ISystemdServiceStarter, SystemdServiceStarter>();
+        services.AddSingleton<IProcessServiceStarter, ProcessServiceStarter>();
+        services.AddSingleton<IServiceHealthMonitor, ServiceHealthMonitor>();
+        services.AddSingleton<IServiceLifecycleManager, ServiceLifecycleManager>();
+
+        // Dependent services manager (coordinator - manages TextToSpeech.Service lifecycle)
         services.AddSingleton<IDependentServiceManager, DependentServicesManager>();
 
         return services;
