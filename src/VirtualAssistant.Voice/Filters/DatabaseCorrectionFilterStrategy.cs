@@ -1,8 +1,7 @@
-using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
+using VirtualAssistant.Data;
 using VirtualAssistant.Data.Entities;
-using VirtualAssistant.Data.EntityFrameworkCore;
 
 namespace Olbrasoft.VirtualAssistant.Voice.Filters;
 
@@ -68,6 +67,9 @@ public class DatabaseCorrectionFilterStrategy : ITextFilterStrategy
                     correction.IncorrectText,
                     correction.CorrectText,
                     correction.Priority);
+
+                // Track usage asynchronously (don't block)
+                _ = TrackCorrectionUsageAsync(correction.Id);
             }
         }
 
@@ -93,23 +95,22 @@ public class DatabaseCorrectionFilterStrategy : ITextFilterStrategy
 
             try
             {
-                // Create a new scope to get scoped DbContext
+                // Create a new scope to get scoped repository
                 using var scope = _serviceScopeFactory.CreateScope();
-                var dbContext = scope.ServiceProvider.GetService<VirtualAssistantDbContext>();
+                var repository = scope.ServiceProvider.GetService<ITranscriptionCorrectionRepository>();
 
-                if (dbContext == null)
+                if (repository == null)
                 {
-                    _logger.LogWarning("VirtualAssistantDbContext not available");
+                    _logger.LogWarning("ITranscriptionCorrectionRepository not available");
                     _cacheExpiry = DateTime.UtcNow.AddSeconds(30);
                     return;
                 }
 
-                // Load active corrections ordered by priority (descending)
-                _cachedCorrections = dbContext.TranscriptionCorrections
-                    .Where(c => c.IsActive)
-                    .OrderByDescending(c => c.Priority)
-                    .AsNoTracking()
-                    .ToList();
+                // Synchronous call is acceptable for cache refresh
+                _cachedCorrections = repository
+                    .GetActiveCorrectionsAsync()
+                    .GetAwaiter()
+                    .GetResult();
 
                 _cacheExpiry = DateTime.UtcNow.Add(CacheDuration);
 
@@ -125,6 +126,32 @@ public class DatabaseCorrectionFilterStrategy : ITextFilterStrategy
                 // Retry in 30 seconds on error
                 _cacheExpiry = DateTime.UtcNow.AddSeconds(30);
             }
+        }
+    }
+
+    /// <summary>
+    /// Tracks correction usage asynchronously for analytics.
+    /// </summary>
+    private async Task TrackCorrectionUsageAsync(int correctionId)
+    {
+        if (_serviceScopeFactory == null)
+            return;
+
+        try
+        {
+            // Create a new scope to get scoped repository
+            using var scope = _serviceScopeFactory.CreateScope();
+            var repository = scope.ServiceProvider.GetService<ITranscriptionCorrectionRepository>();
+
+            if (repository != null)
+            {
+                await repository.TrackUsageAsync(correctionId);
+            }
+        }
+        catch (Exception ex)
+        {
+            // Don't fail the correction if tracking fails
+            _logger.LogWarning(ex, "Failed to track correction usage for ID {CorrectionId}", correctionId);
         }
     }
 }
