@@ -195,6 +195,9 @@ public static class ServiceCollectionExtensions
         // External service client (extracted from ContinuousListenerWorker)
         services.AddSingleton<IExternalServiceClient, ExternalServiceClient>();
 
+        // Action handler service (DRY - shared logic for ContinuousListenerWorker and ActionExecutorWorker)
+        services.AddSingleton<IActionHandlerService, ActionHandlerService>();
+
         // EventBus for worker communication (issue #332)
         services.AddSingleton<IEventBus, InMemoryEventBus>();
 
