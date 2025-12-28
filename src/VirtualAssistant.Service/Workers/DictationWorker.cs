@@ -32,6 +32,7 @@ public class DictationWorker : BackgroundService
     private List<byte> _audioBuffer = new();
     private readonly object _bufferLock = new();
     private Task? _recordingTask;
+    private bool _dictationEnabled = true;
 
     public DictationWorker(
         ILogger<DictationWorker> logger,
@@ -51,6 +52,24 @@ public class DictationWorker : BackgroundService
         _keyboardSimulation = keyboardSimulation ?? throw new ArgumentNullException(nameof(keyboardSimulation));
         _typingSound = typingSound ?? throw new ArgumentNullException(nameof(typingSound));
         _scopeFactory = scopeFactory ?? throw new ArgumentNullException(nameof(scopeFactory));
+    }
+
+    /// <summary>
+    /// Enables or disables dictation functionality.
+    /// When disabled, CapsLock key events are ignored.
+    /// If currently recording/transcribing, performs emergency stop.
+    /// </summary>
+    public void SetDictationEnabled(bool enabled)
+    {
+        _dictationEnabled = enabled;
+        _logger.LogInformation("Dictation {Status}", enabled ? "enabled" : "disabled");
+
+        // If disabling and currently recording/transcribing, emergency stop
+        if (!enabled && _stateMachine.CurrentState != DictationState.Idle)
+        {
+            _logger.LogInformation("Dictation disabled while active - performing emergency stop");
+            Task.Run(async () => await EmergencyStopAsync());
+        }
     }
 
     protected override async Task ExecuteAsync(CancellationToken stoppingToken)
@@ -90,6 +109,10 @@ public class DictationWorker : BackgroundService
     {
         try
         {
+            // Ignore all keys when dictation is disabled
+            if (!_dictationEnabled)
+                return;
+
             // Escape - cancel transcription
             if (e.Key == KeyCode.Escape && _stateMachine.CurrentState == DictationState.Transcribing)
             {

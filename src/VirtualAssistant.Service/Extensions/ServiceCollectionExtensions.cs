@@ -409,6 +409,7 @@ public static class ServiceCollectionExtensions
             var sttServiceManager = sp.GetRequiredService<SpeechToTextServiceManager>();
             var mistralProvider = sp.GetService<Olbrasoft.VirtualAssistant.Voice.Services.ILlmProvider>() as Olbrasoft.VirtualAssistant.Voice.Services.MistralProvider;
             var dictationStateMachine = sp.GetRequiredService<Olbrasoft.VirtualAssistant.Voice.StateMachine.IDictationStateMachine>();
+            var dictationWorker = sp.GetRequiredService<DictationWorker>();
             var options = sp.GetRequiredService<IOptions<ContinuousListenerOptions>>();
             var iconsPath = Path.Combine(AppContext.BaseDirectory, "icons");
 
@@ -422,7 +423,8 @@ public static class ServiceCollectionExtensions
                 menuHandler,
                 sttServiceManager,
                 mistralProvider,
-                dictationStateMachine);
+                dictationStateMachine,
+                dictationWorker);
         });
 
         return services;
@@ -444,7 +446,8 @@ public static class ServiceCollectionExtensions
 
         // Dictation worker (Phase 5 - keyboard-triggered dictation)
         // Uses dedicated AudioCaptureService and TranscriptionService instances (not shared with continuous listening)
-        services.AddHostedService(sp =>
+        // Register as singleton first so it can be injected into TrayService
+        services.AddSingleton(sp =>
         {
             var logger = sp.GetRequiredService<ILogger<DictationWorker>>();
             var keyboardMonitor = sp.GetRequiredService<IKeyboardMonitor>();
@@ -489,6 +492,9 @@ public static class ServiceCollectionExtensions
                 typingSound,
                 scopeFactory);
         });
+
+        // Register the same singleton instance as hosted service
+        services.AddHostedService(sp => sp.GetRequiredService<DictationWorker>());
 
         // TODO: Remove after testing new workers
         // services.AddHostedService<ContinuousListenerWorker>();
