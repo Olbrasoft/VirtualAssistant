@@ -20,10 +20,7 @@ public class ActionExecutorWorkerTests : IDisposable
 {
     private readonly Mock<ILogger<ActionExecutorWorker>> _loggerMock;
     private readonly Mock<IEventBus> _eventBusMock;
-    private readonly Mock<ITextInputService> _textInputServiceMock;
-    private readonly Mock<IVirtualAssistantSpeaker> _speakerMock;
-    private readonly Mock<IExternalServiceClient> _externalServiceMock;
-    private readonly Mock<IRepeatTextIntentService> _repeatTextIntentMock;
+    private readonly Mock<IActionHandlerService> _actionHandlerMock;
     private readonly ActionExecutorWorker _sut;
     private Func<ActionRequestedEvent, CancellationToken, Task>? _actionRequestedHandler;
 
@@ -31,10 +28,7 @@ public class ActionExecutorWorkerTests : IDisposable
     {
         _loggerMock = new Mock<ILogger<ActionExecutorWorker>>();
         _eventBusMock = new Mock<IEventBus>();
-        _textInputServiceMock = new Mock<ITextInputService>();
-        _speakerMock = new Mock<IVirtualAssistantSpeaker>();
-        _externalServiceMock = new Mock<IExternalServiceClient>();
-        _repeatTextIntentMock = new Mock<IRepeatTextIntentService>();
+        _actionHandlerMock = new Mock<IActionHandlerService>();
 
         // Capture action requested handler
         _eventBusMock.Setup(x => x.Subscribe<ActionRequestedEvent>(It.IsAny<Func<ActionRequestedEvent, CancellationToken, Task>>()))
@@ -44,10 +38,7 @@ public class ActionExecutorWorkerTests : IDisposable
         _sut = new ActionExecutorWorker(
             _loggerMock.Object,
             _eventBusMock.Object,
-            _textInputServiceMock.Object,
-            _speakerMock.Object,
-            _externalServiceMock.Object,
-            _repeatTextIntentMock.Object);
+            _actionHandlerMock.Object);
     }
 
     public void Dispose()
@@ -65,7 +56,7 @@ public class ActionExecutorWorkerTests : IDisposable
     }
 
     [Fact]
-    public async Task OnActionRequested_OpenCode_SendsMessageWithBuildAgent()
+    public async Task OnActionRequested_OpenCode_CallsHandleOpenCodeAsync()
     {
         // Arrange
         var @event = new ActionRequestedEvent(
@@ -73,20 +64,17 @@ public class ActionExecutorWorkerTests : IDisposable
             "run tests",
             PromptType: PromptType.Command);
 
-        _textInputServiceMock.Setup(x => x.SendMessageToSessionAsync(It.IsAny<string>(), It.IsAny<string>(), It.IsAny<CancellationToken>()))
-            .ReturnsAsync(true);
-
         // Act
         await _actionRequestedHandler!(@event, CancellationToken.None);
 
         // Assert
-        _textInputServiceMock.Verify(
-            x => x.SendMessageToSessionAsync("run tests", "build", It.IsAny<CancellationToken>()),
+        _actionHandlerMock.Verify(
+            x => x.HandleOpenCodeAsync("run tests", PromptType.Command, It.IsAny<CancellationToken>()),
             Times.Once);
     }
 
     [Fact]
-    public async Task OnActionRequested_OpenCode_WithQuestionPrompt_UsesPlanAgent()
+    public async Task OnActionRequested_OpenCode_WithQuestionPrompt_PassesCorrectPromptType()
     {
         // Arrange
         var @event = new ActionRequestedEvent(
@@ -94,20 +82,17 @@ public class ActionExecutorWorkerTests : IDisposable
             "what is this code doing",
             PromptType: PromptType.Question);
 
-        _textInputServiceMock.Setup(x => x.SendMessageToSessionAsync(It.IsAny<string>(), It.IsAny<string>(), It.IsAny<CancellationToken>()))
-            .ReturnsAsync(true);
-
         // Act
         await _actionRequestedHandler!(@event, CancellationToken.None);
 
         // Assert
-        _textInputServiceMock.Verify(
-            x => x.SendMessageToSessionAsync("what is this code doing", "plan", It.IsAny<CancellationToken>()),
+        _actionHandlerMock.Verify(
+            x => x.HandleOpenCodeAsync("what is this code doing", PromptType.Question, It.IsAny<CancellationToken>()),
             Times.Once);
     }
 
     [Fact]
-    public async Task OnActionRequested_Bash_SendsMessageWithBuildAgent()
+    public async Task OnActionRequested_Bash_CallsHandleOpenCodeAsync()
     {
         // Arrange
         var @event = new ActionRequestedEvent(
@@ -115,15 +100,12 @@ public class ActionExecutorWorkerTests : IDisposable
             "ls -la",
             PromptType: PromptType.Command);
 
-        _textInputServiceMock.Setup(x => x.SendMessageToSessionAsync(It.IsAny<string>(), It.IsAny<string>(), It.IsAny<CancellationToken>()))
-            .ReturnsAsync(true);
-
         // Act
         await _actionRequestedHandler!(@event, CancellationToken.None);
 
         // Assert
-        _textInputServiceMock.Verify(
-            x => x.SendMessageToSessionAsync("ls -la", "build", It.IsAny<CancellationToken>()),
+        _actionHandlerMock.Verify(
+            x => x.HandleOpenCodeAsync("ls -la", PromptType.Command, It.IsAny<CancellationToken>()),
             Times.Once);
     }
 
@@ -139,9 +121,8 @@ public class ActionExecutorWorkerTests : IDisposable
         // Act
         await _actionRequestedHandler!(@event, CancellationToken.None);
 
-        // Assert - should just log, no other calls
-        _textInputServiceMock.VerifyNoOtherCalls();
-        _speakerMock.VerifyNoOtherCalls();
+        // Assert - should just log, no action handler calls
+        _actionHandlerMock.VerifyNoOtherCalls();
     }
 
     [Fact]
@@ -157,11 +138,11 @@ public class ActionExecutorWorkerTests : IDisposable
         await _actionRequestedHandler!(@event, CancellationToken.None);
 
         // Assert - should complete without errors
-        _textInputServiceMock.VerifyNoOtherCalls();
+        _actionHandlerMock.VerifyNoOtherCalls();
     }
 
     [Fact]
-    public async Task OnActionRequested_RepeatText_CallsPttEndpoint()
+    public async Task OnActionRequested_RepeatText_CallsHandleRepeatTextAsync()
     {
         // Arrange
         var @event = new ActionRequestedEvent(
@@ -169,23 +150,17 @@ public class ActionExecutorWorkerTests : IDisposable
             "repeat last text",
             TargetAgent: "repeat-text");
 
-        _externalServiceMock.Setup(x => x.CallPttRepeatAsync(It.IsAny<CancellationToken>()))
-            .ReturnsAsync((true, new PttRepeatResponse("Hello world", null), null));
-        _repeatTextIntentMock.Setup(x => x.GetRandomClipboardResponse())
-            .Returns("Text copied to clipboard");
-
         // Act
         await _actionRequestedHandler!(@event, CancellationToken.None);
 
         // Assert
-        _externalServiceMock.Verify(x => x.CallPttRepeatAsync(It.IsAny<CancellationToken>()), Times.Once);
-        _speakerMock.Verify(
-            x => x.SpeakAsync("Text copied to clipboard", null, false, It.IsAny<CancellationToken>()),
+        _actionHandlerMock.Verify(
+            x => x.HandleRepeatTextAsync(It.IsAny<CancellationToken>()),
             Times.Once);
     }
 
     [Fact]
-    public async Task OnActionRequested_RepeatText_NoHistory_SpeaksError()
+    public async Task OnActionRequested_RepeatText_PassesCancellationToken()
     {
         // Arrange
         var @event = new ActionRequestedEvent(
@@ -193,20 +168,19 @@ public class ActionExecutorWorkerTests : IDisposable
             "repeat last text",
             TargetAgent: "repeat-text");
 
-        _externalServiceMock.Setup(x => x.CallPttRepeatAsync(It.IsAny<CancellationToken>()))
-            .ReturnsAsync((false, null, "No text in history"));
+        var cts = new CancellationTokenSource();
 
         // Act
-        await _actionRequestedHandler!(@event, CancellationToken.None);
+        await _actionRequestedHandler!(@event, cts.Token);
 
         // Assert
-        _speakerMock.Verify(
-            x => x.SpeakAsync("Zadny text v historii.", null, false, It.IsAny<CancellationToken>()),
+        _actionHandlerMock.Verify(
+            x => x.HandleRepeatTextAsync(cts.Token),
             Times.Once);
     }
 
     [Fact]
-    public async Task OnActionRequested_DispatchTask_Success_SpeaksConfirmation()
+    public async Task OnActionRequested_DispatchTask_CallsHandleDispatchTaskAsync()
     {
         // Arrange
         var @event = new ActionRequestedEvent(
@@ -214,58 +188,48 @@ public class ActionExecutorWorkerTests : IDisposable
             "do something",
             TargetAgent: "claude");
 
-        _externalServiceMock.Setup(x => x.DispatchTaskAsync("claude", It.IsAny<CancellationToken>()))
-            .ReturnsAsync((true, new VoiceDispatchTaskResponse(true, null, null, null, 123, null, null), null));
-
         // Act
         await _actionRequestedHandler!(@event, CancellationToken.None);
 
         // Assert
-        _externalServiceMock.Verify(x => x.DispatchTaskAsync("claude", It.IsAny<CancellationToken>()), Times.Once);
-        _speakerMock.Verify(
-            x => x.SpeakAsync("Posilam ukol cislo 123.", null, false, It.IsAny<CancellationToken>()),
+        _actionHandlerMock.Verify(
+            x => x.HandleDispatchTaskAsync("claude", It.IsAny<CancellationToken>()),
             Times.Once);
     }
 
     [Fact]
-    public async Task OnActionRequested_DispatchTask_AgentBusy_SpeaksMessage()
+    public async Task OnActionRequested_DispatchTask_DefaultsToClaudeIfNoTargetAgent()
     {
         // Arrange
         var @event = new ActionRequestedEvent(
             LlmRouterAction.DispatchTask,
             "do something",
-            TargetAgent: "claude");
-
-        _externalServiceMock.Setup(x => x.DispatchTaskAsync("claude", It.IsAny<CancellationToken>()))
-            .ReturnsAsync((true, new VoiceDispatchTaskResponse(false, "agent_busy", "Agent is currently busy", null, null, null, null), null));
+            TargetAgent: null);
 
         // Act
         await _actionRequestedHandler!(@event, CancellationToken.None);
 
         // Assert
-        _speakerMock.Verify(
-            x => x.SpeakAsync("claude je zaneprazdneny.", null, false, It.IsAny<CancellationToken>()),
+        _actionHandlerMock.Verify(
+            x => x.HandleDispatchTaskAsync("claude", It.IsAny<CancellationToken>()),
             Times.Once);
     }
 
     [Fact]
-    public async Task OnActionRequested_DispatchTask_NoPendingTasks_SpeaksMessage()
+    public async Task OnActionRequested_DispatchTask_PassesTargetAgentCorrectly()
     {
         // Arrange
         var @event = new ActionRequestedEvent(
             LlmRouterAction.DispatchTask,
             "do something",
-            TargetAgent: "claude");
-
-        _externalServiceMock.Setup(x => x.DispatchTaskAsync("claude", It.IsAny<CancellationToken>()))
-            .ReturnsAsync((true, new VoiceDispatchTaskResponse(false, "no_pending_tasks", "No pending tasks available", null, null, null, null), null));
+            TargetAgent: "custom-agent");
 
         // Act
         await _actionRequestedHandler!(@event, CancellationToken.None);
 
         // Assert
-        _speakerMock.Verify(
-            x => x.SpeakAsync("Zadne cekajici ukoly.", null, false, It.IsAny<CancellationToken>()),
+        _actionHandlerMock.Verify(
+            x => x.HandleDispatchTaskAsync("custom-agent", It.IsAny<CancellationToken>()),
             Times.Once);
     }
 
@@ -280,9 +244,8 @@ public class ActionExecutorWorkerTests : IDisposable
         // Act
         await _actionRequestedHandler!(@event, CancellationToken.None);
 
-        // Assert - should just log
-        _textInputServiceMock.VerifyNoOtherCalls();
-        _speakerMock.VerifyNoOtherCalls();
+        // Assert - should just log, no action handler calls
+        _actionHandlerMock.VerifyNoOtherCalls();
     }
 
     [Fact]
@@ -296,10 +259,8 @@ public class ActionExecutorWorkerTests : IDisposable
         // Act
         await _actionRequestedHandler!(@event, CancellationToken.None);
 
-        // Assert
-        _textInputServiceMock.VerifyNoOtherCalls();
-        _speakerMock.VerifyNoOtherCalls();
-        _externalServiceMock.VerifyNoOtherCalls();
+        // Assert - should not call action handler
+        _actionHandlerMock.VerifyNoOtherCalls();
     }
 
     [Fact]
@@ -311,7 +272,7 @@ public class ActionExecutorWorkerTests : IDisposable
             "test",
             PromptType: PromptType.Command);
 
-        _textInputServiceMock.Setup(x => x.SendMessageToSessionAsync(It.IsAny<string>(), It.IsAny<string>(), It.IsAny<CancellationToken>()))
+        _actionHandlerMock.Setup(x => x.HandleOpenCodeAsync(It.IsAny<string>(), It.IsAny<PromptType?>(), It.IsAny<CancellationToken>()))
             .ThrowsAsync(new Exception("Test exception"));
 
         // Act
