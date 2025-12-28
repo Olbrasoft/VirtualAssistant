@@ -38,6 +38,12 @@ public class TranscriptionResult
     public string? FilteredText { get; init; }
 
     /// <summary>
+    /// Gets the duration of LLM correction in milliseconds.
+    /// Null if LLM correction was not applied or if transcription failed.
+    /// </summary>
+    public int? LlmDurationMs { get; init; }
+
+    /// <summary>
     /// Initializes a new instance for successful transcription.
     /// </summary>
     public TranscriptionResult(string text, float confidence)

@@ -325,11 +325,11 @@ public class DictationWorker : BackgroundService
                     var correction = await llmRepo.SaveAsync(
                         whisperTranscriptionId: transcription.Id,
                         correctedText: result.Text,
-                        durationMs: 0, // See issue #380 for duration tracking
+                        durationMs: result.LlmDurationMs ?? 0, // Actual LLM call duration (0 if not measured)
                         _transcriptionCts.Token);
 
-                    _logger.LogDebug("Saved LLM correction {Id} for transcription {TranscriptionId}: '{Original}' → '{Corrected}'",
-                        correction.Id, transcription.Id,
+                    _logger.LogDebug("Saved LLM correction {Id} for transcription {TranscriptionId} (duration: {Duration}ms): '{Original}' → '{Corrected}'",
+                        correction.Id, transcription.Id, result.LlmDurationMs ?? 0,
                         originalText.Length > 30 ? originalText[..30] + "..." : originalText,
                         result.Text.Length > 30 ? result.Text[..30] + "..." : result.Text);
                 }

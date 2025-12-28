@@ -1,3 +1,4 @@
+using System.Diagnostics;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.Logging;
 using Olbrasoft.VirtualAssistant.Core.Configuration;
@@ -66,6 +67,7 @@ public class TranscriptionService : ITranscriptionService
         var originalText = result.Text;  // Whisper raw output
         var processedText = result.Text;
         string? filteredText = null;
+        int? llmDurationMs = null;
 
         // 1. Apply text filtering (database corrections, file replacements, remove patterns, whitespace normalization)
         if (_textFilter != null && _textFilter.IsEnabled)
@@ -87,12 +89,15 @@ public class TranscriptionService : ITranscriptionService
             try
             {
                 var beforeLlm = processedText;
+                var sw = Stopwatch.StartNew();
                 processedText = await _llmProvider.CorrectTextAsync(processedText, cancellationToken);
+                sw.Stop();
+                llmDurationMs = (int)sw.ElapsedMilliseconds;
 
                 if (beforeLlm != processedText)
                 {
-                    _logger.LogInformation("LLM correction applied: '{Before}' → '{After}'",
-                        beforeLlm, processedText);
+                    _logger.LogInformation("LLM correction applied in {Duration}ms: '{Before}' → '{After}'",
+                        llmDurationMs, beforeLlm, processedText);
                 }
             }
             catch (Exception ex)
@@ -108,7 +113,8 @@ public class TranscriptionService : ITranscriptionService
             return new TranscriptionResult(processedText, result.Confidence)
             {
                 OriginalText = originalText,  // Whisper output before processing
-                FilteredText = filteredText   // Text after filtering but before LLM (null if no filtering)
+                FilteredText = filteredText,  // Text after filtering but before LLM (null if no filtering)
+                LlmDurationMs = llmDurationMs // LLM correction duration in ms (null if no LLM correction)
             };
         }
 
