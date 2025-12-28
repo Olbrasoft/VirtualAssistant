@@ -1,7 +1,8 @@
 using System.Reflection;
-using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.Logging;
+using Microsoft.Extensions.Options;
 using Moq;
+using Olbrasoft.VirtualAssistant.Core.Configuration;
 using Olbrasoft.VirtualAssistant.Core.Speech;
 using Olbrasoft.VirtualAssistant.Voice.Services;
 
@@ -11,22 +12,18 @@ public class TranscriptionServiceTests
 {
     private readonly Mock<ILogger<TranscriptionService>> _loggerMock;
     private readonly Mock<ISpeechTranscriber> _transcriberMock;
-    private readonly Mock<IConfiguration> _configurationMock;
-    private readonly Mock<IConfigurationSection> _configSectionMock;
+    private readonly IOptions<ContinuousListenerOptions> _options;
     private readonly TranscriptionService _sut;
 
     public TranscriptionServiceTests()
     {
         _loggerMock = new Mock<ILogger<TranscriptionService>>();
         _transcriberMock = new Mock<ISpeechTranscriber>();
-        _configurationMock = new Mock<IConfiguration>();
-        _configSectionMock = new Mock<IConfigurationSection>();
 
-        // Setup configuration with minimal required values
-        _configSectionMock.Setup(x => x["MaxSegmentBytes"]).Returns("10485760");
-        _configurationMock.Setup(x => x.GetSection("ContinuousListener")).Returns(_configSectionMock.Object);
+        // Create options with default values (MaxSegmentBytes is computed from SampleRate and MaxSegmentMs)
+        _options = Options.Create(new ContinuousListenerOptions());
 
-        _sut = new TranscriptionService(_loggerMock.Object, _transcriberMock.Object, _configurationMock.Object);
+        _sut = new TranscriptionService(_loggerMock.Object, _transcriberMock.Object, _options);
     }
 
     [Fact]

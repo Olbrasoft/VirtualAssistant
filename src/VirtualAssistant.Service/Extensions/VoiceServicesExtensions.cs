@@ -69,11 +69,11 @@ public static class VoiceServicesExtensions
         {
             var logger = sp.GetRequiredService<ILogger<TranscriptionService>>();
             var transcriber = sp.GetRequiredService<ISpeechTranscriber>();
-            var configuration = sp.GetRequiredService<IConfiguration>();
+            var options = sp.GetRequiredService<IOptions<ContinuousListenerOptions>>();
             var textFilter = sp.GetRequiredService<Olbrasoft.VirtualAssistant.Voice.Filters.ITextFilter>();
             var llmProvider = sp.GetRequiredService<Olbrasoft.VirtualAssistant.Voice.Services.ILlmProvider>();
 
-            return new TranscriptionService(logger, transcriber, configuration, textFilter, llmProvider);
+            return new TranscriptionService(logger, transcriber, options, textFilter, llmProvider);
         });
 
         // Repeat text intent detection service (for PTT history feature)

@@ -1,5 +1,5 @@
-using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.Logging;
+using Microsoft.Extensions.Options;
 using Olbrasoft.VirtualAssistant.Core.Configuration;
 using Olbrasoft.VirtualAssistant.Core.Speech;
 using Olbrasoft.VirtualAssistant.Voice.Filters;
@@ -24,7 +24,7 @@ public class TranscriptionService : ITranscriptionService
     public TranscriptionService(
         ILogger<TranscriptionService> logger,
         ISpeechTranscriber transcriber,
-        IConfiguration configuration,
+        IOptions<ContinuousListenerOptions> options,
         ITextFilter? textFilter = null,
         ILlmProvider? llmProvider = null)
     {
@@ -32,8 +32,7 @@ public class TranscriptionService : ITranscriptionService
         _transcriber = transcriber ?? throw new ArgumentNullException(nameof(transcriber));
         _textFilter = textFilter; // Optional text filtering (Phase 3)
         _llmProvider = llmProvider; // Optional Mistral LLM for ASR correction (Phase 2)
-        _options = new ContinuousListenerOptions();
-        configuration.GetSection(ContinuousListenerOptions.SectionName).Bind(_options);
+        _options = options.Value;
     }
 
     /// <summary>

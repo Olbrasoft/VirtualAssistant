@@ -1,6 +1,6 @@
 using System.Diagnostics;
-using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.Logging;
+using Microsoft.Extensions.Options;
 using Olbrasoft.VirtualAssistant.Core.Configuration;
 
 namespace Olbrasoft.VirtualAssistant.Voice.Services;
@@ -17,12 +17,11 @@ public class AudioCaptureService : IAudioCaptureService
     private bool _disposed;
 
     public AudioCaptureService(
-        ILogger<AudioCaptureService> logger, 
-        IConfiguration configuration)
+        ILogger<AudioCaptureService> logger,
+        IOptions<ContinuousListenerOptions> options)
     {
         _logger = logger;
-        _options = new ContinuousListenerOptions();
-        configuration.GetSection(ContinuousListenerOptions.SectionName).Bind(_options);
+        _options = options.Value;
     }
 
     /// <summary>
