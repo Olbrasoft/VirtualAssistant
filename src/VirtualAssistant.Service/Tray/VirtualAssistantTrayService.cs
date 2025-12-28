@@ -377,6 +377,7 @@ public class VirtualAssistantTrayService : IDisposable
 
     /// <summary>
     /// Handles reload LLM prompt request from menu.
+    /// Copies prompt from source to deployment location and clears cache.
     /// </summary>
     private void HandleReloadPrompt()
     {
@@ -388,9 +389,34 @@ public class VirtualAssistantTrayService : IDisposable
 
         try
         {
-            _logger.LogInformation("Reloading Mistral LLM prompt");
+            _logger.LogInformation("Reloading Mistral LLM prompt...");
+
+            // Copy prompt from source to deployment location
+            var sourceFile = "/home/jirka/Olbrasoft/VirtualAssistant/src/VirtualAssistant.Voice/Prompts/MistralSystemPrompt.md";
+            var deployDir = "/opt/olbrasoft/virtual-assistant/app/Prompts";
+            var deployFile = Path.Combine(deployDir, "MistralSystemPrompt.md");
+
+            // Create deployment directory if it doesn't exist
+            if (!Directory.Exists(deployDir))
+            {
+                Directory.CreateDirectory(deployDir);
+                _logger.LogInformation("Created deployment directory: {Directory}", deployDir);
+            }
+
+            // Copy file from source to deployment location
+            if (File.Exists(sourceFile))
+            {
+                File.Copy(sourceFile, deployFile, overwrite: true);
+                _logger.LogInformation("Copied prompt from {Source} to {Destination}", sourceFile, deployFile);
+            }
+            else
+            {
+                _logger.LogWarning("Source prompt file not found: {SourceFile}", sourceFile);
+            }
+
+            // Clear cache and reload prompt
             _mistralProvider.ReloadPrompt();
-            _logger.LogInformation("Mistral prompt reloaded successfully");
+            _logger.LogInformation("Mistral LLM prompt reloaded successfully");
         }
         catch (Exception ex)
         {
