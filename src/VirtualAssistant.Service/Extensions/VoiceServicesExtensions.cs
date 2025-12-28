@@ -1,0 +1,194 @@
+using Microsoft.Extensions.Options;
+using Olbrasoft.VirtualAssistant.Core.Audio;
+using Olbrasoft.VirtualAssistant.Core.Clipboard;
+using Olbrasoft.VirtualAssistant.Core.Configuration;
+using Olbrasoft.VirtualAssistant.Core.Events;
+using Olbrasoft.VirtualAssistant.Core.Keyboard;
+using Olbrasoft.VirtualAssistant.Core.Services;
+using Olbrasoft.VirtualAssistant.Core.Speech;
+using Olbrasoft.VirtualAssistant.Core.StateMachine;
+using Olbrasoft.VirtualAssistant.Core.TextInput;
+using Olbrasoft.VirtualAssistant.Voice.Audio;
+using Olbrasoft.VirtualAssistant.Voice.Configuration;
+using Olbrasoft.VirtualAssistant.Voice.Services;
+using Olbrasoft.VirtualAssistant.Voice.Similarity;
+using Olbrasoft.VirtualAssistant.Service.Services;
+using OpenCode.DotnetClient;
+using Olbrasoft.VirtualAssistant.Voice.Workers;
+using VirtualAssistant.Core.Services;
+
+namespace Olbrasoft.VirtualAssistant.Service.Extensions;
+
+/// <summary>
+/// Extension methods for voice processing services registration.
+/// Handles VAD, transcription, audio capture, and text filtering.
+/// </summary>
+public static class VoiceServicesExtensions
+{
+    /// <summary>
+    /// Adds voice processing services (VAD, transcription, audio capture).
+    /// </summary>
+    public static IServiceCollection AddVoiceServices(
+        this IServiceCollection services,
+        IConfiguration configuration)
+    {
+        // Claude dispatch service for headless mode execution
+        services.AddSingleton<IClaudeDispatchService, ClaudeDispatchService>();
+
+        // String similarity for echo cancellation
+        services.AddSingleton<IStringSimilarity, LevenshteinSimilarity>();
+
+        // Assistant speech tracker for echo cancellation
+        services.AddSingleton<IAssistantSpeechTrackerService, AssistantSpeechTrackerService>();
+
+        // Silero VAD model
+        services.AddSingleton<SileroVadOnnxModel>(sp =>
+        {
+            var options = sp.GetRequiredService<IOptions<ContinuousListenerOptions>>();
+            return new SileroVadOnnxModel(options.Value.SileroVadModelPath);
+        });
+
+        services.AddSingleton<IAudioCaptureService, AudioCaptureService>();
+        services.AddSingleton<IVadService, VadService>();
+
+        // Use SpeechToText gRPC microservice instead of local Whisper.net
+        // IMPORTANT: Use Dictation config for model selection (not ContinuousListener)
+        services.AddSingleton<ISpeechTranscriber>(sp =>
+        {
+            var logger = sp.GetRequiredService<ILogger<SpeechToTextGrpcClient>>();
+            var dictationOptions = sp.GetRequiredService<IOptions<DictationOptions>>();
+
+            return new SpeechToTextGrpcClient(
+                logger,
+                dictationOptions.Value.WhisperLanguage,
+                dictationOptions.Value.WhisperModelPath);
+        });
+
+        // TranscriptionService with LLM correction and text filtering
+        services.AddSingleton<ITranscriptionService>(sp =>
+        {
+            var logger = sp.GetRequiredService<ILogger<TranscriptionService>>();
+            var transcriber = sp.GetRequiredService<ISpeechTranscriber>();
+            var configuration = sp.GetRequiredService<IConfiguration>();
+            var textFilter = sp.GetRequiredService<Olbrasoft.VirtualAssistant.Voice.Filters.ITextFilter>();
+            var llmProvider = sp.GetRequiredService<Olbrasoft.VirtualAssistant.Voice.Services.ILlmProvider>();
+
+            return new TranscriptionService(logger, transcriber, configuration, textFilter, llmProvider);
+        });
+
+        // Repeat text intent detection service (for PTT history feature)
+        services.AddSingleton<IRepeatTextIntentService, RepeatTextIntentService>();
+
+        // Text input service for OpenCode
+        var openCodeUrl = configuration["OpenCodeUrl"] ?? "http://localhost:4096";
+        services.AddSingleton(new OpenCodeClient(openCodeUrl));
+        services.AddSingleton<ITextInputService, TextInputService>();
+
+        // Keyboard simulation service for dictation (clipboard-based with dotool)
+        services.AddSingleton<IClipboardManager, WlClipboardManager>();
+        services.AddSingleton<Olbrasoft.VirtualAssistant.Core.WindowManagement.ITerminalDetector, Olbrasoft.VirtualAssistant.Core.WindowManagement.WaylandTerminalDetector>();
+        services.AddSingleton<IKeyboardSimulationService, XDoToolKeyboardService>();
+
+        // Typing sound player for dictation feedback
+        services.AddSingleton(sp =>
+        {
+            var logger = sp.GetRequiredService<ILogger<TypingSoundPlayer>>();
+            var configuration = sp.GetRequiredService<IConfiguration>();
+            var soundsPath = Path.Combine(AppContext.BaseDirectory, "..", "sounds");
+            var audioSink = configuration["NotificationAudio:AudioSink"];
+            return TypingSoundPlayer.CreateFromDirectory(logger, soundsPath, "write.mp3", audioSink);
+        });
+
+        // Mute service (shared between tray, keyboard monitor, and continuous listener)
+        services.AddSingleton<IManualMuteService, ManualMuteService>();
+
+        // Voice state machine (extracted from ContinuousListenerWorker)
+        services.AddSingleton<IVoiceStateMachine>(sp =>
+        {
+            var logger = sp.GetRequiredService<ILogger<VoiceStateMachine>>();
+            var options = sp.GetRequiredService<IOptions<ContinuousListenerOptions>>();
+            return new VoiceStateMachine(logger, options.Value.StartMuted);
+        });
+
+        // Dictation state machine (for keyboard-triggered dictation)
+        services.AddSingleton<Olbrasoft.VirtualAssistant.Voice.StateMachine.IDictationStateMachine, Olbrasoft.VirtualAssistant.Voice.StateMachine.DictationStateMachine>();
+
+        // Speech buffer manager (extracted from ContinuousListenerWorker)
+        services.AddSingleton<ISpeechBufferManager, SpeechBufferManager>();
+
+        // Command detection service (extracted from ContinuousListenerWorker)
+        services.AddSingleton<ICommandDetectionService, CommandDetectionService>();
+
+        // External service client (extracted from ContinuousListenerWorker)
+        services.AddSingleton<IExternalServiceClient, ExternalServiceClient>();
+
+        // EventBus for worker communication
+        services.AddSingleton<IEventBus, InMemoryEventBus>();
+
+        // Keyboard monitor
+        services.AddSingleton<IKeyboardMonitor>(sp =>
+        {
+            var logger = sp.GetRequiredService<ILogger<EvdevKeyboardMonitor>>();
+            var options = sp.GetRequiredService<IOptions<ContinuousListenerOptions>>();
+            return new EvdevKeyboardMonitor(logger, options.Value.KeyboardDevice);
+        });
+
+        // Mistral LLM for Czech ASR correction
+        services.Configure<Olbrasoft.VirtualAssistant.Voice.Configuration.MistralOptions>(
+            configuration.GetSection(Olbrasoft.VirtualAssistant.Voice.Configuration.MistralOptions.SectionName));
+
+        // Prompt cache for Mistral (wraps IPromptLoader with reload capability)
+        services.AddSingleton<Olbrasoft.VirtualAssistant.Voice.Services.IPromptCache>(sp =>
+        {
+            var loader = sp.GetRequiredService<Olbrasoft.VirtualAssistant.Voice.Services.IPromptLoader>();
+            var logger = sp.GetRequiredService<ILogger<Olbrasoft.VirtualAssistant.Voice.Services.ReloadablePromptCache>>();
+            return new Olbrasoft.VirtualAssistant.Voice.Services.ReloadablePromptCache(loader, logger);
+        });
+
+        // Register MistralProvider as SINGLETON (not transient) so toggle state is shared across all consumers
+        services.AddHttpClient("Mistral");
+        services.AddSingleton<Olbrasoft.VirtualAssistant.Voice.Services.ILlmProvider>(sp =>
+        {
+            var httpClientFactory = sp.GetRequiredService<IHttpClientFactory>();
+            var httpClient = httpClientFactory.CreateClient("Mistral");
+            var options = sp.GetRequiredService<IOptions<Olbrasoft.VirtualAssistant.Voice.Configuration.MistralOptions>>();
+            var promptCache = sp.GetRequiredService<Olbrasoft.VirtualAssistant.Voice.Services.IPromptCache>();
+            var logger = sp.GetRequiredService<ILogger<Olbrasoft.VirtualAssistant.Voice.Services.MistralProvider>>();
+
+            return new Olbrasoft.VirtualAssistant.Voice.Services.MistralProvider(httpClient, options, promptCache, logger);
+        });
+
+        // Text filtering pipeline
+        var textFiltersConfigPath = Path.Combine(AppContext.BaseDirectory, "Filters", "text-filters.json");
+
+        services.AddSingleton<Olbrasoft.VirtualAssistant.Voice.Filters.ITextFilterStrategy>(sp =>
+        {
+            var logger = sp.GetRequiredService<ILogger<Olbrasoft.VirtualAssistant.Voice.Filters.DatabaseCorrectionFilterStrategy>>();
+            var scopeFactory = sp.GetService<IServiceScopeFactory>();
+            return new Olbrasoft.VirtualAssistant.Voice.Filters.DatabaseCorrectionFilterStrategy(logger, scopeFactory);
+        });
+
+        services.AddSingleton<Olbrasoft.VirtualAssistant.Voice.Filters.ITextFilterStrategy>(sp =>
+        {
+            var logger = sp.GetRequiredService<ILogger<Olbrasoft.VirtualAssistant.Voice.Filters.FileReplacementFilterStrategy>>();
+            return new Olbrasoft.VirtualAssistant.Voice.Filters.FileReplacementFilterStrategy(logger, textFiltersConfigPath);
+        });
+
+        services.AddSingleton<Olbrasoft.VirtualAssistant.Voice.Filters.ITextFilterStrategy>(sp =>
+        {
+            var logger = sp.GetRequiredService<ILogger<Olbrasoft.VirtualAssistant.Voice.Filters.RemovePatternsFilterStrategy>>();
+            return new Olbrasoft.VirtualAssistant.Voice.Filters.RemovePatternsFilterStrategy(logger, textFiltersConfigPath);
+        });
+
+        services.AddSingleton<Olbrasoft.VirtualAssistant.Voice.Filters.ITextFilterStrategy>(sp =>
+        {
+            var logger = sp.GetRequiredService<ILogger<Olbrasoft.VirtualAssistant.Voice.Filters.WhitespaceFilterStrategy>>();
+            return new Olbrasoft.VirtualAssistant.Voice.Filters.WhitespaceFilterStrategy(logger);
+        });
+
+        // Composite filter orchestrates all strategies
+        services.AddSingleton<Olbrasoft.VirtualAssistant.Voice.Filters.ITextFilter, Olbrasoft.VirtualAssistant.Voice.Filters.CompositeTextFilter>();
+
+        return services;
+    }
+}
