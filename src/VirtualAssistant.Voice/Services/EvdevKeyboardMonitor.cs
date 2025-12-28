@@ -252,6 +252,9 @@ public class EvdevKeyboardMonitor : IKeyboardMonitor
         }
     }
 
+    /// <summary>
+    /// Releases resources used by the keyboard monitor, including stopping monitoring and closing device files.
+    /// </summary>
     public void Dispose()
     {
         if (_disposed) return;

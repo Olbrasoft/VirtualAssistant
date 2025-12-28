@@ -116,6 +116,9 @@ public class AudioCaptureService : IAudioCaptureService
         _process = null;
     }
 
+    /// <summary>
+    /// Releases resources used by the audio capture service, including stopping capture and disposing the process.
+    /// </summary>
     public void Dispose()
     {
         if (_disposed) return;

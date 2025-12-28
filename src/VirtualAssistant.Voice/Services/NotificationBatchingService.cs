@@ -48,6 +48,11 @@ public class NotificationBatchingService : INotificationBatchingService, IDispos
     /// </summary>
     public bool IsProcessing => _processingSemaphore.CurrentCount == 0;
 
+    /// <summary>
+    /// Queues a notification for processing and immediately starts processing.
+    /// </summary>
+    /// <param name="notification">The notification to queue.</param>
+    /// <exception cref="ArgumentNullException">Thrown when notification is null.</exception>
     public void QueueNotification(AgentNotification notification)
     {
         ArgumentNullException.ThrowIfNull(notification);
@@ -140,6 +145,9 @@ public class NotificationBatchingService : INotificationBatchingService, IDispos
         }
     }
 
+    /// <summary>
+    /// Releases resources used by the notification batching service, including the processing semaphore.
+    /// </summary>
     public void Dispose()
     {
         if (_disposed) return;

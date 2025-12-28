@@ -213,6 +213,9 @@ public class LoopbackCaptureService : IDisposable
         }
     }
 
+    /// <summary>
+    /// Releases resources used by the loopback capture service, including stopping capture.
+    /// </summary>
     public void Dispose()
     {
         if (_disposed) return;

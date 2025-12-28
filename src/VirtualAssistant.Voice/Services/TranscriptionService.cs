@@ -135,6 +135,9 @@ public class TranscriptionService : ITranscriptionService
         return truncated;
     }
 
+    /// <summary>
+    /// Releases resources used by the transcription service, including the Whisper transcriber model.
+    /// </summary>
     public void Dispose()
     {
         if (_disposed) return;

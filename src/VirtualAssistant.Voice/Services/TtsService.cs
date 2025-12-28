@@ -204,6 +204,9 @@ public sealed class TtsService : IDisposable
         }
     }
 
+    /// <summary>
+    /// Releases resources used by the TTS service, including the playback lock semaphore.
+    /// </summary>
     public void Dispose()
     {
         _playbackLock.Dispose();

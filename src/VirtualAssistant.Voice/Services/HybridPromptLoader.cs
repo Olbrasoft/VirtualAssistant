@@ -24,6 +24,12 @@ public class HybridPromptLoader : IPromptLoader
         _logger = logger ?? throw new ArgumentNullException(nameof(logger));
     }
 
+    /// <summary>
+    /// Loads a prompt, trying file system first and falling back to embedded resource.
+    /// </summary>
+    /// <param name="promptName">The name of the prompt file (without .md extension).</param>
+    /// <returns>The content of the prompt file.</returns>
+    /// <exception cref="ArgumentException">Thrown when promptName is null or whitespace.</exception>
     public string LoadPrompt(string promptName)
     {
         if (string.IsNullOrWhiteSpace(promptName))
@@ -67,6 +73,13 @@ public class HybridPromptLoader : IPromptLoader
         return embeddedContent;
     }
 
+    /// <summary>
+    /// Loads a prompt and replaces placeholders with provided values.
+    /// Tries file system first, falls back to embedded resource.
+    /// </summary>
+    /// <param name="promptName">The name of the prompt file (without .md extension).</param>
+    /// <param name="values">Dictionary of placeholder keys and their replacement values.</param>
+    /// <returns>The prompt content with placeholders replaced.</returns>
     public string LoadPromptWithValues(string promptName, Dictionary<string, string> values)
     {
         var template = LoadPrompt(promptName);

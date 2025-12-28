@@ -97,6 +97,9 @@ public sealed class SpeechToTextGrpcClient : ISpeechTranscriber
         return await TranscribeAsync(memoryStream.ToArray(), cancellationToken);
     }
 
+    /// <summary>
+    /// Releases resources used by the gRPC client, including closing the gRPC channel.
+    /// </summary>
     public void Dispose()
     {
         if (_disposed)
