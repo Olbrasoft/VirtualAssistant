@@ -78,6 +78,9 @@ public static class WorkerServicesExtensions
         // Register the same singleton instance as hosted service
         services.AddHostedService(sp => sp.GetRequiredService<DictationWorker>());
 
+        // Dictation-TTS coordination (prevents TTS during dictation)
+        services.AddHostedService<DictationSpeechCoordinator>();
+
         // Startup notification (Phase 1: simple "System started")
         services.AddHostedService<StartupNotificationService>();
 
