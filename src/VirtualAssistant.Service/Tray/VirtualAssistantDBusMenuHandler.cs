@@ -99,7 +99,7 @@ internal class VirtualAssistantDBusMenuHandler : ComCanonicalDbusmenuHandler, IT
     private string _sttServiceVersion = "Unknown";
     private string _logViewerStatus = "Checking...";
     private bool _llmCorrectionEnabled = true;
-    private bool _dictationEnabled = true;
+    private bool _dictationEnabled = false;
 
     public VirtualAssistantDBusMenuHandler(ILogger logger) : base(emitOnCapturedContext: false)
     {
