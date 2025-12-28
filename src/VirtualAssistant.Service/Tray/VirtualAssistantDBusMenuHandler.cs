@@ -30,6 +30,7 @@ internal class VirtualAssistantDBusMenuHandler : ComCanonicalDbusmenuHandler, IT
     private const int ShowLogsId = 10;
     private const int Separator4Id = 11;
     private const int QuitId = 12;
+    private const int LogViewerId = 13;
 
     /// <summary>
     /// Event fired when user selects Quit from the menu.
@@ -67,6 +68,16 @@ internal class VirtualAssistantDBusMenuHandler : ComCanonicalDbusmenuHandler, IT
     public event Action? OnStartSpeechToTextRequested;
 
     /// <summary>
+    /// Event fired when user wants to stop log-viewer service.
+    /// </summary>
+    public event Action? OnStopLogViewerRequested;
+
+    /// <summary>
+    /// Event fired when user wants to start log-viewer service.
+    /// </summary>
+    public event Action? OnStartLogViewerRequested;
+
+    /// <summary>
     /// Event fired when user toggles LLM correction.
     /// </summary>
     public event Action<bool>? OnLlmCorrectionToggled;
@@ -80,6 +91,7 @@ internal class VirtualAssistantDBusMenuHandler : ComCanonicalDbusmenuHandler, IT
     private bool _isTextToSpeechServiceRunning;
     private string _sttServiceStatus = "Checking...";
     private string _sttServiceVersion = "Unknown";
+    private string _logViewerStatus = "Checking...";
     private bool _llmCorrectionEnabled = true;
 
     public VirtualAssistantDBusMenuHandler(ILogger logger) : base(emitOnCapturedContext: false)
@@ -174,6 +186,18 @@ internal class VirtualAssistantDBusMenuHandler : ComCanonicalDbusmenuHandler, IT
     }
 
     /// <summary>
+    /// Updates log-viewer service status in menu.
+    /// </summary>
+    public void UpdateLogViewerStatus(bool isRunning)
+    {
+        _logViewerStatus = isRunning ? "Running" : "Stopped";
+        _revision++;
+
+        // Emit LayoutUpdated signal to notify menu changed
+        EmitLayoutUpdated(_revision, RootId);
+    }
+
+    /// <summary>
     /// Updates LLM correction enabled status in menu.
     /// </summary>
     public void UpdateLlmCorrectionStatus(bool enabled)
@@ -222,6 +246,9 @@ internal class VirtualAssistantDBusMenuHandler : ComCanonicalDbusmenuHandler, IT
                 var sttServiceLabel = _sttServiceStatus == "Running"
                     ? "✅ STT Service - Vypnout"
                     : "❌ STT Service - Zapnout";
+                var logViewerLabel = _logViewerStatus == "Running"
+                    ? "✅ Log Viewer - Vypnout"
+                    : "❌ Log Viewer - Zapnout";
                 var llmCorrectionLabel = GetLlmCorrectionLabel();
                 children = new VariantValue[]
                 {
@@ -235,6 +262,7 @@ internal class VirtualAssistantDBusMenuHandler : ComCanonicalDbusmenuHandler, IT
                     CreateChildVariant(Separator3Id, "", true),
                     CreateChildVariant(MuteToggleId, muteLabel, false),
                     CreateChildVariant(ShowLogsId, "Zobrazit logy", false),
+                    CreateChildVariant(LogViewerId, logViewerLabel, false),
                     CreateChildVariant(Separator4Id, "", true),
                     CreateChildVariant(QuitId, "Ukončit", false)
                 };
@@ -303,6 +331,14 @@ internal class VirtualAssistantDBusMenuHandler : ComCanonicalDbusmenuHandler, IT
                 props["enabled"] = VariantValue.Bool(true);
                 props["visible"] = VariantValue.Bool(true);
                 break;
+            case LogViewerId:
+                var logViewerLabel = _logViewerStatus == "Running"
+                    ? "✅ Log Viewer - Vypnout"
+                    : "❌ Log Viewer - Zapnout";
+                props["label"] = VariantValue.String(logViewerLabel);
+                props["enabled"] = VariantValue.Bool(true);
+                props["visible"] = VariantValue.Bool(true);
+                break;
             case TextToSpeechToggleId:
                 var ttsToggleLabel = _isTextToSpeechServiceRunning
                     ? "✅ TextToSpeech - Vypnout"
@@ -363,6 +399,9 @@ internal class VirtualAssistantDBusMenuHandler : ComCanonicalDbusmenuHandler, IT
         var sttServiceLabel = _sttServiceStatus == "Running"
             ? "✅ STT Service - Vypnout"
             : "❌ STT Service - Zapnout";
+        var logViewerLabel = _logViewerStatus == "Running"
+            ? "✅ Log Viewer - Vypnout"
+            : "❌ Log Viewer - Zapnout";
         var llmCorrectionLabel = GetLlmCorrectionLabel();
 
         return id switch
@@ -385,6 +424,12 @@ internal class VirtualAssistantDBusMenuHandler : ComCanonicalDbusmenuHandler, IT
             SpeechToTextServiceId => (id, new Dictionary<string, VariantValue>
             {
                 ["label"] = VariantValue.String(sttServiceLabel),
+                ["enabled"] = VariantValue.Bool(true),
+                ["visible"] = VariantValue.Bool(true)
+            }),
+            LogViewerId => (id, new Dictionary<string, VariantValue>
+            {
+                ["label"] = VariantValue.String(logViewerLabel),
                 ["enabled"] = VariantValue.Bool(true),
                 ["visible"] = VariantValue.Bool(true)
             }),
@@ -482,6 +527,17 @@ internal class VirtualAssistantDBusMenuHandler : ComCanonicalDbusmenuHandler, IT
                     else
                     {
                         OnStartSpeechToTextRequested?.Invoke();
+                    }
+                    break;
+                case LogViewerId:
+                    _logger.LogInformation("Log Viewer service menu item clicked");
+                    if (_logViewerStatus == "Running")
+                    {
+                        OnStopLogViewerRequested?.Invoke();
+                    }
+                    else
+                    {
+                        OnStartLogViewerRequested?.Invoke();
                     }
                     break;
                 case LlmCorrectionId:
