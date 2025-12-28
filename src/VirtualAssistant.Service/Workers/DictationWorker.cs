@@ -1,11 +1,13 @@
 using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Logging;
+using Olbrasoft.VirtualAssistant.Core.Audio;
+using Olbrasoft.VirtualAssistant.Core.Keyboard;
 using Olbrasoft.VirtualAssistant.Core.Services;
 using Olbrasoft.VirtualAssistant.Core.Speech;
-using Olbrasoft.VirtualAssistant.Core.TextInput;
 using Olbrasoft.VirtualAssistant.Voice.Audio;
 using Olbrasoft.VirtualAssistant.Voice.Services;
 using Olbrasoft.VirtualAssistant.Voice.StateMachine;
+using VirtualAssistant.Data;
 
 namespace Olbrasoft.VirtualAssistant.Service.Workers;
 
@@ -21,7 +23,9 @@ public class DictationWorker : BackgroundService
     private readonly IDictationStateMachine _stateMachine;
     private readonly IAudioCaptureService _audioCapture;
     private readonly ITranscriptionService _transcriptionService;
-    private readonly ITextInputService _textInputService;
+    private readonly IKeyboardSimulationService _keyboardSimulation;
+    private readonly TypingSoundPlayer _typingSound;
+    private readonly IServiceScopeFactory _scopeFactory;
 
     private CancellationTokenSource? _recordingCts;
     private CancellationTokenSource? _transcriptionCts;
@@ -35,14 +39,18 @@ public class DictationWorker : BackgroundService
         IDictationStateMachine stateMachine,
         IAudioCaptureService audioCapture,
         ITranscriptionService transcriptionService,
-        ITextInputService textInputService)
+        IKeyboardSimulationService keyboardSimulation,
+        TypingSoundPlayer typingSound,
+        IServiceScopeFactory scopeFactory)
     {
         _logger = logger ?? throw new ArgumentNullException(nameof(logger));
         _keyboardMonitor = keyboardMonitor ?? throw new ArgumentNullException(nameof(keyboardMonitor));
         _stateMachine = stateMachine ?? throw new ArgumentNullException(nameof(stateMachine));
         _audioCapture = audioCapture ?? throw new ArgumentNullException(nameof(audioCapture));
         _transcriptionService = transcriptionService ?? throw new ArgumentNullException(nameof(transcriptionService));
-        _textInputService = textInputService ?? throw new ArgumentNullException(nameof(textInputService));
+        _keyboardSimulation = keyboardSimulation ?? throw new ArgumentNullException(nameof(keyboardSimulation));
+        _typingSound = typingSound ?? throw new ArgumentNullException(nameof(typingSound));
+        _scopeFactory = scopeFactory ?? throw new ArgumentNullException(nameof(scopeFactory));
     }
 
     protected override async Task ExecuteAsync(CancellationToken stoppingToken)
@@ -237,6 +245,9 @@ public class DictationWorker : BackgroundService
             // Transition to Transcribing state
             _stateMachine.TransitionTo(DictationState.Transcribing);
 
+            // Start typing sound loop
+            _typingSound.StartLoop();
+
             // Create transcription CTS
             _transcriptionCts = new CancellationTokenSource();
 
@@ -246,16 +257,68 @@ public class DictationWorker : BackgroundService
             if (!result.Success || string.IsNullOrWhiteSpace(result.Text))
             {
                 _logger.LogWarning("Transcription failed or empty");
+                _typingSound.StopLoop();
                 _stateMachine.TransitionTo(DictationState.Idle);
                 return;
             }
 
             _logger.LogInformation("Transcription result: '{Text}'", result.Text);
 
-            // Type text via OpenCode
-            await _textInputService.TypeTextAsync(result.Text, submitPrompt: false);
+            // Stop typing sound after transcription (before typing text)
+            _typingSound.StopLoop();
 
-            _logger.LogInformation("Text typed successfully");
+            // Save transcription to database
+            int? whisperTranscriptionId = null;
+            try
+            {
+                using var scope = _scopeFactory.CreateScope();
+                var whisperRepo = scope.ServiceProvider.GetRequiredService<IWhisperTranscriptionRepository>();
+
+                // Save original Whisper transcription (before LLM correction)
+                var originalText = result.OriginalText ?? result.Text;
+                var transcription = await whisperRepo.SaveAsync(
+                    originalText,
+                    durationMs: null, // We don't track audio duration in DictationWorker yet
+                    _transcriptionCts.Token);
+
+                whisperTranscriptionId = transcription.Id;
+                _logger.LogDebug("Saved Whisper transcription to database with ID {Id}", whisperTranscriptionId);
+
+                // If LLM correction was applied, save it to database
+                if (result.OriginalText != null && result.Text != result.OriginalText)
+                {
+                    var llmRepo = scope.ServiceProvider.GetRequiredService<ILlmCorrectionRepository>();
+
+                    var correction = await llmRepo.SaveAsync(
+                        whisperTranscriptionId: transcription.Id,
+                        correctedText: result.Text,
+                        durationMs: 0, // TODO: Track LLM call duration
+                        _transcriptionCts.Token);
+
+                    _logger.LogDebug("Saved LLM correction {Id} for transcription {TranscriptionId}: '{Original}' → '{Corrected}'",
+                        correction.Id, transcription.Id,
+                        originalText.Length > 30 ? originalText[..30] + "..." : originalText,
+                        result.Text.Length > 30 ? result.Text[..30] + "..." : result.Text);
+                }
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(ex, "Failed to save Whisper transcription to database");
+                // Continue with dictation even if save failed
+            }
+
+            // Type text into active window via xdotool
+            var typed = await _keyboardSimulation.TypeIntoActiveWindowAsync(result.Text, _transcriptionCts.Token);
+
+            if (!typed)
+            {
+                _logger.LogWarning("Failed to type text into active window");
+                _typingSound.StopLoop();
+                _stateMachine.TransitionTo(DictationState.Idle);
+                return;
+            }
+
+            _logger.LogInformation("Text typed successfully into active window");
 
             // Return to Idle state
             _stateMachine.TransitionTo(DictationState.Idle);
@@ -263,11 +326,13 @@ public class DictationWorker : BackgroundService
         catch (OperationCanceledException)
         {
             _logger.LogInformation("Transcription canceled by user");
+            _typingSound.StopLoop();
             _stateMachine.TransitionTo(DictationState.Idle);
         }
         catch (Exception ex)
         {
             _logger.LogError(ex, "Error during transcription");
+            _typingSound.StopLoop();
             _stateMachine.TransitionTo(DictationState.Idle);
         }
         finally
