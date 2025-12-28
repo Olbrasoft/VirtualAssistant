@@ -45,6 +45,9 @@ public class ContinuousListenerWorker : BackgroundService
     private CancellationTokenSource? _transcriptionCts;
     private bool _isTranscribing;
 
+    // Repeat text intent confidence threshold
+    private const float RepeatIntentConfidenceThreshold = 0.7f;
+
     public ContinuousListenerWorker(
         ILogger<ContinuousListenerWorker> logger,
         AudioCaptureService audioCapture,
@@ -328,7 +331,7 @@ public class ContinuousListenerWorker : BackgroundService
             _logger.LogDebug("Checking repeat text intent...");
             var repeatIntent = await _repeatTextIntent.DetectIntentAsync(text, cancellationToken);
 
-            if (repeatIntent.IsRepeatTextIntent && repeatIntent.Confidence >= 0.7f)
+            if (repeatIntent.IsRepeatTextIntent && repeatIntent.Confidence >= RepeatIntentConfidenceThreshold)
             {
                 _logger.LogInformation("Repeat text intent detected (confidence: {Confidence:F2})", repeatIntent.Confidence);
                 await _actionHandler.HandleRepeatTextAsync(cancellationToken);

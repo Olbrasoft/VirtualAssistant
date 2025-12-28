@@ -21,7 +21,10 @@ public class VadService : IVadService
     
     // Silero requires exactly 512 samples at 16kHz
     private const int SileroChunkSamples = 512;
-    
+
+    // PCM normalization (16-bit signed integer max value: 2^15)
+    private const float PcmMaxValue = 32768.0f;
+
     // Buffer for accumulating samples when chunks are different size
     private readonly List<float> _sampleBuffer = new();
 
@@ -61,7 +64,7 @@ public class VadService : IVadService
         for (int i = 0; i < sampleCount; i++)
         {
             short sample = BitConverter.ToInt16(pcmData, i * 2);
-            samples[i] = sample / 32768.0f;
+            samples[i] = sample / PcmMaxValue;
         }
         
         return samples;

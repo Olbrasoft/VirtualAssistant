@@ -23,7 +23,10 @@ public class AssistantSpeechTrackerService : IAssistantSpeechTrackerService
     // Similarity threshold for fuzzy matching (0.0 - 1.0)
     // Lowered from 0.75 to 0.70 to catch more Whisper transcription variants
     private const double SimilarityThreshold = 0.70;
-    
+    private const double WordSimilarityThreshold = 0.8;
+    private const int MinConsecutiveMatches = 3;
+    private const double TtsMatchRatioThreshold = 0.6;
+
     // Track if TTS is currently playing (for AEC logging)
     private DateTime _speakingStartedAt = DateTime.MinValue;
     private const int MaxSpeakingDurationSeconds = 60;
@@ -188,7 +191,7 @@ public class AssistantSpeechTrackerService : IAssistantSpeechTrackerService
         var consecutiveMatches = 0;
         for (int i = 0; i < textWords.Length && i < ttsWords.Length; i++)
         {
-            if (CalculateSimilarity(textWords[i], ttsWords[i]) > 0.8)
+            if (CalculateSimilarity(textWords[i], ttsWords[i]) > WordSimilarityThreshold)
             {
                 consecutiveMatches++;
             }
@@ -197,10 +200,10 @@ public class AssistantSpeechTrackerService : IAssistantSpeechTrackerService
                 break; // Stop at first non-match
             }
         }
-        
+
         // If we matched significant portion of TTS from the beginning, remove those words
         var ttsMatchRatio = ttsWords.Length > 0 ? (double)consecutiveMatches / ttsWords.Length : 0;
-        if (consecutiveMatches >= 3 && ttsMatchRatio >= 0.6)
+        if (consecutiveMatches >= MinConsecutiveMatches && ttsMatchRatio >= TtsMatchRatioThreshold)
         {
             _logger.LogDebug("Fuzzy prefix match! {ConsecutiveMatches} consecutive words match TTS ({TtsMatchRatio:P0} of TTS)",
                 consecutiveMatches, ttsMatchRatio);
