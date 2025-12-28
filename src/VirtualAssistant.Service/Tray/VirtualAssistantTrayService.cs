@@ -683,6 +683,9 @@ public class VirtualAssistantTrayService : IDisposable
         return Task.CompletedTask;
     }
 
+    /// <summary>
+    /// Releases resources used by the tray service, including removing tray icons and unsubscribing from events.
+    /// </summary>
     public void Dispose()
     {
         if (_disposed)

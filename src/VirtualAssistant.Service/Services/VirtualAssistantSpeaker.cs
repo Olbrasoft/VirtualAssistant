@@ -53,6 +53,14 @@ public class VirtualAssistantSpeaker : IVirtualAssistantSpeaker
         _ttsService.StopPlayback();
     }
 
+    /// <summary>
+    /// Speaks the given text using the text-to-speech service.
+    /// </summary>
+    /// <param name="text">The text to speak. Empty or whitespace text is skipped.</param>
+    /// <param name="agentName">Optional agent name for identification (not currently used).</param>
+    /// <param name="skipCache">If true, bypasses TTS audio cache and regenerates speech.</param>
+    /// <param name="ct">Cancellation token to stop speech playback.</param>
+    /// <returns>A task that completes when speech finishes or is cancelled.</returns>
     public async Task SpeakAsync(string text, string? agentName = null, bool skipCache = false, CancellationToken ct = default)
     {
         if (string.IsNullOrWhiteSpace(text))

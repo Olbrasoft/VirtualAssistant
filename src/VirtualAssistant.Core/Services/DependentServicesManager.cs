@@ -37,6 +37,11 @@ public class DependentServicesManager : IDependentServiceManager
         });
     }
 
+    /// <summary>
+    /// Starts all configured dependent services, checking health and launching if needed.
+    /// </summary>
+    /// <param name="cancellationToken">Cancellation token to stop the operation.</param>
+    /// <returns>A task that completes when all services are started or failed to start.</returns>
     public async Task StartServicesAsync(CancellationToken cancellationToken = default)
     {
         _logger.LogInformation("Starting dependent services...");
@@ -96,6 +101,11 @@ public class DependentServicesManager : IDependentServiceManager
         _monitoringTask = MonitorServicesAsync(_monitoringCts.Token);
     }
 
+    /// <summary>
+    /// Stops all running dependent services and halts health monitoring.
+    /// </summary>
+    /// <param name="cancellationToken">Cancellation token to stop the operation.</param>
+    /// <returns>A task that completes when all services are stopped.</returns>
     public async Task StopServicesAsync(CancellationToken cancellationToken = default)
     {
         _logger.LogInformation("Stopping dependent services...");
@@ -148,6 +158,12 @@ public class DependentServicesManager : IDependentServiceManager
         return _services.ToDictionary(kvp => kvp.Key, kvp => kvp.Value.IsRunning);
     }
 
+    /// <summary>
+    /// Refreshes the health status of a specific dependent service.
+    /// </summary>
+    /// <param name="serviceName">The name of the service to refresh.</param>
+    /// <param name="cancellationToken">Cancellation token to stop the operation.</param>
+    /// <returns>A task that completes when the service status is refreshed.</returns>
     public async Task RefreshServiceStatusAsync(string serviceName, CancellationToken cancellationToken = default)
     {
         if (!_services.TryGetValue(serviceName, out var service))
@@ -177,6 +193,12 @@ public class DependentServicesManager : IDependentServiceManager
         }
     }
 
+    /// <summary>
+    /// Starts a specific dependent service by name.
+    /// </summary>
+    /// <param name="serviceName">The name of the service to start.</param>
+    /// <param name="cancellationToken">Cancellation token to stop the operation.</param>
+    /// <returns>A task that completes when the service is started.</returns>
     public async Task StartServiceAsync(string serviceName, CancellationToken cancellationToken = default)
     {
         if (!_services.TryGetValue(serviceName, out var service))
@@ -227,6 +249,12 @@ public class DependentServicesManager : IDependentServiceManager
         OnServiceStatusChanged(serviceName, isHealthy);
     }
 
+    /// <summary>
+    /// Stops a specific dependent service by name.
+    /// </summary>
+    /// <param name="serviceName">The name of the service to stop.</param>
+    /// <param name="cancellationToken">Cancellation token to stop the operation.</param>
+    /// <returns>A task that completes when the service is stopped.</returns>
     public async Task StopServiceAsync(string serviceName, CancellationToken cancellationToken = default)
     {
         if (!_services.TryGetValue(serviceName, out var service))
@@ -553,6 +581,9 @@ public class DependentServicesManager : IDependentServiceManager
         });
     }
 
+    /// <summary>
+    /// Releases resources used by the dependent services manager, including stopping monitoring and cancellation tokens.
+    /// </summary>
     public void Dispose()
     {
         if (_disposed)
@@ -569,13 +600,39 @@ public class DependentServicesManager : IDependentServiceManager
         }
     }
 
+    /// <summary>
+    /// Represents information about a dependent service.
+    /// </summary>
     private class DependentServiceInfo
     {
+        /// <summary>
+        /// Gets the name of the service.
+        /// </summary>
         public string Name { get; init; } = string.Empty;
+
+        /// <summary>
+        /// Gets the health check endpoint URL for the service.
+        /// </summary>
         public string HealthCheckUrl { get; init; } = string.Empty;
+
+        /// <summary>
+        /// Gets the systemd service name (used for starting/stopping via systemctl).
+        /// </summary>
         public string SystemdServiceName { get; init; } = string.Empty;
+
+        /// <summary>
+        /// Gets the path to the .csproj file (used for starting via dotnet run).
+        /// </summary>
         public string ProjectPath { get; init; } = string.Empty;
+
+        /// <summary>
+        /// Gets or sets a value indicating whether the service is currently running.
+        /// </summary>
         public bool IsRunning { get; set; }
+
+        /// <summary>
+        /// Gets or sets the process handle if the service was started via dotnet run.
+        /// </summary>
         public Process? Process { get; set; }
     }
 }

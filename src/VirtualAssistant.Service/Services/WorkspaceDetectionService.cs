@@ -186,26 +186,50 @@ public class WorkspaceDetectionService : IWorkspaceDetectionService
 
     private record AgentWindowMatcher(List<string> WmClassPatterns, List<string> TitlePatterns);
 
+    /// <summary>
+    /// Represents window information from xdotool JSON output.
+    /// </summary>
     private class WindowInfo
     {
+        /// <summary>
+        /// Gets or sets a value indicating whether the window is in the current workspace.
+        /// </summary>
         [System.Text.Json.Serialization.JsonPropertyName("in_current_workspace")]
         public bool InCurrentWorkspace { get; set; }
 
+        /// <summary>
+        /// Gets or sets the window manager class name (e.g., "Code", "chrome").
+        /// </summary>
         [System.Text.Json.Serialization.JsonPropertyName("wm_class")]
         public string? WmClass { get; set; }
 
+        /// <summary>
+        /// Gets or sets the window manager class instance name.
+        /// </summary>
         [System.Text.Json.Serialization.JsonPropertyName("wm_class_instance")]
         public string? WmClassInstance { get; set; }
 
+        /// <summary>
+        /// Gets or sets the window title text.
+        /// </summary>
         [System.Text.Json.Serialization.JsonPropertyName("title")]
         public string? Title { get; set; }
 
+        /// <summary>
+        /// Gets or sets the process ID that owns this window.
+        /// </summary>
         [System.Text.Json.Serialization.JsonPropertyName("pid")]
         public int Pid { get; set; }
 
+        /// <summary>
+        /// Gets or sets the X11 window identifier.
+        /// </summary>
         [System.Text.Json.Serialization.JsonPropertyName("id")]
         public long Id { get; set; }
 
+        /// <summary>
+        /// Gets or sets a value indicating whether this window currently has keyboard focus.
+        /// </summary>
         [System.Text.Json.Serialization.JsonPropertyName("focus")]
         public bool Focus { get; set; }
     }

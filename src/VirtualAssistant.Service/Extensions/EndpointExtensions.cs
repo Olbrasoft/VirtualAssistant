@@ -16,8 +16,16 @@ public record AssistantSpeechStartRequest(string Text);
 /// </summary>
 public class TtsNotifyRequest
 {
+    /// <summary>
+    /// Gets or sets the text to speak via text-to-speech.
+    /// </summary>
     public string Text { get; set; } = string.Empty;
+
+    /// <summary>
+    /// Gets or sets the source identifier for voice differentiation (e.g., "assistant", "opencode").
+    /// </summary>
     public string? Source { get; set; }
+
     /// <summary>
     /// Optional GitHub issue IDs related to this notification.
     /// </summary>

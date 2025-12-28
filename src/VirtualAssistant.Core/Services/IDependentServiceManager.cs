@@ -47,6 +47,13 @@ public interface IDependentServiceManager : IDisposable
 /// </summary>
 public class ServiceStatusChangedEventArgs : EventArgs
 {
+    /// <summary>
+    /// Gets the name of the service whose status changed.
+    /// </summary>
     public string ServiceName { get; init; } = string.Empty;
+
+    /// <summary>
+    /// Gets a value indicating whether the service is running.
+    /// </summary>
     public bool IsRunning { get; init; }
 }
