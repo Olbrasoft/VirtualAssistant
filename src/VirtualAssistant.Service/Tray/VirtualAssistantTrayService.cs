@@ -3,6 +3,7 @@ using Microsoft.Extensions.Logging;
 using Olbrasoft.SystemTray.Linux;
 using Olbrasoft.VirtualAssistant.Core.Services;
 using Olbrasoft.VirtualAssistant.Service.Services;
+using Olbrasoft.VirtualAssistant.Service.Workers;
 using Olbrasoft.VirtualAssistant.Voice.Services;
 using Olbrasoft.VirtualAssistant.Voice.StateMachine;
 
@@ -23,6 +24,7 @@ public class VirtualAssistantTrayService : IDisposable
     private readonly SpeechToTextServiceManager? _sttServiceManager;
     private readonly MistralProvider? _mistralProvider;
     private readonly IDictationStateMachine? _dictationStateMachine;
+    private readonly DictationWorker? _dictationWorker;
     private ITrayIcon? _trayIcon;
     private ITrayIcon? _sttIcon;
     private bool _disposed;
@@ -46,7 +48,8 @@ public class VirtualAssistantTrayService : IDisposable
         ITrayMenuHandler? menuHandler = null,
         SpeechToTextServiceManager? sttServiceManager = null,
         MistralProvider? mistralProvider = null,
-        IDictationStateMachine? dictationStateMachine = null)
+        IDictationStateMachine? dictationStateMachine = null,
+        DictationWorker? dictationWorker = null)
     {
         _logger = logger ?? throw new ArgumentNullException(nameof(logger));
         _manager = manager ?? throw new ArgumentNullException(nameof(manager));
@@ -58,6 +61,7 @@ public class VirtualAssistantTrayService : IDisposable
         _sttServiceManager = sttServiceManager;
         _mistralProvider = mistralProvider;
         _dictationStateMachine = dictationStateMachine;
+        _dictationWorker = dictationWorker;
 
         // Subscribe to mute state changes
         _muteService.MuteStateChanged += OnMuteStateChanged;
@@ -85,6 +89,7 @@ public class VirtualAssistantTrayService : IDisposable
             handler.OnStopLogViewerRequested += HandleStopLogViewerService;
             handler.OnLlmCorrectionToggled += HandleLlmCorrectionToggle;
             handler.OnReloadPromptRequested += HandleReloadPrompt;
+            handler.OnDictationToggleRequested += HandleDictationToggle;
             _logger.LogDebug("Menu handler events wired up successfully");
         }
         else
@@ -532,6 +537,25 @@ public class VirtualAssistantTrayService : IDisposable
         catch (Exception ex)
         {
             _logger.LogError(ex, "Failed to reload Mistral prompt");
+        }
+    }
+
+    private void HandleDictationToggle(bool enabled)
+    {
+        try
+        {
+            if (_dictationWorker == null)
+            {
+                _logger.LogWarning("DictationWorker not available");
+                return;
+            }
+
+            _logger.LogInformation("Setting dictation enabled: {Enabled}", enabled);
+            _dictationWorker.SetDictationEnabled(enabled);
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Failed to toggle dictation");
         }
     }
 

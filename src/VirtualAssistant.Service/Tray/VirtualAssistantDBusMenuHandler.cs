@@ -31,6 +31,7 @@ internal class VirtualAssistantDBusMenuHandler : ComCanonicalDbusmenuHandler, IT
     private const int Separator4Id = 11;
     private const int QuitId = 12;
     private const int LogViewerId = 13;
+    private const int DictationToggleId = 14;
 
     /// <summary>
     /// Event fired when user selects Quit from the menu.
@@ -87,12 +88,18 @@ internal class VirtualAssistantDBusMenuHandler : ComCanonicalDbusmenuHandler, IT
     /// </summary>
     public event Action? OnReloadPromptRequested;
 
+    /// <summary>
+    /// Event fired when user toggles dictation on/off.
+    /// </summary>
+    public event Action<bool>? OnDictationToggleRequested;
+
     private bool _isMuted;
     private bool _isTextToSpeechServiceRunning;
     private string _sttServiceStatus = "Checking...";
     private string _sttServiceVersion = "Unknown";
     private string _logViewerStatus = "Checking...";
     private bool _llmCorrectionEnabled = true;
+    private bool _dictationEnabled = true;
 
     public VirtualAssistantDBusMenuHandler(ILogger logger) : base(emitOnCapturedContext: false)
     {
@@ -210,6 +217,18 @@ internal class VirtualAssistantDBusMenuHandler : ComCanonicalDbusmenuHandler, IT
     }
 
     /// <summary>
+    /// Updates dictation enabled status in menu.
+    /// </summary>
+    public void UpdateDictationStatus(bool enabled)
+    {
+        _dictationEnabled = enabled;
+        _revision++;
+
+        // Emit LayoutUpdated signal to notify menu changed
+        EmitLayoutUpdated(_revision, RootId);
+    }
+
+    /// <summary>
     /// Returns the menu layout starting from the specified parent ID.
     /// </summary>
     protected override ValueTask<(uint Revision, (int, Dictionary<string, VariantValue>, VariantValue[]) Layout)> OnGetLayoutAsync(
@@ -246,6 +265,9 @@ internal class VirtualAssistantDBusMenuHandler : ComCanonicalDbusmenuHandler, IT
                 var sttServiceLabel = _sttServiceStatus == "Running"
                     ? "✅ STT Service - Vypnout"
                     : "❌ STT Service - Zapnout";
+                var dictationLabel = _dictationEnabled
+                    ? "✅ Diktace - Vypnout"
+                    : "❌ Diktace - Zapnout";
                 var logViewerLabel = _logViewerStatus == "Running"
                     ? "✅ Log Viewer - Vypnout"
                     : "❌ Log Viewer - Zapnout";
@@ -256,6 +278,7 @@ internal class VirtualAssistantDBusMenuHandler : ComCanonicalDbusmenuHandler, IT
                     CreateChildVariant(TextToSpeechToggleId, ttsToggleLabel, false),
                     CreateChildVariant(Separator1Id, "", true),
                     CreateChildVariant(SpeechToTextServiceId, sttServiceLabel, false),
+                    CreateChildVariant(DictationToggleId, dictationLabel, false),
                     CreateChildVariant(Separator2Id, "", true),
                     CreateChildVariant(LlmCorrectionId, llmCorrectionLabel, false),
                     CreateChildVariant(ReloadPromptId, "🔄 Reload LLM Prompt", false),
@@ -331,6 +354,14 @@ internal class VirtualAssistantDBusMenuHandler : ComCanonicalDbusmenuHandler, IT
                 props["enabled"] = VariantValue.Bool(true);
                 props["visible"] = VariantValue.Bool(true);
                 break;
+            case DictationToggleId:
+                var dictationLabel = _dictationEnabled
+                    ? "✅ Diktace - Vypnout"
+                    : "❌ Diktace - Zapnout";
+                props["label"] = VariantValue.String(dictationLabel);
+                props["enabled"] = VariantValue.Bool(true);
+                props["visible"] = VariantValue.Bool(true);
+                break;
             case LogViewerId:
                 var logViewerLabel = _logViewerStatus == "Running"
                     ? "✅ Log Viewer - Vypnout"
@@ -399,6 +430,9 @@ internal class VirtualAssistantDBusMenuHandler : ComCanonicalDbusmenuHandler, IT
         var sttServiceLabel = _sttServiceStatus == "Running"
             ? "✅ STT Service - Vypnout"
             : "❌ STT Service - Zapnout";
+        var dictationLabel = _dictationEnabled
+            ? "✅ Diktace - Vypnout"
+            : "❌ Diktace - Zapnout";
         var logViewerLabel = _logViewerStatus == "Running"
             ? "✅ Log Viewer - Vypnout"
             : "❌ Log Viewer - Zapnout";
@@ -424,6 +458,12 @@ internal class VirtualAssistantDBusMenuHandler : ComCanonicalDbusmenuHandler, IT
             SpeechToTextServiceId => (id, new Dictionary<string, VariantValue>
             {
                 ["label"] = VariantValue.String(sttServiceLabel),
+                ["enabled"] = VariantValue.Bool(true),
+                ["visible"] = VariantValue.Bool(true)
+            }),
+            DictationToggleId => (id, new Dictionary<string, VariantValue>
+            {
+                ["label"] = VariantValue.String(dictationLabel),
                 ["enabled"] = VariantValue.Bool(true),
                 ["visible"] = VariantValue.Bool(true)
             }),
@@ -551,6 +591,14 @@ internal class VirtualAssistantDBusMenuHandler : ComCanonicalDbusmenuHandler, IT
                 case ReloadPromptId:
                     _logger.LogInformation("Reload LLM Prompt menu item clicked");
                     OnReloadPromptRequested?.Invoke();
+                    break;
+                case DictationToggleId:
+                    _logger.LogInformation("Dictation toggle clicked (current: {Enabled})", _dictationEnabled);
+                    // Toggle dictation
+                    _dictationEnabled = !_dictationEnabled;
+                    OnDictationToggleRequested?.Invoke(_dictationEnabled);
+                    // Update menu to reflect new state
+                    UpdateDictationStatus(_dictationEnabled);
                     break;
                 default:
                     _logger.LogWarning("Unknown menu item clicked: id={Id}", id);
