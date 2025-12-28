@@ -119,15 +119,18 @@ public class EchoCancellationService : IDisposable
     /// </summary>
     public bool IsEnabled => _isEnabled;
 
+    /// <summary>
+    /// Releases resources used by the echo cancellation service, including the echo canceler instance.
+    /// </summary>
     public void Dispose()
     {
         if (_disposed) return;
-        
+
         _echoCanceler?.Dispose();
         _echoCanceler = null;
         _isEnabled = false;
         _disposed = true;
-        
+
         GC.SuppressFinalize(this);
     }
 }

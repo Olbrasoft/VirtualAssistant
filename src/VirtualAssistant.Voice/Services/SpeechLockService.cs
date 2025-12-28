@@ -91,6 +91,9 @@ public sealed class SpeechLockService : ISpeechLockService, IDisposable
         }
     }
 
+    /// <summary>
+    /// Releases resources used by the speech lock service.
+    /// </summary>
     public void Dispose()
     {
         lock (_lock)

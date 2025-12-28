@@ -30,6 +30,13 @@ public class HumanizationService : IHumanizationService
         _logger.LogInformation("HumanizationService initialized with LlmChainClient (multi-provider fallback)");
     }
 
+    /// <summary>
+    /// Humanizes agent notifications into natural Czech speech using LLM with multi-provider fallback.
+    /// </summary>
+    /// <param name="notifications">List of agent notifications to humanize.</param>
+    /// <param name="issueSummaries">Optional dictionary of issue summaries for context (issue number -> summary info).</param>
+    /// <param name="ct">Cancellation token.</param>
+    /// <returns>Humanized text ready for TTS, or null if no notifications after filtering.</returns>
     public async Task<string?> HumanizeAsync(
         IReadOnlyList<AgentNotification> notifications,
         IReadOnlyDictionary<int, IssueSummaryInfo>? issueSummaries = null,

@@ -19,6 +19,12 @@ public sealed class StartupNotificationService : IHostedService
         _logger = logger;
     }
 
+    /// <summary>
+    /// Triggered when the application host is ready to start the service.
+    /// Currently logs readiness message without playing audio (TTS disabled for startup).
+    /// </summary>
+    /// <param name="cancellationToken">Cancellation token to stop service startup.</param>
+    /// <returns>A completed task.</returns>
     public Task StartAsync(CancellationToken cancellationToken)
     {
         // TTS disabled - notifications are stored in database, not spoken immediately
@@ -26,5 +32,10 @@ public sealed class StartupNotificationService : IHostedService
         return Task.CompletedTask;
     }
 
+    /// <summary>
+    /// Triggered when the application host is performing a graceful shutdown.
+    /// </summary>
+    /// <param name="cancellationToken">Cancellation token to stop service shutdown.</param>
+    /// <returns>A completed task.</returns>
     public Task StopAsync(CancellationToken cancellationToken) => Task.CompletedTask;
 }

@@ -319,7 +319,7 @@ public class DictationWorker : BackgroundService
                     var correction = await llmRepo.SaveAsync(
                         whisperTranscriptionId: transcription.Id,
                         correctedText: result.Text,
-                        durationMs: 0, // TODO: Track LLM call duration
+                        durationMs: 0, // See issue #380 for duration tracking
                         _transcriptionCts.Token);
 
                     _logger.LogDebug("Saved LLM correction {Id} for transcription {TranscriptionId}: '{Original}' → '{Corrected}'",

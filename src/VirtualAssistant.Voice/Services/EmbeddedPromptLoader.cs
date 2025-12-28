@@ -22,6 +22,14 @@ public class EmbeddedPromptLoader : IPromptLoader
         _baseNamespace = baseNamespace ?? throw new ArgumentNullException(nameof(baseNamespace));
     }
 
+    /// <summary>
+    /// Loads a prompt from an embedded resource file.
+    /// </summary>
+    /// <param name="promptName">The name of the prompt file (without .md extension).</param>
+    /// <returns>The content of the prompt file.</returns>
+    /// <exception cref="ArgumentException">Thrown when promptName is null or whitespace.</exception>
+    /// <exception cref="FileNotFoundException">Thrown when the embedded resource is not found.</exception>
+    /// <exception cref="InvalidOperationException">Thrown when the prompt file is empty.</exception>
     public string LoadPrompt(string promptName)
     {
         if (string.IsNullOrWhiteSpace(promptName))
@@ -52,6 +60,12 @@ public class EmbeddedPromptLoader : IPromptLoader
         return content;
     }
 
+    /// <summary>
+    /// Loads a prompt from an embedded resource and replaces placeholders with provided values.
+    /// </summary>
+    /// <param name="promptName">The name of the prompt file (without .md extension).</param>
+    /// <param name="values">Dictionary of placeholder keys and their replacement values.</param>
+    /// <returns>The prompt content with placeholders replaced.</returns>
     public string LoadPromptWithValues(string promptName, Dictionary<string, string> values)
     {
         var template = LoadPrompt(promptName);

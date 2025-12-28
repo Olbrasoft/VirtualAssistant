@@ -267,6 +267,9 @@ public class TypingSoundPlayer : IDisposable
         return false;
     }
 
+    /// <summary>
+    /// Releases resources used by the typing sound player, including stopping any active playback.
+    /// </summary>
     public void Dispose()
     {
         if (_disposed)

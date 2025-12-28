@@ -59,6 +59,14 @@ public class WlClipboardManager : IClipboardManager
         }
     }
 
+    /// <summary>
+    /// Sets the clipboard content using wl-copy (Wayland clipboard utility).
+    /// </summary>
+    /// <param name="content">The text content to set in the clipboard.</param>
+    /// <param name="cancellationToken">Cancellation token to stop the operation.</param>
+    /// <returns>A task that completes when the clipboard is set.</returns>
+    /// <exception cref="ArgumentNullException">Thrown when content is null.</exception>
+    /// <exception cref="InvalidOperationException">Thrown when wl-copy process fails or cannot start.</exception>
     public async Task SetClipboardAsync(string content, CancellationToken cancellationToken = default)
     {
         if (content == null)

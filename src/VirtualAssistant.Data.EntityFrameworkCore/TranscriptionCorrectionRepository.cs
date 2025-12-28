@@ -66,7 +66,7 @@ public class TranscriptionCorrectionRepository : ITranscriptionCorrectionReposit
     /// <inheritdoc />
     public async Task TrackUsageAsync(int correctionId, CancellationToken ct = default)
     {
-        // TODO: Implement usage tracking (Phase 3 - optional)
+        // See issue #379 for future implementation
         // Requires transcription_correction_usage table (new EF migration)
         await Task.CompletedTask;
     }

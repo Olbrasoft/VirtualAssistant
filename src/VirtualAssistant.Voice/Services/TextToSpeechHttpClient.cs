@@ -114,6 +114,11 @@ public sealed class TextToSpeechHttpClient : ITtsProviderChain
         };
     }
 
+    /// <summary>
+    /// Resets the circuit breaker for TTS providers.
+    /// Circuit breaker is actually managed by TextToSpeech.Service, so this is a no-op.
+    /// </summary>
+    /// <param name="providerName">Optional provider name to reset (not used in HTTP client).</param>
     public void ResetCircuitBreaker(string? providerName = null)
     {
         // No-op - circuit breaker is managed by TextToSpeech.Service

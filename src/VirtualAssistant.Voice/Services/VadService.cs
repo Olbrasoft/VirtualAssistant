@@ -141,6 +141,9 @@ public class VadService : IVadService
     /// </summary>
     public float SpeechDetectionThreshold => SpeechThreshold;
 
+    /// <summary>
+    /// Releases resources used by the voice activity detection service, including the Silero VAD model.
+    /// </summary>
     public void Dispose()
     {
         _model?.Dispose();

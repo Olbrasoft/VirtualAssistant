@@ -95,6 +95,9 @@ public class InMemoryEventBus : IEventBus
             _handler = handler;
         }
 
+        /// <summary>
+        /// Unsubscribes the event handler from the event bus.
+        /// </summary>
         public void Dispose()
         {
             if (_disposed)
