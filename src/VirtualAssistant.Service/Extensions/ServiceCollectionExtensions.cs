@@ -68,6 +68,9 @@ public static class ServiceCollectionExtensions
         services.Configure<ContinuousListenerOptions>(
             configuration.GetSection(ContinuousListenerOptions.SectionName));
 
+        services.Configure<DictationOptions>(
+            configuration.GetSection(DictationOptions.SectionName));
+
         services.Configure<ClaudeDispatchOptions>(
             configuration.GetSection(ClaudeDispatchOptions.SectionName));
 
@@ -129,8 +132,19 @@ public static class ServiceCollectionExtensions
 
         services.AddSingleton<IAudioCaptureService, AudioCaptureService>();
         services.AddSingleton<IVadService, VadService>();
+
         // Use SpeechToText gRPC microservice instead of local Whisper.net
-        services.AddSingleton<ISpeechTranscriber, SpeechToTextGrpcClient>();
+        // IMPORTANT: Use Dictation config for model selection (not ContinuousListener)
+        services.AddSingleton<ISpeechTranscriber>(sp =>
+        {
+            var logger = sp.GetRequiredService<ILogger<SpeechToTextGrpcClient>>();
+            var dictationOptions = sp.GetRequiredService<IOptions<DictationOptions>>();
+
+            return new SpeechToTextGrpcClient(
+                logger,
+                dictationOptions.Value.WhisperLanguage,
+                dictationOptions.Value.WhisperModelPath);
+        });
 
         // TranscriptionService with LLM correction and text filtering
         services.AddSingleton<ITranscriptionService>(sp =>
