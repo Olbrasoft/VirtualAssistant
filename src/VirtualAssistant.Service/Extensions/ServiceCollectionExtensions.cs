@@ -499,9 +499,6 @@ public static class ServiceCollectionExtensions
         // Register the same singleton instance as hosted service
         services.AddHostedService(sp => sp.GetRequiredService<DictationWorker>());
 
-        // TODO: Remove after testing new workers
-        // services.AddHostedService<ContinuousListenerWorker>();
-
         // Startup notification (Phase 1: simple "System started")
         services.AddHostedService<StartupNotificationService>();
 
