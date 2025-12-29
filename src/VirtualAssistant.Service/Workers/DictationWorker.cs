@@ -293,8 +293,8 @@ public class DictationWorker : BackgroundService
 
             _logger.LogInformation("Transcription result: '{Text}'", result.Text);
 
-            // Stop typing sound after transcription (before typing text)
-            _typingSound.StopLoop();
+            // Keep typing sound playing during database save and text insertion
+            // It will be stopped after text is typed successfully
 
             // Save transcription to database
             int? whisperTranscriptionId = null;
@@ -343,10 +343,12 @@ public class DictationWorker : BackgroundService
             // Type text into active window via xdotool
             var typed = await _keyboardSimulation.TypeIntoActiveWindowAsync(result.Text, _transcriptionCts.Token);
 
+            // Stop typing sound after text is inserted (or failed)
+            _typingSound.StopLoop();
+
             if (!typed)
             {
                 _logger.LogWarning("Failed to type text into active window");
-                _typingSound.StopLoop();
                 _stateMachine.TransitionTo(DictationState.Idle);
                 return;
             }
