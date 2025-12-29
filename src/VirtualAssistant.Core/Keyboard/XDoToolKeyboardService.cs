@@ -69,7 +69,7 @@ public class XDoToolKeyboardService : IKeyboardSimulationService
                 StartInfo = new ProcessStartInfo
                 {
                     FileName = "/bin/bash",
-                    Arguments = $"-c \"echo 'type {escapedText.Replace("'", "'\\''")}' | DOTOOL_XKB_LAYOUT=cz dotool\"",
+                    Arguments = $"-c \"echo 'type {escapedText.Replace("'", "'\\''")}' | dotool\"",
                     RedirectStandardOutput = true,
                     RedirectStandardError = true,
                     UseShellExecute = false,
