@@ -55,21 +55,17 @@ public class XDoToolKeyboardService : IKeyboardSimulationService
             // Small delay to ensure clipboard is ready
             await Task.Delay(50, cancellationToken);
 
-            // Step 3: Type text directly using dotool (faster and more reliable than paste simulation)
-            _logger.LogInformation("Typing text directly using dotool type command");
-
-            // Escape text for dotool: newlines become literal \n, backslashes need escaping
-            var escapedText = textToType
-                .Replace("\\", "\\\\")  // Escape backslashes first
-                .Replace("\n", "\\n")   // Convert newlines to \n
-                .Replace("\r", "");     // Remove carriage returns
+            // Step 3: Simulate paste using dotool (clipboard already contains our text)
+            // Note: dotool type doesn't support Czech diacritics properly, so we use paste simulation
+            var pasteShortcut = await GetPasteShortcutAsync(cancellationToken);
+            _logger.LogInformation("Simulating paste with shortcut: {Shortcut}", pasteShortcut);
 
             var dotoolProcess = new Process
             {
                 StartInfo = new ProcessStartInfo
                 {
                     FileName = "/bin/bash",
-                    Arguments = $"-c \"echo 'type {escapedText.Replace("'", "'\\''")}' | dotool\"",
+                    Arguments = $"-c \"echo 'key {pasteShortcut}' | dotool\"",
                     RedirectStandardOutput = true,
                     RedirectStandardError = true,
                     UseShellExecute = false,
@@ -79,14 +75,14 @@ public class XDoToolKeyboardService : IKeyboardSimulationService
 
             dotoolProcess.Start();
 
-            // Add timeout to prevent hanging (max 5 seconds for typing)
+            // Add timeout to prevent hanging (max 5 seconds for paste)
             var dotoolTask = dotoolProcess.WaitForExitAsync(cancellationToken);
             var timeoutTask = Task.Delay(TimeSpan.FromSeconds(5), cancellationToken);
             var completedTask = await Task.WhenAny(dotoolTask, timeoutTask);
 
             if (completedTask == timeoutTask)
             {
-                _logger.LogError("dotool type timeout after 5 seconds, killing process");
+                _logger.LogError("dotool paste timeout after 5 seconds, killing process");
                 try
                 {
                     dotoolProcess.Kill();
@@ -104,6 +100,9 @@ public class XDoToolKeyboardService : IKeyboardSimulationService
                 _logger.LogError("dotool failed with exit code {ExitCode}: {Error}", dotoolProcess.ExitCode, error);
                 return false;
             }
+
+            // Small delay to ensure paste completed
+            await Task.Delay(100, cancellationToken);
 
             // Step 4: Restore original clipboard content
             if (!string.IsNullOrEmpty(originalClipboard))
@@ -134,4 +133,18 @@ public class XDoToolKeyboardService : IKeyboardSimulationService
         }
     }
 
+    /// <summary>
+    /// Gets the appropriate paste shortcut based on the active window type.
+    /// Terminals use Ctrl+Shift+V, other applications use Ctrl+V.
+    /// </summary>
+    private async Task<string> GetPasteShortcutAsync(CancellationToken cancellationToken)
+    {
+        var isTerminal = await _terminalDetector.IsTerminalActiveAsync(cancellationToken);
+        var pasteShortcut = isTerminal ? "ctrl+shift+v" : "ctrl+v";
+
+        _logger.LogInformation("Using paste shortcut: {Shortcut} (terminal: {IsTerminal})",
+            pasteShortcut, isTerminal);
+
+        return pasteShortcut;
+    }
 }
