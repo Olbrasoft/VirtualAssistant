@@ -31,6 +31,7 @@ public class DictationWorker : BackgroundService
     private readonly ITranscriptionService _transcriptionService;
     private readonly IKeyboardSimulationService _keyboardSimulation;
     private readonly TypingSoundPlayer _typingSound;
+    private readonly CancelSoundPlayer _cancelSound;
     private readonly IServiceScopeFactory _scopeFactory;
 
     private CancellationTokenSource? _recordingCts;
@@ -48,6 +49,7 @@ public class DictationWorker : BackgroundService
         ITranscriptionService transcriptionService,
         IKeyboardSimulationService keyboardSimulation,
         TypingSoundPlayer typingSound,
+        CancelSoundPlayer cancelSound,
         IServiceScopeFactory scopeFactory)
     {
         _logger = logger ?? throw new ArgumentNullException(nameof(logger));
@@ -57,6 +59,7 @@ public class DictationWorker : BackgroundService
         _transcriptionService = transcriptionService ?? throw new ArgumentNullException(nameof(transcriptionService));
         _keyboardSimulation = keyboardSimulation ?? throw new ArgumentNullException(nameof(keyboardSimulation));
         _typingSound = typingSound ?? throw new ArgumentNullException(nameof(typingSound));
+        _cancelSound = cancelSound ?? throw new ArgumentNullException(nameof(cancelSound));
         _scopeFactory = scopeFactory ?? throw new ArgumentNullException(nameof(scopeFactory));
     }
 
@@ -430,6 +433,12 @@ public class DictationWorker : BackgroundService
         try
         {
             _logger.LogInformation("Canceling transcription");
+
+            // Stop typing sound immediately
+            _typingSound.StopLoop();
+
+            // Play cancel sound (paper-rip effect)
+            _cancelSound.Play();
 
             // Cancel transcription
             _transcriptionCts?.Cancel();
