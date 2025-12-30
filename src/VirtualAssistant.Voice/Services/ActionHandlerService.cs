@@ -82,17 +82,17 @@ public class ActionHandlerService : IActionHandlerService
             var preview = response.Text?.Length > 50 ? response.Text[..50] + "..." : response.Text;
             _logger.LogInformation("Text copied to clipboard: \"{Text}\"", preview);
             var phrase = _repeatTextIntent.GetRandomClipboardResponse();
-            await _speaker.SpeakAsync(phrase, agentName: null, ct: cancellationToken);
+            _ = await _speaker.SpeakAsync(phrase, agentName: null, ct: cancellationToken);
         }
         else if (error == "No text in history")
         {
             _logger.LogWarning("No text in history");
-            await _speaker.SpeakAsync("Zadny text v historii.", agentName: null, ct: cancellationToken);
+            _ = await _speaker.SpeakAsync("Zadny text v historii.", agentName: null, ct: cancellationToken);
         }
         else
         {
             _logger.LogError("PTT repeat failed: {Error}", error);
-            await _speaker.SpeakAsync("Nepodarilo se ziskat text.", agentName: null, ct: cancellationToken);
+            _ = await _speaker.SpeakAsync("Nepodarilo se ziskat text.", agentName: null, ct: cancellationToken);
         }
     }
 

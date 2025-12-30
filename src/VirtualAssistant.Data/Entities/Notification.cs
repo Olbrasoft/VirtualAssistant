@@ -41,4 +41,11 @@ public class Notification : BaseEnity
     /// Navigation property to associated GitHub issues (many-to-many via junction table).
     /// </summary>
     public ICollection<NotificationGitHubIssue> NotificationGitHubIssues { get; set; } = [];
+
+    // TTS tracking
+    public int? FinalProviderId { get; set; }
+    public Provider? FinalProvider { get; set; }
+    public string? FinalTtsStatus { get; set; } // "success", "error", "timeout", "all_failed"
+    public DateTime? TtsCompletedAt { get; set; }
+    public ICollection<NotificationTtsAttempt> TtsAttempts { get; set; } = new List<NotificationTtsAttempt>();
 }

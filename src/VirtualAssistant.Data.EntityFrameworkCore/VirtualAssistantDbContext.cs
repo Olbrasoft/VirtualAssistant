@@ -65,6 +65,16 @@ public class VirtualAssistantDbContext : DbContext
     public DbSet<LlmError> LlmErrors => Set<LlmError>();
 
     /// <summary>
+    /// Gets or sets the Providers DbSet for external service providers.
+    /// </summary>
+    public DbSet<Provider> Providers => Set<Provider>();
+
+    /// <summary>
+    /// Gets or sets the NotificationTtsAttempts DbSet for TTS fallback chain tracking.
+    /// </summary>
+    public DbSet<NotificationTtsAttempt> NotificationTtsAttempts => Set<NotificationTtsAttempt>();
+
+    /// <summary>
     /// Gets or sets the TranscriptionCorrections DbSet.
     /// </summary>
     public DbSet<TranscriptionCorrection> TranscriptionCorrections => Set<TranscriptionCorrection>();

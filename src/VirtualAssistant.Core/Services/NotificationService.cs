@@ -151,4 +151,80 @@ public class NotificationService : INotificationService
 
         return issueIds;
     }
+
+    /// <inheritdoc />
+    public async Task RecordTtsOutcomeAsync(int notificationId, string? providerName, string status, int? durationMs = null, CancellationToken ct = default)
+    {
+        var notification = await _dbContext.Notifications.FindAsync([notificationId], ct);
+        if (notification == null)
+        {
+            _logger.LogWarning("Notification {Id} not found for TTS tracking", notificationId);
+            return;
+        }
+
+        // Find or create provider
+        Provider? provider = null;
+        if (providerName != null)
+        {
+            provider = await _dbContext.Providers
+                .FirstOrDefaultAsync(p => p.Name == providerName && p.Type == "tts", ct);
+
+            if (provider == null)
+            {
+                // Create provider on-the-fly if it doesn't exist
+                // NOTE: SaveChangesAsync is required here to get provider.Id for foreign key
+                // Unique constraint on (Name, Type) prevents duplicates
+                try
+                {
+                    provider = new Provider
+                    {
+                        Name = providerName,
+                        Type = "tts",
+                        Enabled = true,
+                        Priority = 0 // Default priority
+                    };
+                    _dbContext.Providers.Add(provider);
+                    await _dbContext.SaveChangesAsync(ct);
+
+                    _logger.LogInformation("Created new TTS provider: {ProviderName}", providerName);
+                }
+                catch (DbUpdateException)
+                {
+                    // Handle race condition - another thread created the same provider
+                    // Clear tracked entity and re-query
+                    _dbContext.Entry(provider!).State = EntityState.Detached;
+                    provider = await _dbContext.Providers
+                        .FirstOrDefaultAsync(p => p.Name == providerName && p.Type == "tts", ct);
+
+                    if (provider == null)
+                        throw; // Rethrow if it's a different error
+                }
+            }
+        }
+
+        // Update notification TTS tracking fields
+        notification.FinalProviderId = provider?.Id;
+        notification.FinalTtsStatus = status;
+        notification.TtsCompletedAt = DateTime.UtcNow;
+
+        // Record attempt (we only track the final outcome, not the full fallback chain since that's in external service)
+        if (provider != null)
+        {
+            var attempt = new NotificationTtsAttempt
+            {
+                NotificationId = notificationId,
+                ProviderId = provider.Id,
+                AttemptOrder = 1, // Only tracking final attempt
+                StatusCode = status,
+                DurationMs = durationMs,
+                CreatedAt = DateTime.UtcNow
+            };
+            _dbContext.NotificationTtsAttempts.Add(attempt);
+        }
+
+        await _dbContext.SaveChangesAsync(ct);
+
+        _logger.LogDebug("Recorded TTS outcome for notification {Id}: {Status} via {Provider} ({Duration}ms)",
+            notificationId, status, providerName ?? "none", durationMs ?? 0);
+    }
 }
