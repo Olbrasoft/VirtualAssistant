@@ -172,17 +172,33 @@ public class NotificationService : INotificationService
             if (provider == null)
             {
                 // Create provider on-the-fly if it doesn't exist
-                provider = new Provider
+                // NOTE: SaveChangesAsync is required here to get provider.Id for foreign key
+                // Unique constraint on (Name, Type) prevents duplicates
+                try
                 {
-                    Name = providerName,
-                    Type = "tts",
-                    Enabled = true,
-                    Priority = 0 // Default priority
-                };
-                _dbContext.Providers.Add(provider);
-                await _dbContext.SaveChangesAsync(ct);
+                    provider = new Provider
+                    {
+                        Name = providerName,
+                        Type = "tts",
+                        Enabled = true,
+                        Priority = 0 // Default priority
+                    };
+                    _dbContext.Providers.Add(provider);
+                    await _dbContext.SaveChangesAsync(ct);
 
-                _logger.LogInformation("Created new TTS provider: {ProviderName}", providerName);
+                    _logger.LogInformation("Created new TTS provider: {ProviderName}", providerName);
+                }
+                catch (DbUpdateException)
+                {
+                    // Handle race condition - another thread created the same provider
+                    // Clear tracked entity and re-query
+                    _dbContext.Entry(provider!).State = EntityState.Detached;
+                    provider = await _dbContext.Providers
+                        .FirstOrDefaultAsync(p => p.Name == providerName && p.Type == "tts", ct);
+
+                    if (provider == null)
+                        throw; // Rethrow if it's a different error
+                }
             }
         }
 

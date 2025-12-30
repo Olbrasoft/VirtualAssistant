@@ -12,7 +12,7 @@ using VirtualAssistant.Data.EntityFrameworkCore;
 namespace VirtualAssistant.Data.EntityFrameworkCore.Migrations
 {
     [DbContext(typeof(VirtualAssistantDbContext))]
-    [Migration("20251230215145_AddTtsProviderTracking")]
+    [Migration("20251230225103_AddTtsProviderTracking")]
     partial class AddTtsProviderTracking
     {
         /// <inheritdoc />
@@ -220,10 +220,12 @@ namespace VirtualAssistant.Data.EntityFrameworkCore.Migrations
                         .HasDefaultValueSql("NOW()");
 
                     b.Property<int?>("FinalProviderId")
-                        .HasColumnType("integer");
+                        .HasColumnType("integer")
+                        .HasColumnName("final_provider_id");
 
                     b.Property<string>("FinalTtsStatus")
-                        .HasColumnType("text");
+                        .HasColumnType("text")
+                        .HasColumnName("final_tts_status");
 
                     b.Property<int>("NotificationStatusId")
                         .ValueGeneratedOnAdd()
@@ -237,7 +239,8 @@ namespace VirtualAssistant.Data.EntityFrameworkCore.Migrations
                         .HasColumnName("text");
 
                     b.Property<DateTime?>("TtsCompletedAt")
-                        .HasColumnType("timestamp with time zone");
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("tts_completed_at");
 
                     b.HasKey("Id");
 
@@ -247,7 +250,8 @@ namespace VirtualAssistant.Data.EntityFrameworkCore.Migrations
                     b.HasIndex("CreatedAt")
                         .HasDatabaseName("ix_notifications_created_at");
 
-                    b.HasIndex("FinalProviderId");
+                    b.HasIndex("FinalProviderId")
+                        .HasDatabaseName("ix_notifications_final_provider");
 
                     b.HasIndex("NotificationStatusId")
                         .HasDatabaseName("ix_notifications_status");
@@ -348,72 +352,161 @@ namespace VirtualAssistant.Data.EntityFrameworkCore.Migrations
                 {
                     b.Property<int>("Id")
                         .ValueGeneratedOnAdd()
-                        .HasColumnType("integer");
+                        .HasColumnType("integer")
+                        .HasColumnName("id");
 
                     NpgsqlPropertyBuilderExtensions.UseIdentityByDefaultColumn(b.Property<int>("Id"));
 
                     b.Property<int>("AttemptOrder")
-                        .HasColumnType("integer");
+                        .HasColumnType("integer")
+                        .HasColumnName("attempt_order");
 
                     b.Property<DateTime>("CreatedAt")
-                        .HasColumnType("timestamp with time zone");
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("created_at")
+                        .HasDefaultValueSql("NOW()");
 
                     b.Property<int?>("DurationMs")
-                        .HasColumnType("integer");
+                        .HasColumnType("integer")
+                        .HasColumnName("duration_ms");
 
                     b.Property<string>("ErrorMessage")
-                        .HasColumnType("text");
+                        .HasColumnType("text")
+                        .HasColumnName("error_message");
 
                     b.Property<int?>("HttpStatusCode")
-                        .HasColumnType("integer");
+                        .HasColumnType("integer")
+                        .HasColumnName("http_status_code");
 
                     b.Property<int>("NotificationId")
-                        .HasColumnType("integer");
+                        .HasColumnType("integer")
+                        .HasColumnName("notification_id");
 
                     b.Property<int>("ProviderId")
-                        .HasColumnType("integer");
+                        .HasColumnType("integer")
+                        .HasColumnName("provider_id");
 
                     b.Property<string>("StatusCode")
                         .IsRequired()
-                        .HasColumnType("text");
+                        .HasColumnType("text")
+                        .HasColumnName("status_code");
 
                     b.HasKey("Id");
 
-                    b.HasIndex("NotificationId");
+                    b.HasIndex("CreatedAt")
+                        .HasDatabaseName("ix_notification_tts_attempts_created_at");
 
-                    b.HasIndex("ProviderId");
+                    b.HasIndex("NotificationId")
+                        .HasDatabaseName("ix_notification_tts_attempts_notification");
 
-                    b.ToTable("NotificationTtsAttempts");
+                    b.HasIndex("ProviderId")
+                        .HasDatabaseName("ix_notification_tts_attempts_provider");
+
+                    b.ToTable("notification_tts_attempts", (string)null);
                 });
 
             modelBuilder.Entity("VirtualAssistant.Data.Entities.Provider", b =>
                 {
                     b.Property<int>("Id")
                         .ValueGeneratedOnAdd()
-                        .HasColumnType("integer");
+                        .HasColumnType("integer")
+                        .HasColumnName("id");
 
                     NpgsqlPropertyBuilderExtensions.UseIdentityByDefaultColumn(b.Property<int>("Id"));
 
                     b.Property<DateTime>("CreatedAt")
-                        .HasColumnType("timestamp with time zone");
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("created_at")
+                        .HasDefaultValueSql("NOW()");
 
                     b.Property<bool>("Enabled")
-                        .HasColumnType("boolean");
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("boolean")
+                        .HasDefaultValue(true)
+                        .HasColumnName("enabled");
 
                     b.Property<string>("Name")
                         .IsRequired()
-                        .HasColumnType("text");
+                        .HasColumnType("text")
+                        .HasColumnName("name");
 
                     b.Property<int>("Priority")
-                        .HasColumnType("integer");
+                        .HasColumnType("integer")
+                        .HasColumnName("priority");
 
                     b.Property<string>("Type")
                         .IsRequired()
-                        .HasColumnType("text");
+                        .HasColumnType("text")
+                        .HasColumnName("type");
 
                     b.HasKey("Id");
 
-                    b.ToTable("Providers");
+                    b.HasIndex("Type")
+                        .HasDatabaseName("ix_providers_type");
+
+                    b.HasIndex("Name", "Type")
+                        .IsUnique()
+                        .HasDatabaseName("ix_providers_name_type");
+
+                    b.ToTable("providers", (string)null);
+
+                    b.HasData(
+                        new
+                        {
+                            Id = 1,
+                            CreatedAt = new DateTime(2024, 12, 30, 22, 51, 45, 0, DateTimeKind.Utc),
+                            Enabled = true,
+                            Name = "AzureTTS",
+                            Priority = 1,
+                            Type = "tts"
+                        },
+                        new
+                        {
+                            Id = 2,
+                            CreatedAt = new DateTime(2024, 12, 30, 22, 51, 45, 0, DateTimeKind.Utc),
+                            Enabled = true,
+                            Name = "EdgeTTS-WebSocket",
+                            Priority = 2,
+                            Type = "tts"
+                        },
+                        new
+                        {
+                            Id = 3,
+                            CreatedAt = new DateTime(2024, 12, 30, 22, 51, 45, 0, DateTimeKind.Utc),
+                            Enabled = true,
+                            Name = "VoiceRSS",
+                            Priority = 3,
+                            Type = "tts"
+                        },
+                        new
+                        {
+                            Id = 4,
+                            CreatedAt = new DateTime(2024, 12, 30, 22, 51, 45, 0, DateTimeKind.Utc),
+                            Enabled = true,
+                            Name = "GoogleTTS",
+                            Priority = 4,
+                            Type = "tts"
+                        },
+                        new
+                        {
+                            Id = 5,
+                            CreatedAt = new DateTime(2024, 12, 30, 22, 51, 45, 0, DateTimeKind.Utc),
+                            Enabled = true,
+                            Name = "Piper",
+                            Priority = 5,
+                            Type = "tts"
+                        },
+                        new
+                        {
+                            Id = 6,
+                            CreatedAt = new DateTime(2024, 12, 30, 22, 51, 45, 0, DateTimeKind.Utc),
+                            Enabled = true,
+                            Name = "cache",
+                            Priority = 0,
+                            Type = "tts"
+                        });
                 });
 
             modelBuilder.Entity("VirtualAssistant.Data.Entities.SystemStartup", b =>
@@ -634,7 +727,8 @@ namespace VirtualAssistant.Data.EntityFrameworkCore.Migrations
 
                     b.HasOne("VirtualAssistant.Data.Entities.Provider", "FinalProvider")
                         .WithMany()
-                        .HasForeignKey("FinalProviderId");
+                        .HasForeignKey("FinalProviderId")
+                        .OnDelete(DeleteBehavior.SetNull);
 
                     b.HasOne("VirtualAssistant.Data.Entities.NotificationStatus", "Status")
                         .WithMany("Notifications")

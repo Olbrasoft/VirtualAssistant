@@ -103,7 +103,7 @@ public class VirtualAssistantSpeaker : IVirtualAssistantSpeaker
         {
             stopwatch.Stop();
             _logger.LogDebug("Speech cancelled: {Text}", TruncateText(text, 30));
-            return new TtsResult(Success: false, DurationMs: (int)stopwatch.ElapsedMilliseconds);
+            return new TtsResult(Success: false, Cancelled: true, DurationMs: (int)stopwatch.ElapsedMilliseconds);
         }
         finally
         {

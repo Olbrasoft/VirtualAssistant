@@ -132,7 +132,8 @@ public class NotificationBatchingService : INotificationBatchingService, IDispos
             // Record TTS tracking if we have a notification ID
             if (notification.NotificationId.HasValue)
             {
-                var status = ttsResult.Skipped ? "skipped"
+                var status = ttsResult.Cancelled ? "cancelled"
+                    : ttsResult.Skipped ? "skipped"
                     : ttsResult.Success ? "success"
                     : "error";
 
@@ -142,10 +143,13 @@ public class NotificationBatchingService : INotificationBatchingService, IDispos
                     status,
                     ttsResult.DurationMs);
 
-                // Update status to Played after successful TTS
-                await _notificationService.UpdateStatusAsync(
-                    new[] { notification.NotificationId.Value },
-                    NotificationStatusEnum.Played);
+                // Update status to Played only if TTS succeeded or was skipped
+                if (ttsResult.Success || ttsResult.Skipped)
+                {
+                    await _notificationService.UpdateStatusAsync(
+                        new[] { notification.NotificationId.Value },
+                        NotificationStatusEnum.Played);
+                }
             }
 
             _logger.LogInformation("Notification sent to TTS: {Text} (Provider: {Provider}, Status: {Status})",

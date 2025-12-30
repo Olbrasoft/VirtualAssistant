@@ -48,6 +48,28 @@ public class NotificationConfiguration : IEntityTypeConfiguration<Notification>
             .HasForeignKey(n => n.NotificationStatusId)
             .OnDelete(DeleteBehavior.Restrict);
 
+        // TTS tracking fields
+        builder.Property(n => n.FinalProviderId)
+            .HasColumnName("final_provider_id");
+
+        builder.Property(n => n.FinalTtsStatus)
+            .HasColumnName("final_tts_status");
+
+        builder.Property(n => n.TtsCompletedAt)
+            .HasColumnName("tts_completed_at");
+
+        // Relationship with Provider (TTS tracking - final provider used)
+        builder.HasOne(n => n.FinalProvider)
+            .WithMany()
+            .HasForeignKey(n => n.FinalProviderId)
+            .OnDelete(DeleteBehavior.SetNull);
+
+        // Relationship with TTS attempts (one notification has many TTS attempts)
+        builder.HasMany(n => n.TtsAttempts)
+            .WithOne(nta => nta.Notification)
+            .HasForeignKey(nta => nta.NotificationId)
+            .OnDelete(DeleteBehavior.Cascade);
+
         // Indexes
         builder.HasIndex(n => n.NotificationStatusId)
             .HasDatabaseName("ix_notifications_status");
@@ -57,5 +79,8 @@ public class NotificationConfiguration : IEntityTypeConfiguration<Notification>
 
         builder.HasIndex(n => n.AgentId)
             .HasDatabaseName("ix_notifications_agent");
+
+        builder.HasIndex(n => n.FinalProviderId)
+            .HasDatabaseName("ix_notifications_final_provider");
     }
 }
