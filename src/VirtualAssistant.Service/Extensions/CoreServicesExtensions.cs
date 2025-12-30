@@ -35,16 +35,8 @@ public static class CoreServicesExtensions
         services.Configure<ExternalServicesOptions>(
             configuration.GetSection(ExternalServicesOptions.SectionName));
 
-        // Dependent services infrastructure (SRP-compliant components)
-        services.AddSingleton<IPortChecker, PortChecker>();
-        services.AddSingleton<IProcessManager, ProcessManager>();
-        services.AddSingleton<ISystemdServiceStarter, SystemdServiceStarter>();
-        services.AddSingleton<IProcessServiceStarter, ProcessServiceStarter>();
-        services.AddSingleton<IServiceHealthMonitor, ServiceHealthMonitor>();
-        services.AddSingleton<IServiceLifecycleManager, ServiceLifecycleManager>();
-
-        // Dependent services manager (coordinator - manages TextToSpeech.Service lifecycle)
-        services.AddSingleton<IDependentServiceManager, DependentServicesManager>();
+        // NOTE: DependentServicesManager removed after inline TTS integration (issue #407)
+        // TTS providers now run inline, no external service lifecycle management needed
 
         return services;
     }
