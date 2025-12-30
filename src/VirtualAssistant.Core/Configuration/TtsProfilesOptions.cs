@@ -20,8 +20,8 @@ public class TtsProfilesOptions
     {
         Provider = "Piper", // Local fallback
         Voice = "cs_CZ-jirka-medium",
-        Rate = 0,
-        Pitch = 0,
+        Rate = "+0%",
+        Pitch = "+0Hz",
         Priority = 1
     };
 }
@@ -34,6 +34,7 @@ public class TtsProfile
     /// <summary>
     /// Preferred TTS provider (e.g., "Azure", "EdgeTTS", "Piper").
     /// Default: "Piper" (local offline TTS).
+    /// NOTE: Currently not used in MapToVoiceConfig - reserved for future provider selection logic.
     /// </summary>
     public string Provider { get; set; } = "Piper";
 
@@ -44,20 +45,23 @@ public class TtsProfile
     public string Voice { get; set; } = string.Empty;
 
     /// <summary>
-    /// Speech rate adjustment. Range: -100 to +100.
-    /// 0 = normal speed, positive = faster, negative = slower.
+    /// Speech rate adjustment with unit suffix.
+    /// Format: "+N%" or "-N%" where N is 0-100.
+    /// Examples: "+10%" (10% faster), "+0%" (normal), "-5%" (5% slower).
     /// </summary>
-    public int Rate { get; set; } = 0;
+    public string Rate { get; set; } = "+0%";
 
     /// <summary>
-    /// Voice pitch adjustment. Range: -100 to +100.
-    /// 0 = normal pitch, positive = higher, negative = lower.
+    /// Voice pitch adjustment with unit suffix.
+    /// Format: "+NHz" or "-NHz" where N is 0-100.
+    /// Examples: "+5Hz" (higher pitch), "+0Hz" (normal), "-10Hz" (lower pitch).
     /// </summary>
-    public int Pitch { get; set; } = 0;
+    public string Pitch { get; set; } = "+0Hz";
 
     /// <summary>
     /// Queue priority for notifications from this application.
     /// Higher values = higher priority. Default: 1.
+    /// NOTE: Currently not used - reserved for future priority queue implementation.
     /// </summary>
     public int Priority { get; set; } = 1;
 }

@@ -22,8 +22,8 @@ public class TtsProfileResolverTests
                 ["claude-code"] = new()
                 {
                     Voice = "cs-CZ-AntoninNeural",
-                    Rate = 10,
-                    Pitch = 0,
+                    Rate = "+10%",
+                    Pitch = "+0Hz",
                     Priority = 10
                 }
             }
@@ -36,9 +36,9 @@ public class TtsProfileResolverTests
         // Assert
         Assert.NotNull(config);
         Assert.Equal("cs-CZ-AntoninNeural", config.Voice);
-        Assert.Equal("10", config.Rate);
-        Assert.Equal("0", config.Pitch);
-        Assert.Equal("100", config.Volume); // Default volume
+        Assert.Equal("+10%", config.Rate);
+        Assert.Equal("+0Hz", config.Pitch);
+        Assert.Equal("+0%", config.Volume); // Default volume
     }
 
     [Fact]
@@ -52,14 +52,14 @@ public class TtsProfileResolverTests
                 ["claude-code"] = new()
                 {
                     Voice = "cs-CZ-AntoninNeural",
-                    Rate = 10
+                    Rate = "+10%"
                 }
             },
             DefaultProfile = new TtsProfile
             {
                 Voice = "cs-CZ-VlastaNeural",
-                Rate = 0,
-                Pitch = 0
+                Rate = "+0%",
+                Pitch = "+0Hz"
             }
         });
         var resolver = new TtsProfileResolver(options, NullLogger<TtsProfileResolver>.Instance);
@@ -70,8 +70,8 @@ public class TtsProfileResolverTests
         // Assert
         Assert.NotNull(config);
         Assert.Equal("cs-CZ-VlastaNeural", config.Voice);
-        Assert.Equal("0", config.Rate);
-        Assert.Equal("0", config.Pitch);
+        Assert.Equal("+0%", config.Rate);
+        Assert.Equal("+0Hz", config.Pitch);
     }
 
     [Fact]
@@ -85,14 +85,14 @@ public class TtsProfileResolverTests
                 ["claude-code"] = new()
                 {
                     Voice = "cs-CZ-AntoninNeural",
-                    Rate = 10
+                    Rate = "+10%"
                 }
             },
             DefaultProfile = new TtsProfile
             {
                 Voice = "cs-CZ-Default",
-                Rate = 5,
-                Pitch = 0,
+                Rate = "+5%",
+                Pitch = "+0Hz",
                 Priority = 1
             }
         });
@@ -104,7 +104,7 @@ public class TtsProfileResolverTests
         // Assert
         Assert.NotNull(config);
         Assert.Equal("cs-CZ-Default", config.Voice);
-        Assert.Equal("5", config.Rate);
+        Assert.Equal("+5%", config.Rate);
     }
 
     [Fact]
@@ -116,7 +116,7 @@ public class TtsProfileResolverTests
             DefaultProfile = new TtsProfile
             {
                 Voice = "cs-CZ-SystemVoice",
-                Rate = 0
+                Rate = "+0%"
             }
         });
         var resolver = new TtsProfileResolver(options, NullLogger<TtsProfileResolver>.Instance);
@@ -140,8 +140,8 @@ public class TtsProfileResolverTests
                 ["test-app"] = new()
                 {
                     Voice = "test-voice",
-                    Rate = 20,
-                    Pitch = 10
+                    Rate = "+20%",
+                    Pitch = "+10Hz"
                 }
             }
         });

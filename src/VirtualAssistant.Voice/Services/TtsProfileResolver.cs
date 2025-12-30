@@ -52,9 +52,9 @@ public class TtsProfileResolver : ITtsProfileResolver
     {
         return new VoiceConfig(
             Voice: profile.Voice,
-            Rate: profile.Rate.ToString(),
-            Volume: "100", // Default volume (TtsProfile doesn't have Volume property)
-            Pitch: profile.Pitch.ToString()
+            Rate: profile.Rate,
+            Volume: "+0%", // Volume is intentionally fixed at default and not configurable per TtsProfile
+            Pitch: profile.Pitch
         );
     }
 }
