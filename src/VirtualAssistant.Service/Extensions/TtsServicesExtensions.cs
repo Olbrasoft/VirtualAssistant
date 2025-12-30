@@ -13,13 +13,6 @@ using VirtualAssistant.LlmChain;
 using Olbrasoft.TextToSpeech.Providers.Extensions;
 using Olbrasoft.TextToSpeech.Providers.Piper.Extensions;
 using Olbrasoft.TextToSpeech.Orchestration.Extensions;
-using Olbrasoft.TextToSpeech.Providers.Configuration;
-using Olbrasoft.TextToSpeech.Providers.Azure;
-using Olbrasoft.TextToSpeech.Providers.VoiceRss;
-using Olbrasoft.TextToSpeech.Providers.Google;
-using Olbrasoft.TextToSpeech.Providers.EdgeTTS;
-using Olbrasoft.TextToSpeech.Providers.Piper;
-using Olbrasoft.TextToSpeech.Orchestration.Configuration;
 
 namespace Olbrasoft.VirtualAssistant.Service.Extensions;
 
@@ -44,21 +37,7 @@ public static class TtsServicesExtensions
             configuration.GetSection(TtsVoiceProfilesOptions.SectionName));
 
         // ========== Inline TTS Providers (Issue #406) ==========
-        // Configure TTS provider settings from appsettings.json
-        services.Configure<AzureTtsConfiguration>(
-            configuration.GetSection(AzureTtsConfiguration.SectionName));
-        services.Configure<EdgeTtsConfiguration>(
-            configuration.GetSection(EdgeTtsConfiguration.SectionName));
-        services.Configure<VoiceRssConfiguration>(
-            configuration.GetSection(VoiceRssConfiguration.SectionName));
-        services.Configure<GoogleTtsConfiguration>(
-            configuration.GetSection(GoogleTtsConfiguration.SectionName));
-        services.Configure<PiperConfiguration>(
-            configuration.GetSection(PiperConfiguration.SectionName));
-        services.Configure<OutputConfiguration>(
-            configuration.GetSection(OutputConfiguration.SectionName));
-        services.Configure<OrchestrationConfig>(
-            configuration.GetSection(OrchestrationConfig.SectionName));
+        // Extension methods handle configuration binding internally.
 
         // Register TTS providers inline (Azure, EdgeTTS, VoiceRSS, Google)
         services.AddTtsProviders(configuration);
