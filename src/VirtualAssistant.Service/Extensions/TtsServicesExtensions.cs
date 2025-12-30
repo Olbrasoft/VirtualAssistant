@@ -13,6 +13,7 @@ using VirtualAssistant.LlmChain;
 using Olbrasoft.TextToSpeech.Providers.Extensions;
 using Olbrasoft.TextToSpeech.Providers.Piper.Extensions;
 using Olbrasoft.TextToSpeech.Orchestration.Extensions;
+using Olbrasoft.TextToSpeech.Orchestration.Configuration;
 
 namespace Olbrasoft.VirtualAssistant.Service.Extensions;
 
@@ -38,6 +39,7 @@ public static class TtsServicesExtensions
 
         // ========== Inline TTS Providers (Issue #406) ==========
         // Extension methods handle configuration binding internally.
+        // IMPORTANT: Providers must be registered BEFORE orchestration!
 
         // Register TTS providers inline (Azure, EdgeTTS, VoiceRSS, Google)
         services.AddTtsProviders(configuration);
@@ -45,10 +47,17 @@ public static class TtsServicesExtensions
         // Register Piper provider (separate package)
         services.AddPiperTts(configuration);
 
+        // Configure orchestration settings BEFORE registering orchestration
+        // This is CRITICAL - AddTtsOrchestration expects this to be called first
+        services.Configure<OrchestrationConfig>(
+            configuration.GetSection(OrchestrationConfig.SectionName));
+
         // Register TTS orchestration with circuit breaker and fallback chain
+        // This MUST be called AFTER providers are registered AND after Configure<OrchestrationConfig>
         services.AddTtsOrchestration(configuration);
 
         // Adapter that bridges VirtualAssistant's ITtsProviderChain with the library
+        // This MUST be called AFTER orchestration
         services.AddSingleton<ITtsProviderChain, TtsProviderChainAdapter>();
         // =======================================================
 

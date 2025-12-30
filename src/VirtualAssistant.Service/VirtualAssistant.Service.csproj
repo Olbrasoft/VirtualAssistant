@@ -45,6 +45,7 @@
       <PrivateAssets>all</PrivateAssets>
     </PackageReference>
     <PackageReference Include="Olbrasoft.SystemTray.Linux" Version="1.*" />
+    <PackageReference Include="Olbrasoft.TextToSpeech.Orchestration" Version="1.1.14" />
     <!-- EdgeTTS WebSocket provider with extern alias (used by EdgeTtsWebSocketExtensions.cs) - using floating version 1.* to always get latest -->
     <PackageReference Include="Olbrasoft.TextToSpeech.Providers.EdgeTTS" Version="1.*">
       <Aliases>EdgeTtsWebSocket</Aliases>

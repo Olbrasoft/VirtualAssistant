@@ -26,7 +26,11 @@ public sealed class TtsProviderChainAdapter : ITtsProviderChain
         _logger = logger;
         _libraryChain = libraryChain;
 
-        _logger.LogInformation("TtsProviderChainAdapter initialized - using TextToSpeech library");
+        var providerStatuses = libraryChain.GetProvidersStatus();
+        _logger.LogInformation(
+            "TtsProviderChainAdapter initialized - TextToSpeech library has {ProviderCount} providers: {Providers}",
+            providerStatuses.Count,
+            string.Join(", ", providerStatuses.Select(p => p.ProviderName)));
     }
 
     /// <inheritdoc />
