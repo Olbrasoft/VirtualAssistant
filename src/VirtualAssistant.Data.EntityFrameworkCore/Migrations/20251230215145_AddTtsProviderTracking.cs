@@ -100,6 +100,20 @@ namespace VirtualAssistant.Data.EntityFrameworkCore.Migrations
                 column: "FinalProviderId",
                 principalTable: "Providers",
                 principalColumn: "Id");
+
+            // Seed TTS providers in fallback chain order
+            migrationBuilder.InsertData(
+                table: "Providers",
+                columns: new[] { "Name", "Type", "Enabled", "Priority", "CreatedAt" },
+                values: new object[,]
+                {
+                    { "AzureTTS", "tts", true, 1, DateTime.UtcNow },
+                    { "EdgeTTS-WebSocket", "tts", true, 2, DateTime.UtcNow },
+                    { "VoiceRSS", "tts", true, 3, DateTime.UtcNow },
+                    { "GoogleTTS", "tts", true, 4, DateTime.UtcNow },
+                    { "Piper", "tts", true, 5, DateTime.UtcNow },
+                    { "cache", "tts", true, 0, DateTime.UtcNow }
+                });
         }
 
         /// <inheritdoc />
@@ -108,6 +122,20 @@ namespace VirtualAssistant.Data.EntityFrameworkCore.Migrations
             migrationBuilder.DropForeignKey(
                 name: "FK_notifications_Providers_FinalProviderId",
                 table: "notifications");
+
+            // Delete seeded TTS providers
+            migrationBuilder.DeleteData(
+                table: "Providers",
+                keyColumn: "Name",
+                keyValues: new object[]
+                {
+                    "AzureTTS",
+                    "EdgeTTS-WebSocket",
+                    "VoiceRSS",
+                    "GoogleTTS",
+                    "Piper",
+                    "cache"
+                });
 
             migrationBuilder.DropTable(
                 name: "NotificationTtsAttempts");
