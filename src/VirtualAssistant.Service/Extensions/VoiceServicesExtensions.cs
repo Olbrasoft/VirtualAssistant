@@ -209,6 +209,11 @@ public static class VoiceServicesExtensions
         // Composite filter orchestrates all strategies
         services.AddSingleton<Olbrasoft.VirtualAssistant.Voice.Filters.ITextFilter, Olbrasoft.VirtualAssistant.Voice.Filters.CompositeTextFilter>();
 
+        // TTS profile resolver for application-specific voice configuration (Issue #405)
+        services.Configure<TtsProfilesOptions>(
+            configuration.GetSection(TtsProfilesOptions.SectionName));
+        services.AddSingleton<ITtsProfileResolver, TtsProfileResolver>();
+
         return services;
     }
 }
