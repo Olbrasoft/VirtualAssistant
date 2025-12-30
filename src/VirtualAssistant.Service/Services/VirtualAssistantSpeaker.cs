@@ -1,4 +1,5 @@
 using Microsoft.Extensions.Logging;
+using Olbrasoft.VirtualAssistant.Core.Services;
 using Olbrasoft.VirtualAssistant.Voice.Services;
 using VirtualAssistant.Core.Services;
 
@@ -13,15 +14,18 @@ public class VirtualAssistantSpeaker : IVirtualAssistantSpeaker
 {
     private readonly TtsService _ttsService;
     private readonly ISpeechQueueService _speechQueueService;
+    private readonly ISettingsService _settings;
     private readonly ILogger<VirtualAssistantSpeaker> _logger;
 
     public VirtualAssistantSpeaker(
         TtsService ttsService,
         ISpeechQueueService speechQueueService,
+        ISettingsService settings,
         ILogger<VirtualAssistantSpeaker> logger)
     {
         _ttsService = ttsService;
         _speechQueueService = speechQueueService;
+        _settings = settings;
         _logger = logger;
     }
 
@@ -72,6 +76,14 @@ public class VirtualAssistantSpeaker : IVirtualAssistantSpeaker
         if (string.IsNullOrWhiteSpace(text))
         {
             _logger.LogDebug("Skipping empty TTS text");
+            return;
+        }
+
+        // Check if TTS is muted
+        var isMuted = await _settings.GetAsync("tts.muted", false);
+        if (isMuted)
+        {
+            _logger.LogDebug("TTS is muted - skipping speech: {Text}", TruncateText(text, 50));
             return;
         }
 

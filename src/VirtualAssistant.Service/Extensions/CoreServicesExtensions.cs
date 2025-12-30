@@ -46,6 +46,9 @@ public static class CoreServicesExtensions
         // Dependent services manager (coordinator - manages TextToSpeech.Service lifecycle)
         services.AddSingleton<IDependentServiceManager, DependentServicesManager>();
 
+        // Settings service for persistent configuration
+        services.AddSingleton<ISettingsService, SettingsService>();
+
         return services;
     }
 }
