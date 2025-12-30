@@ -19,19 +19,18 @@ internal class VirtualAssistantDBusMenuHandler : ComCanonicalDbusmenuHandler, IT
     // Menu item IDs
     private const int RootId = 0;
     private const int StatusId = 1;
-    private const int TextToSpeechToggleId = 2;
-    private const int Separator1Id = 3;
-    private const int SpeechToTextServiceId = 4;
-    private const int Separator2Id = 5;
-    private const int LlmCorrectionId = 6;
-    private const int ReloadPromptId = 7;
-    private const int Separator3Id = 8;
-    private const int MuteToggleId = 9;
-    private const int ShowLogsId = 10;
-    private const int Separator4Id = 11;
-    private const int QuitId = 12;
-    private const int LogViewerId = 13;
-    private const int DictationToggleId = 14;
+    private const int Separator1Id = 2;
+    private const int SpeechToTextServiceId = 3;
+    private const int Separator2Id = 4;
+    private const int LlmCorrectionId = 5;
+    private const int ReloadPromptId = 6;
+    private const int Separator3Id = 7;
+    private const int MuteToggleId = 8;
+    private const int ShowLogsId = 9;
+    private const int Separator4Id = 10;
+    private const int QuitId = 11;
+    private const int LogViewerId = 12;
+    private const int DictationToggleId = 13;
 
     /// <summary>
     /// Event fired when user selects Quit from the menu.
@@ -47,16 +46,6 @@ internal class VirtualAssistantDBusMenuHandler : ComCanonicalDbusmenuHandler, IT
     /// Event fired when user selects Show Logs.
     /// </summary>
     public event Action? OnShowLogsRequested;
-
-    /// <summary>
-    /// Event fired when user clicks refresh service status.
-    /// </summary>
-    public event Action? OnRefreshServiceStatusRequested;
-
-    /// <summary>
-    /// Event fired when user clicks start/stop service.
-    /// </summary>
-    public event Action? OnToggleServiceRequested;
 
     /// <summary>
     /// Event fired when user wants to stop SpeechToText service.
@@ -94,7 +83,6 @@ internal class VirtualAssistantDBusMenuHandler : ComCanonicalDbusmenuHandler, IT
     public event Action<bool>? OnDictationToggleRequested;
 
     private bool _isMuted;
-    private bool _isTextToSpeechServiceRunning;
     private string _sttServiceStatus = "Checking...";
     private string _sttServiceVersion = "Unknown";
     private string _logViewerStatus = "Checking...";
@@ -162,21 +150,6 @@ internal class VirtualAssistantDBusMenuHandler : ComCanonicalDbusmenuHandler, IT
 
         // Emit LayoutUpdated signal to notify menu changed
         EmitLayoutUpdated(_revision, RootId);
-    }
-
-    /// <summary>
-    /// Updates service status and refreshes menu.
-    /// </summary>
-    public void UpdateServiceStatus(string serviceName, bool isRunning)
-    {
-        if (serviceName == "TextToSpeech.Service")
-        {
-            _isTextToSpeechServiceRunning = isRunning;
-            _revision++;
-
-            // Emit LayoutUpdated signal to notify menu changed
-            EmitLayoutUpdated(_revision, RootId);
-        }
     }
 
     /// <summary>
@@ -259,9 +232,6 @@ internal class VirtualAssistantDBusMenuHandler : ComCanonicalDbusmenuHandler, IT
             else
             {
                 var muteLabel = _isMuted ? "🔊 Zapnout mikrofon" : "🔇 Ztlumit mikrofon";
-                var ttsToggleLabel = _isTextToSpeechServiceRunning
-                    ? "✅ TextToSpeech - Vypnout"
-                    : "❌ TextToSpeech - Zapnout";
                 var sttServiceLabel = _sttServiceStatus == "Running"
                     ? "✅ STT Service - Vypnout"
                     : "❌ STT Service - Zapnout";
@@ -275,7 +245,6 @@ internal class VirtualAssistantDBusMenuHandler : ComCanonicalDbusmenuHandler, IT
                 children = new VariantValue[]
                 {
                     CreateChildVariant(StatusId, "VirtualAssistant - poslouchám", false, enabled: false),
-                    CreateChildVariant(TextToSpeechToggleId, ttsToggleLabel, false),
                     CreateChildVariant(Separator1Id, "", true),
                     CreateChildVariant(SpeechToTextServiceId, sttServiceLabel, false),
                     CreateChildVariant(DictationToggleId, dictationLabel, false),
@@ -370,14 +339,6 @@ internal class VirtualAssistantDBusMenuHandler : ComCanonicalDbusmenuHandler, IT
                 props["enabled"] = VariantValue.Bool(true);
                 props["visible"] = VariantValue.Bool(true);
                 break;
-            case TextToSpeechToggleId:
-                var ttsToggleLabel = _isTextToSpeechServiceRunning
-                    ? "✅ TextToSpeech - Vypnout"
-                    : "❌ TextToSpeech - Zapnout";
-                props["label"] = VariantValue.String(ttsToggleLabel);
-                props["enabled"] = VariantValue.Bool(true);
-                props["visible"] = VariantValue.Bool(true);
-                break;
             case LlmCorrectionId:
                 props["label"] = VariantValue.String(GetLlmCorrectionLabel());
                 props["enabled"] = VariantValue.Bool(true);
@@ -424,9 +385,6 @@ internal class VirtualAssistantDBusMenuHandler : ComCanonicalDbusmenuHandler, IT
     private (int, Dictionary<string, VariantValue>) GetItemProperties(int id)
     {
         var muteLabel = _isMuted ? "🔊 Zapnout mikrofon" : "🔇 Ztlumit mikrofon";
-        var ttsToggleLabel = _isTextToSpeechServiceRunning
-            ? "✅ TextToSpeech - Vypnout"
-            : "❌ TextToSpeech - Zapnout";
         var sttServiceLabel = _sttServiceStatus == "Running"
             ? "✅ STT Service - Vypnout"
             : "❌ STT Service - Zapnout";
@@ -470,12 +428,6 @@ internal class VirtualAssistantDBusMenuHandler : ComCanonicalDbusmenuHandler, IT
             LogViewerId => (id, new Dictionary<string, VariantValue>
             {
                 ["label"] = VariantValue.String(logViewerLabel),
-                ["enabled"] = VariantValue.Bool(true),
-                ["visible"] = VariantValue.Bool(true)
-            }),
-            TextToSpeechToggleId => (id, new Dictionary<string, VariantValue>
-            {
-                ["label"] = VariantValue.String(ttsToggleLabel),
                 ["enabled"] = VariantValue.Bool(true),
                 ["visible"] = VariantValue.Bool(true)
             }),
@@ -535,8 +487,8 @@ internal class VirtualAssistantDBusMenuHandler : ComCanonicalDbusmenuHandler, IT
     /// </summary>
     protected override ValueTask OnEventAsync(Message request, int id, string eventId, VariantValue data, uint timestamp)
     {
-        _logger.LogInformation("Event received: id={Id}, eventId={EventId} (TextToSpeechToggleId={ExpectedId})",
-            id, eventId, TextToSpeechToggleId);
+        _logger.LogInformation("Event received: id={Id}, eventId={EventId}",
+            id, eventId);
 
         if (eventId == "clicked")
         {
@@ -553,10 +505,6 @@ internal class VirtualAssistantDBusMenuHandler : ComCanonicalDbusmenuHandler, IT
                 case ShowLogsId:
                     _logger.LogInformation("Show logs menu item clicked");
                     OnShowLogsRequested?.Invoke();
-                    break;
-                case TextToSpeechToggleId:
-                    _logger.LogInformation("TextToSpeech toggle menu item clicked");
-                    OnToggleServiceRequested?.Invoke();
                     break;
                 case SpeechToTextServiceId:
                     _logger.LogInformation("SpeechToText service menu item clicked");
@@ -631,13 +579,6 @@ internal class VirtualAssistantDBusMenuHandler : ComCanonicalDbusmenuHandler, IT
     protected override ValueTask<bool> OnAboutToShowAsync(Message request, int id)
     {
         _logger.LogDebug("AboutToShow: id={Id}", id);
-
-        // Refresh service status when root menu is opened
-        if (id == RootId)
-        {
-            _logger.LogDebug("Root menu opening - triggering service status refresh");
-            OnRefreshServiceStatusRequested?.Invoke();
-        }
 
         return ValueTask.FromResult(false); // No update needed
     }

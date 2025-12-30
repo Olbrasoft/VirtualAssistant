@@ -75,17 +75,12 @@ public class VirtualAssistantTrayService : IDisposable
             _dictationStateMachine.StateChanged += OnDictationStateChanged;
         }
 
-        // Subscribe to service status changes
-        _dependentServiceManager.ServiceStatusChanged += OnServiceStatusChanged;
-
         // Wire up menu handler events if provided
         if (_menuHandler is VirtualAssistantDBusMenuHandler handler)
         {
             handler.OnQuitRequested += () => OnQuitRequested?.Invoke();
             handler.OnMuteToggleRequested += HandleMuteToggle;
             handler.OnShowLogsRequested += HandleShowLogs;
-            handler.OnRefreshServiceStatusRequested += HandleRefreshServiceStatus;
-            handler.OnToggleServiceRequested += HandleToggleService;
             handler.OnStartSpeechToTextRequested += HandleStartSpeechToTextService;
             handler.OnStopSpeechToTextRequested += HandleStopSpeechToTextService;
             handler.OnStartLogViewerRequested += HandleStartLogViewerService;
@@ -150,13 +145,6 @@ public class VirtualAssistantTrayService : IDisposable
                         _logger.LogInformation("Dictation initialized as enabled on startup");
                     }
 
-                    // Update menu handler with initial service status
-                    var servicesStatus = _dependentServiceManager.GetServicesStatus();
-                    foreach (var (serviceName, isRunning) in servicesStatus)
-                    {
-                        handler.UpdateServiceStatus(serviceName, isRunning);
-                    }
-
                     // Refresh SpeechToText status
                     await RefreshSpeechToTextStatus();
 
@@ -216,25 +204,6 @@ public class VirtualAssistantTrayService : IDisposable
         }
     }
 
-    private void OnServiceStatusChanged(object? sender, ServiceStatusChangedEventArgs e)
-    {
-        try
-        {
-            // Update menu handler with service status
-            if (_menuHandler is VirtualAssistantDBusMenuHandler handler)
-            {
-                handler.UpdateServiceStatus(e.ServiceName, e.IsRunning);
-            }
-
-            _logger.LogDebug("Tray menu updated to reflect service status: {ServiceName} = {IsRunning}",
-                e.ServiceName, e.IsRunning);
-        }
-        catch (Exception ex)
-        {
-            _logger.LogError(ex, "Failed to update tray menu for service status");
-        }
-    }
-
     /// <summary>
     /// Handles mute toggle request from menu.
     /// </summary>
@@ -277,52 +246,6 @@ public class VirtualAssistantTrayService : IDisposable
         }
     }
 
-    /// <summary>
-    /// Handles refresh service status request from menu.
-    /// Checks if TextToSpeech.Service is running and updates menu.
-    /// </summary>
-    private async void HandleRefreshServiceStatus()
-    {
-        try
-        {
-            _logger.LogInformation("Refreshing TextToSpeech.Service status via tray menu");
-            await _dependentServiceManager.RefreshServiceStatusAsync("TextToSpeech.Service");
-        }
-        catch (Exception ex)
-        {
-            _logger.LogError(ex, "Failed to refresh service status from tray menu");
-        }
-    }
-
-    /// <summary>
-    /// Handles toggle service request from menu.
-    /// Starts or stops TextToSpeech.Service based on current state.
-    /// </summary>
-    private async void HandleToggleService()
-    {
-        _logger.LogInformation("HandleToggleService called");
-        try
-        {
-            var servicesStatus = _dependentServiceManager.GetServicesStatus();
-            var isRunning = servicesStatus.TryGetValue("TextToSpeech.Service", out var status) && status;
-            _logger.LogDebug("Service status: isRunning={IsRunning}", isRunning);
-
-            if (isRunning)
-            {
-                _logger.LogInformation("Stopping TextToSpeech.Service via tray menu");
-                await _dependentServiceManager.StopServiceAsync("TextToSpeech.Service");
-            }
-            else
-            {
-                _logger.LogInformation("Starting TextToSpeech.Service via tray menu");
-                await _dependentServiceManager.StartServiceAsync("TextToSpeech.Service");
-            }
-        }
-        catch (Exception ex)
-        {
-            _logger.LogError(ex, "Failed to toggle service from tray menu");
-        }
-    }
 
     /// <summary>
     /// Handles start SpeechToText service request from menu.
@@ -700,9 +623,6 @@ public class VirtualAssistantTrayService : IDisposable
         {
             _dictationStateMachine.StateChanged -= OnDictationStateChanged;
         }
-
-        // Unsubscribe from dependent service manager
-        _dependentServiceManager.ServiceStatusChanged -= OnServiceStatusChanged;
 
         // Remove left hand icon
         if (_leftHandIcon != null)
