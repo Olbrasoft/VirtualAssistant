@@ -36,15 +36,14 @@ public static class CoreServicesExtensions
             configuration.GetSection(ExternalServicesOptions.SectionName));
 
         // Dependent services infrastructure (SRP-compliant components)
+        // NOTE: These services are currently unused after removing DependentServicesManager
+        // but kept for potential future use with other services
         services.AddSingleton<IPortChecker, PortChecker>();
         services.AddSingleton<IProcessManager, ProcessManager>();
         services.AddSingleton<ISystemdServiceStarter, SystemdServiceStarter>();
         services.AddSingleton<IProcessServiceStarter, ProcessServiceStarter>();
         services.AddSingleton<IServiceHealthMonitor, ServiceHealthMonitor>();
         services.AddSingleton<IServiceLifecycleManager, ServiceLifecycleManager>();
-
-        // Dependent services manager (coordinator - manages TextToSpeech.Service lifecycle)
-        services.AddSingleton<IDependentServiceManager, DependentServicesManager>();
 
         return services;
     }

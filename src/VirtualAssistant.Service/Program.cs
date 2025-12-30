@@ -14,7 +14,6 @@ public class Program
 {
     private static WebApplication? _app;
     private static VirtualAssistantTrayService? _trayService;
-    private static IDependentServiceManager? _dependentServicesManager;
     private static CancellationTokenSource? _cts;
     private static FileStream? _lockFile;
     private static string _lockFilePath = "/tmp/virtual-assistant.lock"; // Default, overridden from config
@@ -69,9 +68,6 @@ public class Program
         // Get tray icon service from DI
         _trayService = _app.Services.GetRequiredService<VirtualAssistantTrayService>();
 
-        // Get dependent services manager from DI
-        _dependentServicesManager = _app.Services.GetRequiredService<IDependentServiceManager>();
-
         try
         {
             await RunApplicationAsync(listenerPort);
@@ -95,10 +91,6 @@ public class Program
         // Initialize tray icon (async, non-blocking)
         await _trayService!.InitializeAsync();
         Console.WriteLine("Tray icon initialized");
-
-        // Start dependent services (TextToSpeech.Service, etc.)
-        await _dependentServicesManager!.StartServicesAsync(_cts!.Token);
-        Console.WriteLine("Dependent services started");
 
         Console.WriteLine($"API listening on http://localhost:{listenerPort}");
 
@@ -136,30 +128,14 @@ public class Program
         Console.WriteLine();
     }
 
-    private static async void OnQuitRequested()
+    private static void OnQuitRequested()
     {
         Console.WriteLine("Quit requested - stopping services...");
-
-        // Stop dependent services first
-        if (_dependentServicesManager != null)
-        {
-            try
-            {
-                await _dependentServicesManager.StopServicesAsync();
-                Console.WriteLine("Dependent services stopped");
-            }
-            catch (Exception ex)
-            {
-                Console.WriteLine($"Error stopping dependent services: {ex.Message}");
-            }
-        }
-
         _cts?.Cancel();
     }
 
     private static void Cleanup()
     {
-        _dependentServicesManager?.Dispose();
         _trayService?.Dispose();
         _app?.DisposeAsync().AsTask().Wait();
         _cts?.Dispose();
