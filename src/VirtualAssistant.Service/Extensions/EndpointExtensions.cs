@@ -103,7 +103,8 @@ public static class EndpointExtensions
             {
                 try
                 {
-                    await ttsService.SpeakAsync(request.Text, request.Source);
+                    var (success, providerUsed) = await ttsService.SpeakAsync(request.Text, request.Source);
+                    logger.LogDebug("TTS completed: success={Success}, provider={Provider}", success, providerUsed);
                 }
                 catch (Exception ex)
                 {

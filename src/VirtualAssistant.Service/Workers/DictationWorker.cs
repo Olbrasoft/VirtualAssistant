@@ -146,19 +146,19 @@ public class DictationWorker : BackgroundService
             if (capsLockOn && currentState == DictationState.Idle)
             {
                 _logger.LogInformation("CapsLock ON - starting dictation");
-                Task.Run(async () => await StartRecordingAsync());
+                _ = Task.Run(async () => await StartRecordingAsync());
             }
             // CapsLock OFF + Recording → Stop and transcribe
             else if (!capsLockOn && currentState == DictationState.Recording)
             {
                 _logger.LogInformation("CapsLock OFF - stopping dictation");
-                Task.Run(async () => await StopAndTranscribeAsync());
+                _ = Task.Run(async () => await StopAndTranscribeAsync());
             }
             // CapsLock ON + Recording → Emergency cancel
             else if (capsLockOn && currentState == DictationState.Recording)
             {
                 _logger.LogWarning("CapsLock toggled during recording - emergency stop");
-                Task.Run(async () => await EmergencyStopAsync());
+                _ = Task.Run(async () => await EmergencyStopAsync());
             }
         }
         catch (Exception ex)

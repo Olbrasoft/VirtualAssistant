@@ -48,4 +48,14 @@ public interface INotificationService
     /// <param name="ct">Cancellation token</param>
     /// <returns>List of distinct GitHub issue IDs</returns>
     Task<IReadOnlyList<int>> GetAssociatedIssueIdsAsync(IEnumerable<int> notificationIds, CancellationToken ct = default);
+
+    /// <summary>
+    /// Records the final TTS outcome for a notification.
+    /// </summary>
+    /// <param name="notificationId">ID of the notification</param>
+    /// <param name="providerName">Name of the provider that succeeded (or null if all failed)</param>
+    /// <param name="status">Final TTS status ("success", "error", "timeout", "all_failed", "skipped")</param>
+    /// <param name="durationMs">Duration of TTS operation in milliseconds</param>
+    /// <param name="ct">Cancellation token</param>
+    Task RecordTtsOutcomeAsync(int notificationId, string? providerName, string status, int? durationMs = null, CancellationToken ct = default);
 }

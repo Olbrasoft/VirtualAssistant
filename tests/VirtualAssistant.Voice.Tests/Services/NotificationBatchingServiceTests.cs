@@ -3,6 +3,7 @@ using Microsoft.Extensions.Options;
 using Moq;
 using Olbrasoft.VirtualAssistant.Voice.Configuration;
 using Olbrasoft.VirtualAssistant.Voice.Services;
+using VirtualAssistant.Core.Models;
 using VirtualAssistant.Core.Services;
 
 namespace VirtualAssistant.Voice.Tests.Services;
@@ -84,7 +85,7 @@ public class NotificationBatchingServiceTests : IDisposable
 
         _speakerMock
             .Setup(x => x.SpeakAsync(It.IsAny<string>(), It.IsAny<string?>()))
-            .Returns(Task.CompletedTask);
+            .ReturnsAsync(new TtsResult(Success: true, ProviderUsed: "test-provider"));
 
         // Act
         _sut.QueueNotification(notification);
@@ -112,7 +113,7 @@ public class NotificationBatchingServiceTests : IDisposable
         };
 
         // Block speaker to prevent immediate processing
-        var speakerTcs = new TaskCompletionSource();
+        var speakerTcs = new TaskCompletionSource<TtsResult>();
         _speakerMock
             .Setup(x => x.SpeakAsync(It.IsAny<string>(), It.IsAny<string?>()))
             .Returns(speakerTcs.Task);
@@ -120,7 +121,7 @@ public class NotificationBatchingServiceTests : IDisposable
         _sut.QueueNotification(notification);
 
         // Complete the speaker task
-        speakerTcs.SetResult();
+        speakerTcs.SetResult(new TtsResult(Success: true, ProviderUsed: "test-provider"));
 
         // Act
         await _sut.FlushAsync();
@@ -140,7 +141,7 @@ public class NotificationBatchingServiceTests : IDisposable
         _speakerMock
             .Setup(x => x.SpeakAsync(It.IsAny<string>(), It.IsAny<string?>(), It.IsAny<bool>(), It.IsAny<CancellationToken>()))
             .Callback<string, string?, bool, CancellationToken>((text, _, _, _) => processedTexts.Add(text))
-            .Returns(Task.CompletedTask);
+            .ReturnsAsync(new TtsResult(Success: true, ProviderUsed: "test-provider"));
 
         var notification1 = new AgentNotification
         {
@@ -193,7 +194,7 @@ public class NotificationBatchingServiceTests : IDisposable
 
         _speakerMock
             .Setup(x => x.SpeakAsync(It.IsAny<string>(), It.IsAny<string?>()))
-            .Returns(Task.CompletedTask);
+            .ReturnsAsync(new TtsResult(Success: true, ProviderUsed: "test-provider"));
 
         var notification = new AgentNotification
         {

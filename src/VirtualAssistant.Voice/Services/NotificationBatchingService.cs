@@ -127,17 +127,29 @@ public class NotificationBatchingService : INotificationBatchingService, IDispos
             await WaitForSpeechUnlockAsync();
 
             // Speak the text directly - skip cache for notifications (each is unique with timestamps/dynamic content)
-            await _speaker.SpeakAsync(text, notification.Agent, skipCache: true);
+            var ttsResult = await _speaker.SpeakAsync(text, notification.Agent, skipCache: true);
 
-            // Update status to Played after successful TTS
+            // Record TTS tracking if we have a notification ID
             if (notification.NotificationId.HasValue)
             {
+                var status = ttsResult.Skipped ? "skipped"
+                    : ttsResult.Success ? "success"
+                    : "error";
+
+                await _notificationService.RecordTtsOutcomeAsync(
+                    notification.NotificationId.Value,
+                    ttsResult.ProviderUsed,
+                    status,
+                    ttsResult.DurationMs);
+
+                // Update status to Played after successful TTS
                 await _notificationService.UpdateStatusAsync(
                     new[] { notification.NotificationId.Value },
                     NotificationStatusEnum.Played);
             }
 
-            _logger.LogInformation("Notification sent to TTS: {Text}", text);
+            _logger.LogInformation("Notification sent to TTS: {Text} (Provider: {Provider}, Status: {Status})",
+                text, ttsResult.ProviderUsed ?? "none", ttsResult.Success ? "success" : "failed");
         }
         catch (Exception ex)
         {

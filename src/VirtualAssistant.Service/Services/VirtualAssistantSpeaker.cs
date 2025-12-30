@@ -1,5 +1,8 @@
+using System.Diagnostics;
 using Microsoft.Extensions.Logging;
+using Olbrasoft.VirtualAssistant.Core.Services;
 using Olbrasoft.VirtualAssistant.Voice.Services;
+using VirtualAssistant.Core.Models;
 using VirtualAssistant.Core.Services;
 
 namespace Olbrasoft.VirtualAssistant.Service.Services;
@@ -66,13 +69,13 @@ public class VirtualAssistantSpeaker : IVirtualAssistantSpeaker
     /// <param name="agentName">Optional agent name for identification (not currently used).</param>
     /// <param name="skipCache">If true, bypasses TTS audio cache and regenerates speech.</param>
     /// <param name="ct">Cancellation token to stop speech playback.</param>
-    /// <returns>A task that completes when speech finishes or is cancelled.</returns>
-    public async Task SpeakAsync(string text, string? agentName = null, bool skipCache = false, CancellationToken ct = default)
+    /// <returns>Result of the TTS operation including provider used and duration.</returns>
+    public async Task<TtsResult> SpeakAsync(string text, string? agentName = null, bool skipCache = false, CancellationToken ct = default)
     {
         if (string.IsNullOrWhiteSpace(text))
         {
             _logger.LogDebug("Skipping empty TTS text");
-            return;
+            return new TtsResult(Success: false, Skipped: true);
         }
 
         _logger.LogDebug("Speaking text: {Text} (skipCache: {SkipCache})", TruncateText(text, 50), skipCache);
@@ -83,14 +86,24 @@ public class VirtualAssistantSpeaker : IVirtualAssistantSpeaker
         // Link with external cancellation token
         using var linkedCts = CancellationTokenSource.CreateLinkedTokenSource(ct, speechToken);
 
+        var stopwatch = Stopwatch.StartNew();
         try
         {
             // Use "assistant" as the voice source for all VirtualAssistant speech
-            await _ttsService.SpeakAsync(text, source: "assistant", skipCache, linkedCts.Token);
+            var (success, providerUsed) = await _ttsService.SpeakAsync(text, source: "assistant", skipCache, linkedCts.Token);
+            stopwatch.Stop();
+
+            return new TtsResult(
+                Success: success,
+                ProviderUsed: providerUsed,
+                DurationMs: (int)stopwatch.ElapsedMilliseconds
+            );
         }
         catch (OperationCanceledException)
         {
+            stopwatch.Stop();
             _logger.LogDebug("Speech cancelled: {Text}", TruncateText(text, 30));
+            return new TtsResult(Success: false, DurationMs: (int)stopwatch.ElapsedMilliseconds);
         }
         finally
         {
