@@ -10,6 +10,9 @@ using Olbrasoft.VirtualAssistant.Voice.Configuration;
 using Olbrasoft.VirtualAssistant.Voice.Services;
 using VirtualAssistant.Core.Services;
 using VirtualAssistant.LlmChain;
+using Olbrasoft.TextToSpeech.Providers.Extensions;
+using Olbrasoft.TextToSpeech.Providers.Piper.Extensions;
+using Olbrasoft.TextToSpeech.Orchestration.Extensions;
 
 namespace Olbrasoft.VirtualAssistant.Service.Extensions;
 
@@ -33,10 +36,17 @@ public static class TtsServicesExtensions
         services.Configure<TtsVoiceProfilesOptions>(
             configuration.GetSection(TtsVoiceProfilesOptions.SectionName));
 
-        // ========== TextToSpeech.Service HTTP Client ==========
-        // VirtualAssistant now delegates all TTS to centralized TextToSpeech.Service (port 5060)
-        // No more direct Azure/EdgeTTS/Piper provider integration - everything goes through the service
-        services.AddSingleton<ITtsProviderChain, TextToSpeechHttpClient>();
+        // ========== Inline TTS Providers (Issue #406) ==========
+        // Extension methods handle configuration binding internally.
+
+        // Register TTS providers inline (Azure, EdgeTTS, VoiceRSS, Google)
+        services.AddTtsProviders(configuration);
+
+        // Register Piper provider (separate package)
+        services.AddPiperTts(configuration);
+
+        // Register TTS orchestration with circuit breaker and fallback chain
+        services.AddTtsOrchestration(configuration);
         // =======================================================
 
         // TTS focused services (SRP compliant)
