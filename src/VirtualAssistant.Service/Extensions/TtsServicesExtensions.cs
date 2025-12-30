@@ -47,6 +47,9 @@ public static class TtsServicesExtensions
 
         // Register TTS orchestration with circuit breaker and fallback chain
         services.AddTtsOrchestration(configuration);
+
+        // Adapter that bridges VirtualAssistant's ITtsProviderChain with the library
+        services.AddSingleton<ITtsProviderChain, TtsProviderChainAdapter>();
         // =======================================================
 
         // TTS focused services (SRP compliant)
