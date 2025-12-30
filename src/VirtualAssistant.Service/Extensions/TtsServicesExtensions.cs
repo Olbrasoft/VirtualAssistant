@@ -10,6 +10,16 @@ using Olbrasoft.VirtualAssistant.Voice.Configuration;
 using Olbrasoft.VirtualAssistant.Voice.Services;
 using VirtualAssistant.Core.Services;
 using VirtualAssistant.LlmChain;
+using Olbrasoft.TextToSpeech.Providers.Extensions;
+using Olbrasoft.TextToSpeech.Providers.Piper.Extensions;
+using Olbrasoft.TextToSpeech.Orchestration.Extensions;
+using Olbrasoft.TextToSpeech.Providers.Configuration;
+using Olbrasoft.TextToSpeech.Providers.Azure;
+using Olbrasoft.TextToSpeech.Providers.VoiceRss;
+using Olbrasoft.TextToSpeech.Providers.Google;
+using Olbrasoft.TextToSpeech.Providers.EdgeTTS;
+using Olbrasoft.TextToSpeech.Providers.Piper;
+using Olbrasoft.TextToSpeech.Orchestration.Configuration;
 
 namespace Olbrasoft.VirtualAssistant.Service.Extensions;
 
@@ -33,10 +43,31 @@ public static class TtsServicesExtensions
         services.Configure<TtsVoiceProfilesOptions>(
             configuration.GetSection(TtsVoiceProfilesOptions.SectionName));
 
-        // ========== TextToSpeech.Service HTTP Client ==========
-        // VirtualAssistant now delegates all TTS to centralized TextToSpeech.Service (port 5060)
-        // No more direct Azure/EdgeTTS/Piper provider integration - everything goes through the service
-        services.AddSingleton<ITtsProviderChain, TextToSpeechHttpClient>();
+        // ========== Inline TTS Providers (Issue #406) ==========
+        // Configure TTS provider settings from appsettings.json
+        services.Configure<AzureTtsConfiguration>(
+            configuration.GetSection(AzureTtsConfiguration.SectionName));
+        services.Configure<EdgeTtsConfiguration>(
+            configuration.GetSection(EdgeTtsConfiguration.SectionName));
+        services.Configure<VoiceRssConfiguration>(
+            configuration.GetSection(VoiceRssConfiguration.SectionName));
+        services.Configure<GoogleTtsConfiguration>(
+            configuration.GetSection(GoogleTtsConfiguration.SectionName));
+        services.Configure<PiperConfiguration>(
+            configuration.GetSection(PiperConfiguration.SectionName));
+        services.Configure<OutputConfiguration>(
+            configuration.GetSection(OutputConfiguration.SectionName));
+        services.Configure<OrchestrationConfig>(
+            configuration.GetSection(OrchestrationConfig.SectionName));
+
+        // Register TTS providers inline (Azure, EdgeTTS, VoiceRSS, Google)
+        services.AddTtsProviders(configuration);
+
+        // Register Piper provider (separate package)
+        services.AddPiperTts(configuration);
+
+        // Register TTS orchestration with circuit breaker and fallback chain
+        services.AddTtsOrchestration(configuration);
         // =======================================================
 
         // TTS focused services (SRP compliant)
