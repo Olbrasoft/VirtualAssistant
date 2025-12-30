@@ -57,14 +57,16 @@ jobs:
           # Source path for assets (from working directory, not Git checkout)
           ASSETS_SOURCE="/home/jirka/Olbrasoft/VirtualAssistant/assets"
 
-          # Copy icons
+          # Copy icons to WorkingDirectory/icons
           echo "Copying icons from: $ASSETS_SOURCE/icons"
           echo "Copying icons to: $DEPLOY_PATH/icons"
           mkdir -p "$DEPLOY_PATH/icons"
           cp -r "$ASSETS_SOURCE/icons/"* "$DEPLOY_PATH/icons/" || true
 
-          # Copy sounds (to parent directory, as code uses AppContext.BaseDirectory/../sounds)
-          SOUNDS_PATH="$(dirname "$DEPLOY_PATH")/sounds"
+          # Copy sounds to WorkingDirectory/sounds (code uses AppContext.BaseDirectory/../sounds = WorkingDirectory/sounds)
+          # AppContext.BaseDirectory = /opt/olbrasoft/virtual-assistant/app/
+          # AppContext.BaseDirectory/../sounds = /opt/olbrasoft/virtual-assistant/sounds/
+          SOUNDS_PATH="$DEPLOY_PATH/sounds"
           echo "Copying sounds from: $ASSETS_SOURCE/sounds"
           echo "Copying sounds to: $SOUNDS_PATH"
           mkdir -p "$SOUNDS_PATH"
