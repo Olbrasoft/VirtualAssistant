@@ -5,6 +5,7 @@ using Olbrasoft.VirtualAssistant.Core.Configuration;
 using Olbrasoft.VirtualAssistant.Core.Services;
 using Olbrasoft.VirtualAssistant.Service.Services;
 using Olbrasoft.VirtualAssistant.Service.Tray;
+using Olbrasoft.VirtualAssistant.Service.Tray.Menu;
 using Olbrasoft.VirtualAssistant.Service.Workers;
 using Olbrasoft.VirtualAssistant.Voice;
 using Olbrasoft.VirtualAssistant.Voice.Services;
@@ -57,11 +58,23 @@ public static class TrayServicesExtensions
             return new TrayIconCoordinator(manager, iconsPath, muteService, logger, menuHandler as Core.Services.ITrayMenuHandler);
         });
 
-        // D-Bus menu handler for tray icon context menu
+        // Menu state manager (issue #468 - SRP refactoring)
+        services.AddSingleton<IMenuStateManager, MenuStateManager>();
+
+        // Menu layout builder (issue #468 - SRP refactoring)
+        services.AddSingleton<IMenuLayoutBuilder, MenuLayoutBuilder>();
+
+        // Menu event router (issue #468 - SRP refactoring)
+        services.AddSingleton<IMenuEventRouter, MenuEventRouter>();
+
+        // D-Bus menu handler for tray icon context menu (facade pattern)
         services.AddSingleton<SystemTrayMenuHandler>(sp =>
         {
             var logger = sp.GetRequiredService<ILogger<VirtualAssistantDBusMenuHandler>>();
-            return new VirtualAssistantDBusMenuHandler(logger);
+            var stateManager = sp.GetRequiredService<IMenuStateManager>();
+            var layoutBuilder = sp.GetRequiredService<IMenuLayoutBuilder>();
+            var eventRouter = sp.GetRequiredService<IMenuEventRouter>();
+            return new VirtualAssistantDBusMenuHandler(logger, stateManager, layoutBuilder, eventRouter);
         });
 
         // NOTE: SpeechToText service manager removed (issue #466) - STT runs inline now
