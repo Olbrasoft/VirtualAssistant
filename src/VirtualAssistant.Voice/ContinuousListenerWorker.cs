@@ -4,40 +4,31 @@ using Microsoft.Extensions.Options;
 using Olbrasoft.VirtualAssistant.Core.Configuration;
 using Olbrasoft.VirtualAssistant.Core.Enums;
 using Olbrasoft.VirtualAssistant.Core.Services;
-using Olbrasoft.VirtualAssistant.Core.TextInput;
 using Olbrasoft.VirtualAssistant.Voice.Audio;
+using Olbrasoft.VirtualAssistant.Voice.Pipeline;
 using Olbrasoft.VirtualAssistant.Voice.Services;
 using Olbrasoft.VirtualAssistant.Core.StateMachine;
-using VirtualAssistant.Core.Services;
 using KeyCode = Olbrasoft.VirtualAssistant.Core.Services.KeyCode;
 
 namespace Olbrasoft.VirtualAssistant.Voice;
 
 /// <summary>
-/// Main worker that continuously listens for speech, transcribes it,
-/// and uses LLM Router to determine actions (OpenCode, Respond, Ignore).
-///
-/// Includes TTS echo cancellation via AssistantSpeechTrackerService.
-/// Also handles PTT history repeat requests via RepeatTextIntentService.
+/// Main worker that continuously listens for speech and processes it through a pipeline.
+/// Uses Pipeline pattern to reduce complexity and improve testability.
 /// </summary>
 public class ContinuousListenerWorker : BackgroundService
 {
     private readonly ILogger<ContinuousListenerWorker> _logger;
     private readonly AudioCaptureService _audioCapture;
     private readonly VadService _vad;
-    private readonly TranscriptionService _transcription;
-    private readonly ILlmRouterService _llmRouter;
+    private readonly IVoicePipeline _pipeline;
     private readonly ContinuousListenerOptions _options;
     private readonly IManualMuteService? _muteService;
-    private readonly AssistantSpeechTrackerService _speechTracker;
-    private readonly IRepeatTextIntentService _repeatTextIntent;
     private readonly IKeyboardMonitor? _keyboardMonitor;
 
     // Extracted services
     private readonly IVoiceStateMachine _stateMachine;
     private readonly ISpeechBufferManager _bufferManager;
-    private readonly ICommandDetectionService _commandDetection;
-    private readonly IActionHandlerService _actionHandler;
 
     // Transcription cancellation
     private CancellationTokenSource? _transcriptionCts;
@@ -47,30 +38,20 @@ public class ContinuousListenerWorker : BackgroundService
         ILogger<ContinuousListenerWorker> logger,
         AudioCaptureService audioCapture,
         VadService vad,
-        TranscriptionService transcription,
-        ILlmRouterService llmRouter,
+        IVoicePipeline pipeline,
         IOptions<ContinuousListenerOptions> options,
-        AssistantSpeechTrackerService speechTracker,
-        IRepeatTextIntentService repeatTextIntent,
         IVoiceStateMachine stateMachine,
         ISpeechBufferManager bufferManager,
-        ICommandDetectionService commandDetection,
-        IActionHandlerService actionHandler,
         IManualMuteService? muteService = null,
         IKeyboardMonitor? keyboardMonitor = null)
     {
         _logger = logger;
         _audioCapture = audioCapture;
         _vad = vad;
-        _transcription = transcription;
-        _llmRouter = llmRouter;
+        _pipeline = pipeline;
         _options = options.Value;
-        _speechTracker = speechTracker;
-        _repeatTextIntent = repeatTextIntent;
         _stateMachine = stateMachine;
         _bufferManager = bufferManager;
-        _commandDetection = commandDetection;
-        _actionHandler = actionHandler;
         _muteService = muteService;
         _keyboardMonitor = keyboardMonitor;
 
@@ -139,8 +120,6 @@ public class ContinuousListenerWorker : BackgroundService
     {
         try
         {
-            _transcription.Initialize();
-
             if (_muteService?.IsMuted == true)
             {
                 _stateMachine.TransitionTo(VoiceState.Muted);
@@ -268,86 +247,14 @@ public class ContinuousListenerWorker : BackgroundService
 
         try
         {
-            _logger.LogDebug("Starting transcription...");
-            var transcriptionResult = await _transcription.TranscribeAsync(audioData, _transcriptionCts.Token);
+            _logger.LogDebug("Starting voice pipeline...");
 
-            if (!transcriptionResult.Success || string.IsNullOrWhiteSpace(transcriptionResult.Text))
-            {
-                return;
-            }
-
-            var text = transcriptionResult.Text;
-            _logger.LogInformation("Transcribed: \"{Text}\"", text);
-
-            // Filter out TTS echo
-            var filteredText = _speechTracker.FilterEchoFromTranscription(text);
-            if (string.IsNullOrWhiteSpace(filteredText))
-            {
-                _logger.LogDebug("Echo filtered - entire transcription was TTS output");
-                ResetToWaiting();
-                return;
-            }
-
-            if (filteredText != text)
-            {
-                _logger.LogDebug("Echo filtered: \"{FilteredText}\"", filteredText);
-                text = filteredText;
-            }
-
-            // Cancel command
-            if (_commandDetection.IsCancelCommand(text))
-            {
-                _logger.LogInformation("Cancel command detected - prompt cancelled");
-                ResetToWaiting();
-                return;
-            }
-
-            // Local pre-filter
-            if (_commandDetection.ShouldSkipLocally(text))
-            {
-                _logger.LogDebug("Skipped locally (too short or noise)");
-                ResetToWaiting();
-                return;
-            }
-
-            // Stop command
-            if (_commandDetection.IsStopCommand(text))
-            {
-                _logger.LogInformation("Stop command detected");
-                ResetToWaiting();
-                return;
-            }
-
-            // Check for repeat text intent
-            _logger.LogDebug("Checking repeat text intent...");
-            var repeatIntent = await _repeatTextIntent.DetectIntentAsync(text, cancellationToken);
-
-            if (repeatIntent.IsRepeatTextIntent && repeatIntent.Confidence >= 0.7f)
-            {
-                _logger.LogInformation("Repeat text intent detected (confidence: {Confidence:F2})", repeatIntent.Confidence);
-                await _actionHandler.HandleRepeatTextAsync(cancellationToken);
-                ResetToWaiting();
-                return;
-            }
-
-            // Route through LLM
-            _logger.LogInformation("Routing to LLM: \"{Text}\"", text);
-            var routerResult = await _llmRouter.RouteAsync(text, false, cancellationToken);
-
-            _logger.LogInformation("{Provider}: {Action} [{PromptType}] (confidence: {Confidence:F2}, {Time}ms)",
-                _llmRouter.ProviderName, routerResult.Action, routerResult.PromptType,
-                routerResult.Confidence, routerResult.ResponseTimeMs);
-
-            if (!string.IsNullOrEmpty(routerResult.Reason))
-            {
-                _logger.LogDebug("Reason: {Reason}", routerResult.Reason);
-            }
-
-            await HandleRouterResultAsync(text, routerResult, cancellationToken);
+            // Process audio through the complete pipeline
+            await _pipeline.ProcessAsync(audioData, _transcriptionCts.Token);
         }
         catch (OperationCanceledException)
         {
-            _logger.LogInformation("Transcription cancelled by user");
+            _logger.LogInformation("Pipeline cancelled by user");
         }
         catch (Exception ex)
         {
@@ -359,37 +266,6 @@ public class ContinuousListenerWorker : BackgroundService
             _transcriptionCts?.Dispose();
             _transcriptionCts = null;
             ResetToWaiting();
-        }
-    }
-
-    private async Task HandleRouterResultAsync(string text, LlmRouterResult routerResult, CancellationToken cancellationToken)
-    {
-        switch (routerResult.Action)
-        {
-            case LlmRouterAction.OpenCode:
-                await _actionHandler.HandleOpenCodeActionAsync(text, routerResult.PromptType, cancellationToken);
-                break;
-
-            case LlmRouterAction.Respond:
-                _actionHandler.HandleRespondAction(routerResult.Response);
-                break;
-
-            case LlmRouterAction.SaveNote:
-                _logger.LogInformation("Note saving not implemented");
-                break;
-
-            case LlmRouterAction.StartDiscussion:
-            case LlmRouterAction.EndDiscussion:
-                _logger.LogInformation("Discussion mode not implemented");
-                break;
-
-            case LlmRouterAction.DispatchTask:
-                await _actionHandler.HandleDispatchTaskActionAsync(routerResult.TargetAgent ?? "claude", cancellationToken);
-                break;
-
-            case LlmRouterAction.Ignore:
-                // Already logged
-                break;
         }
     }
 
