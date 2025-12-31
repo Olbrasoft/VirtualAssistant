@@ -59,25 +59,9 @@ public static class VoiceServicesExtensions
         // because DictationWorker uses a dedicated instance (manually created in WorkerServicesExtensions)
         services.AddSingleton<IVadService, VadService>();
 
-        // Whisper.net configuration (inline speech-to-text, replaced gRPC microservice)
-        services.Configure<Olbrasoft.VirtualAssistant.Voice.SpeechToText.WhisperOptions>(
-            configuration.GetSection("Whisper"));
-
-        // Register WhisperNetProvider (Whisper.net implementation)
-        services.AddSingleton<Olbrasoft.VirtualAssistant.Voice.SpeechToText.ITranscriptionProvider,
-            Olbrasoft.VirtualAssistant.Voice.SpeechToText.WhisperNetProvider>();
-
-        // Register ISpeechTranscriber adapter (wraps WhisperNetProvider)
-        services.AddSingleton<ISpeechTranscriber>(sp =>
-        {
-            var provider = sp.GetRequiredService<Olbrasoft.VirtualAssistant.Voice.SpeechToText.ITranscriptionProvider>();
-            var dictationOptions = sp.GetRequiredService<IOptions<DictationOptions>>();
-
-            return new Olbrasoft.VirtualAssistant.Voice.SpeechToText.WhisperNetTranscriber(
-                provider,
-                dictationOptions.Value.WhisperLanguage,
-                dictationOptions.Value.WhisperModelPath);
-        });
+        // Register WhisperSpeechTranscriber (inline Whisper.net - replaced gRPC microservice)
+        // Uses ContinuousListenerOptions for configuration (WhisperModelPath, WhisperLanguage, UseGpu)
+        services.AddSingleton<ISpeechTranscriber, WhisperSpeechTranscriber>();
 
         // TranscriptionService with LLM correction and text filtering
         services.AddSingleton<ITranscriptionService>(sp =>

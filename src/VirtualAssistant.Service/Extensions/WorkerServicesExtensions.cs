@@ -54,13 +54,18 @@ public static class WorkerServicesExtensions
             // Create dedicated TranscriptionService for Dictation with large-v3-turbo model
             var dictationOptions = sp.GetRequiredService<IOptions<DictationOptions>>().Value;
 
-            // Create dedicated WhisperNetTranscriber for DictationWorker
-            // Uses DictationOptions.WhisperModelPath (large-v3-turbo) instead of default model
-            var provider = sp.GetRequiredService<Olbrasoft.VirtualAssistant.Voice.SpeechToText.ITranscriptionProvider>();
-            var dictationTranscriber = new Olbrasoft.VirtualAssistant.Voice.SpeechToText.WhisperNetTranscriber(
-                provider,
-                dictationOptions.WhisperLanguage,
-                dictationOptions.WhisperModelPath); // Override with large model for better accuracy
+            // Create dedicated WhisperSpeechTranscriber for DictationWorker
+            // Uses DictationOptions.WhisperModelPath (large-v3-turbo) instead of ContinuousListener model
+            var continuousOptions = new ContinuousListenerOptions
+            {
+                WhisperModelPath = dictationOptions.WhisperModelPath,
+                WhisperLanguage = dictationOptions.WhisperLanguage,
+                UseGpu = true // Enable GPU acceleration for dictation
+            };
+            var dictationLogger = sp.GetRequiredService<ILogger<WhisperSpeechTranscriber>>();
+            var dictationTranscriber = new WhisperSpeechTranscriber(
+                dictationLogger,
+                Microsoft.Extensions.Options.Options.Create(continuousOptions));
 
             var transcriptionLogger = sp.GetRequiredService<ILogger<TranscriptionService>>();
             var textFilter = sp.GetRequiredService<ITextFilter>();

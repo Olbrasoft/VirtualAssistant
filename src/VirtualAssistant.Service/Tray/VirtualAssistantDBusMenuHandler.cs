@@ -10,7 +10,7 @@ namespace Olbrasoft.VirtualAssistant.Service.Tray;
 /// D-Bus handler for com.canonical.dbusmenu interface.
 /// Provides context menu for the VirtualAssistant tray icon.
 /// </summary>
-internal class VirtualAssistantDBusMenuHandler : ComCanonicalDbusmenuHandler, SystemTray.Linux.ITrayMenuHandler, IServiceStatusUpdater
+internal class VirtualAssistantDBusMenuHandler : ComCanonicalDbusmenuHandler, SystemTray.Linux.ITrayMenuHandler, Core.Services.ITrayMenuHandler, IServiceStatusUpdater
 {
     private Connection? _connection;
     private readonly ILogger _logger;
@@ -120,20 +120,24 @@ internal class VirtualAssistantDBusMenuHandler : ComCanonicalDbusmenuHandler, Sy
     {
         _connection = connection ?? throw new ArgumentNullException(nameof(connection));
 
+        _logger.LogInformation("Registering menu handler with connection {ConnectionName}", connection.UniqueName);
+
         // Create PathHandler in THIS assembly (VirtualAssistant.Service)
         // This avoids cross-assembly type incompatibility with PathHandler in SystemTray.Linux
         _menuPathHandler = new PathHandler("/MenuBar");
+        _logger.LogDebug("Created PathHandler for /MenuBar");
 
         // Set the PathHandler property (types match because both are from VirtualAssistant.Service)
         PathHandler = _menuPathHandler;
+        _logger.LogDebug("Set PathHandler property");
 
         // Add ourselves to the handler
         _menuPathHandler.Add(this);
+        _logger.LogDebug("Added handler to PathHandler");
 
         // Register with D-Bus connection
         connection.AddMethodHandler(_menuPathHandler);
-
-        _logger.LogDebug("Menu handler registered at /MenuBar in VirtualAssistant.Service assembly");
+        _logger.LogInformation("Menu handler registered at /MenuBar in VirtualAssistant.Service assembly");
     }
 
     /// <summary>

@@ -1,18 +1,20 @@
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
+using Olbrasoft.VirtualAssistant.Core.Configuration;
+using Olbrasoft.VirtualAssistant.Core.Speech;
 using Whisper.net;
 using Whisper.net.LibraryLoader;
 
-namespace Olbrasoft.VirtualAssistant.Voice.SpeechToText;
+namespace Olbrasoft.VirtualAssistant.Voice.Services;
 
 /// <summary>
-/// Whisper.net based speech transcription provider with GPU acceleration support.
-/// Supports multiple models in VRAM cache with per-request model selection.
+/// Whisper.net based speech transcription service with GPU acceleration support.
+/// Supports multiple models in VRAM cache with thread-safe access.
 /// </summary>
-public sealed class WhisperNetProvider : ITranscriptionProvider, IDisposable
+public sealed class WhisperSpeechTranscriber : ISpeechTranscriber
 {
-    private readonly ILogger<WhisperNetProvider> _logger;
-    private readonly WhisperOptions _options;
+    private readonly ILogger<WhisperSpeechTranscriber> _logger;
+    private readonly ContinuousListenerOptions _options;
 
     // Model cache: stores (factory, processor, lastUsed) for each model
     private static readonly Dictionary<string, ModelCacheEntry> _modelCache = new();
@@ -21,7 +23,7 @@ public sealed class WhisperNetProvider : ITranscriptionProvider, IDisposable
 
     private const int SampleRate = 16000;
 
-    public string Name => "WhisperNet";
+    public string Language => _options.WhisperLanguage;
 
     /// <summary>
     /// Model cache entry with factory, processor, and usage tracking.
@@ -34,9 +36,9 @@ public sealed class WhisperNetProvider : ITranscriptionProvider, IDisposable
         public DateTime LastUsed { get; set; }
     }
 
-    public WhisperNetProvider(
-        ILogger<WhisperNetProvider> logger,
-        IOptions<WhisperOptions> options)
+    public WhisperSpeechTranscriber(
+        ILogger<WhisperSpeechTranscriber> logger,
+        IOptions<ContinuousListenerOptions> options)
     {
         _logger = logger ?? throw new ArgumentNullException(nameof(logger));
         _options = options?.Value ?? throw new ArgumentNullException(nameof(options));
@@ -51,8 +53,7 @@ public sealed class WhisperNetProvider : ITranscriptionProvider, IDisposable
         if (string.IsNullOrWhiteSpace(modelName))
         {
             throw new ArgumentException(
-                "Model name must be specified in the transcription request. " +
-                "No default model is configured.",
+                "Model name must be specified in configuration (ContinuousListener:WhisperModelPath).",
                 nameof(modelName));
         }
 
@@ -76,8 +77,8 @@ public sealed class WhisperNetProvider : ITranscriptionProvider, IDisposable
                 return doubleCheckEntry;
             }
 
-            // Load model into VRAM
-            var modelPath = WhisperModelLocator.GetModelPath(modelName);
+            // Get model path (resolves from configuration + WhisperModelLocator)
+            var modelPath = _options.GetFullWhisperModelPath();
             _logger.LogInformation("Loading Whisper.net model: {ModelName} from {ModelPath}", modelName, modelPath);
 
             if (!File.Exists(modelPath))
@@ -93,8 +94,8 @@ public sealed class WhisperNetProvider : ITranscriptionProvider, IDisposable
             }
 
             // Create factory with GPU acceleration
-            var options = new WhisperFactoryOptions { UseGpu = _options.UseGpu };
-            var factory = WhisperFactory.FromPath(modelPath, options);
+            var factoryOptions = new WhisperFactoryOptions { UseGpu = _options.UseGpu };
+            var factory = WhisperFactory.FromPath(modelPath, factoryOptions);
 
             // Log which library was loaded (only on first load)
             if (_modelCache.Count == 0)
@@ -104,7 +105,7 @@ public sealed class WhisperNetProvider : ITranscriptionProvider, IDisposable
             }
 
             // Create processor with optimized settings
-            var language = _options.DefaultLanguage ?? "auto";
+            var language = _options.WhisperLanguage ?? "auto";
             var processor = factory.CreateBuilder()
                 .WithLanguage(language)
                 // Use beam search for better accuracy
@@ -143,40 +144,39 @@ public sealed class WhisperNetProvider : ITranscriptionProvider, IDisposable
         }
     }
 
-    public async Task<SttTranscriptionResult> TranscribeAsync(
-        TranscriptionRequest request,
-        CancellationToken cancellationToken = default)
+    public async Task<TranscriptionResult> TranscribeAsync(byte[] audioData, CancellationToken cancellationToken = default)
     {
         if (_disposed)
-            throw new ObjectDisposedException(nameof(WhisperNetProvider));
+            throw new ObjectDisposedException(nameof(WhisperSpeechTranscriber));
 
-        request.EnsureValid();
+        if (audioData == null || audioData.Length == 0)
+            return new TranscriptionResult("Audio data cannot be empty");
 
         var startTime = DateTime.UtcNow;
 
         try
         {
-            // Validate model name
-            if (string.IsNullOrWhiteSpace(request.ModelName))
+            // Get model name from configuration
+            var modelFileName = _options.WhisperModelPath;
+            if (string.IsNullOrWhiteSpace(modelFileName))
             {
-                throw new ArgumentException(
-                    "Model name must be specified in the transcription request. " +
-                    "No default model is configured.",
-                    nameof(request));
+                throw new InvalidOperationException(
+                    "WhisperModelPath is not configured. " +
+                    "Please set ContinuousListener:WhisperModelPath in appsettings.json.");
             }
 
             // Get or load model from cache
-            var modelEntry = await GetOrLoadModelAsync(request.ModelName, cancellationToken);
+            var modelEntry = await GetOrLoadModelAsync(modelFileName, cancellationToken);
 
             _logger.LogDebug("Starting transcription with model {ModelName} (audio size: {Size} bytes)",
-                request.ModelName, request.AudioData.Length);
+                modelFileName, audioData.Length);
 
             // Thread-safe access to this specific model's processor
             await modelEntry.Lock.WaitAsync(cancellationToken);
             try
             {
                 // Strip WAV header if present
-                var pcmData = StripWavHeader(request.AudioData);
+                var pcmData = StripWavHeader(audioData);
 
                 // Convert PCM to float32 samples
                 var samples = ConvertPcmToFloat32(pcmData);
@@ -203,20 +203,14 @@ public sealed class WhisperNetProvider : ITranscriptionProvider, IDisposable
                 if (string.IsNullOrWhiteSpace(transcription))
                 {
                     _logger.LogWarning("Transcription result is empty (likely silence)");
-                    return SttTranscriptionResult.Fail("No speech detected", Name, DateTime.UtcNow - startTime);
+                    return new TranscriptionResult("No speech detected");
                 }
 
                 var transcriptionTime = DateTime.UtcNow - startTime;
                 _logger.LogInformation("Transcription successful with {ModelName}: \"{Text}\" ({Time}ms)",
-                    request.ModelName, transcription, transcriptionTime.TotalMilliseconds);
+                    modelFileName, transcription, transcriptionTime.TotalMilliseconds);
 
-                return SttTranscriptionResult.Ok(
-                    transcription,
-                    Name,
-                    transcriptionTime,
-                    request.Language ?? _options.DefaultLanguage,
-                    audioDuration,
-                    confidence: 1.0f);
+                return new TranscriptionResult(transcription, confidence: 1.0f);
             }
             finally
             {
@@ -226,32 +220,29 @@ public sealed class WhisperNetProvider : ITranscriptionProvider, IDisposable
         catch (OperationCanceledException)
         {
             _logger.LogInformation("Transcription cancelled");
-            return SttTranscriptionResult.Fail("Transcription cancelled", Name, DateTime.UtcNow - startTime);
+            return new TranscriptionResult("Transcription cancelled");
         }
         catch (Exception ex)
         {
             _logger.LogError(ex, "Transcription failed");
-            return SttTranscriptionResult.Fail($"Transcription error: {ex.Message}", Name, DateTime.UtcNow - startTime);
+            return new TranscriptionResult($"Transcription error: {ex.Message}");
         }
     }
 
-    public Task<TranscriptionProviderInfo> GetInfoAsync(CancellationToken cancellationToken = default)
+    public async Task<TranscriptionResult> TranscribeAsync(Stream audioStream, CancellationToken cancellationToken = default)
     {
-        var cachedModels = string.Join(", ", _modelCache.Keys);
+        if (_disposed)
+            throw new ObjectDisposedException(nameof(WhisperSpeechTranscriber));
 
-        var info = new TranscriptionProviderInfo
-        {
-            Name = Name,
-            IsAvailable = true,
-            ModelName = _modelCache.Count > 0 ? cachedModels : "No models loaded yet",
-            GpuEnabled = _options.UseGpu,
-            SupportedLanguages = [], // Whisper supports all languages
-            AdditionalInfo = _modelCache.Count > 0
-                ? $"{_modelCache.Count} model(s) cached in VRAM: {cachedModels}"
-                : "No models loaded - models will be loaded on first request"
-        };
+        if (audioStream == null)
+            return new TranscriptionResult("Audio stream cannot be null");
 
-        return Task.FromResult(info);
+        // Read stream to byte array
+        using var memoryStream = new MemoryStream();
+        await audioStream.CopyToAsync(memoryStream, cancellationToken);
+        var audioData = memoryStream.ToArray();
+
+        return await TranscribeAsync(audioData, cancellationToken);
     }
 
     private static float[] ConvertPcmToFloat32(byte[] pcmData)
@@ -288,6 +279,6 @@ public sealed class WhisperNetProvider : ITranscriptionProvider, IDisposable
         // They will be disposed when the app shuts down.
 
         _disposed = true;
-        _logger.LogDebug("WhisperNetProvider disposed");
+        _logger.LogDebug("WhisperSpeechTranscriber disposed");
     }
 }

@@ -51,6 +51,11 @@ public class ContinuousListenerOptions
     public string WhisperLanguage { get; set; } = "cs";
 
     /// <summary>
+    /// Whether to use GPU acceleration (CUDA) for Whisper.net.
+    /// </summary>
+    public bool UseGpu { get; set; } = true;
+
+    /// <summary>
     /// Maximum audio segment duration for transcription in milliseconds. Default: 60000ms (60 seconds).
     /// Longer audio will be truncated to prevent Whisper.net issues.
     /// </summary>
