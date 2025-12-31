@@ -1,5 +1,3 @@
-using Microsoft.Extensions.Logging;
-
 namespace Olbrasoft.VirtualAssistant.Service.Tray.Menu;
 
 /// <summary>

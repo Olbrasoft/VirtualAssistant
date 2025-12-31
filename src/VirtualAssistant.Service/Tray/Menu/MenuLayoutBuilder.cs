@@ -33,12 +33,7 @@ public class MenuLayoutBuilder : IMenuLayoutBuilder
     /// </summary>
     public (int, Dictionary<string, VariantValue>) GetItemProperties(int id)
     {
-        var muteLabel = GetMuteLabel();
-        var ttsMuteLabel = GetTtsMuteLabel();
-        var dictationLabel = GetDictationLabel();
-        var logViewerLabel = GetLogViewerLabel();
-        var llmCorrectionLabel = GetLlmCorrectionLabel();
-
+        // Compute labels lazily only when needed for the specific menu item
         return id switch
         {
             MenuItemIds.RootId => (id, new Dictionary<string, VariantValue>
@@ -58,19 +53,19 @@ public class MenuLayoutBuilder : IMenuLayoutBuilder
             }),
             MenuItemIds.DictationToggleId => (id, new Dictionary<string, VariantValue>
             {
-                ["label"] = VariantValue.String(dictationLabel),
+                ["label"] = VariantValue.String(GetDictationLabel()),
                 ["enabled"] = VariantValue.Bool(true),
                 ["visible"] = VariantValue.Bool(true)
             }),
             MenuItemIds.LogViewerId => (id, new Dictionary<string, VariantValue>
             {
-                ["label"] = VariantValue.String(logViewerLabel),
+                ["label"] = VariantValue.String(GetLogViewerLabel()),
                 ["enabled"] = VariantValue.Bool(true),
                 ["visible"] = VariantValue.Bool(true)
             }),
             MenuItemIds.LlmCorrectionId => (id, new Dictionary<string, VariantValue>
             {
-                ["label"] = VariantValue.String(llmCorrectionLabel),
+                ["label"] = VariantValue.String(GetLlmCorrectionLabel()),
                 ["enabled"] = VariantValue.Bool(true),
                 ["visible"] = VariantValue.Bool(true)
             }),
@@ -82,13 +77,13 @@ public class MenuLayoutBuilder : IMenuLayoutBuilder
             }),
             MenuItemIds.MuteToggleId => (id, new Dictionary<string, VariantValue>
             {
-                ["label"] = VariantValue.String(muteLabel),
+                ["label"] = VariantValue.String(GetMuteLabel()),
                 ["enabled"] = VariantValue.Bool(true),
                 ["visible"] = VariantValue.Bool(true)
             }),
             MenuItemIds.TtsMuteToggleId => (id, new Dictionary<string, VariantValue>
             {
-                ["label"] = VariantValue.String(ttsMuteLabel),
+                ["label"] = VariantValue.String(GetTtsMuteLabel()),
                 ["enabled"] = VariantValue.Bool(true),
                 ["visible"] = VariantValue.Bool(true)
             }),
@@ -153,65 +148,9 @@ public class MenuLayoutBuilder : IMenuLayoutBuilder
 
     private (int, Dictionary<string, VariantValue>, VariantValue[]) GetMenuItemLayout(int id)
     {
-        var props = new Dictionary<string, VariantValue>();
-
-        switch (id)
-        {
-            case MenuItemIds.StatusId:
-                props["label"] = VariantValue.String("VirtualAssistant - poslouchám");
-                props["enabled"] = VariantValue.Bool(false);
-                props["visible"] = VariantValue.Bool(true);
-                break;
-            case MenuItemIds.Separator1Id:
-            case MenuItemIds.Separator2Id:
-            case MenuItemIds.Separator3Id:
-            case MenuItemIds.Separator4Id:
-                props["type"] = VariantValue.String("separator");
-                props["visible"] = VariantValue.Bool(true);
-                break;
-            case MenuItemIds.DictationToggleId:
-                props["label"] = VariantValue.String(GetDictationLabel());
-                props["enabled"] = VariantValue.Bool(true);
-                props["visible"] = VariantValue.Bool(true);
-                break;
-            case MenuItemIds.LogViewerId:
-                props["label"] = VariantValue.String(GetLogViewerLabel());
-                props["enabled"] = VariantValue.Bool(true);
-                props["visible"] = VariantValue.Bool(true);
-                break;
-            case MenuItemIds.LlmCorrectionId:
-                props["label"] = VariantValue.String(GetLlmCorrectionLabel());
-                props["enabled"] = VariantValue.Bool(true);
-                props["visible"] = VariantValue.Bool(true);
-                break;
-            case MenuItemIds.ReloadPromptId:
-                props["label"] = VariantValue.String("🔄 Reload LLM Prompt");
-                props["enabled"] = VariantValue.Bool(true);
-                props["visible"] = VariantValue.Bool(true);
-                break;
-            case MenuItemIds.MuteToggleId:
-                props["label"] = VariantValue.String(GetMuteLabel());
-                props["enabled"] = VariantValue.Bool(true);
-                props["visible"] = VariantValue.Bool(true);
-                break;
-            case MenuItemIds.TtsMuteToggleId:
-                props["label"] = VariantValue.String(GetTtsMuteLabel());
-                props["enabled"] = VariantValue.Bool(true);
-                props["visible"] = VariantValue.Bool(true);
-                break;
-            case MenuItemIds.ShowLogsId:
-                props["label"] = VariantValue.String("Zobrazit logy");
-                props["enabled"] = VariantValue.Bool(true);
-                props["visible"] = VariantValue.Bool(true);
-                break;
-            case MenuItemIds.QuitId:
-                props["label"] = VariantValue.String("Ukončit");
-                props["enabled"] = VariantValue.Bool(true);
-                props["visible"] = VariantValue.Bool(true);
-                break;
-        }
-
-        return (id, props, System.Array.Empty<VariantValue>());
+        // Reuse GetItemProperties to avoid code duplication
+        var (itemId, props) = GetItemProperties(id);
+        return (itemId, props, Array.Empty<VariantValue>());
     }
 
     private VariantValue CreateChildVariant(int id, string label, bool isSeparator, bool enabled = true)
@@ -231,7 +170,7 @@ public class MenuLayoutBuilder : IMenuLayoutBuilder
         }
 
         // Empty children array for leaf items
-        var children = new VariantValue[0];
+        var children = Array.Empty<VariantValue>();
 
         // Create the struct (ia{sv}av)
         return Struct.Create(id, props, children);

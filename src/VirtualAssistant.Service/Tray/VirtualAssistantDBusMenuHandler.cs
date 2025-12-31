@@ -12,7 +12,7 @@ namespace Olbrasoft.VirtualAssistant.Service.Tray;
 /// Provides context menu for the VirtualAssistant tray icon.
 /// Facade pattern coordinating MenuStateManager, MenuLayoutBuilder, and MenuEventRouter.
 /// </summary>
-internal class VirtualAssistantDBusMenuHandler : ComCanonicalDbusmenuHandler, SystemTray.Linux.ITrayMenuHandler, Core.Services.ITrayMenuHandler, IServiceStatusUpdater
+internal class VirtualAssistantDBusMenuHandler : ComCanonicalDbusmenuHandler, SystemTray.Linux.ITrayMenuHandler, Core.Services.ITrayMenuHandler, IServiceStatusUpdater, IDisposable
 {
     private Connection? _connection;
     private readonly ILogger _logger;
@@ -21,6 +21,17 @@ internal class VirtualAssistantDBusMenuHandler : ComCanonicalDbusmenuHandler, Sy
     private readonly IMenuStateManager _stateManager;
     private readonly IMenuLayoutBuilder _layoutBuilder;
     private readonly IMenuEventRouter _eventRouter;
+
+    // Event handler delegates stored for proper unsubscription
+    private readonly Action _quitHandler;
+    private readonly Action _muteToggleHandler;
+    private readonly Action _showLogsHandler;
+    private readonly Action _stopLogViewerHandler;
+    private readonly Action _startLogViewerHandler;
+    private readonly Action<bool> _llmCorrectionHandler;
+    private readonly Action _reloadPromptHandler;
+    private readonly Action<bool> _dictationToggleHandler;
+    private readonly Action _ttsMuteToggleHandler;
 
     /// <summary>
     /// Event fired when user selects Quit from the menu.
@@ -84,19 +95,30 @@ internal class VirtualAssistantDBusMenuHandler : ComCanonicalDbusmenuHandler, Sy
         Status = "normal";
         IconThemePath = Array.Empty<string>();
 
+        // Initialize event handler delegates
+        _quitHandler = () => OnQuitRequested?.Invoke();
+        _muteToggleHandler = () => OnMuteToggleRequested?.Invoke();
+        _showLogsHandler = () => OnShowLogsRequested?.Invoke();
+        _stopLogViewerHandler = () => OnStopLogViewerRequested?.Invoke();
+        _startLogViewerHandler = () => OnStartLogViewerRequested?.Invoke();
+        _llmCorrectionHandler = (enabled) => OnLlmCorrectionToggled?.Invoke(enabled);
+        _reloadPromptHandler = () => OnReloadPromptRequested?.Invoke();
+        _dictationToggleHandler = (enabled) => OnDictationToggleRequested?.Invoke(enabled);
+        _ttsMuteToggleHandler = () => OnTtsMuteToggleRequested?.Invoke();
+
         // Subscribe to state changes to emit layout updates
         _stateManager.StateChanged += OnStateChanged;
 
-        // Forward events from event router
-        _eventRouter.OnQuitRequested += () => OnQuitRequested?.Invoke();
-        _eventRouter.OnMuteToggleRequested += () => OnMuteToggleRequested?.Invoke();
-        _eventRouter.OnShowLogsRequested += () => OnShowLogsRequested?.Invoke();
-        _eventRouter.OnStopLogViewerRequested += () => OnStopLogViewerRequested?.Invoke();
-        _eventRouter.OnStartLogViewerRequested += () => OnStartLogViewerRequested?.Invoke();
-        _eventRouter.OnLlmCorrectionToggled += (enabled) => OnLlmCorrectionToggled?.Invoke(enabled);
-        _eventRouter.OnReloadPromptRequested += () => OnReloadPromptRequested?.Invoke();
-        _eventRouter.OnDictationToggleRequested += (enabled) => OnDictationToggleRequested?.Invoke(enabled);
-        _eventRouter.OnTtsMuteToggleRequested += () => OnTtsMuteToggleRequested?.Invoke();
+        // Forward events from event router using stored delegates
+        _eventRouter.OnQuitRequested += _quitHandler;
+        _eventRouter.OnMuteToggleRequested += _muteToggleHandler;
+        _eventRouter.OnShowLogsRequested += _showLogsHandler;
+        _eventRouter.OnStopLogViewerRequested += _stopLogViewerHandler;
+        _eventRouter.OnStartLogViewerRequested += _startLogViewerHandler;
+        _eventRouter.OnLlmCorrectionToggled += _llmCorrectionHandler;
+        _eventRouter.OnReloadPromptRequested += _reloadPromptHandler;
+        _eventRouter.OnDictationToggleRequested += _dictationToggleHandler;
+        _eventRouter.OnTtsMuteToggleRequested += _ttsMuteToggleHandler;
     }
 
     public override Connection Connection => _connection ?? throw new InvalidOperationException("Connection not set. Call RegisterWithDbus first.");
@@ -190,7 +212,9 @@ internal class VirtualAssistantDBusMenuHandler : ComCanonicalDbusmenuHandler, Sy
     private void OnStateChanged(object? sender, MenuStateChangedEventArgs e)
     {
         // Only emit if connection is established (avoid race condition during startup)
-        if (_connection != null)
+        // Use local copy to avoid race condition with UnregisterFromDbus
+        var connection = _connection;
+        if (connection != null)
         {
             EmitLayoutUpdated(e.Revision, MenuItemIds.RootId);
         }
@@ -263,8 +287,25 @@ internal class VirtualAssistantDBusMenuHandler : ComCanonicalDbusmenuHandler, Sy
     }
 
     /// <summary>
-    /// Called before showing a menu item. Returns whether the menu needs update.
+    /// Disposes the handler and unsubscribes from all events to prevent memory leaks.
     /// </summary>
+    public void Dispose()
+    {
+        // Unsubscribe from state manager events
+        _stateManager.StateChanged -= OnStateChanged;
+
+        // Unsubscribe from event router events using stored delegates
+        _eventRouter.OnQuitRequested -= _quitHandler;
+        _eventRouter.OnMuteToggleRequested -= _muteToggleHandler;
+        _eventRouter.OnShowLogsRequested -= _showLogsHandler;
+        _eventRouter.OnStopLogViewerRequested -= _stopLogViewerHandler;
+        _eventRouter.OnStartLogViewerRequested -= _startLogViewerHandler;
+        _eventRouter.OnLlmCorrectionToggled -= _llmCorrectionHandler;
+        _eventRouter.OnReloadPromptRequested -= _reloadPromptHandler;
+        _eventRouter.OnDictationToggleRequested -= _dictationToggleHandler;
+        _eventRouter.OnTtsMuteToggleRequested -= _ttsMuteToggleHandler;
+    }
+
     protected override ValueTask<bool> OnAboutToShowAsync(Message request, int id)
     {
         _logger.LogDebug("AboutToShow: id={Id}", id);

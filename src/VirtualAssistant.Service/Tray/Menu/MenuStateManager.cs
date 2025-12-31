@@ -15,6 +15,14 @@ public class MenuStateManager : IMenuStateManager
     private uint _revision;
 
     /// <summary>
+    /// Initializes a new instance of MenuStateManager with revision starting at 1.
+    /// </summary>
+    public MenuStateManager()
+    {
+        _revision = 1;
+    }
+
+    /// <summary>
     /// Event raised when menu state changes and layout needs to be refreshed.
     /// </summary>
     public event EventHandler<MenuStateChangedEventArgs>? StateChanged;
