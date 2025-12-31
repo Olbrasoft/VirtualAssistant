@@ -207,7 +207,7 @@ internal class VirtualAssistantDBusMenuHandler : ComCanonicalDbusmenuHandler, Sy
 
     /// <summary>
     /// Handles state change events from MenuStateManager.
-    /// Emits D-Bus layout update signal.
+    /// Emits D-Bus layout update signal and item properties update for toggle items.
     /// </summary>
     private void OnStateChanged(object? sender, MenuStateChangedEventArgs e)
     {
@@ -216,6 +216,19 @@ internal class VirtualAssistantDBusMenuHandler : ComCanonicalDbusmenuHandler, Sy
         var connection = _connection;
         if (connection != null)
         {
+            // Emit properties update for all toggle items (dictation, LLM correction, TTS mute)
+            // This notifies GNOME Shell that labels/icons have changed
+            var updatedItems = new (int, Dictionary<string, VariantValue>?)[]
+            {
+                _layoutBuilder.GetItemProperties(MenuItemIds.DictationToggleId),
+                _layoutBuilder.GetItemProperties(MenuItemIds.LlmCorrectionId),
+                _layoutBuilder.GetItemProperties(MenuItemIds.TtsMuteToggleId),
+                _layoutBuilder.GetItemProperties(MenuItemIds.MuteToggleId)
+            };
+
+            EmitItemsPropertiesUpdated(updatedItems, null);
+
+            // Also emit layout update to ensure GNOME Shell refreshes the menu
             EmitLayoutUpdated(e.Revision, MenuItemIds.RootId);
         }
     }
