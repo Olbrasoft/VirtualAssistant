@@ -74,6 +74,34 @@ public static class TrayServicesExtensions
             return new ServiceLifecycleManager(logger, sttManager, menuHandler as IServiceStatusUpdater);
         });
 
+        // Icon animation service for hand icon animations
+        services.AddSingleton<IIconAnimationService, IconAnimationService>();
+
+        // State notification handler for state synchronization
+        services.AddSingleton<IStateNotificationHandler>(sp =>
+        {
+            var logger = sp.GetRequiredService<ILogger<StateNotificationHandler>>();
+            var muteService = sp.GetRequiredService<IManualMuteService>();
+            var settingsService = sp.GetRequiredService<ISettingsService>();
+            var menuHandler = sp.GetRequiredService<SystemTrayMenuHandler>();
+            var iconCoordinator = sp.GetRequiredService<ITrayIconCoordinator>();
+            var iconAnimationService = sp.GetRequiredService<IIconAnimationService>();
+            var lifecycleManager = sp.GetService<IServiceLifecycleManager>();
+            var dictationStateMachine = sp.GetService<Olbrasoft.VirtualAssistant.Voice.StateMachine.IDictationStateMachine>();
+            var dictationWorker = sp.GetService<DictationWorker>();
+
+            return new StateNotificationHandler(
+                logger,
+                muteService,
+                settingsService,
+                menuHandler as IServiceStatusUpdater,
+                iconCoordinator,
+                iconAnimationService,
+                lifecycleManager,
+                dictationStateMachine,
+                dictationWorker);
+        });
+
         // VirtualAssistant tray service (wrapper for tray functionality)
         services.AddSingleton(sp =>
         {
