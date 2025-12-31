@@ -44,7 +44,8 @@
       <IncludeAssets>runtime; build; native; contentfiles; analyzers; buildtransitive</IncludeAssets>
       <PrivateAssets>all</PrivateAssets>
     </PackageReference>
-    <PackageReference Include="Olbrasoft.SystemTray.Linux" Version="1.*" />
+    <!-- Temporary: Use local SystemTray for debugging icon ID issue #492 -->
+    <ProjectReference Include="/home/jirka/Olbrasoft/SystemTray/src/SystemTray.Linux/SystemTray.Linux.csproj" />
     <PackageReference Include="Olbrasoft.TextToSpeech.Orchestration" Version="1.1.14" />
     <!-- EdgeTTS WebSocket provider with extern alias (used by EdgeTtsWebSocketExtensions.cs) - using floating version 1.* to always get latest -->
     <PackageReference Include="Olbrasoft.TextToSpeech.Providers.EdgeTTS" Version="1.*">

@@ -44,11 +44,16 @@ dotnet publish src/VirtualAssistant.Service/VirtualAssistant.Service.csproj \
 echo "✅ Published to $BASE_DIR/app"
 echo
 
-# Step 3: Copy additional resources (preserve existing)
+# Step 3: Copy additional resources (clean copy - remove old files first)
 echo "📦 Copying resources..."
 
 # Copy entire assets directory (icons, sounds, etc.)
+# IMPORTANT: Remove old assets first to ensure clean state
 if [ -d "$PROJECT_PATH/assets" ]; then
+    if [ -d "$BASE_DIR/app/assets" ]; then
+        rm -rf "$BASE_DIR/app/assets"
+        echo "  🗑️  Removed old assets"
+    fi
     mkdir -p "$BASE_DIR/app/assets"
     cp -r "$PROJECT_PATH/assets/"* "$BASE_DIR/app/assets/" 2>/dev/null || true
     echo "  ✅ Assets copied (icons/, sounds/)"

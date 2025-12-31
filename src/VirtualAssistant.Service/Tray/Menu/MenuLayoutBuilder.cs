@@ -115,7 +115,7 @@ public class MenuLayoutBuilder : IMenuLayoutBuilder
         VariantValue[] children;
         if (recursionDepth == 0)
         {
-            children = System.Array.Empty<VariantValue>();
+            children = Array.Empty<VariantValue>();
         }
         else
         {
@@ -156,6 +156,8 @@ public class MenuLayoutBuilder : IMenuLayoutBuilder
     private VariantValue CreateChildVariant(int id, string label, bool isSeparator, bool enabled = true)
     {
         // Create a struct variant for menu item: (ia{sv}av)
+        // Structure: (int32, array_of_dict_entries, array_of_variants)
+
         var props = new Dictionary<string, VariantValue>();
         if (isSeparator)
         {
@@ -169,11 +171,20 @@ public class MenuLayoutBuilder : IMenuLayoutBuilder
             props.Add("visible", VariantValue.Bool(true));
         }
 
-        // Empty children array for leaf items
-        var children = Array.Empty<VariantValue>();
+        // Convert Dictionary to array of dict entries (each entry is a struct(string, variant))
+        var dictEntries = props.Select(kvp =>
+            VariantValue.Struct(
+                VariantValue.String(kvp.Key),
+                kvp.Value
+            )
+        ).ToArray();
 
         // Create the struct (ia{sv}av)
-        return Struct.Create(id, props, children);
+        return VariantValue.Struct(
+            VariantValue.Int32(id),
+            VariantValue.ArrayOfVariant(dictEntries),
+            VariantValue.ArrayOfVariant(Array.Empty<VariantValue>())
+        );
     }
 
     private string GetMuteLabel()

@@ -226,10 +226,21 @@ internal class VirtualAssistantDBusMenuHandler : ComCanonicalDbusmenuHandler, Sy
     protected override ValueTask<(uint Revision, (int, Dictionary<string, VariantValue>, VariantValue[]) Layout)> OnGetLayoutAsync(
         Message request, int parentId, int recursionDepth, string[] propertyNames)
     {
-        _logger.LogDebug("GetLayout: parentId={ParentId}, depth={Depth}", parentId, recursionDepth);
+        var sender = request.Sender.Length > 0 ? System.Text.Encoding.UTF8.GetString(request.Sender) : "unknown";
+        _logger.LogInformation("GetLayout called: parentId={ParentId}, depth={Depth}, connection={Sender}",
+            parentId, recursionDepth, sender);
 
-        var layout = _layoutBuilder.BuildMenuLayout(parentId, recursionDepth);
-        return ValueTask.FromResult((_stateManager.Revision, layout));
+        try
+        {
+            var layout = _layoutBuilder.BuildMenuLayout(parentId, recursionDepth);
+            _logger.LogDebug("GetLayout returning: revision={Revision}", _stateManager.Revision);
+            return ValueTask.FromResult((_stateManager.Revision, layout));
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "GetLayout FAILED");
+            throw;
+        }
     }
 
     /// <summary>
