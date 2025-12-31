@@ -7,15 +7,16 @@ using VirtualAssistant.Data.Entities;
 namespace VirtualAssistant.Service.Tests.Services;
 
 /// <summary>
-/// Unit tests for DictationPersistenceService.
-/// Tests database persistence of Whisper transcriptions and LLM corrections.
+/// Unit tests for <see cref="DictationPersistenceService"/>.
+/// Verifies correct database persistence of Whisper transcriptions and LLM corrections,
+/// including error handling, input validation, and audio duration calculations.
 /// </summary>
 public class DictationPersistenceServiceTests
 {
     private readonly Mock<ILogger<DictationPersistenceService>> _loggerMock;
     private readonly Mock<IWhisperTranscriptionRepository> _whisperRepoMock;
     private readonly Mock<ILlmCorrectionRepository> _llmRepoMock;
-    private readonly DictationPersistenceService _sut;
+    private readonly DictationPersistenceService _service;
 
     public DictationPersistenceServiceTests()
     {
@@ -23,7 +24,7 @@ public class DictationPersistenceServiceTests
         _whisperRepoMock = new Mock<IWhisperTranscriptionRepository>();
         _llmRepoMock = new Mock<ILlmCorrectionRepository>();
 
-        _sut = new DictationPersistenceService(
+        _service = new DictationPersistenceService(
             _loggerMock.Object,
             _whisperRepoMock.Object,
             _llmRepoMock.Object);
@@ -50,7 +51,7 @@ public class DictationPersistenceServiceTests
             .ReturnsAsync(expectedTranscription);
 
         // Act
-        var result = await _sut.SaveTranscriptionAsync(
+        var result = await _service.SaveTranscriptionAsync(
             audioData,
             originalText,
             correctedText,
@@ -96,7 +97,7 @@ public class DictationPersistenceServiceTests
             .ReturnsAsync(expectedCorrection);
 
         // Act
-        var result = await _sut.SaveTranscriptionAsync(
+        var result = await _service.SaveTranscriptionAsync(
             audioData,
             originalText,
             correctedText,
@@ -129,7 +130,7 @@ public class DictationPersistenceServiceTests
             .ReturnsAsync(expectedTranscription);
 
         // Act
-        var result = await _sut.SaveTranscriptionAsync(
+        var result = await _service.SaveTranscriptionAsync(
             audioData,
             originalText,
             correctedText,
@@ -161,7 +162,7 @@ public class DictationPersistenceServiceTests
             .ReturnsAsync(new WhisperTranscription { Id = 1, TranscribedText = text, AudioDurationMs = expectedDurationMs });
 
         // Act
-        await _sut.SaveTranscriptionAsync(
+        await _service.SaveTranscriptionAsync(
             audioData,
             text,
             null,
@@ -191,7 +192,7 @@ public class DictationPersistenceServiceTests
             .ThrowsAsync(new InvalidOperationException("Database error"));
 
         // Act
-        var result = await _sut.SaveTranscriptionAsync(
+        var result = await _service.SaveTranscriptionAsync(
             audioData,
             text,
             null,
@@ -219,7 +220,7 @@ public class DictationPersistenceServiceTests
             .ThrowsAsync(new InvalidOperationException("LLM save failed"));
 
         // Act
-        var result = await _sut.SaveTranscriptionAsync(
+        var result = await _service.SaveTranscriptionAsync(
             audioData,
             originalText,
             correctedText,
@@ -227,8 +228,117 @@ public class DictationPersistenceServiceTests
             CancellationToken.None);
 
         // Assert
-        // Service should catch the exception and return null (graceful degradation)
-        Assert.Null(result);
+        // Service should return transcription ID even when LLM save fails (graceful degradation)
+        Assert.Equal(999, result);
+    }
+
+    #endregion
+
+    #region SaveTranscriptionAsync - Input Validation
+
+    [Fact]
+    public async Task SaveTranscriptionAsync_WithNullAudioData_ThrowsArgumentException()
+    {
+        // Arrange
+        byte[]? audioData = null;
+        var text = "test";
+
+        // Act & Assert
+        var exception = await Assert.ThrowsAsync<ArgumentException>(
+            () => _service.SaveTranscriptionAsync(audioData!, text, null, 0, CancellationToken.None));
+
+        Assert.Equal("audioData", exception.ParamName);
+        Assert.Contains("cannot be null or empty", exception.Message);
+    }
+
+    [Fact]
+    public async Task SaveTranscriptionAsync_WithEmptyAudioData_ThrowsArgumentException()
+    {
+        // Arrange
+        var audioData = Array.Empty<byte>();
+        var text = "test";
+
+        // Act & Assert
+        var exception = await Assert.ThrowsAsync<ArgumentException>(
+            () => _service.SaveTranscriptionAsync(audioData, text, null, 0, CancellationToken.None));
+
+        Assert.Equal("audioData", exception.ParamName);
+        Assert.Contains("cannot be null or empty", exception.Message);
+    }
+
+    [Fact]
+    public async Task SaveTranscriptionAsync_WithNullOriginalText_ThrowsArgumentException()
+    {
+        // Arrange
+        var audioData = new byte[1000];
+        string? originalText = null;
+
+        // Act & Assert
+        var exception = await Assert.ThrowsAsync<ArgumentException>(
+            () => _service.SaveTranscriptionAsync(audioData, originalText!, null, 0, CancellationToken.None));
+
+        Assert.Equal("originalText", exception.ParamName);
+        Assert.Contains("cannot be null or empty", exception.Message);
+    }
+
+    [Fact]
+    public async Task SaveTranscriptionAsync_WithEmptyOriginalText_ThrowsArgumentException()
+    {
+        // Arrange
+        var audioData = new byte[1000];
+        var originalText = "";
+
+        // Act & Assert
+        var exception = await Assert.ThrowsAsync<ArgumentException>(
+            () => _service.SaveTranscriptionAsync(audioData, originalText, null, 0, CancellationToken.None));
+
+        Assert.Equal("originalText", exception.ParamName);
+        Assert.Contains("cannot be null or empty", exception.Message);
+    }
+
+    [Fact]
+    public async Task SaveTranscriptionAsync_WithWhitespaceOriginalText_ThrowsArgumentException()
+    {
+        // Arrange
+        var audioData = new byte[1000];
+        var originalText = "   ";
+
+        // Act & Assert
+        var exception = await Assert.ThrowsAsync<ArgumentException>(
+            () => _service.SaveTranscriptionAsync(audioData, originalText, null, 0, CancellationToken.None));
+
+        Assert.Equal("originalText", exception.ParamName);
+        Assert.Contains("cannot be null or empty", exception.Message);
+    }
+
+    [Fact]
+    public async Task SaveTranscriptionAsync_WithOddLengthAudioData_LogsWarningButSucceeds()
+    {
+        // Arrange
+        var audioData = new byte[15001]; // Odd length (not divisible by 2)
+        var text = "test";
+        var expectedDurationMs = 468; // 15001 / 2 (integer division) = 7500 samples, 7500 / 16000 * 1000 = 468.75ms -> 468ms
+
+        _whisperRepoMock
+            .Setup(x => x.SaveAsync(text, It.IsAny<int?>(), It.IsAny<CancellationToken>()))
+            .ReturnsAsync(new WhisperTranscription { Id = 1, TranscribedText = text, AudioDurationMs = expectedDurationMs });
+
+        // Act
+        var result = await _service.SaveTranscriptionAsync(audioData, text, null, 0, CancellationToken.None);
+
+        // Assert
+        Assert.Equal(1, result);
+        _whisperRepoMock.Verify(x => x.SaveAsync(text, expectedDurationMs, It.IsAny<CancellationToken>()), Times.Once);
+
+        // Verify warning was logged
+        _loggerMock.Verify(
+            x => x.Log(
+                LogLevel.Warning,
+                It.IsAny<EventId>(),
+                It.Is<It.IsAnyType>((v, t) => v.ToString()!.Contains("not divisible")),
+                It.IsAny<Exception>(),
+                It.IsAny<Func<It.IsAnyType, Exception?, string>>()),
+            Times.Once);
     }
 
     #endregion

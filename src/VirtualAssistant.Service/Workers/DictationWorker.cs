@@ -300,14 +300,13 @@ public class DictationWorker : BackgroundService
 
             // Save transcription to database using persistence service
             // Note: Create scope because DictationWorker is singleton but persistence service is scoped
-            int? whisperTranscriptionId = null;
             using (var scope = _scopeFactory.CreateScope())
             {
                 var persistenceService = scope.ServiceProvider.GetRequiredService<IDictationPersistenceService>();
                 var originalText = result.OriginalText ?? result.Text;
                 var correctedText = (result.OriginalText != null && result.Text != result.OriginalText) ? result.Text : null;
 
-                whisperTranscriptionId = await persistenceService.SaveTranscriptionAsync(
+                await persistenceService.SaveTranscriptionAsync(
                     audioData,
                     originalText,
                     correctedText,
