@@ -33,11 +33,16 @@ public interface IProcessExecutor
     Task<ProcessExecutionResult> ExecuteAsync(ProcessStartInfo startInfo, CancellationToken cancellationToken = default);
 
     /// <summary>
-    /// Checks if a command is available on the system (similar to 'which' command).
+    /// Checks if a command is available on the system using the Unix <c>which</c> command.
     /// </summary>
+    /// <remarks>
+    /// This method is intended for Unix-like systems (Linux, macOS) and uses the <c>which</c> command
+    /// to check command availability. It will not work on Windows without additional setup.
+    /// The VirtualAssistant project targets Debian 13 Linux exclusively.
+    /// </remarks>
     /// <param name="command">The command name to check (e.g., "claude", "pw-cat").</param>
     /// <param name="cancellationToken">Token to cancel the operation.</param>
-    /// <returns>True if the command is available, false otherwise.</returns>
+    /// <returns>True if the command is available according to <c>which</c>, false otherwise.</returns>
     Task<bool> IsCommandAvailableAsync(string command, CancellationToken cancellationToken = default);
 }
 

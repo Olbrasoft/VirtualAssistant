@@ -179,7 +179,7 @@ public class ProcessExecutorTests
         var result = await _executor.IsCommandAvailableAsync("echo");
 
         // Assert
-        Assert.True(result, "echo command should be available on Linux");
+        Assert.True(result, "Expected 'echo' command to be available");
     }
 
     [Fact]

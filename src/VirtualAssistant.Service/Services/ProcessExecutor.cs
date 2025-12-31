@@ -90,10 +90,21 @@ public class ProcessExecutor : IProcessExecutor
 
             try
             {
+                // Double-check HasExited to avoid race condition
                 if (!process.HasExited)
                 {
                     process.Kill(entireProcessTree: true);
+                    _logger.LogDebug("Process {ProcessId} killed successfully", process.Id);
                 }
+                else
+                {
+                    _logger.LogDebug("Process {ProcessId} already exited before kill", process.Id);
+                }
+            }
+            catch (InvalidOperationException ex)
+            {
+                // Process exited between HasExited check and Kill call - this is expected
+                _logger.LogDebug(ex, "Process {ProcessId} exited during kill attempt", process.Id);
             }
             catch (Exception ex)
             {
