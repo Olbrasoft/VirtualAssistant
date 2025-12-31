@@ -79,6 +79,11 @@ public class VirtualAssistantDbContext : DbContext
     /// </summary>
     public DbSet<TranscriptionCorrection> TranscriptionCorrections => Set<TranscriptionCorrection>();
 
+    /// <summary>
+    /// Gets or sets the TranscriptionCorrectionUsage DbSet for tracking correction usage.
+    /// </summary>
+    public DbSet<TranscriptionCorrectionUsage> TranscriptionCorrectionUsage => Set<TranscriptionCorrectionUsage>();
+
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {
         base.OnModelCreating(modelBuilder);

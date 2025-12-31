@@ -64,10 +64,16 @@ public class TranscriptionCorrectionRepository : ITranscriptionCorrectionReposit
     }
 
     /// <inheritdoc />
-    public async Task TrackUsageAsync(int correctionId, CancellationToken ct = default)
+    public async Task TrackUsageAsync(int correctionId, string? context = null, CancellationToken ct = default)
     {
-        // See issue #379 for future implementation
-        // Requires transcription_correction_usage table (new EF migration)
-        await Task.CompletedTask;
+        var usage = new TranscriptionCorrectionUsage
+        {
+            CorrectionId = correctionId,
+            UsedAt = DateTimeOffset.UtcNow,
+            Context = context
+        };
+
+        await _context.TranscriptionCorrectionUsage.AddAsync(usage, ct);
+        await _context.SaveChangesAsync(ct);
     }
 }
