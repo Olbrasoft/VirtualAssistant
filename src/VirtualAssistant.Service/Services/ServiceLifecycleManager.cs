@@ -13,6 +13,8 @@ public class ServiceLifecycleManager : IServiceLifecycleManager
     private readonly ILogger<ServiceLifecycleManager> _logger;
     private readonly ISpeechToTextServiceManager? _sttServiceManager;
     private readonly IServiceStatusUpdater? _statusUpdater;
+    private const int StatusPollTimeoutMs = 2000;
+    private const int StatusPollIntervalMs = 100;
 
     public ServiceLifecycleManager(
         ILogger<ServiceLifecycleManager> logger,
@@ -110,24 +112,12 @@ public class ServiceLifecycleManager : IServiceLifecycleManager
         try
         {
             _logger.LogInformation("Starting log-viewer service via tray menu");
+            var success = await ExecuteSystemctlCommandAsync("start", "log-viewer.service");
 
-            var startInfo = new ProcessStartInfo
+            if (success)
             {
-                FileName = "systemctl",
-                Arguments = "--user start log-viewer.service",
-                UseShellExecute = false,
-                CreateNoWindow = true
-            };
-
-            using var process = Process.Start(startInfo);
-            if (process != null)
-            {
-                await process.WaitForExitAsync();
-
-                // Wait a bit for service to start
-                await Task.Delay(500);
-
-                // Refresh status
+                // Poll for service to actually start
+                await WaitForServiceStateAsync("log-viewer.service", expectedRunning: true);
                 await RefreshLogViewerStatusAsync();
             }
         }
@@ -145,24 +135,12 @@ public class ServiceLifecycleManager : IServiceLifecycleManager
         try
         {
             _logger.LogInformation("Stopping log-viewer service via tray menu");
+            var success = await ExecuteSystemctlCommandAsync("stop", "log-viewer.service");
 
-            var startInfo = new ProcessStartInfo
+            if (success)
             {
-                FileName = "systemctl",
-                Arguments = "--user stop log-viewer.service",
-                UseShellExecute = false,
-                CreateNoWindow = true
-            };
-
-            using var process = Process.Start(startInfo);
-            if (process != null)
-            {
-                await process.WaitForExitAsync();
-
-                // Wait a bit for service to stop
-                await Task.Delay(500);
-
-                // Refresh status
+                // Poll for service to actually stop
+                await WaitForServiceStateAsync("log-viewer.service", expectedRunning: false);
                 await RefreshLogViewerStatusAsync();
             }
         }
@@ -182,29 +160,87 @@ public class ServiceLifecycleManager : IServiceLifecycleManager
 
         try
         {
-            // Check if service is running
-            var startInfo = new ProcessStartInfo
-            {
-                FileName = "systemctl",
-                Arguments = "--user is-active log-viewer.service",
-                UseShellExecute = false,
-                RedirectStandardOutput = true,
-                CreateNoWindow = true
-            };
-
-            using var process = Process.Start(startInfo);
-            if (process != null)
-            {
-                await process.WaitForExitAsync();
-                var isRunning = process.ExitCode == 0;
-
-                _statusUpdater.UpdateLogViewerStatus(isRunning);
-                _logger.LogDebug("Log-viewer status updated: Running={IsRunning}", isRunning);
-            }
+            var isRunning = await CheckServiceIsRunningAsync("log-viewer.service");
+            _statusUpdater.UpdateLogViewerStatus(isRunning);
+            _logger.LogDebug("Log-viewer status updated: Running={IsRunning}", isRunning);
         }
         catch (Exception ex)
         {
             _logger.LogError(ex, "Failed to refresh log-viewer status");
         }
+    }
+
+    /// <summary>
+    /// Executes a systemctl command and returns whether it succeeded.
+    /// </summary>
+    private async Task<bool> ExecuteSystemctlCommandAsync(string command, string serviceName)
+    {
+        var startInfo = new ProcessStartInfo
+        {
+            FileName = "systemctl",
+            Arguments = $"--user {command} {serviceName}",
+            UseShellExecute = false,
+            CreateNoWindow = true
+        };
+
+        using var process = Process.Start(startInfo);
+        if (process == null)
+        {
+            _logger.LogError("Failed to start systemctl process for command '{Command} {Service}'",
+                command, serviceName);
+            return false;
+        }
+
+        await process.WaitForExitAsync();
+        return process.ExitCode == 0;
+    }
+
+    /// <summary>
+    /// Checks if a systemd service is currently running.
+    /// </summary>
+    private async Task<bool> CheckServiceIsRunningAsync(string serviceName)
+    {
+        var startInfo = new ProcessStartInfo
+        {
+            FileName = "systemctl",
+            Arguments = $"--user is-active {serviceName}",
+            UseShellExecute = false,
+            RedirectStandardOutput = true,
+            CreateNoWindow = true
+        };
+
+        using var process = Process.Start(startInfo);
+        if (process == null)
+        {
+            _logger.LogWarning("Failed to start systemctl process to check status of {Service}", serviceName);
+            return false;
+        }
+
+        await process.WaitForExitAsync();
+        return process.ExitCode == 0;
+    }
+
+    /// <summary>
+    /// Polls for service to reach expected state with timeout.
+    /// Replaces fixed delays with actual state verification.
+    /// </summary>
+    private async Task WaitForServiceStateAsync(string serviceName, bool expectedRunning)
+    {
+        var sw = Stopwatch.StartNew();
+        while (sw.ElapsedMilliseconds < StatusPollTimeoutMs)
+        {
+            var isRunning = await CheckServiceIsRunningAsync(serviceName);
+            if (isRunning == expectedRunning)
+            {
+                _logger.LogDebug("Service {Service} reached expected state (running={Expected}) after {ElapsedMs}ms",
+                    serviceName, expectedRunning, sw.ElapsedMilliseconds);
+                return;
+            }
+
+            await Task.Delay(StatusPollIntervalMs);
+        }
+
+        _logger.LogWarning("Service {Service} did not reach expected state (running={Expected}) within {TimeoutMs}ms",
+            serviceName, expectedRunning, StatusPollTimeoutMs);
     }
 }
