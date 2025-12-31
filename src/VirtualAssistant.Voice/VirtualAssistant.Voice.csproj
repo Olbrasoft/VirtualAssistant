@@ -19,7 +19,9 @@
     <PackageReference Include="Microsoft.Extensions.Http" Version="10.0.1" />
     <!-- ONNX Runtime for VAD (Silero) -->
     <PackageReference Include="Microsoft.ML.OnnxRuntime" Version="1.21.0" />
-    <!-- Whisper.net will be added in issue #460 (inline integration) -->
+    <!-- Whisper.net for inline speech-to-text (replaced gRPC microservice) -->
+    <PackageReference Include="Whisper.net" Version="1.9.0" />
+    <PackageReference Include="Whisper.net.Runtime.Cuda.Linux" Version="1.9.0" />
     <!-- Speex DSP for echo cancellation -->
     <PackageReference Include="SpeexDSPSharp.Core" Version="1.2.1" />
     <PackageReference Include="SpeexDSPSharp.Natives" Version="1.2.1.1" />
