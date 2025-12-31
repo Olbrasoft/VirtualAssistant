@@ -17,7 +17,7 @@ public class NotificationBatchingService : INotificationBatchingService, IDispos
 {
     private readonly ILogger<NotificationBatchingService> _logger;
     private readonly IVirtualAssistantSpeaker _speaker;
-    private readonly INotificationService _notificationService;
+    private readonly INotificationTracker _notificationTracker;
     private readonly ISpeechLockService _speechLockService;
     private readonly SpeechToTextSettings _speechToTextSettings;
 
@@ -28,13 +28,13 @@ public class NotificationBatchingService : INotificationBatchingService, IDispos
     public NotificationBatchingService(
         ILogger<NotificationBatchingService> logger,
         IVirtualAssistantSpeaker speaker,
-        INotificationService notificationService,
+        INotificationTracker notificationTracker,
         ISpeechLockService speechLockService,
         IOptions<SpeechToTextSettings> speechToTextSettings)
     {
         _logger = logger;
         _speaker = speaker;
-        _notificationService = notificationService;
+        _notificationTracker = notificationTracker;
         _speechLockService = speechLockService;
         _speechToTextSettings = speechToTextSettings.Value;
 
@@ -104,9 +104,7 @@ public class NotificationBatchingService : INotificationBatchingService, IDispos
             // Update status to Processing
             if (notification.NotificationId.HasValue)
             {
-                await _notificationService.UpdateStatusAsync(
-                    new[] { notification.NotificationId.Value },
-                    NotificationStatusEnum.Processing);
+                await _notificationTracker.MarkAsProcessingAsync(notification.NotificationId.Value);
             }
 
             var text = notification.Content;
@@ -116,9 +114,7 @@ public class NotificationBatchingService : INotificationBatchingService, IDispos
                 _logger.LogDebug("Empty notification text, skipping TTS");
                 if (notification.NotificationId.HasValue)
                 {
-                    await _notificationService.UpdateStatusAsync(
-                        new[] { notification.NotificationId.Value },
-                        NotificationStatusEnum.Played);
+                    await _notificationTracker.MarkAsPlayedAsync(notification.NotificationId.Value);
                 }
                 return;
             }
@@ -137,7 +133,7 @@ public class NotificationBatchingService : INotificationBatchingService, IDispos
                     : ttsResult.Success ? "success"
                     : "error";
 
-                await _notificationService.RecordTtsOutcomeAsync(
+                await _notificationTracker.RecordTtsOutcomeAsync(
                     notification.NotificationId.Value,
                     ttsResult.ProviderUsed,
                     status,
@@ -146,9 +142,7 @@ public class NotificationBatchingService : INotificationBatchingService, IDispos
                 // Update status to Played only if TTS succeeded or was skipped
                 if (ttsResult.Success || ttsResult.Skipped)
                 {
-                    await _notificationService.UpdateStatusAsync(
-                        new[] { notification.NotificationId.Value },
-                        NotificationStatusEnum.Played);
+                    await _notificationTracker.MarkAsPlayedAsync(notification.NotificationId.Value);
                 }
             }
 

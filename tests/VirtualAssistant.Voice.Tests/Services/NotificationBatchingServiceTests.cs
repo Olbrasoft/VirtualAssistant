@@ -16,7 +16,7 @@ public class NotificationBatchingServiceTests : IDisposable
 {
     private readonly Mock<ILogger<NotificationBatchingService>> _loggerMock;
     private readonly Mock<IVirtualAssistantSpeaker> _speakerMock;
-    private readonly Mock<INotificationService> _notificationServiceMock;
+    private readonly Mock<INotificationTracker> _notificationTrackerMock;
     private readonly Mock<ISpeechLockService> _speechLockServiceMock;
     private readonly IOptions<SpeechToTextSettings> _speechToTextSettings;
     private readonly NotificationBatchingService _sut;
@@ -25,7 +25,7 @@ public class NotificationBatchingServiceTests : IDisposable
     {
         _loggerMock = new Mock<ILogger<NotificationBatchingService>>();
         _speakerMock = new Mock<IVirtualAssistantSpeaker>();
-        _notificationServiceMock = new Mock<INotificationService>();
+        _notificationTrackerMock = new Mock<INotificationTracker>();
         _speechLockServiceMock = new Mock<ISpeechLockService>();
 
         // Default: speech not locked
@@ -41,7 +41,7 @@ public class NotificationBatchingServiceTests : IDisposable
         _sut = new NotificationBatchingService(
             _loggerMock.Object,
             _speakerMock.Object,
-            _notificationServiceMock.Object,
+            _notificationTrackerMock.Object,
             _speechLockServiceMock.Object,
             _speechToTextSettings);
     }
