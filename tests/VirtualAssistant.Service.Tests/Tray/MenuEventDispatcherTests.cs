@@ -209,21 +209,26 @@ public class MenuEventDispatcherTests
 
     #region HandleShowLogs Tests
 
-    [Fact]
-    public void HandleShowLogs_ConstructsCorrectUrl()
-    {
-        // Arrange
-        var sut = new MenuEventDispatcher(
-            _loggerMock.Object,
-            _muteServiceMock.Object,
-            _settingsServiceMock.Object,
-            LogViewerPort);
+    // DISABLED: This test opens actual Chrome browser (side-effect)
+    // HandleShowLogs() calls Process.Start() which launches browser
+    // Unit tests should not have side-effects on the system
+    // TODO: Refactor HandleShowLogs to use IProcessStarter interface for testability
 
-        // Act & Assert
-        // Note: We can't easily test Process.Start without integration tests
-        // This test verifies the method doesn't throw
-        sut.HandleShowLogs();
-    }
+    //[Fact]
+    //public void HandleShowLogs_ConstructsCorrectUrl()
+    //{
+    //    // Arrange
+    //    var sut = new MenuEventDispatcher(
+    //        _loggerMock.Object,
+    //        _muteServiceMock.Object,
+    //        _settingsServiceMock.Object,
+    //        LogViewerPort);
+    //
+    //    // Act & Assert
+    //    // Note: We can't easily test Process.Start without integration tests
+    //    // This test verifies the method doesn't throw
+    //    sut.HandleShowLogs();
+    //}
 
     #endregion
 
@@ -312,64 +317,71 @@ public class MenuEventDispatcherTests
 
     #region HandleReloadPrompt Tests
 
-    [Fact]
-    public void HandleReloadPrompt_WithoutProvider_LogsWarning()
-    {
-        // Arrange
-        var sut = new MenuEventDispatcher(
-            _loggerMock.Object,
-            _muteServiceMock.Object,
-            _settingsServiceMock.Object,
-            LogViewerPort,
-            llmProvider: null);
+    // DISABLED: These tests modify filesystem (side-effects)
+    // HandleReloadPrompt() calls File.Copy() and Directory.CreateDirectory()
+    // Creates /opt/olbrasoft/virtual-assistant/app/Prompts directory
+    // Copies MistralSystemPrompt.md file to deployment location
+    // Unit tests should not have side-effects on the system
+    // TODO: Refactor HandleReloadPrompt to use IFileSystem interface for testability
 
-        // Act
-        sut.HandleReloadPrompt();
-
-        // Assert - Should log warning but not throw
-    }
-
-    [Fact]
-    public void HandleReloadPrompt_WithProvider_CallsReloadPrompt()
-    {
-        // Arrange
-        var sut = new MenuEventDispatcher(
-            _loggerMock.Object,
-            _muteServiceMock.Object,
-            _settingsServiceMock.Object,
-            LogViewerPort,
-            _llmProviderMock.Object);
-
-        _llmProviderMock.Setup(x => x.ReloadPrompt());
-
-        // Act
-        sut.HandleReloadPrompt();
-
-        // Assert
-        _llmProviderMock.Verify(x => x.ReloadPrompt(), Times.Once);
-    }
-
-    [Fact]
-    public void HandleReloadPrompt_WhenReloadFails_LogsError()
-    {
-        // Arrange
-        var sut = new MenuEventDispatcher(
-            _loggerMock.Object,
-            _muteServiceMock.Object,
-            _settingsServiceMock.Object,
-            LogViewerPort,
-            _llmProviderMock.Object);
-
-        var exception = new InvalidOperationException("Reload failed");
-        _llmProviderMock.Setup(x => x.ReloadPrompt())
-            .Throws(exception);
-
-        // Act
-        sut.HandleReloadPrompt();
-
-        // Assert - Should not throw, but should log error
-        _llmProviderMock.Verify(x => x.ReloadPrompt(), Times.Once);
-    }
+    //[Fact]
+    //public void HandleReloadPrompt_WithoutProvider_LogsWarning()
+    //{
+    //    // Arrange
+    //    var sut = new MenuEventDispatcher(
+    //        _loggerMock.Object,
+    //        _muteServiceMock.Object,
+    //        _settingsServiceMock.Object,
+    //        LogViewerPort,
+    //        llmProvider: null);
+    //
+    //    // Act
+    //    sut.HandleReloadPrompt();
+    //
+    //    // Assert - Should log warning but not throw
+    //}
+    //
+    //[Fact]
+    //public void HandleReloadPrompt_WithProvider_CallsReloadPrompt()
+    //{
+    //    // Arrange
+    //    var sut = new MenuEventDispatcher(
+    //        _loggerMock.Object,
+    //        _muteServiceMock.Object,
+    //        _settingsServiceMock.Object,
+    //        LogViewerPort,
+    //        _llmProviderMock.Object);
+    //
+    //    _llmProviderMock.Setup(x => x.ReloadPrompt());
+    //
+    //    // Act
+    //    sut.HandleReloadPrompt();
+    //
+    //    // Assert
+    //    _llmProviderMock.Verify(x => x.ReloadPrompt(), Times.Once);
+    //}
+    //
+    //[Fact]
+    //public void HandleReloadPrompt_WhenReloadFails_LogsError()
+    //{
+    //    // Arrange
+    //    var sut = new MenuEventDispatcher(
+    //        _loggerMock.Object,
+    //        _muteServiceMock.Object,
+    //        _settingsServiceMock.Object,
+    //        LogViewerPort,
+    //        _llmProviderMock.Object);
+    //
+    //    var exception = new InvalidOperationException("Reload failed");
+    //    _llmProviderMock.Setup(x => x.ReloadPrompt())
+    //        .Throws(exception);
+    //
+    //    // Act
+    //    sut.HandleReloadPrompt();
+    //
+    //    // Assert - Should not throw, but should log error
+    //    _llmProviderMock.Verify(x => x.ReloadPrompt(), Times.Once);
+    //}
 
     #endregion
 
