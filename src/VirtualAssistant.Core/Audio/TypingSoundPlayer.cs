@@ -7,7 +7,7 @@ namespace Olbrasoft.VirtualAssistant.Core.Audio;
 /// Service for playing typing sound during transcription.
 /// Uses pw-cat (PipeWire) or paplay (PulseAudio) to play audio.
 /// </summary>
-public class TypingSoundPlayer : IDisposable
+public class TypingSoundPlayer : ISoundEffectPlayer, IDisposable
 {
     private readonly ILogger<TypingSoundPlayer> _logger;
     private readonly string? _soundFilePath;
@@ -67,6 +67,28 @@ public class TypingSoundPlayer : IDisposable
     /// Gets whether sound playback is enabled.
     /// </summary>
     public bool IsEnabled => !string.IsNullOrWhiteSpace(_soundFilePath) && File.Exists(_soundFilePath);
+
+    /// <summary>
+    /// Plays the typing sound once.
+    /// </summary>
+    public void Play()
+    {
+        if (_disposed || !IsEnabled)
+            return;
+
+        _ = Task.Run(async () =>
+        {
+            try
+            {
+                using var cts = new CancellationTokenSource(TimeSpan.FromSeconds(5));
+                await PlayOnceAsync(cts.Token);
+            }
+            catch (Exception ex)
+            {
+                _logger.LogDebug(ex, "Error playing typing sound");
+            }
+        });
+    }
 
     /// <summary>
     /// Starts playing the typing sound in a loop.

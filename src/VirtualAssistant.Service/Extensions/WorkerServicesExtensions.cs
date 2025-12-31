@@ -36,8 +36,8 @@ public static class WorkerServicesExtensions
             var keyboardMonitor = sp.GetRequiredService<IKeyboardMonitor>();
             var stateMachine = sp.GetRequiredService<Olbrasoft.VirtualAssistant.Voice.StateMachine.IDictationStateMachine>();
             var keyboardSimulation = sp.GetRequiredService<IKeyboardSimulationService>();
-            var typingSound = sp.GetRequiredService<TypingSoundPlayer>();
-            var cancelSound = sp.GetRequiredService<CancelSoundPlayer>();
+            var typingSound = sp.GetRequiredKeyedService<ISoundEffectPlayer>("typing");
+            var cancelSound = sp.GetRequiredKeyedService<ISoundEffectPlayer>("cancel");
             var scopeFactory = sp.GetRequiredService<IServiceScopeFactory>();
 
             // Create dedicated AudioCaptureService for dictation (independent from continuous listening)

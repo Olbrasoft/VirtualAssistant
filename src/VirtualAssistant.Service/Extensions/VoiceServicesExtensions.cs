@@ -97,8 +97,8 @@ public static class VoiceServicesExtensions
         services.AddSingleton<ITerminalDetector, WaylandTerminalDetector>();
         services.AddSingleton<IKeyboardSimulationService, XDoToolKeyboardService>();
 
-        // Typing sound player for dictation feedback
-        services.AddSingleton(sp =>
+        // Typing sound player for dictation feedback (keyed service)
+        services.AddKeyedSingleton<ISoundEffectPlayer, TypingSoundPlayer>("typing", (sp, key) =>
         {
             var logger = sp.GetRequiredService<ILogger<TypingSoundPlayer>>();
             var configuration = sp.GetRequiredService<IConfiguration>();
@@ -107,8 +107,8 @@ public static class VoiceServicesExtensions
             return TypingSoundPlayer.CreateFromDirectory(logger, soundsPath, "write.mp3", audioSink);
         });
 
-        // Cancel sound player for dictation cancel feedback (paper-rip sound)
-        services.AddSingleton(sp =>
+        // Cancel sound player for dictation cancel feedback (keyed service)
+        services.AddKeyedSingleton<ISoundEffectPlayer, CancelSoundPlayer>("cancel", (sp, key) =>
         {
             var logger = sp.GetRequiredService<ILogger<CancelSoundPlayer>>();
             var configuration = sp.GetRequiredService<IConfiguration>();

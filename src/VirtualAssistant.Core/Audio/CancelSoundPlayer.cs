@@ -8,7 +8,7 @@ namespace Olbrasoft.VirtualAssistant.Core.Audio;
 /// Plays a paper-rip sound effect to indicate discarding of transcribed content.
 /// Uses pw-cat (PipeWire) or paplay (PulseAudio) to play audio.
 /// </summary>
-public class CancelSoundPlayer : IDisposable
+public class CancelSoundPlayer : ISoundEffectPlayer, IDisposable
 {
     private readonly ILogger<CancelSoundPlayer> _logger;
     private readonly string? _soundFilePath;
@@ -88,6 +88,24 @@ public class CancelSoundPlayer : IDisposable
                 _logger.LogDebug(ex, "Error playing cancel sound");
             }
         });
+    }
+
+    /// <summary>
+    /// Not applicable for cancel sound - this is a one-shot sound effect.
+    /// </summary>
+    public void StartLoop()
+    {
+        // Cancel sound is not designed for looping
+        _logger.LogDebug("StartLoop called on CancelSoundPlayer (no-op)");
+    }
+
+    /// <summary>
+    /// Not applicable for cancel sound - this is a one-shot sound effect.
+    /// </summary>
+    public void StopLoop()
+    {
+        // Cancel sound is not designed for looping
+        _logger.LogDebug("StopLoop called on CancelSoundPlayer (no-op)");
     }
 
     private async Task PlayOnceAsync(CancellationToken cancellationToken)
