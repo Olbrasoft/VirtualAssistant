@@ -145,7 +145,7 @@ public class DatabaseCorrectionFilterStrategy : ITextFilterStrategy
 
             if (repository != null)
             {
-                await repository.TrackUsageAsync(correctionId);
+                await repository.TrackUsageAsync(correctionId, "database-correction-filter");
             }
         }
         catch (Exception ex)

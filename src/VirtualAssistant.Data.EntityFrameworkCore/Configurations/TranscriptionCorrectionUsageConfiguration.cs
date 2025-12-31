@@ -24,7 +24,8 @@ public class TranscriptionCorrectionUsageConfiguration : IEntityTypeConfiguratio
 
         builder.Property(u => u.UsedAt)
             .HasColumnName("used_at")
-            .IsRequired();
+            .IsRequired()
+            .HasDefaultValueSql("NOW()");
 
         builder.Property(u => u.Context)
             .HasColumnName("context")
