@@ -81,7 +81,7 @@ public class TypingSoundPlayer : ISoundEffectPlayer, IDisposable
             try
             {
                 using var cts = new CancellationTokenSource(TimeSpan.FromSeconds(5));
-                await PlayOnceAsync(cts.Token);
+                await PlaySingleAsync(cts.Token);
             }
             catch (Exception ex)
             {
@@ -164,6 +164,51 @@ public class TypingSoundPlayer : ISoundEffectPlayer, IDisposable
                 {
                     break;
                 }
+            }
+        }
+    }
+
+    /// <summary>
+    /// Plays sound once without loop state checking (for standalone Play() calls).
+    /// </summary>
+    private async Task PlaySingleAsync(CancellationToken cancellationToken)
+    {
+        var player = await GetAvailablePlayerAsync();
+
+        if (string.IsNullOrEmpty(player))
+        {
+            _logger.LogWarning("No audio player available (tried pw-cat, paplay)");
+            return;
+        }
+
+        var startInfo = new ProcessStartInfo
+        {
+            FileName = player,
+            Arguments = GetPlayerArguments(_soundFilePath!),
+            UseShellExecute = false,
+            RedirectStandardOutput = true,
+            RedirectStandardError = true,
+            CreateNoWindow = true
+        };
+
+        Process? process = null;
+        lock (_lock)
+        {
+            if (_disposed)
+                return;
+
+            process = Process.Start(startInfo);
+        }
+
+        if (process != null)
+        {
+            try
+            {
+                await process.WaitForExitAsync(cancellationToken);
+            }
+            finally
+            {
+                process?.Dispose();
             }
         }
     }
