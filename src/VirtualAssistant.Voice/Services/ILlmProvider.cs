@@ -28,4 +28,15 @@ public interface ILlmProvider
     /// </summary>
     /// <returns>Dictionary of rate limit headers</returns>
     Dictionary<string, string> GetLastRateLimitHeaders();
+
+    /// <summary>
+    /// Enables or disables the provider at runtime.
+    /// </summary>
+    /// <param name="enabled">True to enable, false to disable</param>
+    void SetEnabled(bool enabled);
+
+    /// <summary>
+    /// Reloads the system prompt from disk, clearing any cached version.
+    /// </summary>
+    void ReloadPrompt();
 }
