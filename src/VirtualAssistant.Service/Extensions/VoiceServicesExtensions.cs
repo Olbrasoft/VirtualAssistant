@@ -55,6 +55,7 @@ public static class VoiceServicesExtensions
         });
 
         services.AddSingleton<IAudioCaptureService, AudioCaptureService>();
+        services.AddSingleton<IAudioRecordingCoordinator, AudioRecordingCoordinator>();
         services.AddSingleton<IVadService, VadService>();
 
         // Use SpeechToText gRPC microservice instead of local Whisper.net

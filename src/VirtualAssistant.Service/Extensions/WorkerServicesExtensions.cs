@@ -45,6 +45,12 @@ public static class WorkerServicesExtensions
             var configuration = sp.GetRequiredService<IConfiguration>();
             var audioCaptureService = new AudioCaptureService(audioCaptureLogger, configuration);
 
+            // Create AudioRecordingCoordinator with dedicated audio capture
+            var coordinatorLogger = sp.GetRequiredService<ILogger<Olbrasoft.VirtualAssistant.Voice.Audio.AudioRecordingCoordinator>>();
+            var recordingCoordinator = new Olbrasoft.VirtualAssistant.Voice.Audio.AudioRecordingCoordinator(
+                coordinatorLogger,
+                audioCaptureService);
+
             // Create dedicated TranscriptionService for Dictation with large-v3-turbo model
             var dictationOptions = sp.GetRequiredService<IOptions<DictationOptions>>().Value;
 
@@ -69,7 +75,7 @@ public static class WorkerServicesExtensions
                 logger,
                 keyboardMonitor,
                 stateMachine,
-                audioCaptureService,
+                recordingCoordinator,
                 dictationTranscriptionService,
                 keyboardSimulation,
                 typingSound,
