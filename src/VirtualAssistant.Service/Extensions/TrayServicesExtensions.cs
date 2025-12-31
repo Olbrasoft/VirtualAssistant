@@ -102,34 +102,25 @@ public static class TrayServicesExtensions
                 dictationWorker);
         });
 
-        // VirtualAssistant tray service (wrapper for tray functionality)
+        // Tray coordinator service (orchestrates 5 specialized tray services)
         services.AddSingleton(sp =>
         {
-            var logger = sp.GetRequiredService<ILogger<VirtualAssistantTrayService>>();
-            var manager = sp.GetRequiredService<TrayIconManager>();
-            var muteService = sp.GetRequiredService<IManualMuteService>();
-            var settingsService = sp.GetRequiredService<ISettingsService>();
-            // NOTE: DependentServicesManager removed - TTS runs inline (issue #407)
+            var logger = sp.GetRequiredService<ILogger<TrayCoordinatorService>>();
+            var iconCoordinator = sp.GetRequiredService<ITrayIconCoordinator>();
+            var menuDispatcher = sp.GetRequiredService<IMenuEventDispatcher>();
+            var lifecycleManager = sp.GetRequiredService<IServiceLifecycleManager>();
+            var stateHandler = sp.GetRequiredService<IStateNotificationHandler>();
+            var iconAnimationService = sp.GetRequiredService<IIconAnimationService>();
             var menuHandler = sp.GetRequiredService<SystemTrayMenuHandler>();
-            var sttServiceManager = sp.GetService<ISpeechToTextServiceManager>();
-            var mistralProvider = sp.GetService<Olbrasoft.VirtualAssistant.Voice.Services.ILlmProvider>();
-            var dictationStateMachine = sp.GetRequiredService<Olbrasoft.VirtualAssistant.Voice.StateMachine.IDictationStateMachine>();
-            var dictationWorker = sp.GetRequiredService<DictationWorker>();
-            var options = sp.GetRequiredService<IOptions<ContinuousListenerOptions>>();
-            var iconsPath = Path.Combine(AppContext.BaseDirectory, "icons");
 
-            return new VirtualAssistantTrayService(
+            return new TrayCoordinatorService(
                 logger,
-                manager,
-                muteService,
-                settingsService,
-                iconsPath,
-                options.Value.LogViewerPort,
-                menuHandler,
-                sttServiceManager,
-                mistralProvider,
-                dictationStateMachine,
-                dictationWorker);
+                iconCoordinator,
+                menuDispatcher,
+                lifecycleManager,
+                stateHandler,
+                iconAnimationService,
+                menuHandler);
         });
 
         return services;
