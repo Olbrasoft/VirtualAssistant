@@ -21,8 +21,7 @@ public class TrayIconCoordinator : ITrayIconCoordinator, IDisposable
 
     private string _currentLeftHandIcon = "default-left-hand.svg";
     private string _currentRightHandIcon = "default-right-hand.svg";
-    private string _currentCenterIconPath = string.Empty;
-    private string _currentTooltip = "VirtualAssistant - poslouchám";
+    private readonly string _currentTooltip = "VirtualAssistant - poslouchám";
 
     private bool _disposed;
 
@@ -45,6 +44,8 @@ public class TrayIconCoordinator : ITrayIconCoordinator, IDisposable
     /// </summary>
     public async Task InitializeIconsAsync()
     {
+        ObjectDisposedException.ThrowIf(_disposed, this);
+
         try
         {
             // Create left hand icon (appears first on startup)
@@ -63,8 +64,6 @@ public class TrayIconCoordinator : ITrayIconCoordinator, IDisposable
             // Determine initial center icon based on mute state
             var iconFileName = _muteService.IsMuted ? "virtual-assistant-muted.svg" : "virtual-assistant-listening.svg";
             var iconPath = Path.Combine(_iconsPath, iconFileName);
-
-            _currentCenterIconPath = iconPath;
 
             // Create center tray icon with menu handler
             _centerIcon = await _manager.CreateIconAsync(
@@ -106,6 +105,8 @@ public class TrayIconCoordinator : ITrayIconCoordinator, IDisposable
     /// <param name="isMuted">Whether the assistant is muted</param>
     public void UpdateCenterIcon(bool isMuted)
     {
+        ObjectDisposedException.ThrowIf(_disposed, this);
+
         try
         {
             if (_centerIcon == null)
@@ -116,7 +117,6 @@ public class TrayIconCoordinator : ITrayIconCoordinator, IDisposable
 
             var iconFileName = isMuted ? "virtual-assistant-muted.svg" : "virtual-assistant-listening.svg";
             var iconPath = Path.Combine(_iconsPath, iconFileName);
-            _currentCenterIconPath = iconPath;
 
             _centerIcon.SetIcon(iconPath, _currentTooltip);
             _logger.LogDebug("Center icon updated to reflect mute state: {IsMuted}", isMuted);
@@ -133,6 +133,9 @@ public class TrayIconCoordinator : ITrayIconCoordinator, IDisposable
     /// <param name="iconFileName">Icon file name (e.g., "default-left-hand.svg")</param>
     public void SetLeftHandIcon(string iconFileName)
     {
+        ArgumentException.ThrowIfNullOrWhiteSpace(iconFileName);
+        ObjectDisposedException.ThrowIf(_disposed, this);
+
         try
         {
             if (_leftHandIcon == null)
@@ -158,6 +161,9 @@ public class TrayIconCoordinator : ITrayIconCoordinator, IDisposable
     /// <param name="iconFileName">Icon file name (e.g., "default-right-hand.svg")</param>
     public void SetRightHandIcon(string iconFileName)
     {
+        ArgumentException.ThrowIfNullOrWhiteSpace(iconFileName);
+        ObjectDisposedException.ThrowIf(_disposed, this);
+
         try
         {
             if (_rightHandIcon == null)
@@ -185,29 +191,58 @@ public class TrayIconCoordinator : ITrayIconCoordinator, IDisposable
         if (_disposed)
             return;
 
-        _disposed = true;
-
         // Remove left hand icon
         if (_leftHandIcon != null)
         {
-            _manager.RemoveIcon("virtual-assistant-left-hand");
-            _leftHandIcon = null;
+            try
+            {
+                _manager.RemoveIcon("virtual-assistant-left-hand");
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(ex, "Failed to remove left hand tray icon during disposal");
+            }
+            finally
+            {
+                _leftHandIcon = null;
+            }
         }
 
         // Remove right hand icon
         if (_rightHandIcon != null)
         {
-            _manager.RemoveIcon("virtual-assistant-right-hand");
-            _rightHandIcon = null;
+            try
+            {
+                _manager.RemoveIcon("virtual-assistant-right-hand");
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(ex, "Failed to remove right hand tray icon during disposal");
+            }
+            finally
+            {
+                _rightHandIcon = null;
+            }
         }
 
         // Remove center icon
         if (_centerIcon != null)
         {
-            _manager.RemoveIcon("virtual-assistant-service");
-            _centerIcon = null;
+            try
+            {
+                _manager.RemoveIcon("virtual-assistant-service");
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(ex, "Failed to remove center tray icon during disposal");
+            }
+            finally
+            {
+                _centerIcon = null;
+            }
         }
 
+        _disposed = true;
         _logger.LogInformation("TrayIconCoordinator disposed");
     }
 }

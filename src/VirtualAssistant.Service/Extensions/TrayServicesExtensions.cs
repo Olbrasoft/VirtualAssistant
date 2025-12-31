@@ -37,6 +37,24 @@ public static class TrayServicesExtensions
             return new TrayIconManager(logger, loggerFactory, iconRenderer);
         });
 
+        // Adapter for integrating the system tray icon manager
+        services.AddSingleton<Core.Services.ITrayIconManager>(sp =>
+        {
+            var manager = sp.GetRequiredService<TrayIconManager>();
+            return new SystemTrayIconManagerAdapter(manager);
+        });
+
+        // Coordinator for managing tray icon behavior
+        services.AddSingleton<ITrayIconCoordinator>(sp =>
+        {
+            var manager = sp.GetRequiredService<Core.Services.ITrayIconManager>();
+            var iconsPath = Path.Combine(AppContext.BaseDirectory, "icons");
+            var muteService = sp.GetRequiredService<IManualMuteService>();
+            var logger = sp.GetRequiredService<ILogger<TrayIconCoordinator>>();
+            var menuHandler = sp.GetRequiredService<SystemTrayMenuHandler>();
+            return new TrayIconCoordinator(manager, iconsPath, muteService, logger, menuHandler as Core.Services.ITrayMenuHandler);
+        });
+
         // D-Bus menu handler for tray icon context menu
         services.AddSingleton<SystemTrayMenuHandler>(sp =>
         {
