@@ -36,7 +36,7 @@ cd ~/Olbrasoft/VirtualAssistant && ./deploy/deploy.sh /opt/olbrasoft/virtual-ass
 ```
 
 **Shared resources:**
-- Whisper models: `~/.local/share/whisper-models/` (5.9 GB, shared with PushToTalk)
+- Whisper models: `~/.local/share/whisper-models/` (5.9 GB, FHS-compliant)
 - Secrets: `~/.config/systemd/user/virtual-assistant.env`
 
 ## Architecture
@@ -44,10 +44,17 @@ cd ~/Olbrasoft/VirtualAssistant && ./deploy/deploy.sh /opt/olbrasoft/virtual-ass
 Clean Architecture with CQRS pattern:
 - **VirtualAssistant.Service** - ASP.NET Core main service (port 5055)
 - **VirtualAssistant.Core** - Domain logic, AgentHubService, TaskDistributionService
-- **VirtualAssistant.Voice** - TTS/STT, VAD (Silero ONNX), LLM routing
+- **VirtualAssistant.Voice** - TTS/STT with **inline Whisper.net** (GPU-accelerated), VAD (Silero ONNX), LLM routing
 - **VirtualAssistant.Data** - Entities, DTOs
 - **VirtualAssistant.Data.EntityFrameworkCore** - DbContext, migrations (auto-apply on startup)
 - **VirtualAssistant.GitHub** - GitHub API, issue sync with embeddings
+
+**Speech-to-Text (inline):**
+- `WhisperSpeechTranscriber` - Direct Whisper.net integration (no gRPC microservice)
+- GPU acceleration via CUDA (Whisper.net.Runtime.Cuda.Linux 1.9.0)
+- Model caching in VRAM for performance
+- Thread-safe concurrent transcription
+- Models: ggml-medium.bin (continuous listening), ggml-large-v3-turbo.bin (dictation)
 
 ## Dependencies
 
@@ -148,3 +155,27 @@ journalctl --user -u virtual-assistant.service -n 100 | grep -i "not configured\
 ## Known Issues
 
 See `MISTAKES.md` for lessons learned from past deployment mistakes.
+
+## Migration Notes
+
+### SpeechToText Microservice → Inline Whisper.net (2025-12-31)
+
+**What changed:**
+- Removed external SpeechToText gRPC microservice
+- Integrated Whisper.net directly into VirtualAssistant.Voice
+- No more port 5052 or separate `speech-to-text.service`
+
+**Benefits:**
+- Lower latency (removed gRPC overhead)
+- Simpler deployment (one service instead of two)
+- Lower memory usage (single process)
+- Easier debugging (all logs in one place)
+
+**Migration completed:**
+- ✅ `WhisperSpeechTranscriber` created with model caching
+- ✅ DI registration updated
+- ✅ `speech-to-text.service` stopped and removed
+- ✅ All tests passing
+- ✅ Dictation works (617ms transcription time)
+
+**For more details:** See issue #457
