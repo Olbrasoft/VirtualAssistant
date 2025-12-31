@@ -30,8 +30,8 @@ public class DictationWorker : BackgroundService, IDictationControl
     private readonly IAudioRecordingCoordinator _recordingCoordinator;
     private readonly ITranscriptionService _transcriptionService;
     private readonly IKeyboardSimulationService _keyboardSimulation;
-    private readonly TypingSoundPlayer _typingSound;
-    private readonly CancelSoundPlayer _cancelSound;
+    private readonly ISoundEffectPlayer _typingSound;
+    private readonly ISoundEffectPlayer _cancelSound;
     private readonly IServiceScopeFactory _scopeFactory;
 
     private CancellationTokenSource? _transcriptionCts;
@@ -44,8 +44,8 @@ public class DictationWorker : BackgroundService, IDictationControl
         IAudioRecordingCoordinator recordingCoordinator,
         ITranscriptionService transcriptionService,
         IKeyboardSimulationService keyboardSimulation,
-        TypingSoundPlayer typingSound,
-        CancelSoundPlayer cancelSound,
+        ISoundEffectPlayer typingSound,
+        ISoundEffectPlayer cancelSound,
         IServiceScopeFactory scopeFactory)
     {
         _logger = logger ?? throw new ArgumentNullException(nameof(logger));
