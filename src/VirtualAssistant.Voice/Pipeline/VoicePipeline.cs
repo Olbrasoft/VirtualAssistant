@@ -30,25 +30,29 @@ public class VoicePipeline : IVoicePipeline
 
         foreach (var stage in _stages)
         {
-            if (context.ShouldStop)
-            {
-                _logger.LogDebug("Pipeline stopped after stage {StageName}: {StopReason}",
-                    stage.StageName, context.StopReason);
-                break;
-            }
+            var stageName = stage.StageName;
+
+            _logger.LogDebug("Starting pipeline stage {StageName}", stageName);
 
             try
             {
                 await stage.ProcessAsync(context, cancellationToken);
+
+                if (context.ShouldStop)
+                {
+                    _logger.LogDebug("Pipeline stopped after stage {StageName}: {StopReason}",
+                        stageName, context.StopReason);
+                    break;
+                }
             }
             catch (OperationCanceledException)
             {
-                _logger.LogInformation("Pipeline cancelled by user at stage {StageName}", stage.StageName);
+                _logger.LogInformation("Pipeline cancelled by user at stage {StageName}", stageName);
                 throw;
             }
             catch (Exception ex)
             {
-                _logger.LogError(ex, "Error in pipeline stage {StageName}", stage.StageName);
+                _logger.LogError(ex, "Error in pipeline stage {StageName}", stageName);
                 throw;
             }
         }

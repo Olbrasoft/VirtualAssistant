@@ -38,8 +38,8 @@ public class RepeatTextIntentStage : IVoicePipelineStage
             _logger.LogInformation("[{StageName}] Repeat text intent detected (confidence: {Confidence:F2})",
                 StageName, repeatIntent.Confidence);
             context.IsRepeatTextIntent = true;
-            context.ShouldStop = true; // Stop pipeline, action will be handled separately
-            context.StopReason = "Repeat text intent detected";
+            // Don't stop pipeline - let it continue to ActionExecutionStage
+            // LlmRoutingStage will skip LLM call when this flag is set
         }
     }
 }

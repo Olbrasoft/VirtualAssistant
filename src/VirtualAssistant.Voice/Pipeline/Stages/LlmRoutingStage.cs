@@ -25,6 +25,13 @@ public class LlmRoutingStage : IVoicePipelineStage
 
     public async Task ProcessAsync(VoicePipelineContext context, CancellationToken cancellationToken)
     {
+        // Skip LLM routing if repeat text intent was already detected
+        if (context.IsRepeatTextIntent)
+        {
+            _logger.LogDebug("[{StageName}] Skipping LLM routing - repeat text intent detected", StageName);
+            return;
+        }
+
         var text = context.FilteredText ?? context.Transcription;
         if (string.IsNullOrWhiteSpace(text))
         {
