@@ -126,7 +126,7 @@ public class IconAnimationServiceTests
             x => x.Log(
                 LogLevel.Error,
                 It.IsAny<EventId>(),
-                It.Is<It.IsAnyType>((v, t) => v.ToString()!.Contains("Failed to update icons")),
+                It.Is<It.IsAnyType>((v, t) => v.ToString()!.Contains("Failed to update icon")),
                 expectedException,
                 It.IsAny<Func<It.IsAnyType, Exception?, string>>()),
             Times.Once);

@@ -55,7 +55,7 @@ public class IconAnimationService : IIconAnimationService
         }
         catch (Exception ex)
         {
-            _logger.LogError(ex, "Failed to update icons for dictation state: {State}", newState);
+            _logger.LogError(ex, "Failed to update icon for dictation state: {State}", newState);
         }
     }
 }
