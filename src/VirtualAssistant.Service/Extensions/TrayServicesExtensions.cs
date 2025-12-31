@@ -53,6 +53,7 @@ public static class TrayServicesExtensions
             var manager = sp.GetRequiredService<TrayIconManager>();
             var muteService = sp.GetRequiredService<IManualMuteService>();
             var dependentServiceManager = sp.GetRequiredService<IDependentServiceManager>();
+            var settingsService = sp.GetRequiredService<ISettingsService>();
             var menuHandler = sp.GetRequiredService<ITrayMenuHandler>();
             var sttServiceManager = sp.GetRequiredService<SpeechToTextServiceManager>();
             var mistralProvider = sp.GetService<Olbrasoft.VirtualAssistant.Voice.Services.ILlmProvider>() as Olbrasoft.VirtualAssistant.Voice.Services.MistralProvider;
@@ -66,6 +67,7 @@ public static class TrayServicesExtensions
                 manager,
                 muteService,
                 dependentServiceManager,
+                settingsService,
                 iconsPath,
                 options.Value.LogViewerPort,
                 menuHandler,

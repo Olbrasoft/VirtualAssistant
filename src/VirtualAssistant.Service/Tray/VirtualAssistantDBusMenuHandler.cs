@@ -26,11 +26,12 @@ internal class VirtualAssistantDBusMenuHandler : ComCanonicalDbusmenuHandler, IT
     private const int ReloadPromptId = 6;
     private const int Separator3Id = 7;
     private const int MuteToggleId = 8;
-    private const int ShowLogsId = 9;
-    private const int Separator4Id = 10;
-    private const int QuitId = 11;
-    private const int LogViewerId = 12;
-    private const int DictationToggleId = 13;
+    private const int TtsMuteToggleId = 9;
+    private const int ShowLogsId = 10;
+    private const int Separator4Id = 11;
+    private const int QuitId = 12;
+    private const int LogViewerId = 13;
+    private const int DictationToggleId = 14;
 
     /// <summary>
     /// Event fired when user selects Quit from the menu.
@@ -82,7 +83,13 @@ internal class VirtualAssistantDBusMenuHandler : ComCanonicalDbusmenuHandler, IT
     /// </summary>
     public event Action<bool>? OnDictationToggleRequested;
 
+    /// <summary>
+    /// Event fired when user toggles TTS mute on/off.
+    /// </summary>
+    public event Action? OnTtsMuteToggleRequested;
+
     private bool _isMuted;
+    private bool _ttsMuted;
     private string _sttServiceStatus = "Checking...";
     private string _sttServiceVersion = "Unknown";
     private string _logViewerStatus = "Checking...";
@@ -146,6 +153,18 @@ internal class VirtualAssistantDBusMenuHandler : ComCanonicalDbusmenuHandler, IT
     public void UpdateMuteState(bool isMuted)
     {
         _isMuted = isMuted;
+        _revision++;
+
+        // Emit LayoutUpdated signal to notify menu changed
+        EmitLayoutUpdated(_revision, RootId);
+    }
+
+    /// <summary>
+    /// Updates TTS mute state and refreshes menu.
+    /// </summary>
+    public void UpdateTtsMuteState(bool isMuted)
+    {
+        _ttsMuted = isMuted;
         _revision++;
 
         // Emit LayoutUpdated signal to notify menu changed
@@ -232,6 +251,7 @@ internal class VirtualAssistantDBusMenuHandler : ComCanonicalDbusmenuHandler, IT
             else
             {
                 var muteLabel = _isMuted ? "🔊 Zapnout mikrofon" : "🔇 Ztlumit mikrofon";
+                var ttsMuteLabel = _ttsMuted ? "❌ TextToSpeech - Zapnout" : "✅ TextToSpeech - Stlumit";
                 var sttServiceLabel = _sttServiceStatus == "Running"
                     ? "✅ STT Service - Vypnout"
                     : "❌ STT Service - Zapnout";
@@ -253,6 +273,7 @@ internal class VirtualAssistantDBusMenuHandler : ComCanonicalDbusmenuHandler, IT
                     CreateChildVariant(ReloadPromptId, "🔄 Reload LLM Prompt", false),
                     CreateChildVariant(Separator3Id, "", true),
                     CreateChildVariant(MuteToggleId, muteLabel, false),
+                    CreateChildVariant(TtsMuteToggleId, ttsMuteLabel, false),
                     CreateChildVariant(ShowLogsId, "Zobrazit logy", false),
                     CreateChildVariant(LogViewerId, logViewerLabel, false),
                     CreateChildVariant(Separator4Id, "", true),
@@ -449,6 +470,12 @@ internal class VirtualAssistantDBusMenuHandler : ComCanonicalDbusmenuHandler, IT
                 ["enabled"] = VariantValue.Bool(true),
                 ["visible"] = VariantValue.Bool(true)
             }),
+            TtsMuteToggleId => (id, new Dictionary<string, VariantValue>
+            {
+                ["label"] = VariantValue.String(_ttsMuted ? "❌ TextToSpeech - Zapnout" : "✅ TextToSpeech - Stlumit"),
+                ["enabled"] = VariantValue.Bool(true),
+                ["visible"] = VariantValue.Bool(true)
+            }),
             ShowLogsId => (id, new Dictionary<string, VariantValue>
             {
                 ["label"] = VariantValue.String("Zobrazit logy"),
@@ -501,6 +528,10 @@ internal class VirtualAssistantDBusMenuHandler : ComCanonicalDbusmenuHandler, IT
                 case MuteToggleId:
                     _logger.LogInformation("Mute toggle menu item clicked");
                     OnMuteToggleRequested?.Invoke();
+                    break;
+                case TtsMuteToggleId:
+                    _logger.LogInformation("TTS mute toggle clicked");
+                    OnTtsMuteToggleRequested?.Invoke();
                     break;
                 case ShowLogsId:
                     _logger.LogInformation("Show logs menu item clicked");
