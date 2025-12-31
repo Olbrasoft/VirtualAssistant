@@ -112,9 +112,9 @@ public class EvdevKeyboardMonitor : IKeyboardMonitor
                     continue;
 
                 var keyCode = (KeyCode)code;
-                
+
                 // Only handle keys we care about
-                if (keyCode != KeyCode.ScrollLock && keyCode != KeyCode.CapsLock && keyCode != KeyCode.Escape)
+                if (keyCode != KeyCode.ScrollLock && keyCode != KeyCode.CapsLock && keyCode != KeyCode.Pause)
                     continue;
 
                 var args = new KeyEventArgs
