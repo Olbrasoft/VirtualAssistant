@@ -14,9 +14,10 @@ public interface IMenuEventDispatcher
 
     /// <summary>
     /// Handles TTS mute toggle request from menu.
-    /// Toggles text-to-speech muting state.
+    /// Sets text-to-speech muting state.
     /// </summary>
-    Task HandleTtsMuteToggleAsync();
+    /// <param name="muted">True to mute TTS, false to unmute.</param>
+    Task HandleTtsMuteToggleAsync(bool muted);
 
     /// <summary>
     /// Handles show logs request from menu.

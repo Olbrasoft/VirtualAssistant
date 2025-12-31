@@ -154,11 +154,8 @@ public class MenuEventDispatcherTests
             _settingsServiceMock.Object,
             LogViewerPort);
 
-        _settingsServiceMock.Setup(x => x.GetAsync("tts.muted", false))
-            .ReturnsAsync(false);
-
         // Act
-        await sut.HandleTtsMuteToggleAsync();
+        await sut.HandleTtsMuteToggleAsync(true);
 
         // Assert
         _settingsServiceMock.Verify(x => x.SetAsync("tts.muted", true), Times.Once);
@@ -174,11 +171,8 @@ public class MenuEventDispatcherTests
             _settingsServiceMock.Object,
             LogViewerPort);
 
-        _settingsServiceMock.Setup(x => x.GetAsync("tts.muted", false))
-            .ReturnsAsync(true);
-
         // Act
-        await sut.HandleTtsMuteToggleAsync();
+        await sut.HandleTtsMuteToggleAsync(false);
 
         // Assert
         _settingsServiceMock.Verify(x => x.SetAsync("tts.muted", false), Times.Once);
@@ -195,14 +189,14 @@ public class MenuEventDispatcherTests
             LogViewerPort);
 
         var exception = new InvalidOperationException("Settings error");
-        _settingsServiceMock.Setup(x => x.GetAsync("tts.muted", false))
+        _settingsServiceMock.Setup(x => x.SetAsync("tts.muted", It.IsAny<bool>()))
             .ThrowsAsync(exception);
 
         // Act
-        await sut.HandleTtsMuteToggleAsync();
+        await sut.HandleTtsMuteToggleAsync(true);
 
         // Assert - Should not throw, but should log error
-        _settingsServiceMock.Verify(x => x.SetAsync(It.IsAny<string>(), It.IsAny<bool>()), Times.Never);
+        _settingsServiceMock.Verify(x => x.SetAsync("tts.muted", true), Times.Once);
     }
 
     #endregion

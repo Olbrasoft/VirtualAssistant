@@ -31,7 +31,7 @@ internal class VirtualAssistantDBusMenuHandler : ComCanonicalDbusmenuHandler, Sy
     private readonly Action<bool> _llmCorrectionHandler;
     private readonly Action _reloadPromptHandler;
     private readonly Action<bool> _dictationToggleHandler;
-    private readonly Action _ttsMuteToggleHandler;
+    private readonly Action<bool> _ttsMuteToggleHandler;
 
     /// <summary>
     /// Event fired when user selects Quit from the menu.
@@ -76,7 +76,7 @@ internal class VirtualAssistantDBusMenuHandler : ComCanonicalDbusmenuHandler, Sy
     /// <summary>
     /// Event fired when user toggles TTS mute on/off.
     /// </summary>
-    public event Action? OnTtsMuteToggleRequested;
+    public event Action<bool>? OnTtsMuteToggleRequested;
 
     public VirtualAssistantDBusMenuHandler(
         ILogger<VirtualAssistantDBusMenuHandler> logger,
@@ -104,7 +104,7 @@ internal class VirtualAssistantDBusMenuHandler : ComCanonicalDbusmenuHandler, Sy
         _llmCorrectionHandler = (enabled) => OnLlmCorrectionToggled?.Invoke(enabled);
         _reloadPromptHandler = () => OnReloadPromptRequested?.Invoke();
         _dictationToggleHandler = (enabled) => OnDictationToggleRequested?.Invoke(enabled);
-        _ttsMuteToggleHandler = () => OnTtsMuteToggleRequested?.Invoke();
+        _ttsMuteToggleHandler = (muted) => OnTtsMuteToggleRequested?.Invoke(muted);
 
         // Subscribe to state changes to emit layout updates
         _stateManager.StateChanged += OnStateChanged;

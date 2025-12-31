@@ -49,19 +49,16 @@ public class MenuEventDispatcher : IMenuEventDispatcher
     }
 
     /// <inheritdoc/>
-    public async Task HandleTtsMuteToggleAsync()
+    public async Task HandleTtsMuteToggleAsync(bool muted)
     {
         try
         {
-            var currentState = await _settingsService.GetAsync("tts.muted", false);
-            var newState = !currentState;
-            await _settingsService.SetAsync("tts.muted", newState);
-
-            _logger.LogInformation("TTS mute toggled via tray menu to: {IsMuted}", newState);
+            await _settingsService.SetAsync("tts.muted", muted);
+            _logger.LogInformation("TTS mute set via tray menu to: {IsMuted}", muted);
         }
         catch (Exception ex)
         {
-            _logger.LogError(ex, "Failed to toggle TTS mute from tray menu");
+            _logger.LogError(ex, "Failed to set TTS mute from tray menu");
         }
     }
 

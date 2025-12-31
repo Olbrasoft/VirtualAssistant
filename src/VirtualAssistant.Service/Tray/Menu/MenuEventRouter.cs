@@ -61,7 +61,7 @@ public class MenuEventRouter : IMenuEventRouter
     /// <summary>
     /// Event fired when user toggles TTS mute on/off.
     /// </summary>
-    public event Action? OnTtsMuteToggleRequested;
+    public event Action<bool>? OnTtsMuteToggleRequested;
 
     /// <summary>
     /// Handles a menu click event.
@@ -89,8 +89,11 @@ public class MenuEventRouter : IMenuEventRouter
                 break;
 
             case MenuItemIds.TtsMuteToggleId:
-                _logger.LogInformation("TTS mute toggle clicked");
-                OnTtsMuteToggleRequested?.Invoke();
+                _logger.LogInformation("TTS mute toggle clicked (current: {Muted})", _stateManager.IsTtsMuted);
+                // Toggle TTS mute
+                var newTtsMuteState = !_stateManager.IsTtsMuted;
+                _stateManager.UpdateTtsMuteState(newTtsMuteState);
+                OnTtsMuteToggleRequested?.Invoke(newTtsMuteState);
                 break;
 
             case MenuItemIds.ShowLogsId:

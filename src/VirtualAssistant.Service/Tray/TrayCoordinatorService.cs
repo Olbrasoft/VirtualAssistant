@@ -83,7 +83,7 @@ public class TrayCoordinatorService : IDisposable
 
             // Menu events -> MenuEventDispatcher
             handler.OnMuteToggleRequested += _menuDispatcher.HandleMuteToggle;
-            handler.OnTtsMuteToggleRequested += async () => await _menuDispatcher.HandleTtsMuteToggleAsync();
+            handler.OnTtsMuteToggleRequested += async (muted) => await _menuDispatcher.HandleTtsMuteToggleAsync(muted);
             handler.OnShowLogsRequested += _menuDispatcher.HandleShowLogs;
             handler.OnLlmCorrectionToggled += _menuDispatcher.HandleLlmCorrectionToggle;
             handler.OnReloadPromptRequested += _menuDispatcher.HandleReloadPrompt;

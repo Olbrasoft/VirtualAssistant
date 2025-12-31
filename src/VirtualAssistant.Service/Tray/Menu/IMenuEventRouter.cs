@@ -49,7 +49,7 @@ public interface IMenuEventRouter
     /// <summary>
     /// Event fired when user toggles TTS mute on/off.
     /// </summary>
-    event Action? OnTtsMuteToggleRequested;
+    event Action<bool>? OnTtsMuteToggleRequested;
 
     /// <summary>
     /// Handles a menu click event.
