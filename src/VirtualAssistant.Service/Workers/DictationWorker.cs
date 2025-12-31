@@ -1,6 +1,8 @@
 using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Logging;
+using Microsoft.Extensions.Options;
 using Olbrasoft.VirtualAssistant.Core.Audio;
+using Olbrasoft.VirtualAssistant.Core.Configuration;
 using Olbrasoft.VirtualAssistant.Core.Keyboard;
 using Olbrasoft.VirtualAssistant.Core.Services;
 using Olbrasoft.VirtualAssistant.Core.Speech;
@@ -18,12 +20,6 @@ namespace Olbrasoft.VirtualAssistant.Service.Workers;
 /// </summary>
 public class DictationWorker : BackgroundService, IDictationControl
 {
-    /// <summary>
-    /// Delay in milliseconds to allow keyboard LED state to settle after key release.
-    /// Required for reliable CapsLock state detection.
-    /// </summary>
-    private const int KEYBOARD_LED_SETTLE_TIME_MS = 50;
-
     private readonly ILogger<DictationWorker> _logger;
     private readonly IKeyboardMonitor _keyboardMonitor;
     private readonly IDictationStateMachine _stateMachine;
@@ -33,6 +29,7 @@ public class DictationWorker : BackgroundService, IDictationControl
     private readonly ISoundEffectPlayer _typingSound;
     private readonly ISoundEffectPlayer _cancelSound;
     private readonly IServiceScopeFactory _scopeFactory;
+    private readonly DictationOptions _options;
 
     private CancellationTokenSource? _transcriptionCts;
     private bool _dictationEnabled = true;
@@ -46,7 +43,8 @@ public class DictationWorker : BackgroundService, IDictationControl
         IKeyboardSimulationService keyboardSimulation,
         ISoundEffectPlayer typingSound,
         ISoundEffectPlayer cancelSound,
-        IServiceScopeFactory scopeFactory)
+        IServiceScopeFactory scopeFactory,
+        IOptions<DictationOptions> options)
     {
         _logger = logger ?? throw new ArgumentNullException(nameof(logger));
         _keyboardMonitor = keyboardMonitor ?? throw new ArgumentNullException(nameof(keyboardMonitor));
@@ -57,6 +55,8 @@ public class DictationWorker : BackgroundService, IDictationControl
         _typingSound = typingSound ?? throw new ArgumentNullException(nameof(typingSound));
         _cancelSound = cancelSound ?? throw new ArgumentNullException(nameof(cancelSound));
         _scopeFactory = scopeFactory ?? throw new ArgumentNullException(nameof(scopeFactory));
+        ArgumentNullException.ThrowIfNull(options);
+        _options = options.Value;
     }
 
     /// <summary>
@@ -131,7 +131,7 @@ public class DictationWorker : BackgroundService, IDictationControl
                 return;
 
             // Small delay to ensure LED state is updated by kernel
-            await Task.Delay(KEYBOARD_LED_SETTLE_TIME_MS);
+            await Task.Delay(_options.KeyboardLedSettleTimeMs);
 
             var capsLockOn = _keyboardMonitor.IsCapsLockOn();
             var currentState = _stateMachine.CurrentState;

@@ -1,5 +1,7 @@
 using Microsoft.Extensions.Logging;
+using Microsoft.Extensions.Options;
 using Olbrasoft.VirtualAssistant.Core.Audio;
+using Olbrasoft.VirtualAssistant.Voice.Configuration;
 using Olbrasoft.VirtualAssistant.Voice.Services;
 
 namespace Olbrasoft.VirtualAssistant.Voice.Audio;
@@ -9,18 +11,14 @@ namespace Olbrasoft.VirtualAssistant.Voice.Audio;
 /// Implements Single Responsibility Principle - only handles audio recording coordination.
 /// </summary>
 /// <remarks>
-/// Maximum buffer size is 32 MB (approximately 16 minutes at 16kHz 16-bit mono).
+/// Maximum buffer size is configurable via AudioRecordingOptions.MaxBufferSizeBytes.
 /// This prevents excessive memory usage during long recording sessions.
 /// </remarks>
 public class AudioRecordingCoordinator : IAudioRecordingCoordinator, IDisposable
 {
-    /// <summary>
-    /// Maximum audio buffer size in bytes (32 MB = ~16 minutes at 16kHz 16-bit mono).
-    /// </summary>
-    private const int MAX_BUFFER_SIZE_BYTES = 32 * 1024 * 1024; // 32 MB
-
     private readonly ILogger<AudioRecordingCoordinator> _logger;
     private readonly IAudioCaptureService _audioCapture;
+    private readonly AudioRecordingOptions _options;
 
     private CancellationTokenSource? _recordingCts;
     private Task? _recordingTask;
@@ -31,10 +29,13 @@ public class AudioRecordingCoordinator : IAudioRecordingCoordinator, IDisposable
 
     public AudioRecordingCoordinator(
         ILogger<AudioRecordingCoordinator> logger,
-        IAudioCaptureService audioCapture)
+        IAudioCaptureService audioCapture,
+        IOptions<AudioRecordingOptions> options)
     {
         _logger = logger ?? throw new ArgumentNullException(nameof(logger));
         _audioCapture = audioCapture ?? throw new ArgumentNullException(nameof(audioCapture));
+        ArgumentNullException.ThrowIfNull(options);
+        _options = options.Value;
     }
 
     /// <inheritdoc />
@@ -198,7 +199,7 @@ public class AudioRecordingCoordinator : IAudioRecordingCoordinator, IDisposable
 
     /// <summary>
     /// Captures audio chunks from the audio capture service and buffers them.
-    /// Stops automatically if buffer exceeds MAX_BUFFER_SIZE_BYTES.
+    /// Stops automatically if buffer exceeds configured maximum buffer size.
     /// </summary>
     private async Task CaptureAudioAsync(CancellationToken cancellationToken)
     {
@@ -213,11 +214,11 @@ public class AudioRecordingCoordinator : IAudioRecordingCoordinator, IDisposable
                     lock (_bufferLock)
                     {
                         // Check buffer size limit before adding chunk
-                        if (_audioBuffer.Count + chunk.Length > MAX_BUFFER_SIZE_BYTES)
+                        if (_audioBuffer.Count + chunk.Length > _options.MaxBufferSizeBytes)
                         {
                             _logger.LogWarning(
                                 "Audio buffer size limit reached ({MaxSize} bytes). Stopping capture to prevent excessive memory usage.",
-                                MAX_BUFFER_SIZE_BYTES);
+                                _options.MaxBufferSizeBytes);
                             break;
                         }
 

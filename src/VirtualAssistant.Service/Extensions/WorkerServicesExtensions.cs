@@ -47,12 +47,15 @@ public static class WorkerServicesExtensions
 
             // Create AudioRecordingCoordinator with dedicated audio capture
             var coordinatorLogger = sp.GetRequiredService<ILogger<Olbrasoft.VirtualAssistant.Voice.Audio.AudioRecordingCoordinator>>();
+            var audioRecordingOptions = sp.GetRequiredService<IOptions<Olbrasoft.VirtualAssistant.Voice.Configuration.AudioRecordingOptions>>();
             var recordingCoordinator = new Olbrasoft.VirtualAssistant.Voice.Audio.AudioRecordingCoordinator(
                 coordinatorLogger,
-                audioCaptureService);
+                audioCaptureService,
+                audioRecordingOptions);
 
             // Create dedicated TranscriptionService for Dictation with large-v3-turbo model
-            var dictationOptions = sp.GetRequiredService<IOptions<DictationOptions>>().Value;
+            var dictationOptionsService = sp.GetRequiredService<IOptions<DictationOptions>>();
+            var dictationOptions = dictationOptionsService.Value;
 
             // Create dedicated WhisperSpeechTranscriber for DictationWorker
             // Uses DictationOptions.WhisperModelPath (large-v3-turbo) instead of ContinuousListener model
@@ -87,7 +90,8 @@ public static class WorkerServicesExtensions
                 keyboardSimulation,
                 typingSound,
                 cancelSound,
-                scopeFactory);
+                scopeFactory,
+                dictationOptionsService);
         });
 
         // Register the same instance as IDictationControl interface (issue #466)

@@ -22,7 +22,7 @@ public static class ServiceCollectionExtensions
             .AddVoiceServices(configuration)
             .AddTtsServices(configuration)
             .AddLlmServices(configuration)
-            .AddTrayServices()
+            .AddTrayServices(configuration)
             .AddWorkerServices()
             .AddControllers();
 

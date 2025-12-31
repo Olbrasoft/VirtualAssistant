@@ -1,7 +1,9 @@
 using Microsoft.Extensions.Logging;
+using Microsoft.Extensions.Options;
 using Moq;
 using Olbrasoft.VirtualAssistant.Core.Audio;
 using Olbrasoft.VirtualAssistant.Voice.Audio;
+using Olbrasoft.VirtualAssistant.Voice.Configuration;
 using Olbrasoft.VirtualAssistant.Voice.Services;
 
 namespace VirtualAssistant.Voice.Tests.Services;
@@ -14,16 +16,25 @@ public class AudioRecordingCoordinatorTests
 {
     private readonly Mock<ILogger<AudioRecordingCoordinator>> _loggerMock;
     private readonly Mock<IAudioCaptureService> _audioCaptureMock;
+    private readonly IOptions<AudioRecordingOptions> _defaultOptions;
     private readonly AudioRecordingCoordinator _sut;
 
     public AudioRecordingCoordinatorTests()
     {
         _loggerMock = new Mock<ILogger<AudioRecordingCoordinator>>();
         _audioCaptureMock = new Mock<IAudioCaptureService>();
+        _defaultOptions = Options.Create(new AudioRecordingOptions
+        {
+            SampleRate = 16000,
+            BitsPerSample = 16,
+            Channels = 1,
+            MaxRecordingDurationMinutes = 16
+        });
 
         _sut = new AudioRecordingCoordinator(
             _loggerMock.Object,
-            _audioCaptureMock.Object);
+            _audioCaptureMock.Object,
+            _defaultOptions);
     }
 
     #region StartRecordingAsync Tests

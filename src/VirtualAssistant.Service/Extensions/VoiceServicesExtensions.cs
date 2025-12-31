@@ -48,9 +48,17 @@ public static class VoiceServicesExtensions
         // String similarity for echo cancellation
         services.AddSingleton<IStringSimilarity, LevenshteinSimilarity>();
 
+        // Audio recording configuration
+        services.Configure<AudioRecordingOptions>(
+            configuration.GetSection(AudioRecordingOptions.SectionName));
+
         // Echo detection configuration (Strategy pattern for echo cancellation)
         services.Configure<EchoDetectionOptions>(
             configuration.GetSection(nameof(EchoDetectionOptions)));
+
+        // LLM routing configuration
+        services.Configure<LlmRoutingOptions>(
+            configuration.GetSection(LlmRoutingOptions.SectionName));
 
         // Echo detection support services
         services.AddSingleton<TtsHistoryTracker>();

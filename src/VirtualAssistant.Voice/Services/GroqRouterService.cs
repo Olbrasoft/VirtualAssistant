@@ -1,6 +1,8 @@
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.Logging;
+using Microsoft.Extensions.Options;
 using Olbrasoft.VirtualAssistant.Core.Enums;
+using Olbrasoft.VirtualAssistant.Voice.Configuration;
 
 namespace Olbrasoft.VirtualAssistant.Voice.Services;
 
@@ -17,8 +19,9 @@ public class GroqRouterService : BaseLlmRouterService
         ILogger<GroqRouterService> logger,
         HttpClient httpClient,
         IConfiguration configuration,
-        IPromptLoader promptLoader)
-        : base(logger, httpClient, GetModel(configuration), promptLoader)
+        IPromptLoader promptLoader,
+        IOptions<LlmRoutingOptions> options)
+        : base(logger, httpClient, GetModel(configuration), promptLoader, options)
     {
         // Try environment variable first, then config
         var apiKey = Environment.GetEnvironmentVariable("GROQ_API_KEY") 

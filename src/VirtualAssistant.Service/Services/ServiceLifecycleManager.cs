@@ -1,6 +1,8 @@
 using System.Diagnostics;
 using Microsoft.Extensions.Logging;
+using Microsoft.Extensions.Options;
 using Olbrasoft.VirtualAssistant.Core.Services;
+using Olbrasoft.VirtualAssistant.Service.Configuration;
 
 namespace Olbrasoft.VirtualAssistant.Service.Services;
 
@@ -13,14 +15,16 @@ public class ServiceLifecycleManager : IServiceLifecycleManager
 {
     private readonly ILogger<ServiceLifecycleManager> _logger;
     private readonly IServiceStatusUpdater? _statusUpdater;
-    private const int StatusPollTimeoutMs = 2000;
-    private const int StatusPollIntervalMs = 100;
+    private readonly ServiceMonitoringOptions _options;
 
     public ServiceLifecycleManager(
         ILogger<ServiceLifecycleManager> logger,
+        IOptions<ServiceMonitoringOptions> options,
         IServiceStatusUpdater? statusUpdater = null)
     {
         _logger = logger ?? throw new ArgumentNullException(nameof(logger));
+        ArgumentNullException.ThrowIfNull(options);
+        _options = options.Value;
         _statusUpdater = statusUpdater;
     }
 
@@ -149,7 +153,7 @@ public class ServiceLifecycleManager : IServiceLifecycleManager
     private async Task WaitForServiceStateAsync(string serviceName, bool expectedRunning)
     {
         var sw = Stopwatch.StartNew();
-        while (sw.ElapsedMilliseconds < StatusPollTimeoutMs)
+        while (sw.ElapsedMilliseconds < _options.StatusPollTimeoutMs)
         {
             var isRunning = await CheckServiceIsRunningAsync(serviceName);
             if (isRunning == expectedRunning)
@@ -159,10 +163,10 @@ public class ServiceLifecycleManager : IServiceLifecycleManager
                 return;
             }
 
-            await Task.Delay(StatusPollIntervalMs);
+            await Task.Delay(_options.StatusPollIntervalMs);
         }
 
         _logger.LogWarning("Service {Service} did not reach expected state (running={Expected}) within {TimeoutMs}ms",
-            serviceName, expectedRunning, StatusPollTimeoutMs);
+            serviceName, expectedRunning, _options.StatusPollTimeoutMs);
     }
 }

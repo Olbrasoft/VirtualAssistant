@@ -1,5 +1,7 @@
 using Microsoft.Extensions.Logging;
+using Microsoft.Extensions.Options;
 using Olbrasoft.VirtualAssistant.Core.Services;
+using Olbrasoft.VirtualAssistant.Voice.Configuration;
 using VirtualAssistant.Data;
 using VirtualAssistant.Data.Entities;
 
@@ -11,33 +13,22 @@ namespace Olbrasoft.VirtualAssistant.Service.Services;
 /// </summary>
 public class DictationPersistenceService : IDictationPersistenceService
 {
-    /// <summary>
-    /// Number of bytes per audio sample (16-bit = 2 bytes).
-    /// </summary>
-    private const int BYTES_PER_SAMPLE = 2;
-
-    /// <summary>
-    /// Audio sample rate in Hz (16 kHz).
-    /// </summary>
-    private const int SAMPLE_RATE_HZ = 16000;
-
-    /// <summary>
-    /// Milliseconds per second conversion factor.
-    /// </summary>
-    private const int MS_PER_SECOND = 1000;
-
     private readonly ILogger<DictationPersistenceService> _logger;
     private readonly IWhisperTranscriptionRepository _whisperRepository;
     private readonly ILlmCorrectionRepository _llmRepository;
+    private readonly AudioRecordingOptions _options;
 
     public DictationPersistenceService(
         ILogger<DictationPersistenceService> logger,
         IWhisperTranscriptionRepository whisperRepository,
-        ILlmCorrectionRepository llmRepository)
+        ILlmCorrectionRepository llmRepository,
+        IOptions<AudioRecordingOptions> options)
     {
         _logger = logger ?? throw new ArgumentNullException(nameof(logger));
         _whisperRepository = whisperRepository ?? throw new ArgumentNullException(nameof(whisperRepository));
         _llmRepository = llmRepository ?? throw new ArgumentNullException(nameof(llmRepository));
+        ArgumentNullException.ThrowIfNull(options);
+        _options = options.Value;
     }
 
     /// <inheritdoc />
@@ -60,18 +51,18 @@ public class DictationPersistenceService : IDictationPersistenceService
         }
 
         // Validate audio data length (must be even for 16-bit samples)
-        if (audioData.Length % BYTES_PER_SAMPLE != 0)
+        if (audioData.Length % _options.BytesPerSample != 0)
         {
             _logger.LogWarning(
                 "Audio data length {Length} is not divisible by {BytesPerSample} (16-bit samples). Truncating to nearest even length.",
                 audioData.Length,
-                BYTES_PER_SAMPLE);
+                _options.BytesPerSample);
         }
 
         // Calculate audio duration from audio data (16-bit mono @ 16kHz)
         // duration_ms = (bytes / bytes_per_sample) / sample_rate * ms_per_second
-        var sampleCount = audioData.Length / BYTES_PER_SAMPLE;
-        var audioDurationMs = (int)((double)sampleCount / SAMPLE_RATE_HZ * MS_PER_SECOND);
+        var sampleCount = audioData.Length / _options.BytesPerSample;
+        var audioDurationMs = (int)((double)sampleCount / _options.SampleRate * AudioRecordingOptions.MillisecondsPerSecond);
 
         // Save original Whisper transcription (before LLM correction)
         WhisperTranscription transcription;
