@@ -24,6 +24,7 @@ public class VirtualAssistantTrayService : IDisposable
     private readonly MistralProvider? _mistralProvider;
     private readonly IDictationStateMachine? _dictationStateMachine;
     private readonly DictationWorker? _dictationWorker;
+    private readonly ISettingsService _settingsService;
     private ITrayIcon? _trayIcon;
     private ITrayIcon? _leftHandIcon;
     private ITrayIcon? _rightHandIcon;
@@ -44,6 +45,7 @@ public class VirtualAssistantTrayService : IDisposable
         ILogger<VirtualAssistantTrayService> logger,
         TrayIconManager manager,
         IManualMuteService muteService,
+        ISettingsService settingsService,
         string iconsPath,
         int logViewerPort = 5053,
         ITrayMenuHandler? menuHandler = null,
@@ -55,6 +57,7 @@ public class VirtualAssistantTrayService : IDisposable
         _logger = logger ?? throw new ArgumentNullException(nameof(logger));
         _manager = manager ?? throw new ArgumentNullException(nameof(manager));
         _muteService = muteService ?? throw new ArgumentNullException(nameof(muteService));
+        _settingsService = settingsService ?? throw new ArgumentNullException(nameof(settingsService));
         _iconsPath = iconsPath;
         _logViewerPort = logViewerPort;
         _menuHandler = menuHandler;
@@ -79,6 +82,7 @@ public class VirtualAssistantTrayService : IDisposable
         {
             handler.OnQuitRequested += () => OnQuitRequested?.Invoke();
             handler.OnMuteToggleRequested += HandleMuteToggle;
+            handler.OnTtsMuteToggleRequested += HandleTtsMuteToggle;
             handler.OnShowLogsRequested += HandleShowLogs;
             // NOTE: Refresh/Toggle service handlers removed - TTS runs inline (issue #407)
             handler.OnStartSpeechToTextRequested += HandleStartSpeechToTextService;
@@ -146,6 +150,11 @@ public class VirtualAssistantTrayService : IDisposable
                     }
 
                     // NOTE: DependentServicesManager removed - TTS runs inline (issue #407)
+
+                    // Initialize TTS mute state
+                    var ttsMuted = await _settingsService.GetAsync("tts.muted", false);
+                    handler.UpdateTtsMuteState(ttsMuted);
+                    _logger.LogInformation("TTS mute state initialized: {IsMuted}", ttsMuted);
 
                     // Refresh SpeechToText status
                     await RefreshSpeechToTextStatus();
@@ -221,6 +230,30 @@ public class VirtualAssistantTrayService : IDisposable
         catch (Exception ex)
         {
             _logger.LogError(ex, "Failed to toggle mute from tray menu");
+        }
+    }
+
+    /// <summary>
+    /// Handles TTS mute toggle request from menu.
+    /// </summary>
+    private async void HandleTtsMuteToggle()
+    {
+        try
+        {
+            var currentState = await _settingsService.GetAsync("tts.muted", false);
+            var newState = !currentState;
+            await _settingsService.SetAsync("tts.muted", newState);
+
+            if (_menuHandler is VirtualAssistantDBusMenuHandler handler)
+            {
+                handler.UpdateTtsMuteState(newState);
+            }
+
+            _logger.LogInformation("TTS mute toggled via tray menu to: {IsMuted}", newState);
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Failed to toggle TTS mute from tray menu");
         }
     }
 

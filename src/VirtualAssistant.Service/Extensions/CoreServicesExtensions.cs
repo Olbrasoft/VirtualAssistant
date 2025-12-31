@@ -38,6 +38,9 @@ public static class CoreServicesExtensions
         // NOTE: DependentServicesManager removed after inline TTS integration (issue #407)
         // TTS providers now run inline, no external service lifecycle management needed
 
+        // Settings service for persistent configuration
+        services.AddSingleton<ISettingsService, SettingsService>();
+
         return services;
     }
 }
