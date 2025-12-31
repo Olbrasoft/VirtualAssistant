@@ -52,6 +52,7 @@ public static class TrayServicesExtensions
             var logger = sp.GetRequiredService<ILogger<VirtualAssistantTrayService>>();
             var manager = sp.GetRequiredService<TrayIconManager>();
             var muteService = sp.GetRequiredService<IManualMuteService>();
+            var settingsService = sp.GetRequiredService<ISettingsService>();
             // NOTE: DependentServicesManager removed - TTS runs inline (issue #407)
             var menuHandler = sp.GetRequiredService<ITrayMenuHandler>();
             var sttServiceManager = sp.GetRequiredService<SpeechToTextServiceManager>();
@@ -65,6 +66,7 @@ public static class TrayServicesExtensions
                 logger,
                 manager,
                 muteService,
+                settingsService,
                 iconsPath,
                 options.Value.LogViewerPort,
                 menuHandler,
