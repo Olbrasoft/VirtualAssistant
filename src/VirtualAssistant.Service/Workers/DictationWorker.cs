@@ -7,7 +7,6 @@ using Olbrasoft.VirtualAssistant.Core.Speech;
 using Olbrasoft.VirtualAssistant.Voice.Audio;
 using Olbrasoft.VirtualAssistant.Voice.Services;
 using Olbrasoft.VirtualAssistant.Voice.StateMachine;
-using VirtualAssistant.Data;
 
 namespace Olbrasoft.VirtualAssistant.Service.Workers;
 
@@ -299,48 +298,20 @@ public class DictationWorker : BackgroundService
             // Keep typing sound playing during database save and text insertion
             // It will be stopped after text is typed successfully
 
-            // Save transcription to database
-            int? whisperTranscriptionId = null;
-            try
+            // Save transcription to database using persistence service
+            // Note: Create scope because DictationWorker is singleton but persistence service is scoped
+            using (var scope = _scopeFactory.CreateScope())
             {
-                using var scope = _scopeFactory.CreateScope();
-                var whisperRepo = scope.ServiceProvider.GetRequiredService<IWhisperTranscriptionRepository>();
-
-                // Calculate audio duration from audio data (16-bit mono @ 16kHz)
-                // duration_ms = (bytes / 2 bytes_per_sample) / 16000 samples_per_second * 1000 ms_per_second
-                var audioDurationMs = (int)((audioData.Length / 2.0) / 16000.0 * 1000.0);
-
-                // Save original Whisper transcription (before LLM correction)
+                var persistenceService = scope.ServiceProvider.GetRequiredService<IDictationPersistenceService>();
                 var originalText = result.OriginalText ?? result.Text;
-                var transcription = await whisperRepo.SaveAsync(
+                var correctedText = (result.OriginalText != null && result.Text != result.OriginalText) ? result.Text : null;
+
+                await persistenceService.SaveTranscriptionAsync(
+                    audioData,
                     originalText,
-                    durationMs: audioDurationMs,
+                    correctedText,
+                    result.LlmDurationMs ?? 0,
                     _transcriptionCts.Token);
-
-                whisperTranscriptionId = transcription.Id;
-                _logger.LogDebug("Saved Whisper transcription to database with ID {Id}", whisperTranscriptionId);
-
-                // If LLM correction was applied, save it to database
-                if (result.OriginalText != null && result.Text != result.OriginalText)
-                {
-                    var llmRepo = scope.ServiceProvider.GetRequiredService<ILlmCorrectionRepository>();
-
-                    var correction = await llmRepo.SaveAsync(
-                        whisperTranscriptionId: transcription.Id,
-                        correctedText: result.Text,
-                        durationMs: result.LlmDurationMs ?? 0, // Actual LLM call duration (0 if not measured)
-                        _transcriptionCts.Token);
-
-                    _logger.LogDebug("Saved LLM correction {Id} for transcription {TranscriptionId} (duration: {Duration}ms): '{Original}' → '{Corrected}'",
-                        correction.Id, transcription.Id, result.LlmDurationMs ?? 0,
-                        originalText.Length > 30 ? originalText[..30] + "..." : originalText,
-                        result.Text.Length > 30 ? result.Text[..30] + "..." : result.Text);
-                }
-            }
-            catch (Exception ex)
-            {
-                _logger.LogError(ex, "Failed to save Whisper transcription to database");
-                // Continue with dictation even if save failed
             }
 
             // Type text into active window via xdotool
