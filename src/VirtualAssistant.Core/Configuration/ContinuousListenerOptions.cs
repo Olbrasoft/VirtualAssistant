@@ -80,10 +80,10 @@ public class ContinuousListenerOptions
     public string? KeyboardDevice { get; set; }
 
     /// <summary>
-    /// Whether the assistant should start in muted mode. Default: true.
+    /// Whether the assistant should start in muted mode. Default: false.
     /// When true, user must explicitly unmute (ScrollLock) to begin voice interaction.
     /// </summary>
-    public bool StartMuted { get; set; } = true;
+    public bool StartMuted { get; set; } = false;
 
     // Computed properties
     public int ChunkSizeBytes => SampleRate * VadChunkMs / 1000 * 2; // 16-bit = 2 bytes per sample
