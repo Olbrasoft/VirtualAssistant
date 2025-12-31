@@ -23,8 +23,8 @@ public class VirtualAssistantTrayService : IDisposable
     private readonly IManualMuteService _muteService;
     private readonly int _logViewerPort;
     private readonly SystemTrayMenuHandler? _menuHandler;
-    private readonly SpeechToTextServiceManager? _sttServiceManager;
-    private readonly MistralProvider? _mistralProvider;
+    private readonly ISpeechToTextServiceManager? _sttServiceManager;
+    private readonly ILlmProvider? _mistralProvider;
     private readonly IDictationStateMachine? _dictationStateMachine;
     private readonly DictationWorker? _dictationWorker;
     private readonly ISettingsService _settingsService;
@@ -52,8 +52,8 @@ public class VirtualAssistantTrayService : IDisposable
         string iconsPath,
         int logViewerPort = 5053,
         SystemTrayMenuHandler? menuHandler = null,
-        SpeechToTextServiceManager? sttServiceManager = null,
-        MistralProvider? mistralProvider = null,
+        ISpeechToTextServiceManager? sttServiceManager = null,
+        ILlmProvider? mistralProvider = null,
         IDictationStateMachine? dictationStateMachine = null,
         DictationWorker? dictationWorker = null)
     {

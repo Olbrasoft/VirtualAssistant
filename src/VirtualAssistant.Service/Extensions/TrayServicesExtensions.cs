@@ -74,6 +74,34 @@ public static class TrayServicesExtensions
             return new ServiceLifecycleManager(logger, sttManager, menuHandler as IServiceStatusUpdater);
         });
 
+        // Icon animation service for hand icon animations
+        services.AddSingleton<IIconAnimationService, IconAnimationService>();
+
+        // State notification handler for state synchronization
+        services.AddSingleton<IStateNotificationHandler>(sp =>
+        {
+            var logger = sp.GetRequiredService<ILogger<StateNotificationHandler>>();
+            var muteService = sp.GetRequiredService<IManualMuteService>();
+            var settingsService = sp.GetRequiredService<ISettingsService>();
+            var menuHandler = sp.GetRequiredService<SystemTrayMenuHandler>();
+            var iconCoordinator = sp.GetRequiredService<ITrayIconCoordinator>();
+            var iconAnimationService = sp.GetRequiredService<IIconAnimationService>();
+            var lifecycleManager = sp.GetService<IServiceLifecycleManager>();
+            var dictationStateMachine = sp.GetService<Olbrasoft.VirtualAssistant.Voice.StateMachine.IDictationStateMachine>();
+            var dictationWorker = sp.GetService<DictationWorker>();
+
+            return new StateNotificationHandler(
+                logger,
+                muteService,
+                settingsService,
+                (IServiceStatusUpdater)menuHandler,
+                iconCoordinator,
+                iconAnimationService,
+                lifecycleManager,
+                dictationStateMachine,
+                dictationWorker);
+        });
+
         // VirtualAssistant tray service (wrapper for tray functionality)
         services.AddSingleton(sp =>
         {
@@ -83,8 +111,8 @@ public static class TrayServicesExtensions
             var settingsService = sp.GetRequiredService<ISettingsService>();
             // NOTE: DependentServicesManager removed - TTS runs inline (issue #407)
             var menuHandler = sp.GetRequiredService<SystemTrayMenuHandler>();
-            var sttServiceManager = sp.GetService<ISpeechToTextServiceManager>() as SpeechToTextServiceManager;
-            var mistralProvider = sp.GetService<Olbrasoft.VirtualAssistant.Voice.Services.ILlmProvider>() as Olbrasoft.VirtualAssistant.Voice.Services.MistralProvider;
+            var sttServiceManager = sp.GetService<ISpeechToTextServiceManager>();
+            var mistralProvider = sp.GetService<Olbrasoft.VirtualAssistant.Voice.Services.ILlmProvider>();
             var dictationStateMachine = sp.GetRequiredService<Olbrasoft.VirtualAssistant.Voice.StateMachine.IDictationStateMachine>();
             var dictationWorker = sp.GetRequiredService<DictationWorker>();
             var options = sp.GetRequiredService<IOptions<ContinuousListenerOptions>>();
