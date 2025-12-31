@@ -164,8 +164,14 @@ public class AudioRecordingCoordinatorTests
     {
         // Arrange
         var chunk = new byte[] { 1, 2, 3 };
+        var callCount = 0;
         _audioCaptureMock.Setup(x => x.ReadChunkAsync(It.IsAny<CancellationToken>()))
-            .ReturnsAsync(chunk);
+            .ReturnsAsync(() =>
+            {
+                // Return chunk for first recording, null for second recording (after emergency stop)
+                callCount++;
+                return callCount <= 2 ? chunk : null;
+            });
 
         await _sut.StartRecordingAsync();
         await Task.Delay(100); // Allow chunk to be captured
