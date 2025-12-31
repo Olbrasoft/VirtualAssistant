@@ -41,6 +41,9 @@ public static class CoreServicesExtensions
         // Settings service for persistent configuration
         services.AddSingleton<ISettingsService, SettingsService>();
 
+        // Dictation persistence service (scoped - uses EF repositories)
+        services.AddScoped<IDictationPersistenceService, DictationPersistenceService>();
+
         return services;
     }
 }
