@@ -158,8 +158,11 @@ internal class VirtualAssistantDBusMenuHandler : ComCanonicalDbusmenuHandler, Sy
         _isMuted = isMuted;
         _revision++;
 
-        // Emit LayoutUpdated signal to notify menu changed
-        EmitLayoutUpdated(_revision, RootId);
+        // Only emit if connection is established (avoid race condition during startup)
+        if (_connection != null)
+        {
+            EmitLayoutUpdated(_revision, RootId);
+        }
     }
 
     /// <summary>
@@ -170,8 +173,11 @@ internal class VirtualAssistantDBusMenuHandler : ComCanonicalDbusmenuHandler, Sy
         _ttsMuted = isMuted;
         _revision++;
 
-        // Emit LayoutUpdated signal to notify menu changed
-        EmitLayoutUpdated(_revision, RootId);
+        // Only emit if connection is established (avoid race condition during startup)
+        if (_connection != null)
+        {
+            EmitLayoutUpdated(_revision, RootId);
+        }
     }
 
     // NOTE: UpdateServiceStatus removed (issue #407) - TextToSpeech runs inline now
@@ -185,8 +191,11 @@ internal class VirtualAssistantDBusMenuHandler : ComCanonicalDbusmenuHandler, Sy
         _sttServiceVersion = version;
         _revision++;
 
-        // Emit LayoutUpdated signal to notify menu changed
-        EmitLayoutUpdated(_revision, RootId);
+        // Only emit if connection is established (avoid race condition during startup)
+        if (_connection != null)
+        {
+            EmitLayoutUpdated(_revision, RootId);
+        }
     }
 
     /// <summary>
@@ -197,8 +206,11 @@ internal class VirtualAssistantDBusMenuHandler : ComCanonicalDbusmenuHandler, Sy
         _logViewerStatus = isRunning ? "Running" : "Stopped";
         _revision++;
 
-        // Emit LayoutUpdated signal to notify menu changed
-        EmitLayoutUpdated(_revision, RootId);
+        // Only emit if connection is established (avoid race condition during startup)
+        if (_connection != null)
+        {
+            EmitLayoutUpdated(_revision, RootId);
+        }
     }
 
     /// <summary>
@@ -209,8 +221,11 @@ internal class VirtualAssistantDBusMenuHandler : ComCanonicalDbusmenuHandler, Sy
         _llmCorrectionEnabled = enabled;
         _revision++;
 
-        // Emit LayoutUpdated signal to notify menu changed
-        EmitLayoutUpdated(_revision, RootId);
+        // Only emit if connection is established (avoid race condition during startup)
+        if (_connection != null)
+        {
+            EmitLayoutUpdated(_revision, RootId);
+        }
     }
 
     /// <summary>
@@ -221,8 +236,11 @@ internal class VirtualAssistantDBusMenuHandler : ComCanonicalDbusmenuHandler, Sy
         _dictationEnabled = enabled;
         _revision++;
 
-        // Emit LayoutUpdated signal to notify menu changed
-        EmitLayoutUpdated(_revision, RootId);
+        // Only emit if connection is established (avoid race condition during startup)
+        if (_connection != null)
+        {
+            EmitLayoutUpdated(_revision, RootId);
+        }
     }
 
     /// <summary>
