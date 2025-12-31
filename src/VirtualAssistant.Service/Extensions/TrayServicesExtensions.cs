@@ -57,7 +57,7 @@ public static class TrayServicesExtensions
         services.AddSingleton<ITrayIconCoordinator>(sp =>
         {
             var manager = sp.GetRequiredService<Core.Services.ITrayIconManager>();
-            var iconsPath = Path.Combine(AppContext.BaseDirectory, "icons");
+            var iconsPath = Path.Combine(AppContext.BaseDirectory, "assets", "icons");
             var muteService = sp.GetRequiredService<IManualMuteService>();
             var logger = sp.GetRequiredService<ILogger<TrayIconCoordinator>>();
             var menuHandler = sp.GetRequiredService<SystemTrayMenuHandler>();

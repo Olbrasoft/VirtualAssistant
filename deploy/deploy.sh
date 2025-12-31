@@ -47,11 +47,11 @@ echo
 # Step 3: Copy additional resources (preserve existing)
 echo "📦 Copying resources..."
 
-# Icons (for tray icon) - copy from assets/icons to app/icons
-if [ -d "$PROJECT_PATH/assets/icons" ]; then
-    mkdir -p "$BASE_DIR/app/icons"
-    cp -r "$PROJECT_PATH/assets/icons/"* "$BASE_DIR/app/icons/" 2>/dev/null || true
-    echo "  ✅ Icons copied (including hands/)"
+# Copy entire assets directory (icons, sounds, etc.)
+if [ -d "$PROJECT_PATH/assets" ]; then
+    mkdir -p "$BASE_DIR/app/assets"
+    cp -r "$PROJECT_PATH/assets/"* "$BASE_DIR/app/assets/" 2>/dev/null || true
+    echo "  ✅ Assets copied (icons/, sounds/)"
 fi
 
 # Models (app-specific models like silero_vad.onnx, NOT Whisper models!)
