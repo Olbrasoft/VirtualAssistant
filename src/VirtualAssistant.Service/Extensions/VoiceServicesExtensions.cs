@@ -59,8 +59,10 @@ public static class VoiceServicesExtensions
         // because DictationWorker uses a dedicated instance (manually created in WorkerServicesExtensions)
         services.AddSingleton<IVadService, VadService>();
 
-        // Use SpeechToText gRPC microservice instead of local Whisper.net
-        // IMPORTANT: Use Dictation config for model selection (not ContinuousListener)
+        // TODO: Issue #460 - Add WhisperNetProvider here
+        // TODO: Issue #461 - Add WhisperNetTranscriber adapter (replaces SpeechToTextGrpcClient)
+        // Temporarily commented out - will be restored with inline Whisper.net implementation
+        /*
         services.AddSingleton<ISpeechTranscriber>(sp =>
         {
             var logger = sp.GetRequiredService<ILogger<SpeechToTextGrpcClient>>();
@@ -71,6 +73,7 @@ public static class VoiceServicesExtensions
                 dictationOptions.Value.WhisperLanguage,
                 dictationOptions.Value.WhisperModelPath);
         });
+        */
 
         // TranscriptionService with LLM correction and text filtering
         services.AddSingleton<ITranscriptionService>(sp =>
