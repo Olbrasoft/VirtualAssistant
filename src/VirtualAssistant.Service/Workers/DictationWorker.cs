@@ -179,80 +179,22 @@ public class DictationWorker : BackgroundService, IDictationControl
         }
     }
 
+    /// <summary>
+    /// Orchestrates the dictation workflow: stop recording, transcribe, save, and type text.
+    /// </summary>
     private async Task StopAndTranscribeAsync()
     {
         try
         {
-            // Stop audio recording and get captured audio data
-            var audioData = await _recordingCoordinator.StopRecordingAsync();
+            var audioData = await ValidateAndPrepareAudioAsync();
+            if (audioData == null) return;
 
-            if (audioData.Length == 0)
-            {
-                _logger.LogWarning("No audio data recorded");
-                _stateMachine.TransitionTo(DictationState.Idle);
-                return;
-            }
+            var transcriptionResult = await TranscribeAudioWithSoundAsync(audioData);
+            if (transcriptionResult == null) return;
 
-            _logger.LogInformation("Recording stopped - {Bytes} bytes captured", audioData.Length);
+            await SaveTranscriptionToDatabaseAsync(audioData, transcriptionResult);
 
-            // Transition to Transcribing state
-            _stateMachine.TransitionTo(DictationState.Transcribing);
-
-            // Start typing sound loop
-            _typingSound.StartLoop();
-
-            // Create transcription CTS
-            _transcriptionCts = new CancellationTokenSource();
-
-            // Transcribe audio
-            var result = await _transcriptionService.TranscribeAsync(audioData, _transcriptionCts.Token);
-
-            if (!result.Success || string.IsNullOrWhiteSpace(result.Text))
-            {
-                _logger.LogWarning("Transcription failed or empty");
-                _typingSound.StopLoop();
-                _stateMachine.TransitionTo(DictationState.Idle);
-                return;
-            }
-
-            _logger.LogInformation("Transcription result: '{Text}'", result.Text);
-
-            // Keep typing sound playing during database save and text insertion
-            // It will be stopped after text is typed successfully
-
-            // Save transcription to database using persistence service
-            // Note: Create scope because DictationWorker is singleton but persistence service is scoped
-            using (var scope = _scopeFactory.CreateScope())
-            {
-                var persistenceService = scope.ServiceProvider.GetRequiredService<IDictationPersistenceService>();
-                var originalText = result.OriginalText ?? result.Text;
-                var correctedText = (result.OriginalText != null && result.Text != result.OriginalText) ? result.Text : null;
-
-                await persistenceService.SaveTranscriptionAsync(
-                    audioData,
-                    originalText,
-                    correctedText,
-                    result.LlmDurationMs ?? 0,
-                    _transcriptionCts.Token);
-            }
-
-            // Type text into active window via xdotool
-            var typed = await _keyboardSimulation.TypeIntoActiveWindowAsync(result.Text, _transcriptionCts.Token);
-
-            // Stop typing sound after text is inserted (or failed)
-            _typingSound.StopLoop();
-
-            if (!typed)
-            {
-                _logger.LogWarning("Failed to type text into active window");
-                _stateMachine.TransitionTo(DictationState.Idle);
-                return;
-            }
-
-            _logger.LogInformation("Text typed successfully into active window");
-
-            // Return to Idle state
-            _stateMachine.TransitionTo(DictationState.Idle);
+            await TypeTextAndFinishAsync(transcriptionResult.Text);
         }
         catch (OperationCanceledException)
         {
@@ -271,6 +213,90 @@ public class DictationWorker : BackgroundService, IDictationControl
             _transcriptionCts?.Dispose();
             _transcriptionCts = null;
         }
+    }
+
+    /// <summary>
+    /// Stops recording and validates audio data.
+    /// Returns null if audio is invalid, otherwise returns audio data.
+    /// </summary>
+    private async Task<byte[]?> ValidateAndPrepareAudioAsync()
+    {
+        var audioData = await _recordingCoordinator.StopRecordingAsync();
+
+        if (audioData.Length == 0)
+        {
+            _logger.LogWarning("No audio data recorded");
+            _stateMachine.TransitionTo(DictationState.Idle);
+            return null;
+        }
+
+        _logger.LogInformation("Recording stopped - {Bytes} bytes captured", audioData.Length);
+        _stateMachine.TransitionTo(DictationState.Transcribing);
+
+        return audioData;
+    }
+
+    /// <summary>
+    /// Transcribes audio with typing sound effect.
+    /// Returns null if transcription failed, otherwise returns transcription result.
+    /// </summary>
+    private async Task<TranscriptionResult?> TranscribeAudioWithSoundAsync(byte[] audioData)
+    {
+        _typingSound.StartLoop();
+        _transcriptionCts = new CancellationTokenSource();
+
+        var result = await _transcriptionService.TranscribeAsync(audioData, _transcriptionCts.Token);
+
+        if (!result.Success || string.IsNullOrWhiteSpace(result.Text))
+        {
+            _logger.LogWarning("Transcription failed or empty");
+            _typingSound.StopLoop();
+            _stateMachine.TransitionTo(DictationState.Idle);
+            return null;
+        }
+
+        _logger.LogInformation("Transcription result: '{Text}'", result.Text);
+        return result;
+    }
+
+    /// <summary>
+    /// Saves transcription to database using scoped persistence service.
+    /// Note: Creates scope because DictationWorker is singleton but persistence service is scoped.
+    /// </summary>
+    private async Task SaveTranscriptionToDatabaseAsync(byte[] audioData, TranscriptionResult result)
+    {
+        using var scope = _scopeFactory.CreateScope();
+        var persistenceService = scope.ServiceProvider.GetRequiredService<IDictationPersistenceService>();
+
+        var originalText = result.OriginalText ?? result.Text;
+        var correctedText = (result.OriginalText != null && result.Text != result.OriginalText) ? result.Text : null;
+
+        await persistenceService.SaveTranscriptionAsync(
+            audioData,
+            originalText,
+            correctedText,
+            result.LlmDurationMs ?? 0,
+            _transcriptionCts!.Token);
+    }
+
+    /// <summary>
+    /// Types text into active window and transitions to Idle state.
+    /// </summary>
+    private async Task TypeTextAndFinishAsync(string text)
+    {
+        var typed = await _keyboardSimulation.TypeIntoActiveWindowAsync(text, _transcriptionCts!.Token);
+
+        _typingSound.StopLoop();
+
+        if (!typed)
+        {
+            _logger.LogWarning("Failed to type text into active window");
+            _stateMachine.TransitionTo(DictationState.Idle);
+            return;
+        }
+
+        _logger.LogInformation("Text typed successfully into active window");
+        _stateMachine.TransitionTo(DictationState.Idle);
     }
 
     private async Task EmergencyStopAsync()
