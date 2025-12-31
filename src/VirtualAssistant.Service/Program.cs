@@ -13,7 +13,7 @@ namespace Olbrasoft.VirtualAssistant.Service;
 public class Program
 {
     private static WebApplication? _app;
-    private static VirtualAssistantTrayService? _trayService;
+    private static TrayCoordinatorService? _trayService;
     private static CancellationTokenSource? _cts;
     private static FileStream? _lockFile;
     private static string _lockFilePath = "/tmp/virtual-assistant.lock"; // Default, overridden from config
@@ -66,7 +66,7 @@ public class Program
         _app.MapVirtualAssistantEndpoints();
 
         // Get tray icon service from DI
-        _trayService = _app.Services.GetRequiredService<VirtualAssistantTrayService>();
+        _trayService = _app.Services.GetRequiredService<TrayCoordinatorService>();
 
         try
         {
