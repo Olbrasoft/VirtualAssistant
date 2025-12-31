@@ -139,8 +139,13 @@ public class AudioRecordingCoordinatorTests
     {
         // Arrange
         var chunk = new byte[] { 1, 2, 3 };
+        var callCount = 0;
         _audioCaptureMock.Setup(x => x.ReadChunkAsync(It.IsAny<CancellationToken>()))
-            .ReturnsAsync(chunk);
+            .ReturnsAsync(() =>
+            {
+                callCount++;
+                return callCount <= 1 ? chunk : null;
+            });
 
         await _sut.StartRecordingAsync();
         await Task.Delay(100);
@@ -148,6 +153,7 @@ public class AudioRecordingCoordinatorTests
         // Act
         var firstStop = await _sut.StopRecordingAsync();
         await _sut.StartRecordingAsync();
+        await Task.Delay(50); // Give time for loop to realize no more data
         var secondStop = await _sut.StopRecordingAsync();
 
         // Assert - Second stop should not contain data from first recording
