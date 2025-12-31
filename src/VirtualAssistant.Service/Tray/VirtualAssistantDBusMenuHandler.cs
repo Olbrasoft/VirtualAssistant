@@ -1,6 +1,7 @@
 using Microsoft.Extensions.Logging;
 using Olbrasoft.SystemTray.Linux;
 using Olbrasoft.VirtualAssistant.Core.Services;
+using Olbrasoft.VirtualAssistant.Service.Tray.Menu;
 using Tmds.DBus.Protocol;
 using Tmds.DBus.SourceGenerator;
 
@@ -9,31 +10,17 @@ namespace Olbrasoft.VirtualAssistant.Service.Tray;
 /// <summary>
 /// D-Bus handler for com.canonical.dbusmenu interface.
 /// Provides context menu for the VirtualAssistant tray icon.
+/// Facade pattern coordinating MenuStateManager, MenuLayoutBuilder, and MenuEventRouter.
 /// </summary>
 internal class VirtualAssistantDBusMenuHandler : ComCanonicalDbusmenuHandler, SystemTray.Linux.ITrayMenuHandler, Core.Services.ITrayMenuHandler, IServiceStatusUpdater
 {
     private Connection? _connection;
     private readonly ILogger _logger;
-    private uint _revision = 1;
     private PathHandler? _menuPathHandler;
 
-    // Menu item IDs
-    private const int RootId = 0;
-    private const int StatusId = 1;
-    // NOTE: TextToSpeechToggleId removed (issue #407) - TTS runs inline now
-    // NOTE: SpeechToTextServiceId removed (issue #466) - STT runs inline now
-    private const int Separator1Id = 3;
-    private const int Separator2Id = 5;
-    private const int LlmCorrectionId = 6;
-    private const int ReloadPromptId = 7;
-    private const int Separator3Id = 8;
-    private const int MuteToggleId = 9;
-    private const int TtsMuteToggleId = 15;
-    private const int ShowLogsId = 10;
-    private const int Separator4Id = 11;
-    private const int QuitId = 12;
-    private const int LogViewerId = 13;
-    private const int DictationToggleId = 14;
+    private readonly IMenuStateManager _stateManager;
+    private readonly IMenuLayoutBuilder _layoutBuilder;
+    private readonly IMenuEventRouter _eventRouter;
 
     /// <summary>
     /// Event fired when user selects Quit from the menu.
@@ -49,8 +36,6 @@ internal class VirtualAssistantDBusMenuHandler : ComCanonicalDbusmenuHandler, Sy
     /// Event fired when user selects Show Logs.
     /// </summary>
     public event Action? OnShowLogsRequested;
-
-    // NOTE: STT service events removed (issue #466) - STT runs inline now
 
     /// <summary>
     /// Event fired when user wants to stop log-viewer service.
@@ -82,23 +67,36 @@ internal class VirtualAssistantDBusMenuHandler : ComCanonicalDbusmenuHandler, Sy
     /// </summary>
     public event Action? OnTtsMuteToggleRequested;
 
-    private bool _isMuted;
-    private bool _ttsMuted;
-    // NOTE: _isTextToSpeechServiceRunning removed (issue #407) - TTS runs inline now
-    // NOTE: _sttServiceStatus and _sttServiceVersion removed (issue #466) - STT runs inline now
-    private string _logViewerStatus = "Checking...";
-    private bool _llmCorrectionEnabled = true;
-    private bool _dictationEnabled = true;
-
-    public VirtualAssistantDBusMenuHandler(ILogger logger) : base(emitOnCapturedContext: false)
+    public VirtualAssistantDBusMenuHandler(
+        ILogger<VirtualAssistantDBusMenuHandler> logger,
+        IMenuStateManager stateManager,
+        IMenuLayoutBuilder layoutBuilder,
+        IMenuEventRouter eventRouter) : base(emitOnCapturedContext: false)
     {
-        _logger = logger;
+        _logger = logger ?? throw new ArgumentNullException(nameof(logger));
+        _stateManager = stateManager ?? throw new ArgumentNullException(nameof(stateManager));
+        _layoutBuilder = layoutBuilder ?? throw new ArgumentNullException(nameof(layoutBuilder));
+        _eventRouter = eventRouter ?? throw new ArgumentNullException(nameof(eventRouter));
 
         // Set D-Bus properties
         Version = 3; // dbusmenu protocol version
         TextDirection = "ltr";
         Status = "normal";
         IconThemePath = Array.Empty<string>();
+
+        // Subscribe to state changes to emit layout updates
+        _stateManager.StateChanged += OnStateChanged;
+
+        // Forward events from event router
+        _eventRouter.OnQuitRequested += () => OnQuitRequested?.Invoke();
+        _eventRouter.OnMuteToggleRequested += () => OnMuteToggleRequested?.Invoke();
+        _eventRouter.OnShowLogsRequested += () => OnShowLogsRequested?.Invoke();
+        _eventRouter.OnStopLogViewerRequested += () => OnStopLogViewerRequested?.Invoke();
+        _eventRouter.OnStartLogViewerRequested += () => OnStartLogViewerRequested?.Invoke();
+        _eventRouter.OnLlmCorrectionToggled += (enabled) => OnLlmCorrectionToggled?.Invoke(enabled);
+        _eventRouter.OnReloadPromptRequested += () => OnReloadPromptRequested?.Invoke();
+        _eventRouter.OnDictationToggleRequested += (enabled) => OnDictationToggleRequested?.Invoke(enabled);
+        _eventRouter.OnTtsMuteToggleRequested += () => OnTtsMuteToggleRequested?.Invoke();
     }
 
     public override Connection Connection => _connection ?? throw new InvalidOperationException("Connection not set. Call RegisterWithDbus first.");
@@ -150,14 +148,7 @@ internal class VirtualAssistantDBusMenuHandler : ComCanonicalDbusmenuHandler, Sy
     /// </summary>
     public void UpdateMuteState(bool isMuted)
     {
-        _isMuted = isMuted;
-        _revision++;
-
-        // Only emit if connection is established (avoid race condition during startup)
-        if (_connection != null)
-        {
-            EmitLayoutUpdated(_revision, RootId);
-        }
+        _stateManager.UpdateMuteState(isMuted);
     }
 
     /// <summary>
@@ -165,32 +156,15 @@ internal class VirtualAssistantDBusMenuHandler : ComCanonicalDbusmenuHandler, Sy
     /// </summary>
     public void UpdateTtsMuteState(bool isMuted)
     {
-        _ttsMuted = isMuted;
-        _revision++;
-
-        // Only emit if connection is established (avoid race condition during startup)
-        if (_connection != null)
-        {
-            EmitLayoutUpdated(_revision, RootId);
-        }
+        _stateManager.UpdateTtsMuteState(isMuted);
     }
-
-    // NOTE: UpdateServiceStatus removed (issue #407) - TextToSpeech runs inline now
-    // NOTE: UpdateSpeechToTextStatus removed (issue #466) - SpeechToText runs inline now
 
     /// <summary>
     /// Updates log-viewer service status in menu.
     /// </summary>
     public void UpdateLogViewerStatus(bool isRunning)
     {
-        _logViewerStatus = isRunning ? "Running" : "Stopped";
-        _revision++;
-
-        // Only emit if connection is established (avoid race condition during startup)
-        if (_connection != null)
-        {
-            EmitLayoutUpdated(_revision, RootId);
-        }
+        _stateManager.UpdateLogViewerStatus(isRunning);
     }
 
     /// <summary>
@@ -198,14 +172,7 @@ internal class VirtualAssistantDBusMenuHandler : ComCanonicalDbusmenuHandler, Sy
     /// </summary>
     public void UpdateLlmCorrectionStatus(bool enabled)
     {
-        _llmCorrectionEnabled = enabled;
-        _revision++;
-
-        // Only emit if connection is established (avoid race condition during startup)
-        if (_connection != null)
-        {
-            EmitLayoutUpdated(_revision, RootId);
-        }
+        _stateManager.UpdateLlmCorrectionStatus(enabled);
     }
 
     /// <summary>
@@ -213,13 +180,19 @@ internal class VirtualAssistantDBusMenuHandler : ComCanonicalDbusmenuHandler, Sy
     /// </summary>
     public void UpdateDictationStatus(bool enabled)
     {
-        _dictationEnabled = enabled;
-        _revision++;
+        _stateManager.UpdateDictationStatus(enabled);
+    }
 
+    /// <summary>
+    /// Handles state change events from MenuStateManager.
+    /// Emits D-Bus layout update signal.
+    /// </summary>
+    private void OnStateChanged(object? sender, MenuStateChangedEventArgs e)
+    {
         // Only emit if connection is established (avoid race condition during startup)
         if (_connection != null)
         {
-            EmitLayoutUpdated(_revision, RootId);
+            EmitLayoutUpdated(e.Revision, MenuItemIds.RootId);
         }
     }
 
@@ -231,159 +204,8 @@ internal class VirtualAssistantDBusMenuHandler : ComCanonicalDbusmenuHandler, Sy
     {
         _logger.LogDebug("GetLayout: parentId={ParentId}, depth={Depth}", parentId, recursionDepth);
 
-        var layout = BuildMenuLayout(parentId, recursionDepth);
-        return ValueTask.FromResult((_revision, layout));
-    }
-
-    private (int, Dictionary<string, VariantValue>, VariantValue[]) BuildMenuLayout(int parentId, int recursionDepth)
-    {
-        if (parentId == RootId)
-        {
-            // Root menu with children
-            var rootProps = new Dictionary<string, VariantValue>
-            {
-                ["children-display"] = VariantValue.String("submenu")
-            };
-
-            // Build child menu items
-            VariantValue[] children;
-            if (recursionDepth == 0)
-            {
-                children = Array.Empty<VariantValue>();
-            }
-            else
-            {
-                var muteLabel = _isMuted ? "🔊 Zapnout mikrofon" : "🔇 Ztlumit mikrofon";
-                var ttsMuteLabel = _ttsMuted ? "❌ TextToSpeech - Zapnout" : "✅ TextToSpeech - Stlumit";
-                var dictationLabel = _dictationEnabled
-                    ? "✅ Diktace - Vypnout"
-                    : "❌ Diktace - Zapnout";
-                var logViewerLabel = _logViewerStatus == "Running"
-                    ? "✅ Log Viewer - Vypnout"
-                    : "❌ Log Viewer - Zapnout";
-                var llmCorrectionLabel = GetLlmCorrectionLabel();
-                // NOTE: STT Service menu item removed (issue #466) - STT runs inline now
-                children = new VariantValue[]
-                {
-                    CreateChildVariant(StatusId, "VirtualAssistant - poslouchám", false, enabled: false),
-                    CreateChildVariant(Separator1Id, "", true),
-                    CreateChildVariant(DictationToggleId, dictationLabel, false),
-                    CreateChildVariant(Separator2Id, "", true),
-                    CreateChildVariant(LlmCorrectionId, llmCorrectionLabel, false),
-                    CreateChildVariant(ReloadPromptId, "🔄 Reload LLM Prompt", false),
-                    CreateChildVariant(Separator3Id, "", true),
-                    CreateChildVariant(MuteToggleId, muteLabel, false),
-                    CreateChildVariant(TtsMuteToggleId, ttsMuteLabel, false),
-                    CreateChildVariant(ShowLogsId, "Zobrazit logy", false),
-                    CreateChildVariant(LogViewerId, logViewerLabel, false),
-                    CreateChildVariant(Separator4Id, "", true),
-                    CreateChildVariant(QuitId, "Ukončit", false)
-                };
-            }
-
-            return (RootId, rootProps, children);
-        }
-
-        // For non-root items, return the specific item
-        return GetMenuItemLayout(parentId);
-    }
-
-    private VariantValue CreateChildVariant(int id, string label, bool isSeparator, bool enabled = true)
-    {
-        // Create a struct variant for menu item: (ia{sv}av)
-        var props = new Dict<string, VariantValue>();
-        if (isSeparator)
-        {
-            props.Add("type", VariantValue.String("separator"));
-            props.Add("visible", VariantValue.Bool(true));
-        }
-        else
-        {
-            props.Add("label", VariantValue.String(label));
-            props.Add("enabled", VariantValue.Bool(enabled));
-            props.Add("visible", VariantValue.Bool(true));
-        }
-
-        // Empty children array for leaf items
-        var children = new Array<VariantValue>();
-
-        // Create the struct (ia{sv}av)
-        return Struct.Create(id, props, children);
-    }
-
-    private string GetLlmCorrectionLabel()
-    {
-        return _llmCorrectionEnabled
-            ? "✅ Posílání do LLM - Vypnout"
-            : "❌ Posílání do LLM - Zapnout";
-    }
-
-    private (int, Dictionary<string, VariantValue>, VariantValue[]) GetMenuItemLayout(int id)
-    {
-        var props = new Dictionary<string, VariantValue>();
-
-        switch (id)
-        {
-            case StatusId:
-                props["label"] = VariantValue.String("VirtualAssistant - poslouchám");
-                props["enabled"] = VariantValue.Bool(false);
-                props["visible"] = VariantValue.Bool(true);
-                break;
-            case Separator1Id:
-            case Separator2Id:
-            case Separator3Id:
-            case Separator4Id:
-                props["type"] = VariantValue.String("separator");
-                props["visible"] = VariantValue.Bool(true);
-                break;
-            // NOTE: TextToSpeechToggleId case removed (issue #407)
-            // NOTE: SpeechToTextServiceId case removed (issue #466)
-            case DictationToggleId:
-                var dictationLabel = _dictationEnabled
-                    ? "✅ Diktace - Vypnout"
-                    : "❌ Diktace - Zapnout";
-                props["label"] = VariantValue.String(dictationLabel);
-                props["enabled"] = VariantValue.Bool(true);
-                props["visible"] = VariantValue.Bool(true);
-                break;
-            case LogViewerId:
-                var logViewerLabel = _logViewerStatus == "Running"
-                    ? "✅ Log Viewer - Vypnout"
-                    : "❌ Log Viewer - Zapnout";
-                props["label"] = VariantValue.String(logViewerLabel);
-                props["enabled"] = VariantValue.Bool(true);
-                props["visible"] = VariantValue.Bool(true);
-                break;
-            // NOTE: TextToSpeechToggleId case removed (issue #407)
-            case LlmCorrectionId:
-                props["label"] = VariantValue.String(GetLlmCorrectionLabel());
-                props["enabled"] = VariantValue.Bool(true);
-                props["visible"] = VariantValue.Bool(true);
-                break;
-            case ReloadPromptId:
-                props["label"] = VariantValue.String("🔄 Reload LLM Prompt");
-                props["enabled"] = VariantValue.Bool(true);
-                props["visible"] = VariantValue.Bool(true);
-                break;
-            case MuteToggleId:
-                var muteLabel = _isMuted ? "🔊 Zapnout mikrofon" : "🔇 Ztlumit mikrofon";
-                props["label"] = VariantValue.String(muteLabel);
-                props["enabled"] = VariantValue.Bool(true);
-                props["visible"] = VariantValue.Bool(true);
-                break;
-            case ShowLogsId:
-                props["label"] = VariantValue.String("Zobrazit logy");
-                props["enabled"] = VariantValue.Bool(true);
-                props["visible"] = VariantValue.Bool(true);
-                break;
-            case QuitId:
-                props["label"] = VariantValue.String("Ukončit");
-                props["enabled"] = VariantValue.Bool(true);
-                props["visible"] = VariantValue.Bool(true);
-                break;
-        }
-
-        return (id, props, Array.Empty<VariantValue>());
+        var layout = _layoutBuilder.BuildMenuLayout(parentId, recursionDepth);
+        return ValueTask.FromResult((_stateManager.Revision, layout));
     }
 
     /// <summary>
@@ -394,92 +216,8 @@ internal class VirtualAssistantDBusMenuHandler : ComCanonicalDbusmenuHandler, Sy
     {
         _logger.LogDebug("GetGroupProperties: ids=[{Ids}]", string.Join(",", ids));
 
-        var results = ids.Select(id => GetItemProperties(id)).ToArray();
+        var results = ids.Select(id => _layoutBuilder.GetItemProperties(id)).ToArray();
         return ValueTask.FromResult(results);
-    }
-
-    private (int, Dictionary<string, VariantValue>) GetItemProperties(int id)
-    {
-        var muteLabel = _isMuted ? "🔊 Zapnout mikrofon" : "🔇 Ztlumit mikrofon";
-        // NOTE: TextToSpeech menu item removed (issue #407) - TTS runs inline now
-        // NOTE: STT Service menu item removed (issue #466) - STT runs inline now
-        var dictationLabel = _dictationEnabled
-            ? "✅ Diktace - Vypnout"
-            : "❌ Diktace - Zapnout";
-        var logViewerLabel = _logViewerStatus == "Running"
-            ? "✅ Log Viewer - Vypnout"
-            : "❌ Log Viewer - Zapnout";
-        var llmCorrectionLabel = GetLlmCorrectionLabel();
-
-        return id switch
-        {
-            RootId => (id, new Dictionary<string, VariantValue>
-            {
-                ["children-display"] = VariantValue.String("submenu")
-            }),
-            StatusId => (id, new Dictionary<string, VariantValue>
-            {
-                ["label"] = VariantValue.String("VirtualAssistant - poslouchám"),
-                ["enabled"] = VariantValue.Bool(false),
-                ["visible"] = VariantValue.Bool(true)
-            }),
-            Separator1Id or Separator2Id or Separator3Id or Separator4Id => (id, new Dictionary<string, VariantValue>
-            {
-                ["type"] = VariantValue.String("separator"),
-                ["visible"] = VariantValue.Bool(true)
-            }),
-            // NOTE: SpeechToTextServiceId case removed (issue #466)
-            DictationToggleId => (id, new Dictionary<string, VariantValue>
-            {
-                ["label"] = VariantValue.String(dictationLabel),
-                ["enabled"] = VariantValue.Bool(true),
-                ["visible"] = VariantValue.Bool(true)
-            }),
-            LogViewerId => (id, new Dictionary<string, VariantValue>
-            {
-                ["label"] = VariantValue.String(logViewerLabel),
-                ["enabled"] = VariantValue.Bool(true),
-                ["visible"] = VariantValue.Bool(true)
-            }),
-            // NOTE: TextToSpeechToggleId case removed (issue #407)
-            LlmCorrectionId => (id, new Dictionary<string, VariantValue>
-            {
-                ["label"] = VariantValue.String(llmCorrectionLabel),
-                ["enabled"] = VariantValue.Bool(true),
-                ["visible"] = VariantValue.Bool(true)
-            }),
-            ReloadPromptId => (id, new Dictionary<string, VariantValue>
-            {
-                ["label"] = VariantValue.String("🔄 Reload LLM Prompt"),
-                ["enabled"] = VariantValue.Bool(true),
-                ["visible"] = VariantValue.Bool(true)
-            }),
-            MuteToggleId => (id, new Dictionary<string, VariantValue>
-            {
-                ["label"] = VariantValue.String(muteLabel),
-                ["enabled"] = VariantValue.Bool(true),
-                ["visible"] = VariantValue.Bool(true)
-            }),
-            TtsMuteToggleId => (id, new Dictionary<string, VariantValue>
-            {
-                ["label"] = VariantValue.String(_ttsMuted ? "❌ TextToSpeech - Zapnout" : "✅ TextToSpeech - Stlumit"),
-                ["enabled"] = VariantValue.Bool(true),
-                ["visible"] = VariantValue.Bool(true)
-            }),
-            ShowLogsId => (id, new Dictionary<string, VariantValue>
-            {
-                ["label"] = VariantValue.String("Zobrazit logy"),
-                ["enabled"] = VariantValue.Bool(true),
-                ["visible"] = VariantValue.Bool(true)
-            }),
-            QuitId => (id, new Dictionary<string, VariantValue>
-            {
-                ["label"] = VariantValue.String("Ukončit"),
-                ["enabled"] = VariantValue.Bool(true),
-                ["visible"] = VariantValue.Bool(true)
-            }),
-            _ => (id, new Dictionary<string, VariantValue>())
-        };
     }
 
     /// <summary>
@@ -489,7 +227,7 @@ internal class VirtualAssistantDBusMenuHandler : ComCanonicalDbusmenuHandler, Sy
     {
         _logger.LogDebug("GetProperty: id={Id}, name={Name}", id, name);
 
-        var props = GetItemProperties(id).Item2;
+        var props = _layoutBuilder.GetItemProperties(id).Item2;
         if (props.TryGetValue(name, out var value))
         {
             return ValueTask.FromResult(value);
@@ -501,70 +239,11 @@ internal class VirtualAssistantDBusMenuHandler : ComCanonicalDbusmenuHandler, Sy
 
     /// <summary>
     /// Handles menu events (clicks).
+    /// Delegates to MenuEventRouter.
     /// </summary>
     protected override ValueTask OnEventAsync(Message request, int id, string eventId, VariantValue data, uint timestamp)
     {
-        _logger.LogInformation("Event received: id={Id}, eventId={EventId}", id, eventId);
-
-        if (eventId == "clicked")
-        {
-            switch (id)
-            {
-                case QuitId:
-                    _logger.LogInformation("Quit menu item clicked");
-                    OnQuitRequested?.Invoke();
-                    break;
-                case MuteToggleId:
-                    _logger.LogInformation("Mute toggle menu item clicked");
-                    OnMuteToggleRequested?.Invoke();
-                    break;
-                case TtsMuteToggleId:
-                    _logger.LogInformation("TTS mute toggle clicked");
-                    OnTtsMuteToggleRequested?.Invoke();
-                    break;
-                case ShowLogsId:
-                    _logger.LogInformation("Show logs menu item clicked");
-                    OnShowLogsRequested?.Invoke();
-                    break;
-                // NOTE: TextToSpeech toggle removed - TTS now runs inline (issue #407)
-                // NOTE: SpeechToText toggle removed - STT now runs inline (issue #466)
-                case LogViewerId:
-                    _logger.LogInformation("Log Viewer service menu item clicked");
-                    if (_logViewerStatus == "Running")
-                    {
-                        OnStopLogViewerRequested?.Invoke();
-                    }
-                    else
-                    {
-                        OnStartLogViewerRequested?.Invoke();
-                    }
-                    break;
-                case LlmCorrectionId:
-                    _logger.LogInformation("LLM Correction menu item clicked (current: {Enabled})", _llmCorrectionEnabled);
-                    // Toggle LLM correction
-                    _llmCorrectionEnabled = !_llmCorrectionEnabled;
-                    OnLlmCorrectionToggled?.Invoke(_llmCorrectionEnabled);
-                    // Update menu to reflect new state
-                    UpdateLlmCorrectionStatus(_llmCorrectionEnabled);
-                    break;
-                case ReloadPromptId:
-                    _logger.LogInformation("Reload LLM Prompt menu item clicked");
-                    OnReloadPromptRequested?.Invoke();
-                    break;
-                case DictationToggleId:
-                    _logger.LogInformation("Dictation toggle clicked (current: {Enabled})", _dictationEnabled);
-                    // Toggle dictation
-                    _dictationEnabled = !_dictationEnabled;
-                    OnDictationToggleRequested?.Invoke(_dictationEnabled);
-                    // Update menu to reflect new state
-                    UpdateDictationStatus(_dictationEnabled);
-                    break;
-                default:
-                    _logger.LogWarning("Unknown menu item clicked: id={Id}", id);
-                    break;
-            }
-        }
-
+        _eventRouter.HandleMenuEvent(id, eventId);
         return ValueTask.CompletedTask;
     }
 
@@ -577,7 +256,7 @@ internal class VirtualAssistantDBusMenuHandler : ComCanonicalDbusmenuHandler, Sy
 
         foreach (var (id, eventId, data, timestamp) in events)
         {
-            _ = OnEventAsync(request, id, eventId, data, timestamp);
+            _eventRouter.HandleMenuEvent(id, eventId);
         }
 
         return ValueTask.FromResult(Array.Empty<int>());
@@ -585,14 +264,10 @@ internal class VirtualAssistantDBusMenuHandler : ComCanonicalDbusmenuHandler, Sy
 
     /// <summary>
     /// Called before showing a menu item. Returns whether the menu needs update.
-    /// Triggers automatic service status refresh when root menu is opened.
     /// </summary>
     protected override ValueTask<bool> OnAboutToShowAsync(Message request, int id)
     {
         _logger.LogDebug("AboutToShow: id={Id}", id);
-
-        // NOTE: Service status refresh removed - TTS now runs inline (issue #407)
-
         return ValueTask.FromResult(false); // No update needed
     }
 
