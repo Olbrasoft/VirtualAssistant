@@ -1,8 +1,10 @@
+using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
 using Olbrasoft.VirtualAssistant.Core.Configuration;
 using Olbrasoft.VirtualAssistant.Core.Services;
+using Olbrasoft.VirtualAssistant.Service.Configuration;
 using Olbrasoft.VirtualAssistant.Service.Services;
 using Olbrasoft.VirtualAssistant.Service.Tray;
 using Olbrasoft.VirtualAssistant.Service.Tray.Menu;
@@ -22,8 +24,12 @@ public static class TrayServicesExtensions
     /// <summary>
     /// Adds system tray icon services and D-Bus menu handlers.
     /// </summary>
-    public static IServiceCollection AddTrayServices(this IServiceCollection services)
+    public static IServiceCollection AddTrayServices(this IServiceCollection services, IConfiguration configuration)
     {
+        // Service monitoring configuration
+        services.Configure<ServiceMonitoringOptions>(
+            configuration.GetSection(ServiceMonitoringOptions.SectionName));
+
         // Icon renderer for SVG rendering
         services.AddSingleton(sp =>
         {
@@ -83,8 +89,9 @@ public static class TrayServicesExtensions
         services.AddSingleton<IServiceLifecycleManager>(sp =>
         {
             var logger = sp.GetRequiredService<ILogger<ServiceLifecycleManager>>();
+            var options = sp.GetRequiredService<IOptions<ServiceMonitoringOptions>>();
             var menuHandler = sp.GetRequiredService<SystemTrayMenuHandler>();
-            return new ServiceLifecycleManager(logger, menuHandler as IServiceStatusUpdater);
+            return new ServiceLifecycleManager(logger, options, menuHandler as IServiceStatusUpdater);
         });
 
         // Icon animation service for hand icon animations

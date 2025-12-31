@@ -1,6 +1,8 @@
 using Microsoft.Extensions.Logging;
+using Microsoft.Extensions.Options;
 using Moq;
 using Olbrasoft.VirtualAssistant.Core.Services;
+using Olbrasoft.VirtualAssistant.Service.Configuration;
 using Olbrasoft.VirtualAssistant.Service.Services;
 
 namespace VirtualAssistant.Service.Tests.Services;
@@ -14,11 +16,17 @@ public class ServiceLifecycleManagerTests
 {
     private readonly Mock<ILogger<ServiceLifecycleManager>> _loggerMock;
     private readonly Mock<IServiceStatusUpdater> _statusUpdaterMock;
+    private readonly IOptions<ServiceMonitoringOptions> _defaultOptions;
 
     public ServiceLifecycleManagerTests()
     {
         _loggerMock = new Mock<ILogger<ServiceLifecycleManager>>();
         _statusUpdaterMock = new Mock<IServiceStatusUpdater>();
+        _defaultOptions = Options.Create(new ServiceMonitoringOptions
+        {
+            StatusPollTimeoutMs = 2000,
+            StatusPollIntervalMs = 100
+        });
     }
 
     #region Constructor Tests
@@ -28,7 +36,7 @@ public class ServiceLifecycleManagerTests
     {
         // Act & Assert
         var exception = Assert.Throws<ArgumentNullException>(() =>
-            new ServiceLifecycleManager(null!, _statusUpdaterMock.Object));
+            new ServiceLifecycleManager(null!, _defaultOptions, _statusUpdaterMock.Object));
         Assert.Equal("logger", exception.ParamName);
     }
 
@@ -36,7 +44,7 @@ public class ServiceLifecycleManagerTests
     public void Constructor_WithNullStatusUpdater_DoesNotThrow()
     {
         // Act & Assert - should not throw
-        var service = new ServiceLifecycleManager(_loggerMock.Object, null);
+        var service = new ServiceLifecycleManager(_loggerMock.Object, _defaultOptions, null);
         Assert.NotNull(service);
     }
 
@@ -50,7 +58,7 @@ public class ServiceLifecycleManagerTests
     public async Task HandleStartLogViewerAsync_LogsInformation()
     {
         // Arrange
-        var service = new ServiceLifecycleManager(_loggerMock.Object, _statusUpdaterMock.Object);
+        var service = new ServiceLifecycleManager(_loggerMock.Object, _defaultOptions, _statusUpdaterMock.Object);
 
         // Act
         await service.HandleStartLogViewerAsync();
@@ -74,7 +82,7 @@ public class ServiceLifecycleManagerTests
     public async Task HandleStopLogViewerAsync_LogsInformation()
     {
         // Arrange
-        var service = new ServiceLifecycleManager(_loggerMock.Object, _statusUpdaterMock.Object);
+        var service = new ServiceLifecycleManager(_loggerMock.Object, _defaultOptions, _statusUpdaterMock.Object);
 
         // Act
         await service.HandleStopLogViewerAsync();
@@ -104,7 +112,7 @@ public class ServiceLifecycleManagerTests
     public async Task RefreshLogViewerStatusAsync_WithNullMenuHandler_DoesNothing()
     {
         // Arrange
-        var service = new ServiceLifecycleManager(_loggerMock.Object, null);
+        var service = new ServiceLifecycleManager(_loggerMock.Object, _defaultOptions, null);
 
         // Act
         await service.RefreshLogViewerStatusAsync();

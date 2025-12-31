@@ -1,6 +1,8 @@
 using Microsoft.Extensions.Logging;
+using Microsoft.Extensions.Options;
 using Moq;
 using Olbrasoft.VirtualAssistant.Service.Services;
+using Olbrasoft.VirtualAssistant.Voice.Configuration;
 using VirtualAssistant.Data;
 using VirtualAssistant.Data.Entities;
 
@@ -16,6 +18,7 @@ public class DictationPersistenceServiceTests
     private readonly Mock<ILogger<DictationPersistenceService>> _loggerMock;
     private readonly Mock<IWhisperTranscriptionRepository> _whisperRepoMock;
     private readonly Mock<ILlmCorrectionRepository> _llmRepoMock;
+    private readonly IOptions<AudioRecordingOptions> _defaultOptions;
     private readonly DictationPersistenceService _service;
 
     public DictationPersistenceServiceTests()
@@ -23,11 +26,19 @@ public class DictationPersistenceServiceTests
         _loggerMock = new Mock<ILogger<DictationPersistenceService>>();
         _whisperRepoMock = new Mock<IWhisperTranscriptionRepository>();
         _llmRepoMock = new Mock<ILlmCorrectionRepository>();
+        _defaultOptions = Options.Create(new AudioRecordingOptions
+        {
+            SampleRate = 16000,
+            BitsPerSample = 16,
+            Channels = 1,
+            MaxRecordingDurationMinutes = 16
+        });
 
         _service = new DictationPersistenceService(
             _loggerMock.Object,
             _whisperRepoMock.Object,
-            _llmRepoMock.Object);
+            _llmRepoMock.Object,
+            _defaultOptions);
     }
 
     #region SaveTranscriptionAsync - Success Cases

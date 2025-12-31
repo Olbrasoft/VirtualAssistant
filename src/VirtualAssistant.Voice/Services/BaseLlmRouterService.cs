@@ -3,10 +3,12 @@ using System.Net.Http.Json;
 using System.Text;
 using System.Text.Json;
 using Microsoft.Extensions.Logging;
+using Microsoft.Extensions.Options;
 using Olbrasoft.VirtualAssistant.Core.Enums;
 using Olbrasoft.VirtualAssistant.Core.Exceptions;
 using Olbrasoft.VirtualAssistant.Core.Services;
 using Olbrasoft.VirtualAssistant.Core.Utilities;
+using Olbrasoft.VirtualAssistant.Voice.Configuration;
 using Olbrasoft.VirtualAssistant.Voice.Dtos.Llm;
 
 namespace Olbrasoft.VirtualAssistant.Voice.Services;
@@ -21,10 +23,10 @@ public abstract class BaseLlmRouterService : ILlmRouterService
     protected readonly HttpClient _httpClient;
     protected readonly string _model;
     protected readonly IPromptLoader _promptLoader;
+    protected readonly LlmRoutingOptions _options;
 
     // Recent context for multi-turn awareness
     private readonly Queue<ContextEntry> _recentContext = new();
-    private const int MaxContextEntries = 5;
 
     public abstract string ProviderName { get; }
 
@@ -33,12 +35,18 @@ public abstract class BaseLlmRouterService : ILlmRouterService
     /// </summary>
     public abstract LlmProvider Provider { get; }
 
-    protected BaseLlmRouterService(ILogger logger, HttpClient httpClient, string model, IPromptLoader promptLoader)
+    protected BaseLlmRouterService(
+        ILogger logger,
+        HttpClient httpClient,
+        string model,
+        IPromptLoader promptLoader,
+        IOptions<LlmRoutingOptions> options)
     {
         _logger = logger;
         _httpClient = httpClient;
         _model = model;
         _promptLoader = promptLoader;
+        _options = options.Value;
     }
 
     public virtual async Task<LlmRouterResult> RouteAsync(string inputText, bool isDiscussionActive = false, CancellationToken cancellationToken = default)
@@ -61,8 +69,8 @@ public abstract class BaseLlmRouterService : ILlmRouterService
                 new LlmMessage { Role = "system", Content = systemPrompt },
                 new LlmMessage { Role = "user", Content = userMessage }
             ],
-            Temperature = 0.2f,
-            MaxTokens = 256
+            Temperature = _options.Temperature,
+            MaxTokens = _options.MaxTokens
         };
 
         try
@@ -271,7 +279,7 @@ Pouze pokud uzivatel explicitne rika ""konec diskuze"" nebo ""ukoncit diskuzi"",
             Timestamp = DateTime.Now
         });
 
-        while (_recentContext.Count > MaxContextEntries)
+        while (_recentContext.Count > _options.MaxContextEntries)
         {
             _recentContext.Dequeue();
         }

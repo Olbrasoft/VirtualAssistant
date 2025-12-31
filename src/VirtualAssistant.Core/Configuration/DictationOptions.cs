@@ -25,6 +25,19 @@ public class DictationOptions
     public int SampleRate { get; set; } = 16000;
 
     /// <summary>
+    /// Keyboard LED settle time in milliseconds.
+    /// Time to wait for keyboard LED state to stabilize before checking Caps Lock/Num Lock state.
+    /// Default: 50 ms.
+    /// </summary>
+    public int KeyboardLedSettleTimeMs { get; set; } = 50;
+
+    /// <summary>
+    /// Maximum dictation duration in seconds.
+    /// Default: 300 seconds (5 minutes).
+    /// </summary>
+    public int MaxDurationSeconds { get; set; } = 300;
+
+    /// <summary>
     /// Gets the full path for WhisperModelPath, resolving relative paths.
     /// If WhisperModelPath is just a filename (no path separators), uses WhisperModelLocator
     /// to find the model in FHS-compliant locations (~/.local/share/whisper-models/).
