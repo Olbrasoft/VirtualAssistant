@@ -143,12 +143,20 @@ public static class VoiceServicesExtensions
         // EventBus for worker communication (issue #332)
         services.AddSingleton<IEventBus, InMemoryEventBus>();
 
+        // Keyboard LED reader (for Caps Lock, Scroll Lock, Num Lock)
+        services.AddSingleton<IKeyboardLedReader, LinuxKeyboardLedReader>();
+
+        // Keyboard device discovery (finds /dev/input/eventX device)
+        services.AddSingleton<IKeyboardDeviceDiscovery, LinuxKeyboardDeviceDiscovery>();
+
         // Keyboard monitor
         services.AddSingleton<IKeyboardMonitor>(sp =>
         {
             var logger = sp.GetRequiredService<ILogger<EvdevKeyboardMonitor>>();
+            var ledReader = sp.GetRequiredService<IKeyboardLedReader>();
+            var deviceDiscovery = sp.GetRequiredService<IKeyboardDeviceDiscovery>();
             var options = sp.GetRequiredService<IOptions<ContinuousListenerOptions>>();
-            return new EvdevKeyboardMonitor(logger, options.Value.KeyboardDevice);
+            return new EvdevKeyboardMonitor(logger, ledReader, deviceDiscovery, options.Value.KeyboardDevice);
         });
 
         // Mistral LLM for Czech ASR correction (Phase 2 - from PushToTalk)

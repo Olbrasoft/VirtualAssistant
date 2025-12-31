@@ -10,6 +10,8 @@ namespace Olbrasoft.VirtualAssistant.Voice.Services;
 public class EvdevKeyboardMonitor : IKeyboardMonitor
 {
     private readonly ILogger<EvdevKeyboardMonitor> _logger;
+    private readonly IKeyboardLedReader _ledReader;
+    private readonly IKeyboardDeviceDiscovery _deviceDiscovery;
     private readonly string _devicePath;
     private FileStream? _deviceStream;
     private CancellationTokenSource? _cts;
@@ -26,10 +28,16 @@ public class EvdevKeyboardMonitor : IKeyboardMonitor
     public event EventHandler<KeyEventArgs>? KeyPressed;
     public event EventHandler<KeyEventArgs>? KeyReleased;
 
-    public EvdevKeyboardMonitor(ILogger<EvdevKeyboardMonitor> logger, string? devicePath = null)
+    public EvdevKeyboardMonitor(
+        ILogger<EvdevKeyboardMonitor> logger,
+        IKeyboardLedReader ledReader,
+        IKeyboardDeviceDiscovery deviceDiscovery,
+        string? devicePath = null)
     {
-        _logger = logger;
-        _devicePath = devicePath ?? FindKeyboardDevice();
+        _logger = logger ?? throw new ArgumentNullException(nameof(logger));
+        _ledReader = ledReader ?? throw new ArgumentNullException(nameof(ledReader));
+        _deviceDiscovery = deviceDiscovery ?? throw new ArgumentNullException(nameof(deviceDiscovery));
+        _devicePath = devicePath ?? _deviceDiscovery.FindKeyboardDevice();
     }
 
     /// <inheritdoc />
@@ -77,13 +85,13 @@ public class EvdevKeyboardMonitor : IKeyboardMonitor
     /// <inheritdoc />
     public bool IsScrollLockOn()
     {
-        return ReadLedState("scrolllock");
+        return _ledReader.IsScrollLockOn();
     }
 
     /// <inheritdoc />
     public bool IsCapsLockOn()
     {
-        return ReadLedState("capslock");
+        return _ledReader.IsCapsLockOn();
     }
 
     private void MonitorLoop(CancellationToken cancellationToken)
@@ -143,112 +151,6 @@ public class EvdevKeyboardMonitor : IKeyboardMonitor
                 _logger.LogError(ex, "Error reading keyboard event");
                 break;
             }
-        }
-    }
-
-    /// <summary>
-    /// Reads LED state from /sys/class/leds/.
-    /// Note: This may not work on Wayland.
-    /// </summary>
-    private bool ReadLedState(string ledName)
-    {
-        try
-        {
-            var ledsDir = "/sys/class/leds";
-            if (!Directory.Exists(ledsDir))
-                return false;
-
-            var led = Directory.GetDirectories(ledsDir)
-                .FirstOrDefault(d => d.Contains(ledName, StringComparison.OrdinalIgnoreCase));
-
-            if (led == null)
-                return false;
-
-            var brightnessPath = Path.Combine(led, "brightness");
-            if (!File.Exists(brightnessPath))
-                return false;
-
-            var value = File.ReadAllText(brightnessPath).Trim();
-            return value != "0";
-        }
-        catch (Exception ex)
-        {
-            _logger.LogWarning(ex, "Failed to read LED state for {Led}", ledName);
-            return false;
-        }
-    }
-
-    /// <summary>
-    /// Finds the first keyboard device in /dev/input/.
-    /// Prefers actual keyboards over mouse-embedded keyboards.
-    /// </summary>
-    private string FindKeyboardDevice()
-    {
-        var inputDir = "/dev/input";
-        
-        // Try to find by-id first (more reliable)
-        var byIdDir = "/dev/input/by-id";
-        if (Directory.Exists(byIdDir))
-        {
-            var kbdDevices = Directory.GetFiles(byIdDir)
-                .Where(f => f.Contains("kbd", StringComparison.OrdinalIgnoreCase) 
-                         && f.Contains("event", StringComparison.OrdinalIgnoreCase))
-                .ToList();
-
-            // Prefer devices that are NOT mice (mice can have embedded keyboards)
-            var kbdDevice = kbdDevices
-                .FirstOrDefault(f => !f.Contains("Mouse", StringComparison.OrdinalIgnoreCase))
-                ?? kbdDevices.FirstOrDefault();
-
-            if (kbdDevice != null)
-            {
-                _logger.LogInformation("Found keyboard device by-id: {Device}", kbdDevice);
-                return kbdDevice;
-            }
-        }
-
-        // Fallback: scan /dev/input/eventX and check capabilities
-        var eventDevices = Directory.GetFiles(inputDir, "event*")
-            .OrderBy(d => d)
-            .ToList();
-
-        foreach (var device in eventDevices)
-        {
-            if (IsKeyboardDevice(device))
-            {
-                _logger.LogInformation("Found keyboard device: {Device}", device);
-                return device;
-            }
-        }
-
-        // Last resort: use event0
-        var fallback = "/dev/input/event0";
-        _logger.LogWarning("Could not detect keyboard device, using fallback: {Device}", fallback);
-        return fallback;
-    }
-
-    /// <summary>
-    /// Checks if device is a keyboard by reading its capabilities.
-    /// </summary>
-    private bool IsKeyboardDevice(string devicePath)
-    {
-        try
-        {
-            var deviceName = Path.GetFileName(devicePath);
-            var capsPath = $"/sys/class/input/{deviceName}/device/capabilities/key";
-
-            if (!File.Exists(capsPath))
-                return false;
-
-            var caps = File.ReadAllText(capsPath).Trim();
-            
-            // Keyboard devices typically have extensive key capabilities
-            // A simple heuristic: keyboards have more than 20 characters in capabilities
-            return caps.Length > 20 && !caps.All(c => c == '0' || c == ' ');
-        }
-        catch
-        {
-            return false;
         }
     }
 
