@@ -5,6 +5,7 @@ using Olbrasoft.VirtualAssistant.Core.Services;
 using Olbrasoft.VirtualAssistant.Service.Services;
 using Olbrasoft.VirtualAssistant.Service.Workers;
 using Olbrasoft.VirtualAssistant.Voice.Services;
+using Olbrasoft.VirtualAssistant.Core.StateMachine;
 using Olbrasoft.VirtualAssistant.Voice.StateMachine;
 using SystemTrayIcon = Olbrasoft.SystemTray.Linux.ITrayIcon;
 using SystemTrayMenuHandler = Olbrasoft.SystemTray.Linux.ITrayMenuHandler;

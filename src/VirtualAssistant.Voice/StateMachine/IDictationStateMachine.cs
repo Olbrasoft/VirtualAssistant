@@ -1,3 +1,5 @@
+using Olbrasoft.VirtualAssistant.Core.StateMachine;
+
 namespace Olbrasoft.VirtualAssistant.Voice.StateMachine;
 
 /// <summary>

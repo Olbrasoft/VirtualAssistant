@@ -1,4 +1,4 @@
-namespace Olbrasoft.VirtualAssistant.Voice.StateMachine;
+namespace Olbrasoft.VirtualAssistant.Core.StateMachine;
 
 /// <summary>
 /// Dictation states for the application.

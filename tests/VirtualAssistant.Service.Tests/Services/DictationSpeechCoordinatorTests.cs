@@ -2,6 +2,7 @@ using Microsoft.Extensions.Logging;
 using Moq;
 using Olbrasoft.VirtualAssistant.Service.Services;
 using Olbrasoft.VirtualAssistant.Voice.Services;
+using Olbrasoft.VirtualAssistant.Core.StateMachine;
 using Olbrasoft.VirtualAssistant.Voice.StateMachine;
 using VirtualAssistant.Core.Services;
 
