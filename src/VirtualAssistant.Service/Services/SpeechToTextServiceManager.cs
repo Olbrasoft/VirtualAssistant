@@ -1,12 +1,13 @@
 using System.Diagnostics;
 using Microsoft.Extensions.Logging;
+using Olbrasoft.VirtualAssistant.Core.Services;
 
 namespace Olbrasoft.VirtualAssistant.Service.Services;
 
 /// <summary>
 /// Manages SpeechToText microservice - checks status, starts/stops service, gets version.
 /// </summary>
-public class SpeechToTextServiceManager
+public class SpeechToTextServiceManager : ISpeechToTextServiceManager
 {
     private readonly ILogger<SpeechToTextServiceManager> _logger;
     private const string ServiceName = "speech-to-text.service";
