@@ -3,18 +3,11 @@ namespace Olbrasoft.VirtualAssistant.Core.Services;
 /// <summary>
 /// Service responsible for managing lifecycle of dependent systemd services.
 /// Handles start/stop operations and status monitoring for external services.
+/// NOTE: SpeechToText service methods removed (issue #466) - STT runs inline now.
 /// </summary>
 public interface IServiceLifecycleManager
 {
-    /// <summary>
-    /// Starts the SpeechToText service.
-    /// </summary>
-    Task HandleStartSpeechToTextAsync();
-
-    /// <summary>
-    /// Stops the SpeechToText service.
-    /// </summary>
-    Task HandleStopSpeechToTextAsync();
+    // NOTE: STT service methods removed (issue #466) - STT runs inline now
 
     /// <summary>
     /// Starts the log-viewer service.
@@ -25,11 +18,6 @@ public interface IServiceLifecycleManager
     /// Stops the log-viewer service.
     /// </summary>
     Task HandleStopLogViewerAsync();
-
-    /// <summary>
-    /// Refreshes and updates SpeechToText service status in menu.
-    /// </summary>
-    Task RefreshSpeechToTextStatusAsync();
 
     /// <summary>
     /// Refreshes and updates log-viewer service status in menu.

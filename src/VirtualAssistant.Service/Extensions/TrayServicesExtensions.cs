@@ -64,16 +64,14 @@ public static class TrayServicesExtensions
             return new VirtualAssistantDBusMenuHandler(logger);
         });
 
-        // SpeechToText service manager for controlling SpeechToText microservice
-        services.AddSingleton<ISpeechToTextServiceManager, SpeechToTextServiceManager>();
+        // NOTE: SpeechToText service manager removed (issue #466) - STT runs inline now
 
         // Service lifecycle manager for managing dependent services
         services.AddSingleton<IServiceLifecycleManager>(sp =>
         {
             var logger = sp.GetRequiredService<ILogger<ServiceLifecycleManager>>();
-            var sttManager = sp.GetService<ISpeechToTextServiceManager>();
             var menuHandler = sp.GetRequiredService<SystemTrayMenuHandler>();
-            return new ServiceLifecycleManager(logger, sttManager, menuHandler as IServiceStatusUpdater);
+            return new ServiceLifecycleManager(logger, menuHandler as IServiceStatusUpdater);
         });
 
         // Icon animation service for hand icon animations

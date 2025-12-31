@@ -90,8 +90,7 @@ public class TrayCoordinatorService : IDisposable
             handler.OnDictationToggleRequested += _menuDispatcher.HandleDictationToggle;
 
             // Service lifecycle events -> ServiceLifecycleManager
-            handler.OnStartSpeechToTextRequested += async () => await _lifecycleManager.HandleStartSpeechToTextAsync();
-            handler.OnStopSpeechToTextRequested += async () => await _lifecycleManager.HandleStopSpeechToTextAsync();
+            // NOTE: STT service events removed (issue #466) - STT runs inline now
             handler.OnStartLogViewerRequested += async () => await _lifecycleManager.HandleStartLogViewerAsync();
             handler.OnStopLogViewerRequested += async () => await _lifecycleManager.HandleStopLogViewerAsync();
 

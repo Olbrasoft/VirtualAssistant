@@ -21,8 +21,8 @@ internal class VirtualAssistantDBusMenuHandler : ComCanonicalDbusmenuHandler, Sy
     private const int RootId = 0;
     private const int StatusId = 1;
     // NOTE: TextToSpeechToggleId removed (issue #407) - TTS runs inline now
+    // NOTE: SpeechToTextServiceId removed (issue #466) - STT runs inline now
     private const int Separator1Id = 3;
-    private const int SpeechToTextServiceId = 4;
     private const int Separator2Id = 5;
     private const int LlmCorrectionId = 6;
     private const int ReloadPromptId = 7;
@@ -50,15 +50,7 @@ internal class VirtualAssistantDBusMenuHandler : ComCanonicalDbusmenuHandler, Sy
     /// </summary>
     public event Action? OnShowLogsRequested;
 
-    /// <summary>
-    /// Event fired when user wants to stop SpeechToText service.
-    /// </summary>
-    public event Action? OnStopSpeechToTextRequested;
-
-    /// <summary>
-    /// Event fired when user wants to start SpeechToText service.
-    /// </summary>
-    public event Action? OnStartSpeechToTextRequested;
+    // NOTE: STT service events removed (issue #466) - STT runs inline now
 
     /// <summary>
     /// Event fired when user wants to stop log-viewer service.
@@ -93,8 +85,7 @@ internal class VirtualAssistantDBusMenuHandler : ComCanonicalDbusmenuHandler, Sy
     private bool _isMuted;
     private bool _ttsMuted;
     // NOTE: _isTextToSpeechServiceRunning removed (issue #407) - TTS runs inline now
-    private string _sttServiceStatus = "Checking...";
-    private string _sttServiceVersion = "Unknown";
+    // NOTE: _sttServiceStatus and _sttServiceVersion removed (issue #466) - STT runs inline now
     private string _logViewerStatus = "Checking...";
     private bool _llmCorrectionEnabled = true;
     private bool _dictationEnabled = true;
@@ -185,22 +176,7 @@ internal class VirtualAssistantDBusMenuHandler : ComCanonicalDbusmenuHandler, Sy
     }
 
     // NOTE: UpdateServiceStatus removed (issue #407) - TextToSpeech runs inline now
-
-    /// <summary>
-    /// Updates SpeechToText service status and version in menu.
-    /// </summary>
-    public void UpdateSpeechToTextStatus(bool isRunning, string version)
-    {
-        _sttServiceStatus = isRunning ? "Running" : "Stopped";
-        _sttServiceVersion = version;
-        _revision++;
-
-        // Only emit if connection is established (avoid race condition during startup)
-        if (_connection != null)
-        {
-            EmitLayoutUpdated(_revision, RootId);
-        }
-    }
+    // NOTE: UpdateSpeechToTextStatus removed (issue #466) - SpeechToText runs inline now
 
     /// <summary>
     /// Updates log-viewer service status in menu.
@@ -279,10 +255,6 @@ internal class VirtualAssistantDBusMenuHandler : ComCanonicalDbusmenuHandler, Sy
             {
                 var muteLabel = _isMuted ? "🔊 Zapnout mikrofon" : "🔇 Ztlumit mikrofon";
                 var ttsMuteLabel = _ttsMuted ? "❌ TextToSpeech - Zapnout" : "✅ TextToSpeech - Stlumit";
-                // NOTE: TextToSpeech menu item removed (issue #407) - TTS runs inline now
-                var sttServiceLabel = _sttServiceStatus == "Running"
-                    ? "✅ STT Service - Vypnout"
-                    : "❌ STT Service - Zapnout";
                 var dictationLabel = _dictationEnabled
                     ? "✅ Diktace - Vypnout"
                     : "❌ Diktace - Zapnout";
@@ -290,12 +262,11 @@ internal class VirtualAssistantDBusMenuHandler : ComCanonicalDbusmenuHandler, Sy
                     ? "✅ Log Viewer - Vypnout"
                     : "❌ Log Viewer - Zapnout";
                 var llmCorrectionLabel = GetLlmCorrectionLabel();
+                // NOTE: STT Service menu item removed (issue #466) - STT runs inline now
                 children = new VariantValue[]
                 {
                     CreateChildVariant(StatusId, "VirtualAssistant - poslouchám", false, enabled: false),
-                    // NOTE: TextToSpeech menu item removed here (issue #407)
                     CreateChildVariant(Separator1Id, "", true),
-                    CreateChildVariant(SpeechToTextServiceId, sttServiceLabel, false),
                     CreateChildVariant(DictationToggleId, dictationLabel, false),
                     CreateChildVariant(Separator2Id, "", true),
                     CreateChildVariant(LlmCorrectionId, llmCorrectionLabel, false),
@@ -366,14 +337,7 @@ internal class VirtualAssistantDBusMenuHandler : ComCanonicalDbusmenuHandler, Sy
                 props["visible"] = VariantValue.Bool(true);
                 break;
             // NOTE: TextToSpeechToggleId case removed (issue #407)
-            case SpeechToTextServiceId:
-                var sttServiceLabel = _sttServiceStatus == "Running"
-                    ? "✅ STT Service - Vypnout"
-                    : "❌ STT Service - Zapnout";
-                props["label"] = VariantValue.String(sttServiceLabel);
-                props["enabled"] = VariantValue.Bool(true);
-                props["visible"] = VariantValue.Bool(true);
-                break;
+            // NOTE: SpeechToTextServiceId case removed (issue #466)
             case DictationToggleId:
                 var dictationLabel = _dictationEnabled
                     ? "✅ Diktace - Vypnout"
@@ -438,9 +402,7 @@ internal class VirtualAssistantDBusMenuHandler : ComCanonicalDbusmenuHandler, Sy
     {
         var muteLabel = _isMuted ? "🔊 Zapnout mikrofon" : "🔇 Ztlumit mikrofon";
         // NOTE: TextToSpeech menu item removed (issue #407) - TTS runs inline now
-        var sttServiceLabel = _sttServiceStatus == "Running"
-            ? "✅ STT Service - Vypnout"
-            : "❌ STT Service - Zapnout";
+        // NOTE: STT Service menu item removed (issue #466) - STT runs inline now
         var dictationLabel = _dictationEnabled
             ? "✅ Diktace - Vypnout"
             : "❌ Diktace - Zapnout";
@@ -466,12 +428,7 @@ internal class VirtualAssistantDBusMenuHandler : ComCanonicalDbusmenuHandler, Sy
                 ["type"] = VariantValue.String("separator"),
                 ["visible"] = VariantValue.Bool(true)
             }),
-            SpeechToTextServiceId => (id, new Dictionary<string, VariantValue>
-            {
-                ["label"] = VariantValue.String(sttServiceLabel),
-                ["enabled"] = VariantValue.Bool(true),
-                ["visible"] = VariantValue.Bool(true)
-            }),
+            // NOTE: SpeechToTextServiceId case removed (issue #466)
             DictationToggleId => (id, new Dictionary<string, VariantValue>
             {
                 ["label"] = VariantValue.String(dictationLabel),
@@ -570,17 +527,7 @@ internal class VirtualAssistantDBusMenuHandler : ComCanonicalDbusmenuHandler, Sy
                     OnShowLogsRequested?.Invoke();
                     break;
                 // NOTE: TextToSpeech toggle removed - TTS now runs inline (issue #407)
-                case SpeechToTextServiceId:
-                    _logger.LogInformation("SpeechToText service menu item clicked");
-                    if (_sttServiceStatus == "Running")
-                    {
-                        OnStopSpeechToTextRequested?.Invoke();
-                    }
-                    else
-                    {
-                        OnStartSpeechToTextRequested?.Invoke();
-                    }
-                    break;
+                // NOTE: SpeechToText toggle removed - STT now runs inline (issue #466)
                 case LogViewerId:
                     _logger.LogInformation("Log Viewer service menu item clicked");
                     if (_logViewerStatus == "Running")

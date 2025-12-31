@@ -90,6 +90,10 @@ public static class WorkerServicesExtensions
                 scopeFactory);
         });
 
+        // Register the same instance as IDictationControl interface (issue #466)
+        // This allows MenuEventDispatcher to control dictation functionality
+        services.AddSingleton<IDictationControl>(sp => sp.GetRequiredService<DictationWorker>());
+
         // Register the same singleton instance as hosted service
         services.AddHostedService(sp => sp.GetRequiredService<DictationWorker>());
 

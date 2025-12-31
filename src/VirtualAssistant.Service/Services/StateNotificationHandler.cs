@@ -100,9 +100,9 @@ public class StateNotificationHandler : IStateNotificationHandler
             _logger.LogInformation("TTS mute state initialized: {IsMuted}", ttsMuted);
 
             // Refresh service statuses
+            // NOTE: RefreshSpeechToTextStatusAsync removed (issue #466) - STT runs inline now
             if (_lifecycleManager != null)
             {
-                await _lifecycleManager.RefreshSpeechToTextStatusAsync();
                 await _lifecycleManager.RefreshLogViewerStatusAsync();
             }
 

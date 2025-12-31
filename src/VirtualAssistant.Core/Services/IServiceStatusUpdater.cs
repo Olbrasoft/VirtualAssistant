@@ -29,12 +29,7 @@ public interface IServiceStatusUpdater
     /// <param name="enabled">Whether LLM correction is enabled</param>
     void UpdateLlmCorrectionStatus(bool enabled);
 
-    /// <summary>
-    /// Updates SpeechToText service status in menu.
-    /// </summary>
-    /// <param name="isRunning">Whether the service is running</param>
-    /// <param name="version">Service version</param>
-    void UpdateSpeechToTextStatus(bool isRunning, string version);
+    // NOTE: UpdateSpeechToTextStatus removed (issue #466) - STT runs inline now
 
     /// <summary>
     /// Updates log-viewer service status in menu.

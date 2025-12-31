@@ -320,7 +320,7 @@ public class StateNotificationHandlerTests
         await handler.InitializeStatesAsync();
 
         // Assert
-        _lifecycleManagerMock.Verify(x => x.RefreshSpeechToTextStatusAsync(), Times.Once);
+        // NOTE: RefreshSpeechToTextStatusAsync verification removed (issue #466) - STT runs inline now
         _lifecycleManagerMock.Verify(x => x.RefreshLogViewerStatusAsync(), Times.Once);
     }
 
@@ -336,7 +336,7 @@ public class StateNotificationHandlerTests
         await handler.InitializeStatesAsync();
 
         // Assert - no exception, lifecycle manager not called
-        _lifecycleManagerMock.Verify(x => x.RefreshSpeechToTextStatusAsync(), Times.Never);
+        // NOTE: RefreshSpeechToTextStatusAsync verification removed (issue #466) - STT runs inline now
     }
 
     [Fact]
