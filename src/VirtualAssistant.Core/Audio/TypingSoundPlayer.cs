@@ -1,5 +1,6 @@
 using System.Diagnostics;
 using Microsoft.Extensions.Logging;
+using Olbrasoft.VirtualAssistant.Core.Processes;
 
 namespace Olbrasoft.VirtualAssistant.Core.Audio;
 
@@ -10,6 +11,7 @@ namespace Olbrasoft.VirtualAssistant.Core.Audio;
 public class TypingSoundPlayer : ISoundEffectPlayer, IDisposable
 {
     private readonly ILogger<TypingSoundPlayer> _logger;
+    private readonly IProcessExecutor _processExecutor;
     private readonly string? _soundFilePath;
     private readonly string? _audioSink;
     private Process? _playProcess;
@@ -20,9 +22,14 @@ public class TypingSoundPlayer : ISoundEffectPlayer, IDisposable
     private bool _disposed;
     private string? _cachedPlayer;
 
-    public TypingSoundPlayer(ILogger<TypingSoundPlayer> logger, string? soundFilePath = null, string? audioSink = null)
+    public TypingSoundPlayer(
+        ILogger<TypingSoundPlayer> logger,
+        IProcessExecutor processExecutor,
+        string? soundFilePath = null,
+        string? audioSink = null)
     {
-        _logger = logger;
+        _logger = logger ?? throw new ArgumentNullException(nameof(logger));
+        _processExecutor = processExecutor ?? throw new ArgumentNullException(nameof(processExecutor));
         _soundFilePath = soundFilePath;
         _audioSink = audioSink;
 
@@ -39,12 +46,13 @@ public class TypingSoundPlayer : ISoundEffectPlayer, IDisposable
     /// </summary>
     public static TypingSoundPlayer CreateFromDirectory(
         ILogger<TypingSoundPlayer> logger,
+        IProcessExecutor processExecutor,
         string soundsDirectory,
         string typingSoundFileName = "write.mp3",
         string? audioSink = null)
     {
         var typingPath = Path.Combine(soundsDirectory, typingSoundFileName);
-        return new TypingSoundPlayer(logger, typingPath, audioSink);
+        return new TypingSoundPlayer(logger, processExecutor, typingPath, audioSink);
     }
 
     private void ValidateSoundFile(string? path, string description)
@@ -193,7 +201,7 @@ public class TypingSoundPlayer : ISoundEffectPlayer, IDisposable
             if (!_isPlaying)
                 return;
 
-            _playProcess = Process.Start(startInfo);
+            _playProcess = _processExecutor.Start(startInfo);
         }
 
         if (_playProcess != null)
@@ -220,14 +228,14 @@ public class TypingSoundPlayer : ISoundEffectPlayer, IDisposable
             return _cachedPlayer;
 
         // Check for pw-cat (PipeWire) - requires -p flag for playback mode
-        if (await IsCommandAvailableAsync("pw-cat"))
+        if (await _processExecutor.IsCommandAvailableAsync("pw-cat"))
         {
             _cachedPlayer = "pw-cat";
             return _cachedPlayer;
         }
 
         // Fallback to paplay (PulseAudio) for systems without PipeWire
-        if (await IsCommandAvailableAsync("paplay"))
+        if (await _processExecutor.IsCommandAvailableAsync("paplay"))
         {
             _cachedPlayer = "paplay";
             return _cachedPlayer;
@@ -261,33 +269,6 @@ public class TypingSoundPlayer : ISoundEffectPlayer, IDisposable
         }
     }
 
-    private static async Task<bool> IsCommandAvailableAsync(string command)
-    {
-        try
-        {
-            var startInfo = new ProcessStartInfo
-            {
-                FileName = "which",
-                Arguments = command,
-                UseShellExecute = false,
-                RedirectStandardOutput = true,
-                CreateNoWindow = true
-            };
-
-            using var process = Process.Start(startInfo);
-            if (process != null)
-            {
-                await process.WaitForExitAsync();
-                return process.ExitCode == 0;
-            }
-        }
-        catch
-        {
-            // Ignore
-        }
-
-        return false;
-    }
 
     /// <summary>
     /// Releases resources used by the typing sound player, including stopping any active playback.
