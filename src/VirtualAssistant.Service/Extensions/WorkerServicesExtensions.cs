@@ -51,23 +51,24 @@ public static class WorkerServicesExtensions
                 coordinatorLogger,
                 audioCaptureService);
 
-            // TODO: Issue #460/#461 - Restore dictationTranscriber with WhisperNetTranscriber
-            // Temporarily using null - DictationWorker will not transcribe until migration is complete
+            // Create dedicated TranscriptionService for Dictation with large-v3-turbo model
             var dictationOptions = sp.GetRequiredService<IOptions<DictationOptions>>().Value;
 
-            // var transcriberLogger = sp.GetRequiredService<ILogger<SpeechToTextGrpcClient>>();
-            // var dictationTranscriber = new SpeechToTextGrpcClient(...);
+            // Create dedicated WhisperNetTranscriber for DictationWorker
+            // Uses DictationOptions.WhisperModelPath (large-v3-turbo) instead of default model
+            var provider = sp.GetRequiredService<Olbrasoft.VirtualAssistant.Voice.SpeechToText.ITranscriptionProvider>();
+            var dictationTranscriber = new Olbrasoft.VirtualAssistant.Voice.SpeechToText.WhisperNetTranscriber(
+                provider,
+                dictationOptions.WhisperLanguage,
+                dictationOptions.WhisperModelPath); // Override with large model for better accuracy
 
             var transcriptionLogger = sp.GetRequiredService<ILogger<TranscriptionService>>();
             var textFilter = sp.GetRequiredService<ITextFilter>();
             var llmProvider = sp.GetRequiredService<ILlmProvider>();
 
-            // Use null transcriber temporarily - will be replaced in issue #461
-            Core.Speech.ISpeechTranscriber? dictationTranscriber = null;
-
             var dictationTranscriptionService = new TranscriptionService(
                 transcriptionLogger,
-                dictationTranscriber!,
+                dictationTranscriber,
                 configuration,
                 textFilter,
                 llmProvider);
