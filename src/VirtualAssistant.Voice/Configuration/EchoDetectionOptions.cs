@@ -1,3 +1,5 @@
+using System.ComponentModel.DataAnnotations;
+
 namespace Olbrasoft.VirtualAssistant.Voice.Configuration;
 
 /// <summary>
@@ -9,35 +11,41 @@ public class EchoDetectionOptions
     /// Similarity threshold for fuzzy matching (0.0 - 1.0).
     /// Default: 0.70 (70% similarity required).
     /// </summary>
+    [Range(0.0, 1.0, ErrorMessage = "SimilarityThreshold must be between 0.0 and 1.0")]
     public double SimilarityThreshold { get; set; } = 0.70;
 
     /// <summary>
     /// Maximum speaking duration in seconds before considering TTS stale.
     /// Default: 60 seconds.
     /// </summary>
+    [Range(1, int.MaxValue, ErrorMessage = "MaxSpeakingDurationSeconds must be greater than 0")]
     public int MaxSpeakingDurationSeconds { get; set; } = 60;
 
     /// <summary>
     /// Maximum number of TTS messages to keep in history.
     /// Default: 10 messages.
     /// </summary>
+    [Range(1, 100, ErrorMessage = "MaxHistorySize must be between 1 and 100")]
     public int MaxHistorySize { get; set; } = 10;
 
     /// <summary>
     /// Minimum word count for similarity-based prefix matching.
     /// Default: 3 words.
     /// </summary>
+    [Range(1, int.MaxValue, ErrorMessage = "MinimumWordCount must be greater than 0")]
     public int MinimumWordCount { get; set; } = 3;
 
     /// <summary>
     /// Minimum word similarity for fuzzy word matching.
     /// Default: 0.80 (80% similarity required).
     /// </summary>
+    [Range(0.0, 1.0, ErrorMessage = "WordSimilarityThreshold must be between 0.0 and 1.0")]
     public double WordSimilarityThreshold { get; set; } = 0.80;
 
     /// <summary>
     /// Minimum ratio of TTS words that must match for prefix detection.
     /// Default: 0.60 (60% of TTS words must match).
     /// </summary>
+    [Range(0.0, 1.0, ErrorMessage = "TtsMatchRatioThreshold must be between 0.0 and 1.0")]
     public double TtsMatchRatioThreshold { get; set; } = 0.60;
 }

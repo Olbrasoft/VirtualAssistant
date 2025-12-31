@@ -46,13 +46,27 @@ public class TextNormalizer
         if (string.IsNullOrWhiteSpace(text))
             return string.Empty;
 
-        var normalized = text;
-        while (normalized.Contains("  "))
+        var sb = new StringBuilder(text.Length);
+        bool previousWasSpace = false;
+
+        foreach (char c in text)
         {
-            normalized = normalized.Replace("  ", " ");
+            if (c == ' ')
+            {
+                if (!previousWasSpace)
+                {
+                    sb.Append(' ');
+                    previousWasSpace = true;
+                }
+            }
+            else
+            {
+                sb.Append(c);
+                previousWasSpace = false;
+            }
         }
 
-        return normalized.Trim();
+        return sb.ToString().Trim();
     }
 
     /// <summary>

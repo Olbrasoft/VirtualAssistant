@@ -48,6 +48,14 @@ public class SimilarityMatchStrategy : IEchoDetectionStrategy
         var minPrefixLen = Math.Max(1, ttsWords.Length - 2);
         var maxPrefixLen = Math.Min(textWords.Length, ttsWords.Length + 2);
 
+        // Guard against edge case where minPrefixLen > maxPrefixLen
+        if (minPrefixLen > maxPrefixLen)
+        {
+            _logger.LogDebug("[{StrategyName}] Skipping - minPrefixLen ({MinPrefixLen}) > maxPrefixLen ({MaxPrefixLen})",
+                StrategyName, minPrefixLen, maxPrefixLen);
+            return (false, transcription, 0.0);
+        }
+
         double bestSimilarity = 0;
         int bestPrefixLength = 0;
 
