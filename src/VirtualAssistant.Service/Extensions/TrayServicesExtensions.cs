@@ -94,7 +94,7 @@ public static class TrayServicesExtensions
                 logger,
                 muteService,
                 settingsService,
-                menuHandler as IServiceStatusUpdater,
+                (IServiceStatusUpdater)menuHandler,
                 iconCoordinator,
                 iconAnimationService,
                 lifecycleManager,
@@ -111,8 +111,8 @@ public static class TrayServicesExtensions
             var settingsService = sp.GetRequiredService<ISettingsService>();
             // NOTE: DependentServicesManager removed - TTS runs inline (issue #407)
             var menuHandler = sp.GetRequiredService<SystemTrayMenuHandler>();
-            var sttServiceManager = sp.GetService<ISpeechToTextServiceManager>() as SpeechToTextServiceManager;
-            var mistralProvider = sp.GetService<Olbrasoft.VirtualAssistant.Voice.Services.ILlmProvider>() as Olbrasoft.VirtualAssistant.Voice.Services.MistralProvider;
+            var sttServiceManager = sp.GetService<ISpeechToTextServiceManager>();
+            var mistralProvider = sp.GetService<Olbrasoft.VirtualAssistant.Voice.Services.ILlmProvider>();
             var dictationStateMachine = sp.GetRequiredService<Olbrasoft.VirtualAssistant.Voice.StateMachine.IDictationStateMachine>();
             var dictationWorker = sp.GetRequiredService<DictationWorker>();
             var options = sp.GetRequiredService<IOptions<ContinuousListenerOptions>>();

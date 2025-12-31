@@ -89,14 +89,10 @@ public class StateNotificationHandler : IStateNotificationHandler
             // Update menu handler with initial mute state
             _statusUpdater.UpdateMuteState(_muteService.IsMuted);
 
-            // Initialize dictation state (sync menu with DictationWorker default)
-            // DictationWorker starts with dictation enabled by default
+            // Initialize dictation state (sync menu with DictationWorker default state)
+            // DictationWorker manages its own state - we only synchronize the menu
             _statusUpdater.UpdateDictationStatus(true);
-            if (_dictationWorker != null)
-            {
-                _dictationWorker.SetDictationEnabled(true);
-                _logger.LogInformation("Dictation initialized as enabled on startup");
-            }
+            _logger.LogDebug("Dictation menu status initialized (synced with worker default)");
 
             // Initialize TTS mute state
             var ttsMuted = await _settingsService.GetAsync("tts.muted", false);

@@ -339,6 +339,20 @@ public class StateNotificationHandlerTests
         _lifecycleManagerMock.Verify(x => x.RefreshSpeechToTextStatusAsync(), Times.Never);
     }
 
+    [Fact]
+    public async Task InitializeStatesAsync_WhenExceptionThrown_LogsErrorAndRethrows()
+    {
+        // Arrange
+        _muteServiceMock.Setup(x => x.IsMuted).Returns(false);
+        var exception = new InvalidOperationException("Settings error");
+        _settingsServiceMock.Setup(x => x.GetAsync("tts.muted", false)).ThrowsAsync(exception);
+        var handler = CreateHandler();
+
+        // Act & Assert
+        var thrownException = await Assert.ThrowsAsync<InvalidOperationException>(() => handler.InitializeStatesAsync());
+        Assert.Equal("Settings error", thrownException.Message);
+    }
+
     #endregion
 
     #region OnMuteStateChanged Tests

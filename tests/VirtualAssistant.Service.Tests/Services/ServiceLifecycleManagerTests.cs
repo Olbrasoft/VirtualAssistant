@@ -336,6 +336,12 @@ public class ServiceLifecycleManagerTests
 
     #region RefreshLogViewerStatusAsync Tests
 
+    // TODO: Add integration tests or use IProcessWrapper for testing success paths
+    // - RefreshLogViewerStatusAsync_WhenServiceRunning_UpdatesStatusToTrue
+    // - RefreshLogViewerStatusAsync_WhenServiceStopped_UpdatesStatusToFalse
+    // Current implementation calls Process.Start which has system side-effects
+    // Requires IProcessWrapper abstraction or integration test infrastructure
+
     [Fact]
     public async Task RefreshLogViewerStatusAsync_WithNullMenuHandler_DoesNothing()
     {
