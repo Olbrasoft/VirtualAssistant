@@ -6,6 +6,8 @@ using Olbrasoft.VirtualAssistant.Core.Services;
 using Olbrasoft.VirtualAssistant.Service.Services;
 using Olbrasoft.VirtualAssistant.Service.Tray;
 using Olbrasoft.VirtualAssistant.Service.Workers;
+using Olbrasoft.VirtualAssistant.Voice;
+using Olbrasoft.VirtualAssistant.Voice.Services;
 using Olbrasoft.SystemTray.Linux;
 using SystemTrayMenuHandler = Olbrasoft.SystemTray.Linux.ITrayMenuHandler;
 
@@ -76,6 +78,25 @@ public static class TrayServicesExtensions
 
         // Icon animation service for hand icon animations
         services.AddSingleton<IIconAnimationService, IconAnimationService>();
+
+        // Menu event dispatcher for handling tray menu actions
+        services.AddSingleton<IMenuEventDispatcher>(sp =>
+        {
+            var logger = sp.GetRequiredService<ILogger<MenuEventDispatcher>>();
+            var muteService = sp.GetRequiredService<IManualMuteService>();
+            var settingsService = sp.GetRequiredService<ISettingsService>();
+            var options = sp.GetRequiredService<IOptions<ContinuousListenerOptions>>();
+            var llmProvider = sp.GetService<ILlmProvider>();
+            var dictationControl = sp.GetService<IDictationControl>();
+
+            return new MenuEventDispatcher(
+                logger,
+                muteService,
+                settingsService,
+                options.Value.LogViewerPort,
+                llmProvider,
+                dictationControl);
+        });
 
         // State notification handler for state synchronization
         services.AddSingleton<IStateNotificationHandler>(sp =>
