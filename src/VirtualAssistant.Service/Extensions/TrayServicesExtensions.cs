@@ -7,6 +7,7 @@ using Olbrasoft.VirtualAssistant.Service.Services;
 using Olbrasoft.VirtualAssistant.Service.Tray;
 using Olbrasoft.VirtualAssistant.Service.Workers;
 using Olbrasoft.SystemTray.Linux;
+using SystemTrayMenuHandler = Olbrasoft.SystemTray.Linux.ITrayMenuHandler;
 
 namespace Olbrasoft.VirtualAssistant.Service.Extensions;
 
@@ -37,7 +38,7 @@ public static class TrayServicesExtensions
         });
 
         // D-Bus menu handler for tray icon context menu
-        services.AddSingleton<ITrayMenuHandler>(sp =>
+        services.AddSingleton<SystemTrayMenuHandler>(sp =>
         {
             var logger = sp.GetRequiredService<ILogger<VirtualAssistantDBusMenuHandler>>();
             return new VirtualAssistantDBusMenuHandler(logger);
@@ -54,7 +55,7 @@ public static class TrayServicesExtensions
             var muteService = sp.GetRequiredService<IManualMuteService>();
             var settingsService = sp.GetRequiredService<ISettingsService>();
             // NOTE: DependentServicesManager removed - TTS runs inline (issue #407)
-            var menuHandler = sp.GetRequiredService<ITrayMenuHandler>();
+            var menuHandler = sp.GetRequiredService<SystemTrayMenuHandler>();
             var sttServiceManager = sp.GetRequiredService<SpeechToTextServiceManager>();
             var mistralProvider = sp.GetService<Olbrasoft.VirtualAssistant.Voice.Services.ILlmProvider>() as Olbrasoft.VirtualAssistant.Voice.Services.MistralProvider;
             var dictationStateMachine = sp.GetRequiredService<Olbrasoft.VirtualAssistant.Voice.StateMachine.IDictationStateMachine>();
