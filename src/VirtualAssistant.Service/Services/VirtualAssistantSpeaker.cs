@@ -16,15 +16,18 @@ public class VirtualAssistantSpeaker : IVirtualAssistantSpeaker
 {
     private readonly TtsService _ttsService;
     private readonly ISpeechQueueService _speechQueueService;
+    private readonly ISettingsService _settingsService;
     private readonly ILogger<VirtualAssistantSpeaker> _logger;
 
     public VirtualAssistantSpeaker(
         TtsService ttsService,
         ISpeechQueueService speechQueueService,
+        ISettingsService settingsService,
         ILogger<VirtualAssistantSpeaker> logger)
     {
         _ttsService = ttsService;
         _speechQueueService = speechQueueService;
+        _settingsService = settingsService;
         _logger = logger;
     }
 
@@ -75,6 +78,14 @@ public class VirtualAssistantSpeaker : IVirtualAssistantSpeaker
         if (string.IsNullOrWhiteSpace(text))
         {
             _logger.LogDebug("Skipping empty TTS text");
+            return new TtsResult(Success: false, Skipped: true);
+        }
+
+        // Check if TTS is muted
+        var isMuted = await _settingsService.GetAsync("tts.muted", false);
+        if (isMuted)
+        {
+            _logger.LogDebug("TTS is muted - skipping speech: {Text}", TruncateText(text, 50));
             return new TtsResult(Success: false, Skipped: true);
         }
 
