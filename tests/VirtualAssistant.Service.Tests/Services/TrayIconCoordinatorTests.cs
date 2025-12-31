@@ -366,6 +366,63 @@ public class TrayIconCoordinatorTests
 
     #endregion
 
+    #region SetCenterIcon Tests
+
+    [Fact]
+    public async Task SetCenterIcon_SetsCorrectIcon()
+    {
+        // Arrange
+        _muteServiceMock.Setup(x => x.IsMuted).Returns(false);
+        _managerMock.Setup(x => x.CreateIconAsync(
+                It.IsAny<string>(),
+                It.IsAny<string>(),
+                It.IsAny<string>(),
+                It.IsAny<Olbrasoft.VirtualAssistant.Core.Services.ITrayMenuHandler?>()))
+            .ReturnsAsync(_trayIconMock.Object);
+
+        var coordinator = new TrayIconCoordinator(
+            _managerMock.Object,
+            _iconsPath,
+            _muteServiceMock.Object,
+            _loggerMock.Object);
+
+        await coordinator.InitializeIconsAsync();
+
+        // Act
+        coordinator.SetCenterIcon("listening-dictation-head.svg");
+
+        // Assert
+        _trayIconMock.Verify(x => x.SetIcon(
+            It.Is<string>(p => p.Contains("heads") && p.Contains("listening-dictation-head.svg")),
+            "VirtualAssistant - poslouchám"), Times.Once);
+    }
+
+    [Fact]
+    public void SetCenterIcon_WhenNotInitialized_LogsWarning()
+    {
+        // Arrange
+        var coordinator = new TrayIconCoordinator(
+            _managerMock.Object,
+            _iconsPath,
+            _muteServiceMock.Object,
+            _loggerMock.Object);
+
+        // Act
+        coordinator.SetCenterIcon("listening-dictation-head.svg");
+
+        // Assert
+        _loggerMock.Verify(
+            x => x.Log(
+                LogLevel.Warning,
+                It.IsAny<EventId>(),
+                It.Is<It.IsAnyType>((v, t) => v.ToString()!.Contains("Center icon not initialized")),
+                null,
+                It.IsAny<Func<It.IsAnyType, Exception?, string>>()),
+            Times.Once);
+    }
+
+    #endregion
+
     #region Dispose Tests
 
     [Fact]

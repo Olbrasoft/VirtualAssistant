@@ -62,8 +62,8 @@ public class TrayIconCoordinator : ITrayIconCoordinator, IDisposable
             }
 
             // Determine initial center icon based on mute state
-            var iconFileName = _muteService.IsMuted ? "heads/muted-head.svg" : "heads/default-head.svg";
-            var iconPath = Path.Combine(_iconsPath, iconFileName);
+            var iconFileName = _muteService.IsMuted ? "muted-head.svg" : "default-head.svg";
+            var iconPath = Path.Combine(_iconsPath, "heads", iconFileName);
 
             // Create center tray icon with menu handler
             _centerIcon = await _manager.CreateIconAsync(
@@ -115,8 +115,8 @@ public class TrayIconCoordinator : ITrayIconCoordinator, IDisposable
                 return;
             }
 
-            var iconFileName = isMuted ? "heads/muted-head.svg" : "heads/default-head.svg";
-            var iconPath = Path.Combine(_iconsPath, iconFileName);
+            var iconFileName = isMuted ? "muted-head.svg" : "default-head.svg";
+            var iconPath = Path.Combine(_iconsPath, "heads", iconFileName);
 
             _centerIcon.SetIcon(iconPath, _currentTooltip);
             _logger.LogDebug("Center icon updated to reflect mute state: {IsMuted}", isMuted);

@@ -51,7 +51,7 @@ public class IconAnimationServiceTests
     #region HandleDictationStateChange - Idle State
 
     [Fact]
-    public void HandleDictationStateChange_WhenIdle_SetsDefaultRightHandIcon()
+    public void HandleDictationStateChange_WhenIdle_SetsDefaultIcons()
     {
         // Arrange
         var state = DictationState.Idle;
@@ -63,6 +63,9 @@ public class IconAnimationServiceTests
         _iconCoordinatorMock.Verify(
             x => x.SetRightHandIcon("default-right-hand.svg"),
             Times.Once);
+        _iconCoordinatorMock.Verify(
+            x => x.SetCenterIcon("default-head.svg"),
+            Times.Once);
     }
 
     #endregion
@@ -70,7 +73,7 @@ public class IconAnimationServiceTests
     #region HandleDictationStateChange - Recording State
 
     [Fact]
-    public void HandleDictationStateChange_WhenRecording_SetsMicrophoneIcon()
+    public void HandleDictationStateChange_WhenRecording_SetsDictationIcons()
     {
         // Arrange
         var state = DictationState.Recording;
@@ -82,6 +85,9 @@ public class IconAnimationServiceTests
         _iconCoordinatorMock.Verify(
             x => x.SetRightHandIcon("holding-up-a-microphone-right-hand.svg"),
             Times.Once);
+        _iconCoordinatorMock.Verify(
+            x => x.SetCenterIcon("listening-dictation-head.svg"),
+            Times.Once);
     }
 
     #endregion
@@ -89,7 +95,7 @@ public class IconAnimationServiceTests
     #region HandleDictationStateChange - Transcribing State
 
     [Fact]
-    public void HandleDictationStateChange_WhenTranscribing_SetsWritingIcon()
+    public void HandleDictationStateChange_WhenTranscribing_SetsTranscribingIcons()
     {
         // Arrange
         var state = DictationState.Transcribing;
@@ -100,6 +106,9 @@ public class IconAnimationServiceTests
         // Assert
         _iconCoordinatorMock.Verify(
             x => x.SetRightHandIcon("writing-right-hand.svg"),
+            Times.Once);
+        _iconCoordinatorMock.Verify(
+            x => x.SetCenterIcon("busy-head.svg"),
             Times.Once);
     }
 
@@ -156,6 +165,18 @@ public class IconAnimationServiceTests
 
         _iconCoordinatorMock.Verify(
             x => x.SetRightHandIcon("writing-right-hand.svg"),
+            Times.Once); // Transcribing
+
+        _iconCoordinatorMock.Verify(
+            x => x.SetCenterIcon("default-head.svg"),
+            Times.Exactly(2)); // Idle at start and end
+
+        _iconCoordinatorMock.Verify(
+            x => x.SetCenterIcon("listening-dictation-head.svg"),
+            Times.Once); // Recording
+
+        _iconCoordinatorMock.Verify(
+            x => x.SetCenterIcon("busy-head.svg"),
             Times.Once); // Transcribing
     }
 
