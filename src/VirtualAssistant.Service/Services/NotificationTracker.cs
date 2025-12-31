@@ -21,32 +21,28 @@ public class NotificationTracker : INotificationTracker
         _notificationService = notificationService ?? throw new ArgumentNullException(nameof(notificationService));
     }
 
-    /// <summary>
-    /// Marks a notification as being processed.
-    /// </summary>
-    public async Task MarkAsProcessingAsync(int notificationId)
+    /// <inheritdoc />
+    public async Task MarkAsProcessingAsync(int notificationId, CancellationToken cancellationToken = default)
     {
         _logger.LogDebug("Marking notification {NotificationId} as Processing", notificationId);
         await _notificationService.UpdateStatusAsync(
             new[] { notificationId },
-            NotificationStatusEnum.Processing);
+            NotificationStatusEnum.Processing,
+            cancellationToken);
     }
 
-    /// <summary>
-    /// Marks a notification as played successfully.
-    /// </summary>
-    public async Task MarkAsPlayedAsync(int notificationId)
+    /// <inheritdoc />
+    public async Task MarkAsPlayedAsync(int notificationId, CancellationToken cancellationToken = default)
     {
         _logger.LogDebug("Marking notification {NotificationId} as Played", notificationId);
         await _notificationService.UpdateStatusAsync(
             new[] { notificationId },
-            NotificationStatusEnum.Played);
+            NotificationStatusEnum.Played,
+            cancellationToken);
     }
 
-    /// <summary>
-    /// Records a TTS attempt outcome for tracking purposes.
-    /// </summary>
-    public async Task RecordTtsOutcomeAsync(int notificationId, string? provider, string status, int? durationMs)
+    /// <inheritdoc />
+    public async Task RecordTtsOutcomeAsync(int notificationId, string? provider, string status, int? durationMs, CancellationToken cancellationToken = default)
     {
         _logger.LogDebug("Recording TTS outcome for notification {NotificationId}: Provider={Provider}, Status={Status}, Duration={Duration}ms",
             notificationId, provider ?? "none", status, durationMs);
@@ -55,6 +51,7 @@ public class NotificationTracker : INotificationTracker
             notificationId,
             provider,
             status,
-            durationMs);
+            durationMs,
+            cancellationToken);
     }
 }

@@ -117,7 +117,7 @@ public static class TtsServicesExtensions
 
         // Notification humanization and batching services
         services.AddSingleton<IHumanizationService, HumanizationService>();
-        services.AddSingleton<INotificationTracker, NotificationTracker>();
+        services.AddScoped<INotificationTracker, NotificationTracker>();
         services.AddSingleton<INotificationBatchingService, NotificationBatchingService>();
 
         // Speech queue with cancellation support

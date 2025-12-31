@@ -10,13 +10,15 @@ public interface INotificationTracker
     /// Marks a notification as being processed.
     /// </summary>
     /// <param name="notificationId">The notification ID.</param>
-    Task MarkAsProcessingAsync(int notificationId);
+    /// <param name="cancellationToken">Token to observe while waiting for the operation to complete.</param>
+    Task MarkAsProcessingAsync(int notificationId, CancellationToken cancellationToken = default);
 
     /// <summary>
     /// Marks a notification as played successfully.
     /// </summary>
     /// <param name="notificationId">The notification ID.</param>
-    Task MarkAsPlayedAsync(int notificationId);
+    /// <param name="cancellationToken">Token to observe while waiting for the operation to complete.</param>
+    Task MarkAsPlayedAsync(int notificationId, CancellationToken cancellationToken = default);
 
     /// <summary>
     /// Records a TTS attempt outcome for tracking purposes.
@@ -25,5 +27,6 @@ public interface INotificationTracker
     /// <param name="provider">The TTS provider used (e.g., "AzureTTS", "EdgeTTS").</param>
     /// <param name="status">The outcome status ("success", "error", "cancelled", "skipped").</param>
     /// <param name="durationMs">Duration of the TTS operation in milliseconds.</param>
-    Task RecordTtsOutcomeAsync(int notificationId, string? provider, string status, int? durationMs);
+    /// <param name="cancellationToken">Token to observe while waiting for the operation to complete.</param>
+    Task RecordTtsOutcomeAsync(int notificationId, string? provider, string status, int? durationMs, CancellationToken cancellationToken = default);
 }
