@@ -1,3 +1,5 @@
+extern alias EdgeTtsWebSocket;
+
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
@@ -14,6 +16,13 @@ using Olbrasoft.TextToSpeech.Providers.Extensions;
 using Olbrasoft.TextToSpeech.Providers.Piper.Extensions;
 using Olbrasoft.TextToSpeech.Orchestration.Extensions;
 using Olbrasoft.TextToSpeech.Orchestration.Configuration;
+using Olbrasoft.TextToSpeech.Providers.Configuration;
+using Olbrasoft.TextToSpeech.Providers.Azure;
+using Olbrasoft.TextToSpeech.Providers.Google;
+using Olbrasoft.TextToSpeech.Providers.VoiceRss;
+using Olbrasoft.TextToSpeech.Providers.Piper;
+using Olbrasoft.TextToSpeech.Core.Interfaces;
+using EdgeTtsConfiguration = EdgeTtsWebSocket::Olbrasoft.TextToSpeech.Providers.EdgeTTS.EdgeTtsConfiguration;
 
 namespace Olbrasoft.VirtualAssistant.Service.Extensions;
 
@@ -38,11 +47,27 @@ public static class TtsServicesExtensions
             configuration.GetSection(TtsVoiceProfilesOptions.SectionName));
 
         // ========== Inline TTS Providers (Issue #406) ==========
-        // Extension methods handle configuration binding internally.
-        // IMPORTANT: Providers must be registered BEFORE orchestration!
+        // CRITICAL: Configure all provider settings BEFORE registering providers!
+        services.Configure<OutputConfiguration>(
+            configuration.GetSection(OutputConfiguration.SectionName));
+        services.Configure<AzureTtsConfiguration>(
+            configuration.GetSection(AzureTtsConfiguration.SectionName));
+        services.Configure<EdgeTtsConfiguration>(
+            configuration.GetSection(EdgeTtsConfiguration.SectionName));
+        services.Configure<VoiceRssConfiguration>(
+            configuration.GetSection(VoiceRssConfiguration.SectionName));
+        services.Configure<GoogleTtsConfiguration>(
+            configuration.GetSection(GoogleTtsConfiguration.SectionName));
+        services.Configure<PiperConfiguration>(
+            configuration.GetSection(PiperConfiguration.SectionName));
 
-        // Register TTS providers inline (Azure, EdgeTTS, VoiceRSS, Google)
+        // Register TTS providers inline (Azure, EdgeTTS-HTTP, VoiceRSS, Google)
+        // IMPORTANT: Providers must be registered AFTER configuration AND BEFORE orchestration!
         services.AddTtsProviders(configuration);
+
+        // Register EdgeTTS-WebSocket provider (separate package, not included in AddTtsProviders)
+        // This MUST be registered AFTER configuration binding
+        services.AddSingleton<ITtsProvider, EdgeTtsWebSocket::Olbrasoft.TextToSpeech.Providers.EdgeTTS.EdgeTtsProvider>();
 
         // Register Piper provider (separate package)
         services.AddPiperTts(configuration);
