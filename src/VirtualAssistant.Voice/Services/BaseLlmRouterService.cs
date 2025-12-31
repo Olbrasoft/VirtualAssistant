@@ -46,6 +46,7 @@ public abstract class BaseLlmRouterService : ILlmRouterService
         _httpClient = httpClient;
         _model = model;
         _promptLoader = promptLoader;
+        ArgumentNullException.ThrowIfNull(options);
         _options = options.Value;
     }
 

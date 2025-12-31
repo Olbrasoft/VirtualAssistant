@@ -1,3 +1,5 @@
+using System.ComponentModel.DataAnnotations;
+
 namespace Olbrasoft.VirtualAssistant.Core.Configuration;
 
 /// <summary>
@@ -29,12 +31,14 @@ public class DictationOptions
     /// Time to wait for keyboard LED state to stabilize before checking Caps Lock/Num Lock state.
     /// Default: 50 ms.
     /// </summary>
+    [Range(10, 1000, ErrorMessage = "KeyboardLedSettleTimeMs must be between 10 and 1000 ms")]
     public int KeyboardLedSettleTimeMs { get; set; } = 50;
 
     /// <summary>
     /// Maximum dictation duration in seconds.
     /// Default: 300 seconds (5 minutes).
     /// </summary>
+    [Range(30, 600, ErrorMessage = "MaxDurationSeconds must be between 30 and 600 seconds")]
     public int MaxDurationSeconds { get; set; } = 300;
 
     /// <summary>

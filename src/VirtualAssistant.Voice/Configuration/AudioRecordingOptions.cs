@@ -40,7 +40,7 @@ public class AudioRecordingOptions
     /// <summary>
     /// Maximum audio buffer size in bytes.
     /// Calculated from: SampleRate * (BitsPerSample / 8) * Channels * MaxRecordingDurationMinutes * 60
-    /// Default: ~32 MB (16 minutes at 16kHz 16-bit mono).
+    /// Default: ~29.3 MB (16 minutes at 16kHz 16-bit mono).
     /// </summary>
     public int MaxBufferSizeBytes => SampleRate * (BitsPerSample / 8) * Channels * MaxRecordingDurationMinutes * 60;
 

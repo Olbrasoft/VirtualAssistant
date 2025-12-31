@@ -23,6 +23,7 @@ public class ServiceLifecycleManager : IServiceLifecycleManager
         IServiceStatusUpdater? statusUpdater = null)
     {
         _logger = logger ?? throw new ArgumentNullException(nameof(logger));
+        ArgumentNullException.ThrowIfNull(options);
         _options = options.Value;
         _statusUpdater = statusUpdater;
     }

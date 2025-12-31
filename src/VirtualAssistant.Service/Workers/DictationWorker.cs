@@ -55,6 +55,7 @@ public class DictationWorker : BackgroundService, IDictationControl
         _typingSound = typingSound ?? throw new ArgumentNullException(nameof(typingSound));
         _cancelSound = cancelSound ?? throw new ArgumentNullException(nameof(cancelSound));
         _scopeFactory = scopeFactory ?? throw new ArgumentNullException(nameof(scopeFactory));
+        ArgumentNullException.ThrowIfNull(options);
         _options = options.Value;
     }
 

@@ -27,6 +27,7 @@ public class DictationPersistenceService : IDictationPersistenceService
         _logger = logger ?? throw new ArgumentNullException(nameof(logger));
         _whisperRepository = whisperRepository ?? throw new ArgumentNullException(nameof(whisperRepository));
         _llmRepository = llmRepository ?? throw new ArgumentNullException(nameof(llmRepository));
+        ArgumentNullException.ThrowIfNull(options);
         _options = options.Value;
     }
 

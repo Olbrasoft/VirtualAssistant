@@ -34,6 +34,7 @@ public class AudioRecordingCoordinator : IAudioRecordingCoordinator, IDisposable
     {
         _logger = logger ?? throw new ArgumentNullException(nameof(logger));
         _audioCapture = audioCapture ?? throw new ArgumentNullException(nameof(audioCapture));
+        ArgumentNullException.ThrowIfNull(options);
         _options = options.Value;
     }
 
