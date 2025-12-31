@@ -28,4 +28,10 @@ public interface ITrayIconCoordinator
     /// </summary>
     /// <param name="iconFileName">Icon file name (e.g., "default-right-hand.svg")</param>
     void SetRightHandIcon(string iconFileName);
+
+    /// <summary>
+    /// Sets the center head icon to the specified icon file.
+    /// </summary>
+    /// <param name="iconFileName">Icon file name (e.g., "default-head.svg")</param>
+    void SetCenterIcon(string iconFileName);
 }

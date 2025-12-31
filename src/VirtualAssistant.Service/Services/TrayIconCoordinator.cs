@@ -62,7 +62,7 @@ public class TrayIconCoordinator : ITrayIconCoordinator, IDisposable
             }
 
             // Determine initial center icon based on mute state
-            var iconFileName = _muteService.IsMuted ? "virtual-assistant-muted.svg" : "virtual-assistant-listening.svg";
+            var iconFileName = _muteService.IsMuted ? "heads/muted-head.svg" : "heads/default-head.svg";
             var iconPath = Path.Combine(_iconsPath, iconFileName);
 
             // Create center tray icon with menu handler
@@ -115,7 +115,7 @@ public class TrayIconCoordinator : ITrayIconCoordinator, IDisposable
                 return;
             }
 
-            var iconFileName = isMuted ? "virtual-assistant-muted.svg" : "virtual-assistant-listening.svg";
+            var iconFileName = isMuted ? "heads/muted-head.svg" : "heads/default-head.svg";
             var iconPath = Path.Combine(_iconsPath, iconFileName);
 
             _centerIcon.SetIcon(iconPath, _currentTooltip);
@@ -180,6 +180,33 @@ public class TrayIconCoordinator : ITrayIconCoordinator, IDisposable
         catch (Exception ex)
         {
             _logger.LogError(ex, "Failed to set right hand icon: {Icon}", iconFileName);
+        }
+    }
+
+    /// <summary>
+    /// Sets the center head icon to the specified icon file.
+    /// </summary>
+    /// <param name="iconFileName">Icon file name (e.g., "default-head.svg")</param>
+    public void SetCenterIcon(string iconFileName)
+    {
+        ArgumentException.ThrowIfNullOrWhiteSpace(iconFileName);
+        ObjectDisposedException.ThrowIf(_disposed, this);
+
+        try
+        {
+            if (_centerIcon == null)
+            {
+                _logger.LogWarning("Center icon not initialized");
+                return;
+            }
+
+            var iconPath = Path.Combine(_iconsPath, "heads", iconFileName);
+            _centerIcon.SetIcon(iconPath, _currentTooltip);
+            _logger.LogDebug("Center head icon changed to: {Icon}", iconFileName);
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Failed to set center head icon: {Icon}", iconFileName);
         }
     }
 

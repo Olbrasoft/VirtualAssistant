@@ -100,7 +100,7 @@ public class TrayIconCoordinatorTests
 
         _managerMock.Verify(x => x.CreateIconAsync(
             "virtual-assistant-service",
-            It.Is<string>(p => p.Contains("virtual-assistant-listening.svg")),
+            It.Is<string>(p => p.Contains("heads") && p.Contains("default-head.svg")),
             "VirtualAssistant - poslouchám",
             _menuHandlerMock.Object), Times.Once);
 
@@ -135,7 +135,7 @@ public class TrayIconCoordinatorTests
         // Assert
         _managerMock.Verify(x => x.CreateIconAsync(
             "virtual-assistant-service",
-            It.Is<string>(p => p.Contains("virtual-assistant-muted.svg")),
+            It.Is<string>(p => p.Contains("heads") && p.Contains("muted-head.svg")),
             It.IsAny<string>(),
             null), Times.Once);
     }
@@ -193,7 +193,7 @@ public class TrayIconCoordinatorTests
 
         // Assert
         _trayIconMock.Verify(x => x.SetIcon(
-            It.Is<string>(p => p.Contains("virtual-assistant-muted.svg")),
+            It.Is<string>(p => p.Contains("heads") && p.Contains("muted-head.svg")),
             "VirtualAssistant - poslouchám"), Times.Once);
     }
 
@@ -222,7 +222,7 @@ public class TrayIconCoordinatorTests
 
         // Assert
         _trayIconMock.Verify(x => x.SetIcon(
-            It.Is<string>(p => p.Contains("virtual-assistant-listening.svg")),
+            It.Is<string>(p => p.Contains("heads") && p.Contains("default-head.svg")),
             "VirtualAssistant - poslouchám"), Times.Once);
     }
 

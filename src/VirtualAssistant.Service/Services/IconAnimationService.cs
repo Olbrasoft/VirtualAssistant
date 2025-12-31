@@ -34,18 +34,21 @@ public class IconAnimationService : IIconAnimationService
             switch (newState)
             {
                 case DictationState.Idle:
-                    // Return right hand to default position
+                    // Return to default state
                     _iconCoordinator.SetRightHandIcon("default-right-hand.svg");
+                    _iconCoordinator.SetCenterIcon("default-head.svg");
                     break;
 
                 case DictationState.Recording:
-                    // Show right hand holding microphone
+                    // Show active dictation state
                     _iconCoordinator.SetRightHandIcon("holding-up-a-microphone-right-hand.svg");
+                    _iconCoordinator.SetCenterIcon("listening-dictation-head.svg");
                     break;
 
                 case DictationState.Transcribing:
-                    // Show right hand writing during transcription
+                    // Show transcription in progress
                     _iconCoordinator.SetRightHandIcon("writing-right-hand.svg");
+                    _iconCoordinator.SetCenterIcon("busy-head.svg");
                     break;
 
                 default:
