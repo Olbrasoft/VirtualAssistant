@@ -7,6 +7,8 @@ using Olbrasoft.VirtualAssistant.Service.Workers;
 using Olbrasoft.VirtualAssistant.Voice.Services;
 using Olbrasoft.VirtualAssistant.Core.StateMachine;
 using Olbrasoft.VirtualAssistant.Voice.StateMachine;
+using SystemTrayIcon = Olbrasoft.SystemTray.Linux.ITrayIcon;
+using SystemTrayMenuHandler = Olbrasoft.SystemTray.Linux.ITrayMenuHandler;
 
 namespace Olbrasoft.VirtualAssistant.Service.Tray;
 
@@ -20,15 +22,15 @@ public class VirtualAssistantTrayService : IDisposable
     private readonly string _iconsPath;
     private readonly IManualMuteService _muteService;
     private readonly int _logViewerPort;
-    private readonly ITrayMenuHandler? _menuHandler;
+    private readonly SystemTrayMenuHandler? _menuHandler;
     private readonly SpeechToTextServiceManager? _sttServiceManager;
     private readonly MistralProvider? _mistralProvider;
     private readonly IDictationStateMachine? _dictationStateMachine;
     private readonly DictationWorker? _dictationWorker;
     private readonly ISettingsService _settingsService;
-    private ITrayIcon? _trayIcon;
-    private ITrayIcon? _leftHandIcon;
-    private ITrayIcon? _rightHandIcon;
+    private SystemTrayIcon? _trayIcon;
+    private SystemTrayIcon? _leftHandIcon;
+    private SystemTrayIcon? _rightHandIcon;
     private bool _disposed;
 
     // Track current icon state
@@ -49,7 +51,7 @@ public class VirtualAssistantTrayService : IDisposable
         ISettingsService settingsService,
         string iconsPath,
         int logViewerPort = 5053,
-        ITrayMenuHandler? menuHandler = null,
+        SystemTrayMenuHandler? menuHandler = null,
         SpeechToTextServiceManager? sttServiceManager = null,
         MistralProvider? mistralProvider = null,
         IDictationStateMachine? dictationStateMachine = null,

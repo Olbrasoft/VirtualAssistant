@@ -7,6 +7,7 @@ using Olbrasoft.VirtualAssistant.Service.Services;
 using Olbrasoft.VirtualAssistant.Service.Tray;
 using Olbrasoft.VirtualAssistant.Service.Workers;
 using Olbrasoft.SystemTray.Linux;
+using SystemTrayMenuHandler = Olbrasoft.SystemTray.Linux.ITrayMenuHandler;
 
 namespace Olbrasoft.VirtualAssistant.Service.Extensions;
 
@@ -36,8 +37,26 @@ public static class TrayServicesExtensions
             return new TrayIconManager(logger, loggerFactory, iconRenderer);
         });
 
+        // Adapter for integrating the system tray icon manager
+        services.AddSingleton<Core.Services.ITrayIconManager>(sp =>
+        {
+            var manager = sp.GetRequiredService<TrayIconManager>();
+            return new SystemTrayIconManagerAdapter(manager);
+        });
+
+        // Coordinator for managing tray icon behavior
+        services.AddSingleton<ITrayIconCoordinator>(sp =>
+        {
+            var manager = sp.GetRequiredService<Core.Services.ITrayIconManager>();
+            var iconsPath = Path.Combine(AppContext.BaseDirectory, "icons");
+            var muteService = sp.GetRequiredService<IManualMuteService>();
+            var logger = sp.GetRequiredService<ILogger<TrayIconCoordinator>>();
+            var menuHandler = sp.GetRequiredService<SystemTrayMenuHandler>();
+            return new TrayIconCoordinator(manager, iconsPath, muteService, logger, menuHandler as Core.Services.ITrayMenuHandler);
+        });
+
         // D-Bus menu handler for tray icon context menu
-        services.AddSingleton<ITrayMenuHandler>(sp =>
+        services.AddSingleton<SystemTrayMenuHandler>(sp =>
         {
             var logger = sp.GetRequiredService<ILogger<VirtualAssistantDBusMenuHandler>>();
             return new VirtualAssistantDBusMenuHandler(logger);
@@ -54,7 +73,7 @@ public static class TrayServicesExtensions
             var muteService = sp.GetRequiredService<IManualMuteService>();
             var settingsService = sp.GetRequiredService<ISettingsService>();
             // NOTE: DependentServicesManager removed - TTS runs inline (issue #407)
-            var menuHandler = sp.GetRequiredService<ITrayMenuHandler>();
+            var menuHandler = sp.GetRequiredService<SystemTrayMenuHandler>();
             var sttServiceManager = sp.GetRequiredService<SpeechToTextServiceManager>();
             var mistralProvider = sp.GetService<Olbrasoft.VirtualAssistant.Voice.Services.ILlmProvider>() as Olbrasoft.VirtualAssistant.Voice.Services.MistralProvider;
             var dictationStateMachine = sp.GetRequiredService<Olbrasoft.VirtualAssistant.Voice.StateMachine.IDictationStateMachine>();
