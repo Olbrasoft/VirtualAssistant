@@ -241,7 +241,7 @@ public class AudioRecordingCoordinatorTests
     }
 
     [Fact]
-    public async Task StopRecordingAsync_WhenAudioCaptureStopFails_StillReturnsData()
+    public async Task StopRecordingAsync_WhenAudioCaptureStopFails_ThrowsException()
     {
         // Arrange
         var chunk = new byte[] { 1, 2, 3 };
@@ -251,7 +251,7 @@ public class AudioRecordingCoordinatorTests
             .Throws(new InvalidOperationException("Stop failed"));
 
         await _sut.StartRecordingAsync();
-        await Task.Delay(100);
+        await Task.Delay(100); // TODO: Replace timing-dependent delay with deterministic synchronization
 
         // Act & Assert
         var exception = await Assert.ThrowsAsync<InvalidOperationException>(

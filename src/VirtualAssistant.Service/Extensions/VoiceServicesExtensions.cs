@@ -55,7 +55,8 @@ public static class VoiceServicesExtensions
         });
 
         services.AddSingleton<IAudioCaptureService, AudioCaptureService>();
-        services.AddSingleton<IAudioRecordingCoordinator, AudioRecordingCoordinator>();
+        // Note: IAudioRecordingCoordinator is NOT registered as singleton here
+        // because DictationWorker uses a dedicated instance (manually created in WorkerServicesExtensions)
         services.AddSingleton<IVadService, VadService>();
 
         // Use SpeechToText gRPC microservice instead of local Whisper.net

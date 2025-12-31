@@ -8,15 +8,26 @@ namespace Olbrasoft.VirtualAssistant.Voice.Audio;
 /// Coordinates audio recording workflow including buffer management and capture task lifecycle.
 /// Implements Single Responsibility Principle - only handles audio recording coordination.
 /// </summary>
-public class AudioRecordingCoordinator : IAudioRecordingCoordinator
+/// <remarks>
+/// Maximum buffer size is 32 MB (approximately 16 minutes at 16kHz 16-bit mono).
+/// This prevents excessive memory usage during long recording sessions.
+/// </remarks>
+public class AudioRecordingCoordinator : IAudioRecordingCoordinator, IDisposable
 {
+    /// <summary>
+    /// Maximum audio buffer size in bytes (32 MB = ~16 minutes at 16kHz 16-bit mono).
+    /// </summary>
+    private const int MAX_BUFFER_SIZE_BYTES = 32 * 1024 * 1024; // 32 MB
+
     private readonly ILogger<AudioRecordingCoordinator> _logger;
     private readonly IAudioCaptureService _audioCapture;
 
     private CancellationTokenSource? _recordingCts;
     private Task? _recordingTask;
-    private List<byte> _audioBuffer = new();
+    private readonly List<byte> _audioBuffer = new();
     private readonly object _bufferLock = new();
+    private readonly object _startLock = new();
+    private bool _disposed;
 
     public AudioRecordingCoordinator(
         ILogger<AudioRecordingCoordinator> logger,
@@ -27,42 +38,59 @@ public class AudioRecordingCoordinator : IAudioRecordingCoordinator
     }
 
     /// <inheritdoc />
-    public bool IsRecording => _recordingTask != null && !_recordingTask.IsCompleted;
+    public bool IsRecording => _recordingTask != null;
 
     /// <inheritdoc />
     public async Task StartRecordingAsync(CancellationToken cancellationToken = default)
     {
-        if (IsRecording)
+        // Use lock to prevent concurrent start operations (fixes race condition)
+        lock (_startLock)
         {
-            _logger.LogWarning("Recording already in progress - ignoring start request");
-            return;
-        }
-
-        try
-        {
-            // Clear audio buffer
-            lock (_bufferLock)
+            if (IsRecording)
             {
-                _audioBuffer.Clear();
+                _logger.LogWarning("Recording already in progress - ignoring start request");
+                return;
             }
 
-            // Create cancellation token for recording
-            _recordingCts = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
+            try
+            {
+                // Clear audio buffer
+                lock (_bufferLock)
+                {
+                    _audioBuffer.Clear();
+                }
 
-            // Start audio capture
-            _audioCapture.Start();
+                // Create cancellation token for recording
+                _recordingCts = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
 
-            // Start recording task to capture audio chunks
-            _recordingTask = Task.Run(async () => await CaptureAudioAsync(_recordingCts.Token), _recordingCts.Token);
+                // Start audio capture
+                _audioCapture.Start();
 
-            _logger.LogInformation("Recording started");
+                // Start recording task to capture audio chunks
+                _recordingTask = Task.Run(async () => await CaptureAudioAsync(_recordingCts.Token), _recordingCts.Token);
+
+                _logger.LogInformation("Recording started");
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(ex, "Failed to start recording");
+
+                // Ensure audio capture is stopped if it was started
+                try
+                {
+                    _audioCapture.Stop();
+                }
+                catch (Exception stopEx)
+                {
+                    _logger.LogWarning(stopEx, "Error stopping audio capture during cleanup");
+                }
+
+                CleanupRecording();
+                throw;
+            }
         }
-        catch (Exception ex)
-        {
-            _logger.LogError(ex, "Failed to start recording");
-            await CleanupRecordingAsync();
-            throw;
-        }
+
+        await Task.CompletedTask; // Prevent async warning since we're using lock
     }
 
     /// <inheritdoc />
@@ -79,16 +107,16 @@ public class AudioRecordingCoordinator : IAudioRecordingCoordinator
             // Cancel recording task
             _recordingCts?.Cancel();
 
-            // Wait for recording task to complete
+            // Wait for recording task to complete (use caller's cancellation token for timeout control)
             if (_recordingTask != null)
             {
                 try
                 {
-                    await _recordingTask;
+                    await _recordingTask.WaitAsync(cancellationToken);
                 }
                 catch (OperationCanceledException)
                 {
-                    // Expected when canceling
+                    // Expected when canceling recording or when caller cancels
                 }
             }
 
@@ -114,7 +142,7 @@ public class AudioRecordingCoordinator : IAudioRecordingCoordinator
         }
         finally
         {
-            await CleanupRecordingAsync();
+            CleanupRecording();
         }
     }
 
@@ -134,16 +162,16 @@ public class AudioRecordingCoordinator : IAudioRecordingCoordinator
             // Cancel recording task
             _recordingCts?.Cancel();
 
-            // Wait for recording task to complete
+            // Wait for recording task to complete (use caller's cancellation token for timeout control)
             if (_recordingTask != null)
             {
                 try
                 {
-                    await _recordingTask;
+                    await _recordingTask.WaitAsync(cancellationToken);
                 }
                 catch (OperationCanceledException)
                 {
-                    // Expected
+                    // Expected when canceling recording or when caller cancels
                 }
             }
 
@@ -164,12 +192,13 @@ public class AudioRecordingCoordinator : IAudioRecordingCoordinator
         }
         finally
         {
-            await CleanupRecordingAsync();
+            CleanupRecording();
         }
     }
 
     /// <summary>
     /// Captures audio chunks from the audio capture service and buffers them.
+    /// Stops automatically if buffer exceeds MAX_BUFFER_SIZE_BYTES.
     /// </summary>
     private async Task CaptureAudioAsync(CancellationToken cancellationToken)
     {
@@ -180,12 +209,23 @@ public class AudioRecordingCoordinator : IAudioRecordingCoordinator
                 var chunk = await _audioCapture.ReadChunkAsync(cancellationToken);
                 if (chunk != null)
                 {
+                    int totalBytes;
                     lock (_bufferLock)
                     {
+                        // Check buffer size limit before adding chunk
+                        if (_audioBuffer.Count + chunk.Length > MAX_BUFFER_SIZE_BYTES)
+                        {
+                            _logger.LogWarning(
+                                "Audio buffer size limit reached ({MaxSize} bytes). Stopping capture to prevent excessive memory usage.",
+                                MAX_BUFFER_SIZE_BYTES);
+                            break;
+                        }
+
                         _audioBuffer.AddRange(chunk);
+                        totalBytes = _audioBuffer.Count;
                     }
 
-                    _logger.LogDebug("Audio chunk captured: {Bytes} bytes (total: {Total})", chunk.Length, _audioBuffer.Count);
+                    _logger.LogDebug("Audio chunk captured: {Bytes} bytes (total: {Total})", chunk.Length, totalBytes);
                 }
             }
         }
@@ -202,11 +242,39 @@ public class AudioRecordingCoordinator : IAudioRecordingCoordinator
     /// <summary>
     /// Cleans up recording resources (CTS and task references).
     /// </summary>
-    private Task CleanupRecordingAsync()
+    private void CleanupRecording()
     {
         _recordingCts?.Dispose();
         _recordingCts = null;
         _recordingTask = null;
-        return Task.CompletedTask;
+    }
+
+    /// <summary>
+    /// Disposes resources and stops any active recording.
+    /// </summary>
+    public void Dispose()
+    {
+        if (_disposed)
+            return;
+
+        _disposed = true;
+
+        // If recording is in progress, perform emergency stop
+        if (IsRecording)
+        {
+            _logger.LogWarning("AudioRecordingCoordinator disposed while recording - performing emergency stop");
+            try
+            {
+                // Synchronous emergency stop (can't await in Dispose)
+                EmergencyStopAsync(CancellationToken.None).GetAwaiter().GetResult();
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(ex, "Error during emergency stop in Dispose");
+            }
+        }
+
+        // Cleanup any remaining CTS
+        CleanupRecording();
     }
 }
