@@ -63,7 +63,16 @@ public static class TrayServicesExtensions
         });
 
         // SpeechToText service manager for controlling SpeechToText microservice
-        services.AddSingleton<SpeechToTextServiceManager>();
+        services.AddSingleton<ISpeechToTextServiceManager, SpeechToTextServiceManager>();
+
+        // Service lifecycle manager for managing dependent services
+        services.AddSingleton<IServiceLifecycleManager>(sp =>
+        {
+            var logger = sp.GetRequiredService<ILogger<ServiceLifecycleManager>>();
+            var sttManager = sp.GetService<ISpeechToTextServiceManager>();
+            var menuHandler = sp.GetRequiredService<SystemTrayMenuHandler>();
+            return new ServiceLifecycleManager(logger, sttManager, menuHandler as IServiceStatusUpdater);
+        });
 
         // VirtualAssistant tray service (wrapper for tray functionality)
         services.AddSingleton(sp =>
@@ -74,7 +83,7 @@ public static class TrayServicesExtensions
             var settingsService = sp.GetRequiredService<ISettingsService>();
             // NOTE: DependentServicesManager removed - TTS runs inline (issue #407)
             var menuHandler = sp.GetRequiredService<SystemTrayMenuHandler>();
-            var sttServiceManager = sp.GetRequiredService<SpeechToTextServiceManager>();
+            var sttServiceManager = sp.GetService<ISpeechToTextServiceManager>() as SpeechToTextServiceManager;
             var mistralProvider = sp.GetService<Olbrasoft.VirtualAssistant.Voice.Services.ILlmProvider>() as Olbrasoft.VirtualAssistant.Voice.Services.MistralProvider;
             var dictationStateMachine = sp.GetRequiredService<Olbrasoft.VirtualAssistant.Voice.StateMachine.IDictationStateMachine>();
             var dictationWorker = sp.GetRequiredService<DictationWorker>();

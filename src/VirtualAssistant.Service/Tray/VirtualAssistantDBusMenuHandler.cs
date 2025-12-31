@@ -1,5 +1,6 @@
 using Microsoft.Extensions.Logging;
 using Olbrasoft.SystemTray.Linux;
+using Olbrasoft.VirtualAssistant.Core.Services;
 using Tmds.DBus.Protocol;
 using Tmds.DBus.SourceGenerator;
 
@@ -9,7 +10,7 @@ namespace Olbrasoft.VirtualAssistant.Service.Tray;
 /// D-Bus handler for com.canonical.dbusmenu interface.
 /// Provides context menu for the VirtualAssistant tray icon.
 /// </summary>
-internal class VirtualAssistantDBusMenuHandler : ComCanonicalDbusmenuHandler, ITrayMenuHandler
+internal class VirtualAssistantDBusMenuHandler : ComCanonicalDbusmenuHandler, SystemTray.Linux.ITrayMenuHandler, IServiceStatusUpdater
 {
     private Connection? _connection;
     private readonly ILogger _logger;
