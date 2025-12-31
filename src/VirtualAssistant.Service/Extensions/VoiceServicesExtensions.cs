@@ -19,6 +19,7 @@ using Olbrasoft.VirtualAssistant.Voice.Audio;
 using Olbrasoft.VirtualAssistant.Voice.Configuration;
 using Olbrasoft.VirtualAssistant.Voice.Filters;
 using Olbrasoft.VirtualAssistant.Voice.Services;
+using Olbrasoft.VirtualAssistant.Voice.Services.EchoDetection;
 using Olbrasoft.VirtualAssistant.Voice.Similarity;
 using VirtualAssistant.Core.Services;
 using VirtualAssistant.Data;
@@ -45,7 +46,21 @@ public static class VoiceServicesExtensions
         // String similarity for echo cancellation
         services.AddSingleton<IStringSimilarity, LevenshteinSimilarity>();
 
-        // Assistant speech tracker for echo cancellation
+        // Echo detection configuration (Strategy pattern for echo cancellation)
+        services.Configure<EchoDetectionOptions>(
+            configuration.GetSection(nameof(EchoDetectionOptions)));
+
+        // Echo detection support services
+        services.AddSingleton<TtsHistoryTracker>();
+        services.AddSingleton<TextNormalizer>();
+        services.AddSingleton<SimilarityCalculator>();
+
+        // Echo detection strategies (Strategy pattern)
+        services.AddSingleton<IEchoDetectionStrategy, ExactMatchStrategy>();
+        services.AddSingleton<IEchoDetectionStrategy, PrefixMatchStrategy>();
+        services.AddSingleton<IEchoDetectionStrategy, SimilarityMatchStrategy>();
+
+        // Assistant speech tracker for echo cancellation (orchestrates strategies)
         services.AddSingleton<IAssistantSpeechTrackerService, AssistantSpeechTrackerService>();
 
         // Silero VAD model

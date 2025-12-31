@@ -1,7 +1,10 @@
 using Microsoft.Extensions.Logging;
+using Microsoft.Extensions.Options;
 using Moq;
-using Olbrasoft.VirtualAssistant.Voice.Similarity;
+using Olbrasoft.VirtualAssistant.Voice.Configuration;
 using Olbrasoft.VirtualAssistant.Voice.Services;
+using Olbrasoft.VirtualAssistant.Voice.Services.EchoDetection;
+using Olbrasoft.VirtualAssistant.Voice.Similarity;
 
 namespace VirtualAssistant.Voice.Tests.Services;
 
@@ -9,19 +12,68 @@ public class AssistantSpeechTrackerServiceTests
 {
     private readonly Mock<ILogger<AssistantSpeechTrackerService>> _loggerMock;
     private readonly Mock<IStringSimilarity> _similarityMock;
+    private readonly EchoDetectionOptions _options;
+    private readonly TtsHistoryTracker _historyTracker;
+    private readonly TextNormalizer _textNormalizer;
+    private readonly SimilarityCalculator _similarityCalculator;
+    private readonly List<IEchoDetectionStrategy> _strategies;
     private readonly AssistantSpeechTrackerService _sut;
 
     public AssistantSpeechTrackerServiceTests()
     {
         _loggerMock = new Mock<ILogger<AssistantSpeechTrackerService>>();
         _similarityMock = new Mock<IStringSimilarity>();
-        
+
         // Default similarity: return 1.0 for identical strings, 0.0 otherwise
         _similarityMock
             .Setup(x => x.Similarity(It.IsAny<string>(), It.IsAny<string>()))
             .Returns((string a, string b) => a == b ? 1.0 : 0.0);
-            
-        _sut = new AssistantSpeechTrackerService(_loggerMock.Object, _similarityMock.Object);
+
+        // Create options with default values
+        _options = new EchoDetectionOptions
+        {
+            SimilarityThreshold = 0.70,
+            MaxSpeakingDurationSeconds = 60,
+            MaxHistorySize = 10,
+            MinimumWordCount = 3,
+            WordSimilarityThreshold = 0.80,
+            TtsMatchRatioThreshold = 0.60
+        };
+
+        var optionsMock = new Mock<IOptions<EchoDetectionOptions>>();
+        optionsMock.Setup(x => x.Value).Returns(_options);
+
+        // Create support services
+        _historyTracker = new TtsHistoryTracker(
+            new Mock<ILogger<TtsHistoryTracker>>().Object,
+            optionsMock.Object);
+        _textNormalizer = new TextNormalizer();
+        _similarityCalculator = new SimilarityCalculator(_similarityMock.Object, _textNormalizer, optionsMock.Object);
+
+        // Create echo detection strategies
+        _strategies = new List<IEchoDetectionStrategy>
+        {
+            new ExactMatchStrategy(
+                new Mock<ILogger<ExactMatchStrategy>>().Object,
+                _textNormalizer,
+                optionsMock.Object),
+            new PrefixMatchStrategy(
+                new Mock<ILogger<PrefixMatchStrategy>>().Object,
+                _textNormalizer,
+                _similarityCalculator,
+                optionsMock.Object),
+            new SimilarityMatchStrategy(
+                new Mock<ILogger<SimilarityMatchStrategy>>().Object,
+                _textNormalizer,
+                _similarityCalculator,
+                optionsMock.Object)
+        };
+
+        _sut = new AssistantSpeechTrackerService(
+            _loggerMock.Object,
+            _historyTracker,
+            _textNormalizer,
+            _strategies);
     }
 
     #region IsSpeaking Tests
