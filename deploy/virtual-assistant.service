@@ -7,6 +7,7 @@ Wants=graphical-session.target
 Type=simple
 WorkingDirectory=/opt/olbrasoft/virtual-assistant/app
 ExecStart=/opt/olbrasoft/virtual-assistant/app/VirtualAssistant.Service
+EnvironmentFile=%h/.config/systemd/user/virtual-assistant.env
 Restart=always
 RestartSec=5
 Environment="DISPLAY=:0"
