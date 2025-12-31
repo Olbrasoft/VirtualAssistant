@@ -51,7 +51,8 @@ public interface ITranscriptionCorrectionRepository
     /// Used for analytics to measure correction effectiveness.
     /// </summary>
     /// <param name="correctionId">The ID of the applied correction.</param>
+    /// <param name="context">Optional context about where the correction was used (e.g., "dictation", "continuous-listening").</param>
     /// <param name="ct">Cancellation token.</param>
     /// <returns>Task completing when usage is tracked.</returns>
-    Task TrackUsageAsync(int correctionId, CancellationToken ct = default);
+    Task TrackUsageAsync(int correctionId, string? context = null, CancellationToken ct = default);
 }
