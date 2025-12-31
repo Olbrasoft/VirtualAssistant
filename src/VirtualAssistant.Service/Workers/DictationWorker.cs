@@ -15,7 +15,7 @@ namespace Olbrasoft.VirtualAssistant.Service.Workers;
 /// Manages audio recording, transcription, and text insertion based on CapsLock state.
 /// Uses dedicated audio capture instance (independent from continuous listening).
 /// </summary>
-public class DictationWorker : BackgroundService
+public class DictationWorker : BackgroundService, IDictationControl
 {
     /// <summary>
     /// Delay in milliseconds to allow keyboard LED state to settle after key release.
