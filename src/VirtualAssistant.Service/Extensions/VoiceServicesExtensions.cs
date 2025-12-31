@@ -7,6 +7,7 @@ using Olbrasoft.VirtualAssistant.Core.Clipboard;
 using Olbrasoft.VirtualAssistant.Core.Configuration;
 using Olbrasoft.VirtualAssistant.Core.Events;
 using Olbrasoft.VirtualAssistant.Core.Keyboard;
+using Olbrasoft.VirtualAssistant.Core.Processes;
 using Olbrasoft.VirtualAssistant.Core.Services;
 using Olbrasoft.VirtualAssistant.Core.Speech;
 using Olbrasoft.VirtualAssistant.Core.TextInput;
@@ -92,10 +93,11 @@ public static class VoiceServicesExtensions
         services.AddKeyedSingleton<ISoundEffectPlayer, TypingSoundPlayer>("typing", (sp, key) =>
         {
             var logger = sp.GetRequiredService<ILogger<TypingSoundPlayer>>();
+            var processExecutor = sp.GetRequiredService<IProcessExecutor>();
             var configuration = sp.GetRequiredService<IConfiguration>();
             var soundsPath = Path.Combine(AppContext.BaseDirectory, "..", "sounds");
             var audioSink = configuration["NotificationAudio:AudioSink"];
-            return TypingSoundPlayer.CreateFromDirectory(logger, soundsPath, "write.mp3", audioSink);
+            return TypingSoundPlayer.CreateFromDirectory(logger, processExecutor, soundsPath, "write.mp3", audioSink);
         });
 
         // Cancel sound player for dictation cancel feedback (keyed service)

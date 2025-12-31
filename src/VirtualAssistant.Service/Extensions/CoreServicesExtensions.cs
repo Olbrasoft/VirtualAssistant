@@ -3,6 +3,7 @@ using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
 using Olbrasoft.VirtualAssistant.Core.Configuration;
+using Olbrasoft.VirtualAssistant.Core.Processes;
 using Olbrasoft.VirtualAssistant.Core.Services;
 using Olbrasoft.VirtualAssistant.Service.Services;
 using Olbrasoft.VirtualAssistant.Voice.Configuration;
@@ -37,6 +38,9 @@ public static class CoreServicesExtensions
 
         // NOTE: DependentServicesManager removed after inline TTS integration (issue #407)
         // TTS providers now run inline, no external service lifecycle management needed
+
+        // Process executor for DIP compliance (issue #470)
+        services.AddSingleton<IProcessExecutor, ProcessExecutor>();
 
         // Settings service for persistent configuration
         services.AddSingleton<ISettingsService, SettingsService>();

@@ -3,6 +3,7 @@ using System.Text;
 using System.Text.Json;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
+using Olbrasoft.VirtualAssistant.Core.Processes;
 using Olbrasoft.VirtualAssistant.Service.Dtos;
 using VirtualAssistant.Core.Services;
 
@@ -17,15 +18,18 @@ public class ClaudeDispatchService : IClaudeDispatchService
     private readonly ILogger<ClaudeDispatchService> _logger;
     private readonly IHttpClientFactory _httpClientFactory;
     private readonly ClaudeDispatchOptions _options;
+    private readonly IProcessExecutor _processExecutor;
 
     public ClaudeDispatchService(
         ILogger<ClaudeDispatchService> logger,
         IHttpClientFactory httpClientFactory,
-        IOptions<ClaudeDispatchOptions> options)
+        IOptions<ClaudeDispatchOptions> options,
+        IProcessExecutor processExecutor)
     {
         _logger = logger;
         _httpClientFactory = httpClientFactory;
         _options = options.Value;
+        _processExecutor = processExecutor ?? throw new ArgumentNullException(nameof(processExecutor));
     }
 
     public async Task<ClaudeExecutionResult> ExecuteAsync(string prompt, string? workingDirectory = null, CancellationToken ct = default)
@@ -62,7 +66,7 @@ public class ClaudeDispatchService : IClaudeDispatchService
             startInfo.ArgumentList.Add("--output-format");
             startInfo.ArgumentList.Add("json");
 
-            process = new Process { StartInfo = startInfo };
+            process = _processExecutor.Start(startInfo);
 
             var outputBuilder = new StringBuilder();
             var errorBuilder = new StringBuilder();
@@ -83,7 +87,6 @@ public class ClaudeDispatchService : IClaudeDispatchService
                 }
             };
 
-            process.Start();
             process.BeginOutputReadLine();
             process.BeginErrorReadLine();
 
@@ -202,30 +205,7 @@ public class ClaudeDispatchService : IClaudeDispatchService
 
     public async Task<bool> IsClaudeAvailableAsync()
     {
-        try
-        {
-            var startInfo = new ProcessStartInfo
-            {
-                FileName = "which",
-                Arguments = "claude",
-                RedirectStandardOutput = true,
-                UseShellExecute = false,
-                CreateNoWindow = true
-            };
-
-            using var process = Process.Start(startInfo);
-            if (process == null)
-            {
-                return false;
-            }
-
-            await process.WaitForExitAsync();
-            return process.ExitCode == 0;
-        }
-        catch
-        {
-            return false;
-        }
+        return await _processExecutor.IsCommandAvailableAsync("claude");
     }
 
     private ClaudeExecutionResult ParseClaudeOutput(string output)
