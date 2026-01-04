@@ -97,7 +97,7 @@ journalctl --user -u virtual-assistant.service -n 50
 
 Clean Architecture with Repository + Service pattern:
 - **VirtualAssistant.Service** - ASP.NET Core main service (port 5055)
-- **VirtualAssistant.Core** - Domain logic, business services (AgentHubService, TaskDistributionService, NotificationService)
+- **VirtualAssistant.Core** - Domain logic, business services (e.g., NotificationService and other business services)
 - **VirtualAssistant.Voice** - TTS/STT with **inline Whisper.net** (GPU-accelerated), VAD (Silero ONNX), LLM routing
 - **VirtualAssistant.Data** - Entities, DTOs, repository interfaces
 - **VirtualAssistant.Data.EntityFrameworkCore** - DbContext, repository implementations, migrations (auto-apply on startup)
