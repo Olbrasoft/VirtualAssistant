@@ -14,7 +14,7 @@ public class SaveLlmErrorCommand : BaseCommand<LlmError>
     /// <summary>
     /// ID of the Whisper transcription that failed correction. Must be greater than 0.
     /// </summary>
-    public int WhisperTranscriptionId { get; set; }
+    public int WhisperTranscriptionId { get; set; } = -1;
 
     /// <summary>
     /// The error message. Must not be null or empty.
@@ -24,5 +24,5 @@ public class SaveLlmErrorCommand : BaseCommand<LlmError>
     /// <summary>
     /// API call duration in milliseconds (how long before it failed). Must be greater than 0.
     /// </summary>
-    public int DurationMs { get; set; }
+    public int DurationMs { get; set; } = -1;
 }

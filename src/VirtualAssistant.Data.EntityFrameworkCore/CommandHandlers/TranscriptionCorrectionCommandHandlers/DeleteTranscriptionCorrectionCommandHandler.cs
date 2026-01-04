@@ -13,6 +13,8 @@ public class DeleteTranscriptionCorrectionCommandHandler(VirtualAssistantDbConte
 {
     protected override async Task<bool> GetResultToHandleAsync(DeleteTranscriptionCorrectionCommand command, CancellationToken token)
     {
+        ArgumentOutOfRangeException.ThrowIfNegativeOrZero(command.Id, nameof(command.Id));
+
         var correction = await Context.TranscriptionCorrections
             .FirstOrDefaultAsync(c => c.Id == command.Id, token);
 

@@ -13,5 +13,5 @@ public class DeleteTranscriptionCorrectionCommand : BaseCommand<bool>
     /// <summary>
     /// The ID of the correction to delete. Must be greater than 0.
     /// </summary>
-    public int Id { get; set; }
+    public int Id { get; set; } = -1;
 }

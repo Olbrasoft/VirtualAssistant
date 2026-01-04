@@ -14,7 +14,7 @@ public class SaveLlmCorrectionCommand : BaseCommand<LlmCorrection>
     /// <summary>
     /// ID of the Whisper transcription that was corrected. Must be greater than 0.
     /// </summary>
-    public int WhisperTranscriptionId { get; set; }
+    public int WhisperTranscriptionId { get; set; } = -1;
 
     /// <summary>
     /// The text after LLM correction. Must not be null or empty.
@@ -24,5 +24,5 @@ public class SaveLlmCorrectionCommand : BaseCommand<LlmCorrection>
     /// <summary>
     /// API call duration in milliseconds. Must be greater than 0.
     /// </summary>
-    public int DurationMs { get; set; }
+    public int DurationMs { get; set; } = -1;
 }

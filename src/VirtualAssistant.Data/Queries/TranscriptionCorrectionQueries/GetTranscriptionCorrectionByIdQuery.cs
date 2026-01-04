@@ -14,5 +14,5 @@ public class GetTranscriptionCorrectionByIdQuery : BaseQuery<TranscriptionCorrec
     /// <summary>
     /// The correction ID. Must be greater than 0.
     /// </summary>
-    public int Id { get; set; }
+    public int Id { get; set; } = -1;
 }
