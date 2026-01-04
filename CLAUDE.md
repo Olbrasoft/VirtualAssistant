@@ -115,6 +115,19 @@ Query handler and command handler implementations are in the **VirtualAssistant.
 - **Infrastructure:** Olbrasoft.Data.Cqrs.Common (IQueryProcessor, ICommandExecutor - custom mediator pattern)
 - **Dependency Injection:** Services depend on IQueryProcessor/ICommandExecutor interfaces, implementations registered in Service layer
 
+**Services Layer (VirtualAssistant.Core):**
+- **NEVER use Repository pattern** - Services inject **IQueryProcessor** and **ICommandExecutor** ONLY
+- Business logic orchestration - combine data from multiple sources:
+  - Database (via CQRS queries/commands)
+  - External APIs
+  - Domain models
+- Services coordinate business operations, NOT data access
+- Example: `NotificationService` uses `IQueryProcessor` to get notifications, `ICommandExecutor` to create them
+
+**Testing Strategy:**
+- **Unit tests** for QueryHandlers/CommandHandlers: Use **in-memory database** (fast, isolated)
+- **Integration tests** with real PostgreSQL: Mark with `[SkipOnCIFact]` (skipped in CI/CD)
+
 **Speech-to-Text (inline):**
 - `WhisperSpeechTranscriber` - Direct Whisper.net integration (no gRPC microservice)
 - GPU acceleration via CUDA (Whisper.net.Runtime.Cuda.Linux 1.9.0)
