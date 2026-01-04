@@ -85,7 +85,7 @@ VirtualAssistant monitors your desktop activity via LinuxDesktop NuGet packages 
 
 ### Requirements
 
-**GNOME Shell Extensions (REQUIRED):**
+**GNOME Shell Extensions (OPTIONAL, recommended for full functionality):**
 1. `window-calls@domandoman.xyz` - Window/workspace D-Bus API
 2. `focus-tracker@olbrasoft.cz` - Custom extension for focus events
 

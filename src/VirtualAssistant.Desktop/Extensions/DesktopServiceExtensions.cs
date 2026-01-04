@@ -42,6 +42,10 @@ public static class DesktopServiceExtensions
             var logger = sp.GetRequiredService<ILogger<WindowService>>();
             try
             {
+                // GetAwaiter().GetResult() is safe here because:
+                // 1. This is a console app without SynchronizationContext (no deadlock risk)
+                // 2. DI registration requires synchronous factory methods
+                // 3. LinuxDesktop services need async D-Bus initialization
                 return WindowService.CreateAsync().GetAwaiter().GetResult();
             }
             catch (Exception ex)
@@ -62,6 +66,7 @@ public static class DesktopServiceExtensions
             var logger = sp.GetRequiredService<ILogger<WorkspaceService>>();
             try
             {
+                // Safe in console app context (see WindowService comment above)
                 return WorkspaceService.CreateAsync().GetAwaiter().GetResult();
             }
             catch (Exception ex)
@@ -82,6 +87,7 @@ public static class DesktopServiceExtensions
             var logger = sp.GetRequiredService<ILogger<IdleMonitorService>>();
             try
             {
+                // Safe in console app context (see WindowService comment above)
                 return IdleMonitorService.CreateAsync().GetAwaiter().GetResult();
             }
             catch (Exception ex)

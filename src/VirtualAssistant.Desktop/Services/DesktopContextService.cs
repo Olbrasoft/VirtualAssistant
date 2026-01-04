@@ -18,8 +18,8 @@ public class DesktopContextService : IDesktopContextService, IDisposable
     private readonly SemaphoreSlim _cacheLock = new(1, 1);
 
     private DesktopContext? _cachedContext;
-    private Timer? _pollTimer;
-    private bool _disposed;
+    private readonly Timer? _pollTimer;
+    private volatile bool _disposed;
 
     public DesktopContextService(
         IWindowService? windowService,
@@ -102,21 +102,33 @@ public class DesktopContextService : IDesktopContextService, IDisposable
         {
             var newContext = await GetCurrentContextAsync();
 
-            if (_cachedContext != null && HasSignificantChange(_cachedContext, newContext))
+            // Take snapshot of cached context under lock to avoid race condition
+            DesktopContext? oldContext;
+            await _cacheLock.WaitAsync();
+            try
             {
-                var changeType = DetermineChangeType(_cachedContext, newContext);
+                oldContext = _cachedContext;
+            }
+            finally
+            {
+                _cacheLock.Release();
+            }
+
+            if (oldContext != null && HasSignificantChange(oldContext, newContext))
+            {
+                var changeType = DetermineChangeType(oldContext, newContext);
 
                 _logger.LogInformation(
                     "Desktop context changed: {Type} - Workspace {OldWs}→{NewWs}, App {OldApp}→{NewApp}",
                     changeType,
-                    _cachedContext.CurrentWorkspace,
+                    oldContext.CurrentWorkspace,
                     newContext.CurrentWorkspace,
-                    _cachedContext.ActiveApplication,
+                    oldContext.ActiveApplication,
                     newContext.ActiveApplication
                 );
 
                 _contextChanges.OnNext(new DesktopContextChange(
-                    _cachedContext,
+                    oldContext,
                     newContext,
                     changeType
                 ));
@@ -124,6 +136,7 @@ public class DesktopContextService : IDesktopContextService, IDisposable
         }
         catch (Exception ex)
         {
+            // Comprehensive error handling for async void to prevent app crash
             _logger.LogError(ex, "Error polling for desktop context changes");
         }
     }

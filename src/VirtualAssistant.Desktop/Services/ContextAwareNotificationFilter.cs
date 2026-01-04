@@ -134,7 +134,8 @@ public partial class ContextAwareNotificationFilter : INotificationFilter
         var kvp = _options.AppNameMapping.FirstOrDefault(
             x => x.Key.Equals(appName, StringComparison.OrdinalIgnoreCase));
 
-        if (kvp.Key != null)
+        // Check if we found a match (KeyValuePair is a struct, so check against default)
+        if (!Equals(kvp, default(KeyValuePair<string, string>)))
             return kvp.Value;
 
         // Fallback: use app name as-is
