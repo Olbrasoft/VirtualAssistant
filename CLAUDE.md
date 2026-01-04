@@ -24,10 +24,18 @@ cd ~/Olbrasoft/VirtualAssistant && ./deploy/deploy.sh /opt/olbrasoft/virtual-ass
 **Automated Code Review:**
 - **GitHub Copilot** automatically reviews ALL pull requests
 - Reviews appear as PR comments within minutes of PR creation
-- Address ALL review comments before merging
+- **MUST address ALL review comments before merging**
 - Common issues flagged: threading, performance, null checks, documentation
 
-**IMPORTANT:** Never merge PR without addressing Copilot's code review comments!
+**PR Review Process (MANDATORY):**
+1. ✅ Create PR and push feature branch
+2. ⏳ **Wait for GitHub Copilot code review** (usually within 5 minutes)
+3. 📝 **Read ALL review comments carefully**
+4. 🔧 **Fix ALL issues** mentioned in review comments
+5. ✅ Push fixes to feature branch
+6. ✅ **Only then** merge PR to main
+
+**CRITICAL:** Never merge PR without addressing Copilot's code review comments!
 
 ### Automated Deployment
 
@@ -315,9 +323,11 @@ Priority order (circuit breaker pattern):
 - **Pull Request workflow:**
   1. Create feature branch from `main`
   2. Push changes and create PR
-  3. Wait for automated Copilot code review
-  4. Address ALL review comments
-  5. Merge to `main` (triggers automatic deployment)
+  3. **Wait for automated Copilot code review** (usually within 5 minutes)
+  4. **Read ALL review comments carefully**
+  5. **Fix ALL issues** mentioned in review comments
+  6. Push fixes to feature branch
+  7. **Only then** merge to `main` (triggers automatic deployment)
 
 ## Deployment Checklist
 
