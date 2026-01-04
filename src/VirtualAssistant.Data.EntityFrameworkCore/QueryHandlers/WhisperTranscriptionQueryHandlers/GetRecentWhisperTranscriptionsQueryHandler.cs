@@ -13,8 +13,8 @@ public class GetRecentWhisperTranscriptionsQueryHandler(VirtualAssistantDbContex
 {
     protected override async Task<IReadOnlyList<WhisperTranscription>> GetResultToHandleAsync(GetRecentWhisperTranscriptionsQuery query, CancellationToken token)
     {
-        return await Where(w => true)
-            .OrderByDescending(w => w.Id)
+        return await Context.Set<WhisperTranscription>()
+            .OrderByDescending(w => w.CreatedAt)
             .Take(query.Count)
             .ToListAsync(token);
     }

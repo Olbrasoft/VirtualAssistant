@@ -50,6 +50,22 @@ public abstract class VirtualAssistantDbQueryHandler<TEntity, TQuery, TResult> :
     /// <param name="token">The cancellation token.</param>
     /// <returns>A task that represents the asynchronous operation and contains the result of the query.</returns>
     protected abstract Task<TResult> GetResultToHandleAsync(TQuery query, CancellationToken token);
+
+    /// <summary>
+    /// Escapes special LIKE wildcard characters (%, _) in the input string for safe use in SQL LIKE queries.
+    /// </summary>
+    /// <param name="input">The input string to escape.</param>
+    /// <returns>The escaped string safe for use in LIKE patterns.</returns>
+    protected static string EscapeLikePattern(string? input)
+    {
+        if (string.IsNullOrEmpty(input))
+            return input ?? string.Empty;
+
+        return input
+            .Replace(@"\", @"\\")   // Escape backslash first
+            .Replace("%", @"\%")    // Escape percent wildcard
+            .Replace("_", @"\_");   // Escape underscore wildcard
+    }
 }
 
 /// <summary>

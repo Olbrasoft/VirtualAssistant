@@ -13,8 +13,12 @@ public class SearchVoiceTranscriptionsQueryHandler(VirtualAssistantDbContext con
 {
     protected override async Task<IReadOnlyList<VoiceTranscription>> GetResultToHandleAsync(SearchVoiceTranscriptionsQuery query, CancellationToken token)
     {
-        return await Where(v => EF.Functions.ILike(v.TranscribedText, $"%{query.SearchQuery}%"))
-            .OrderByDescending(v => v.Id)
+        var escapedSearch = EscapeLikePattern(query.SearchQuery);
+        var searchPattern = $"%{escapedSearch}%";
+
+        return await Where(v => EF.Functions.ILike(v.TranscribedText, searchPattern))
+            .OrderByDescending(v => v.CreatedAt)
+            .Take(100)
             .ToListAsync(token);
     }
 }
