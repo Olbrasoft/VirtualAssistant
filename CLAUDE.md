@@ -24,10 +24,18 @@ cd ~/Olbrasoft/VirtualAssistant && ./deploy/deploy.sh /opt/olbrasoft/virtual-ass
 **Automated Code Review:**
 - **GitHub Copilot** automatically reviews ALL pull requests
 - Reviews appear as PR comments within minutes of PR creation
-- Address ALL review comments before merging
+- **MUST address ALL review comments before merging**
 - Common issues flagged: threading, performance, null checks, documentation
 
-**IMPORTANT:** Never merge PR without addressing Copilot's code review comments!
+**PR Review Process (MANDATORY):**
+1. ✅ Create PR and push feature branch
+2. ⏳ **Wait for GitHub Copilot code review** (usually within 5 minutes)
+3. 📝 **Read ALL review comments carefully**
+4. 🔧 **Fix ALL issues** mentioned in review comments
+5. ✅ Push fixes to feature branch
+6. ✅ **Only then** merge PR to main
+
+**CRITICAL:** Never merge PR without addressing Copilot's code review comments!
 
 ### Automated Deployment
 
@@ -238,6 +246,34 @@ If GNOME extensions are not available:
 journalctl --user -u virtual-assistant.service -f
 ```
 
+## Desktop Monitor Web UI
+
+**Live dashboard** for monitoring desktop context changes in real-time.
+
+**Access:** `http://localhost:5055/desktop-monitor/`
+
+**Features:**
+- ✅ Real-time workspace/window/app tracking via SignalR
+- ✅ VS Code-like dark theme
+- ✅ Color-coded event log (workspace changes, focus changes)
+- ✅ Auto-reconnect on connection loss
+- ✅ Scrollable log with 500-entry limit
+
+**Technology:**
+- SignalR Hub: `/hub/desktop-monitor`
+- CDN: SignalR client 8.0.7 (jsdelivr)
+- Static files: served from `wwwroot/desktop-monitor/`
+
+**Events broadcasted:**
+- `WorkspaceChanged(newIndex, totalWorkspaces)` - Workspace switch
+- `FocusChanged(windowTitle, appId, wmClass)` - Window/app focus
+- `LogMessage(message)` - Detailed change log
+
+**Architecture:**
+- `DesktopMonitorHub` - SignalR hub endpoint
+- `DesktopMonitorBroadcastWorker` - Background worker subscribing to `DesktopContextService.ContextChanges`
+- `index.html` - Client-side dashboard
+
 ## Key API Endpoints
 
 - `/api/github/search?q=...` - Semantic issue search
@@ -245,6 +281,7 @@ journalctl --user -u virtual-assistant.service -f
 - `/api/tasks/create` - Task queue (X-Agent-Name header)
 - `/api/tts/speak` - Text-to-speech
 - `/health` - Health check
+- `/hub/desktop-monitor` - Desktop Monitor SignalR hub
 
 ## Configuration
 
@@ -286,9 +323,11 @@ Priority order (circuit breaker pattern):
 - **Pull Request workflow:**
   1. Create feature branch from `main`
   2. Push changes and create PR
-  3. Wait for automated Copilot code review
-  4. Address ALL review comments
-  5. Merge to `main` (triggers automatic deployment)
+  3. **Wait for automated Copilot code review** (usually within 5 minutes)
+  4. **Read ALL review comments carefully**
+  5. **Fix ALL issues** mentioned in review comments
+  6. Push fixes to feature branch
+  7. **Only then** merge to `main` (triggers automatic deployment)
 
 ## Deployment Checklist
 
