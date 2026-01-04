@@ -7,5 +7,13 @@ namespace Olbrasoft.VirtualAssistant.Data.Commands.TranscriptionCorrectionComman
 /// Command to update an existing correction in the database.
 /// Sets UpdatedAt to current time automatically.
 /// </summary>
-/// <param name="Correction">The correction to update. Must not be null.</param>
-public record UpdateTranscriptionCorrectionCommand(TranscriptionCorrection Correction) : ICommand<bool>;
+public class UpdateTranscriptionCorrectionCommand : BaseCommand<bool>
+{
+    public UpdateTranscriptionCorrectionCommand(ICommandExecutor executor) : base(executor) { }
+    public UpdateTranscriptionCorrectionCommand(IMediator mediator) : base(mediator) { }
+
+    /// <summary>
+    /// The correction to update. Must not be null.
+    /// </summary>
+    public TranscriptionCorrection Correction { get; set; } = null!;
+}

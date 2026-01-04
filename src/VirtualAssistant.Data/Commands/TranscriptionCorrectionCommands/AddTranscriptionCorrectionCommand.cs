@@ -6,5 +6,13 @@ namespace Olbrasoft.VirtualAssistant.Data.Commands.TranscriptionCorrectionComman
 /// <summary>
 /// Command to add a new correction to the database.
 /// </summary>
-/// <param name="Correction">The correction to add. Must not be null.</param>
-public record AddTranscriptionCorrectionCommand(TranscriptionCorrection Correction) : ICommand<bool>;
+public class AddTranscriptionCorrectionCommand : BaseCommand<bool>
+{
+    public AddTranscriptionCorrectionCommand(ICommandExecutor executor) : base(executor) { }
+    public AddTranscriptionCorrectionCommand(IMediator mediator) : base(mediator) { }
+
+    /// <summary>
+    /// The correction to add. Must not be null.
+    /// </summary>
+    public TranscriptionCorrection Correction { get; set; } = null!;
+}

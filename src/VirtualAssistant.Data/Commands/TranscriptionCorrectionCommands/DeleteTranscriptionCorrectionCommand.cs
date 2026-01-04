@@ -5,5 +5,13 @@ namespace Olbrasoft.VirtualAssistant.Data.Commands.TranscriptionCorrectionComman
 /// <summary>
 /// Command to delete a correction from the database.
 /// </summary>
-/// <param name="Id">The ID of the correction to delete. Must be greater than 0.</param>
-public record DeleteTranscriptionCorrectionCommand(int Id) : ICommand<bool>;
+public class DeleteTranscriptionCorrectionCommand : BaseCommand<bool>
+{
+    public DeleteTranscriptionCorrectionCommand(ICommandExecutor executor) : base(executor) { }
+    public DeleteTranscriptionCorrectionCommand(IMediator mediator) : base(mediator) { }
+
+    /// <summary>
+    /// The ID of the correction to delete. Must be greater than 0.
+    /// </summary>
+    public int Id { get; set; }
+}

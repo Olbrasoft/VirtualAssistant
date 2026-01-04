@@ -202,9 +202,6 @@ public static class VoiceServicesExtensions
             return new Olbrasoft.VirtualAssistant.Voice.Services.MistralProvider(httpClient, options, promptCache, logger);
         });
 
-        // Transcription corrections repository (used by DatabaseCorrectionFilterStrategy)
-        services.AddScoped<ITranscriptionCorrectionRepository, TranscriptionCorrectionRepository>();
-
         // Text filtering pipeline (Phase 3 - from PushToTalk)
         // Strategy pattern filters registered individually
         var textFiltersConfigPath = Path.Combine(AppContext.BaseDirectory, "Filters", "text-filters.json");

@@ -1,6 +1,7 @@
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
+using Olbrasoft.Data.Cqrs;
 using VirtualAssistant.Data;
 using VirtualAssistant.Data.EntityFrameworkCore;
 using VirtualAssistant.GitHub;
@@ -25,9 +26,8 @@ public static class DataServicesExtensions
             ?? throw new InvalidOperationException("Connection string 'VirtualAssistantDb' not found.");
         services.AddVirtualAssistantData(connectionString);
 
-        // Whisper transcription and LLM correction repositories
-        services.AddScoped<IWhisperTranscriptionRepository, WhisperTranscriptionRepository>();
-        services.AddScoped<ILlmCorrectionRepository, LlmCorrectionRepository>();
+        // CQRS - Register Query/Command handlers from VirtualAssistant.Data.EntityFrameworkCore assembly
+        services.AddCqrs(ServiceLifetime.Scoped, typeof(VirtualAssistantDbContext).Assembly);
 
         // GitHub sync services
         services.AddGitHubServices(configuration);
