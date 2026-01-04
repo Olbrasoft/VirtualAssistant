@@ -47,9 +47,9 @@ public class Program
         // Build WebApplication
         var builder = WebApplication.CreateBuilder(args);
 
-        // Configure Kestrel
+        // Configure Kestrel - bind to all interfaces for network access
         var listenerPort = builder.Configuration.GetValue<int>("ListenerApiPort", 5055);
-        builder.WebHost.UseUrls($"http://localhost:{listenerPort}");
+        builder.WebHost.UseUrls($"http://0.0.0.0:{listenerPort}");
 
         // Configuration
         builder.Configuration
@@ -60,6 +60,10 @@ public class Program
         builder.Services.AddVirtualAssistantServices(builder.Configuration);
 
         _app = builder.Build();
+
+        // Enable default files (index.html) and static files (wwwroot) before endpoint mapping
+        _app.UseDefaultFiles();
+        _app.UseStaticFiles();
 
         // Apply migrations and configure endpoints
         _app.ApplyDatabaseMigrations();

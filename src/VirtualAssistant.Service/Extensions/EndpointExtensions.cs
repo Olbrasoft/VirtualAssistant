@@ -48,9 +48,6 @@ public static class EndpointExtensions
     /// </summary>
     public static WebApplication MapVirtualAssistantEndpoints(this WebApplication app)
     {
-        // Enable static files (wwwroot)
-        app.UseStaticFiles();
-
         app.MapControllers();
         app.MapAssistantSpeechEndpoints();
         app.MapTtsEndpoints();
