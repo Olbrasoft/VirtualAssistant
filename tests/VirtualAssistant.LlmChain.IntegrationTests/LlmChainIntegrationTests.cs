@@ -2,11 +2,11 @@ using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
 using Olbrasoft.Testing.Xunit.Attributes;
-using VirtualAssistant.LlmChain;
-using VirtualAssistant.LlmChain.Configuration;
+using Olbrasoft.VirtualAssistant.LlmChain;
+using Olbrasoft.VirtualAssistant.LlmChain.Configuration;
 using Xunit.Abstractions;
 
-namespace VirtualAssistant.LlmChain.IntegrationTests;
+namespace Olbrasoft.VirtualAssistant.LlmChain.IntegrationTests;
 
 /// <summary>
 /// Integration tests for LlmChainClient.

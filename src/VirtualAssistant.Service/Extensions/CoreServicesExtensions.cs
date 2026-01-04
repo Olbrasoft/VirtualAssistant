@@ -7,7 +7,7 @@ using Olbrasoft.VirtualAssistant.Core.Processes;
 using Olbrasoft.VirtualAssistant.Core.Services;
 using Olbrasoft.VirtualAssistant.Service.Services;
 using Olbrasoft.VirtualAssistant.Voice.Configuration;
-using VirtualAssistant.Core.Services;
+using Olbrasoft.VirtualAssistant.Core.Services;
 
 namespace Olbrasoft.VirtualAssistant.Service.Extensions;
 

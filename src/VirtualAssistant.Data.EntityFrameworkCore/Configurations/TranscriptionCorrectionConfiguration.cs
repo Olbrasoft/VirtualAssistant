@@ -1,4 +1,4 @@
-namespace VirtualAssistant.Data.EntityFrameworkCore.Configurations;
+namespace Olbrasoft.VirtualAssistant.Data.EntityFrameworkCore.Configurations;
 
 /// <summary>
 /// EF Core configuration for TranscriptionCorrection entity with PostgreSQL snake_case naming.

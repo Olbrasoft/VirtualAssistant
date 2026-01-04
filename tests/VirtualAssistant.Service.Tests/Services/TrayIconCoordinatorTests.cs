@@ -3,7 +3,7 @@ using Moq;
 using Olbrasoft.VirtualAssistant.Core.Services;
 using Olbrasoft.VirtualAssistant.Service.Services;
 
-namespace VirtualAssistant.Service.Tests.Services;
+namespace Olbrasoft.VirtualAssistant.Service.Tests.Services;
 
 /// <summary>
 /// Unit tests for <see cref="TrayIconCoordinator"/>.

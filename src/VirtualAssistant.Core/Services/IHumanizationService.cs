@@ -1,4 +1,4 @@
-namespace VirtualAssistant.Core.Services;
+namespace Olbrasoft.VirtualAssistant.Core.Services;
 
 /// <summary>
 /// Service for humanizing agent notifications using LLM.

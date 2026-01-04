@@ -2,9 +2,9 @@ using System.Net.Http.Json;
 using System.Text.Json;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
-using VirtualAssistant.GitHub.Configuration;
+using Olbrasoft.VirtualAssistant.GitHub.Configuration;
 
-namespace VirtualAssistant.GitHub.Services;
+namespace Olbrasoft.VirtualAssistant.GitHub.Services;
 
 /// <summary>
 /// HTTP client for fetching Czech issue summaries from the GitHub.Issues API.

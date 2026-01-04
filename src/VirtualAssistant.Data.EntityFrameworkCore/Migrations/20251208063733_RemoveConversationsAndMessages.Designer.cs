@@ -6,11 +6,11 @@ using Microsoft.EntityFrameworkCore.Migrations;
 using Microsoft.EntityFrameworkCore.Storage.ValueConversion;
 using Npgsql.EntityFrameworkCore.PostgreSQL.Metadata;
 using Pgvector;
-using VirtualAssistant.Data.EntityFrameworkCore;
+using Olbrasoft.VirtualAssistant.Data.EntityFrameworkCore;
 
 #nullable disable
 
-namespace VirtualAssistant.Data.EntityFrameworkCore.Migrations
+namespace Olbrasoft.VirtualAssistant.Data.EntityFrameworkCore.Migrations
 {
     [DbContext(typeof(VirtualAssistantDbContext))]
     [Migration("20251208063733_RemoveConversationsAndMessages")]

@@ -2,7 +2,7 @@ using Olbrasoft.Data.Cqrs;
 using Olbrasoft.Data.Cqrs.EntityFrameworkCore;
 using Olbrasoft.Mapping;
 
-namespace VirtualAssistant.Data.EntityFrameworkCore.QueryHandlers;
+namespace Olbrasoft.VirtualAssistant.Data.EntityFrameworkCore.QueryHandlers;
 
 /// <summary>
 /// Base class for query handlers in the VirtualAssistantDbContext using Entity Framework Core.

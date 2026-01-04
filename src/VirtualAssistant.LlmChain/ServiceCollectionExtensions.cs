@@ -1,8 +1,8 @@
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
-using VirtualAssistant.LlmChain.Configuration;
+using Olbrasoft.VirtualAssistant.LlmChain.Configuration;
 
-namespace VirtualAssistant.LlmChain;
+namespace Olbrasoft.VirtualAssistant.LlmChain;
 
 /// <summary>
 /// Extension methods for registering LlmChain services.

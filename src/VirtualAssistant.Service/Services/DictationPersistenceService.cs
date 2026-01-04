@@ -5,7 +5,7 @@ using Olbrasoft.VirtualAssistant.Core.Services;
 using Olbrasoft.VirtualAssistant.Data.Commands.LlmCorrectionCommands;
 using Olbrasoft.VirtualAssistant.Data.Commands.WhisperTranscriptionCommands;
 using Olbrasoft.VirtualAssistant.Voice.Configuration;
-using VirtualAssistant.Data.Entities;
+using Olbrasoft.VirtualAssistant.Data.Entities;
 
 namespace Olbrasoft.VirtualAssistant.Service.Services;
 

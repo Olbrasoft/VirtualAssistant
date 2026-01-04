@@ -1,7 +1,7 @@
 using Olbrasoft.VirtualAssistant.Data.Commands.LlmCorrectionCommands;
-using VirtualAssistant.Data.Entities;
+using Olbrasoft.VirtualAssistant.Data.Entities;
 
-namespace VirtualAssistant.Data.EntityFrameworkCore.CommandHandlers.LlmCorrectionCommandHandlers;
+namespace Olbrasoft.VirtualAssistant.Data.EntityFrameworkCore.CommandHandlers.LlmCorrectionCommandHandlers;
 
 /// <summary>
 /// Handler for SaveLlmCorrectionCommand.

@@ -1,4 +1,4 @@
-namespace VirtualAssistant.Data.Entities;
+namespace Olbrasoft.VirtualAssistant.Data.Entities;
 
 /// <summary>
 /// Junction entity for many-to-many relationship between Notification and GitHub issues.

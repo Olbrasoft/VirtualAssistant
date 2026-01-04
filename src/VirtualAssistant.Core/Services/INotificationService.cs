@@ -1,7 +1,7 @@
-using VirtualAssistant.Data.Entities;
-using VirtualAssistant.Data.Enums;
+using Olbrasoft.VirtualAssistant.Data.Entities;
+using Olbrasoft.VirtualAssistant.Data.Enums;
 
-namespace VirtualAssistant.Core.Services;
+namespace Olbrasoft.VirtualAssistant.Core.Services;
 
 /// <summary>
 /// Service for managing notifications in the database.

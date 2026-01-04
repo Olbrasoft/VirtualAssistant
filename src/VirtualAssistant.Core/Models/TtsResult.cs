@@ -1,4 +1,4 @@
-namespace VirtualAssistant.Core.Models;
+namespace Olbrasoft.VirtualAssistant.Core.Models;
 
 /// <summary>
 /// Result of a TTS (Text-to-Speech) operation.

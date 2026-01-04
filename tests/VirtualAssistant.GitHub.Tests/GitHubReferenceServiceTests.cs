@@ -1,10 +1,10 @@
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Logging;
 using Moq;
-using VirtualAssistant.Data.EntityFrameworkCore;
-using VirtualAssistant.GitHub.Services;
+using Olbrasoft.VirtualAssistant.Data.EntityFrameworkCore;
+using Olbrasoft.VirtualAssistant.GitHub.Services;
 
-namespace VirtualAssistant.GitHub.Tests;
+namespace Olbrasoft.VirtualAssistant.GitHub.Tests;
 
 public class GitHubReferenceServiceTests : IDisposable
 {

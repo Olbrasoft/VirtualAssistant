@@ -1,8 +1,8 @@
 using Microsoft.EntityFrameworkCore;
 using Olbrasoft.VirtualAssistant.Data.Commands.TranscriptionCorrectionCommands;
-using VirtualAssistant.Data.Entities;
+using Olbrasoft.VirtualAssistant.Data.Entities;
 
-namespace VirtualAssistant.Data.EntityFrameworkCore.CommandHandlers.TranscriptionCorrectionCommandHandlers;
+namespace Olbrasoft.VirtualAssistant.Data.EntityFrameworkCore.CommandHandlers.TranscriptionCorrectionCommandHandlers;
 
 /// <summary>
 /// Handler for TrackCorrectionUsageCommand.

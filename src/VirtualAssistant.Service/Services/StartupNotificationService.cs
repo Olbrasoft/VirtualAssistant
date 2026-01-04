@@ -1,6 +1,6 @@
 using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Logging;
-using VirtualAssistant.Core.Services;
+using Olbrasoft.VirtualAssistant.Core.Services;
 
 namespace Olbrasoft.VirtualAssistant.Service.Services;
 

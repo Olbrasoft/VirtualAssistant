@@ -1,4 +1,4 @@
-namespace VirtualAssistant.Desktop.Configuration;
+namespace Olbrasoft.VirtualAssistant.Desktop.Configuration;
 
 /// <summary>
 /// Configuration options for desktop monitoring services.

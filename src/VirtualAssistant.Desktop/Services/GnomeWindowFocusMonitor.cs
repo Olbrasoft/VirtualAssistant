@@ -1,10 +1,10 @@
 using System.Diagnostics;
 using System.Text.Json;
 using Microsoft.Extensions.Logging;
-using VirtualAssistant.Desktop.Events;
-using VirtualAssistant.Desktop.Models;
+using Olbrasoft.VirtualAssistant.Desktop.Events;
+using Olbrasoft.VirtualAssistant.Desktop.Models;
 
-namespace VirtualAssistant.Desktop.Services;
+namespace Olbrasoft.VirtualAssistant.Desktop.Services;
 
 /// <summary>
 /// GNOME-specific window focus monitor using D-Bus polling via window-calls extension.

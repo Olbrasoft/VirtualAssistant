@@ -1,4 +1,4 @@
-namespace VirtualAssistant.Data.Entities;
+namespace Olbrasoft.VirtualAssistant.Data.Entities;
 
 /// <summary>
 /// Records every TTS synthesis attempt for a notification (tracks fallback chain).

@@ -1,5 +1,5 @@
 using Microsoft.EntityFrameworkCore;
-using VirtualAssistant.Data.EntityFrameworkCore;
+using Olbrasoft.VirtualAssistant.Data.EntityFrameworkCore;
 
 namespace Olbrasoft.VirtualAssistant.Service.Extensions;
 

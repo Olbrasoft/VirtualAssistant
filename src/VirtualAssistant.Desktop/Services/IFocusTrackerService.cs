@@ -1,6 +1,6 @@
-using VirtualAssistant.Core.Models;
+using Olbrasoft.VirtualAssistant.Core.Models;
 
-namespace VirtualAssistant.Desktop.Services;
+namespace Olbrasoft.VirtualAssistant.Desktop.Services;
 
 /// <summary>
 /// Interface for tracking desktop state via focus-tracker GNOME extension.

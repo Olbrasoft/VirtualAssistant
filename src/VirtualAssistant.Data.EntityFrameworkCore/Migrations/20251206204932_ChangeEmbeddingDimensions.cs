@@ -3,7 +3,7 @@ using Pgvector;
 
 #nullable disable
 
-namespace VirtualAssistant.Data.EntityFrameworkCore.Migrations
+namespace Olbrasoft.VirtualAssistant.Data.EntityFrameworkCore.Migrations
 {
     /// <inheritdoc />
     /// <remarks>

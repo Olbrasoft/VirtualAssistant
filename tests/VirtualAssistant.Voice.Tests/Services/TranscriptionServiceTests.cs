@@ -5,7 +5,7 @@ using Moq;
 using Olbrasoft.VirtualAssistant.Core.Speech;
 using Olbrasoft.VirtualAssistant.Voice.Services;
 
-namespace VirtualAssistant.Voice.Tests.Services;
+namespace Olbrasoft.VirtualAssistant.Voice.Tests.Services;
 
 public class TranscriptionServiceTests
 {

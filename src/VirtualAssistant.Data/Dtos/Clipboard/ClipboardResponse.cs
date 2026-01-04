@@ -1,4 +1,4 @@
-namespace VirtualAssistant.Data.Dtos.Clipboard;
+namespace Olbrasoft.VirtualAssistant.Data.Dtos.Clipboard;
 
 /// <summary>
 /// Response model for clipboard operation.

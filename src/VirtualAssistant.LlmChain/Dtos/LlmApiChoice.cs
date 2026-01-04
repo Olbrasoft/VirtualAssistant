@@ -1,6 +1,6 @@
 using System.Text.Json.Serialization;
 
-namespace VirtualAssistant.LlmChain.Dtos;
+namespace Olbrasoft.VirtualAssistant.LlmChain.Dtos;
 
 /// <summary>
 /// Choice model from LLM API response.

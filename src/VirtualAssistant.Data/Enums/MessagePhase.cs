@@ -1,4 +1,4 @@
-namespace VirtualAssistant.Data.Enums;
+namespace Olbrasoft.VirtualAssistant.Data.Enums;
 
 /// <summary>
 /// Represents the phase of an agent message in a task workflow.

@@ -1,4 +1,4 @@
-namespace VirtualAssistant.Data.Entities;
+namespace Olbrasoft.VirtualAssistant.Data.Entities;
 
 /// <summary>
 /// Represents how the system was shut down.

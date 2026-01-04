@@ -1,4 +1,4 @@
-namespace VirtualAssistant.Data.Dtos.Tasks;
+namespace Olbrasoft.VirtualAssistant.Data.Dtos.Tasks;
 
 /// <summary>
 /// Information about a fetched task.

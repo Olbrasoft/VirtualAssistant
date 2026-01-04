@@ -2,7 +2,7 @@ using Microsoft.Extensions.Logging;
 using Moq;
 using Olbrasoft.VirtualAssistant.Voice.Services;
 
-namespace VirtualAssistant.Voice.Tests.Services;
+namespace Olbrasoft.VirtualAssistant.Voice.Tests.Services;
 
 /// <summary>
 /// Unit tests for <see cref="LinuxKeyboardDeviceDiscovery"/>.

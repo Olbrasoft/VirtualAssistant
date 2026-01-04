@@ -1,10 +1,10 @@
 using System.Text.RegularExpressions;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Logging;
-using VirtualAssistant.Data.Entities;
-using VirtualAssistant.Data.EntityFrameworkCore;
+using Olbrasoft.VirtualAssistant.Data.Entities;
+using Olbrasoft.VirtualAssistant.Data.EntityFrameworkCore;
 
-namespace VirtualAssistant.GitHub.Services;
+namespace Olbrasoft.VirtualAssistant.GitHub.Services;
 
 /// <summary>
 /// Service for ensuring GitHub repository and issue references exist in the database.

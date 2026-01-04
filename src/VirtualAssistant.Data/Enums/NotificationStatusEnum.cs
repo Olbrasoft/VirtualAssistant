@@ -1,4 +1,4 @@
-namespace VirtualAssistant.Data.Enums;
+namespace Olbrasoft.VirtualAssistant.Data.Enums;
 
 /// <summary>
 /// Enum representing all possible notification statuses in the workflow.

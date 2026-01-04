@@ -1,13 +1,13 @@
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
 using Moq;
-using VirtualAssistant.Core.Models;
-using VirtualAssistant.Core.Services;
-using VirtualAssistant.Desktop.Configuration;
-using VirtualAssistant.Desktop.Services;
+using Olbrasoft.VirtualAssistant.Core.Models;
+using Olbrasoft.VirtualAssistant.Core.Services;
+using Olbrasoft.VirtualAssistant.Desktop.Configuration;
+using Olbrasoft.VirtualAssistant.Desktop.Services;
 using Xunit;
 
-namespace VirtualAssistant.Desktop.Tests.Services;
+namespace Olbrasoft.VirtualAssistant.Desktop.Tests.Services;
 
 public class ContextPromptSelectorTests
 {

@@ -4,7 +4,7 @@ using Olbrasoft.VirtualAssistant.Core.Services;
 using Olbrasoft.VirtualAssistant.Service.Tray;
 using Olbrasoft.VirtualAssistant.Voice.Services;
 
-namespace VirtualAssistant.Service.Tests.Tray;
+namespace Olbrasoft.VirtualAssistant.Service.Tests.Tray;
 
 /// <summary>
 /// Unit tests for MenuEventDispatcher.

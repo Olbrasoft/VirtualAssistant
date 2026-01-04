@@ -1,4 +1,4 @@
-namespace VirtualAssistant.Data.Dtos;
+namespace Olbrasoft.VirtualAssistant.Data.Dtos;
 
 /// <summary>
 /// Response model for POST /api/claude/tasks/{id}/complete endpoint.

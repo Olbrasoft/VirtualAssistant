@@ -1,4 +1,4 @@
-namespace VirtualAssistant.GitHub.Services;
+namespace Olbrasoft.VirtualAssistant.GitHub.Services;
 
 /// <summary>
 /// Service for checking GitHub issue status.

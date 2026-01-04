@@ -1,4 +1,4 @@
-namespace VirtualAssistant.Data.Entities;
+namespace Olbrasoft.VirtualAssistant.Data.Entities;
 
 /// <summary>
 /// Tracks when and how transcription corrections are used.

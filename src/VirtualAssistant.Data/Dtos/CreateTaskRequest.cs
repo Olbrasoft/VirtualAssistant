@@ -1,4 +1,4 @@
-namespace VirtualAssistant.Data.Dtos;
+namespace Olbrasoft.VirtualAssistant.Data.Dtos;
 
 /// <summary>
 /// Request DTO for creating a task for another agent.

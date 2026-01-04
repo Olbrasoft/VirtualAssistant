@@ -6,7 +6,7 @@ using Olbrasoft.VirtualAssistant.Voice.Services;
 using Olbrasoft.VirtualAssistant.Voice.Services.EchoDetection;
 using Olbrasoft.VirtualAssistant.Voice.Similarity;
 
-namespace VirtualAssistant.Voice.Tests.Services;
+namespace Olbrasoft.VirtualAssistant.Voice.Tests.Services;
 
 public class AssistantSpeechTrackerServiceTests
 {

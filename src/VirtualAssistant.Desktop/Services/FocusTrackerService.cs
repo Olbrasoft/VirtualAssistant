@@ -1,9 +1,9 @@
 using Microsoft.Extensions.Logging;
 using Tmds.DBus;
-using VirtualAssistant.Core.Models;
-using VirtualAssistant.Desktop.DBus;
+using Olbrasoft.VirtualAssistant.Core.Models;
+using Olbrasoft.VirtualAssistant.Desktop.DBus;
 
-namespace VirtualAssistant.Desktop.Services;
+namespace Olbrasoft.VirtualAssistant.Desktop.Services;
 
 /// <summary>
 /// Service for tracking desktop state via focus-tracker GNOME extension.

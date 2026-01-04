@@ -5,9 +5,9 @@ using Olbrasoft.VirtualAssistant.Core.Services;
 using Olbrasoft.VirtualAssistant.Core.TextInput;
 using Olbrasoft.VirtualAssistant.Voice.Dtos;
 using Olbrasoft.VirtualAssistant.Voice.Services;
-using VirtualAssistant.Core.Services;
+using Olbrasoft.VirtualAssistant.Core.Services;
 
-namespace VirtualAssistant.Voice.Tests.Services;
+namespace Olbrasoft.VirtualAssistant.Voice.Tests.Services;
 
 /// <summary>
 /// Unit tests for ActionHandlerService.

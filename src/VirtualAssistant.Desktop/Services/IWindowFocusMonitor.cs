@@ -1,7 +1,7 @@
-using VirtualAssistant.Desktop.Events;
-using VirtualAssistant.Desktop.Models;
+using Olbrasoft.VirtualAssistant.Desktop.Events;
+using Olbrasoft.VirtualAssistant.Desktop.Models;
 
-namespace VirtualAssistant.Desktop.Services;
+namespace Olbrasoft.VirtualAssistant.Desktop.Services;
 
 /// <summary>
 /// Monitors window focus changes and tracks current and previous windows.

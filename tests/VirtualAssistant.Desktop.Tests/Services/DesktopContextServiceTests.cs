@@ -1,10 +1,10 @@
 using System.Reactive.Subjects;
 using Microsoft.Extensions.Logging;
 using Moq;
-using VirtualAssistant.Core.Models;
-using VirtualAssistant.Desktop.Services;
+using Olbrasoft.VirtualAssistant.Core.Models;
+using Olbrasoft.VirtualAssistant.Desktop.Services;
 
-namespace VirtualAssistant.Desktop.Tests.Services;
+namespace Olbrasoft.VirtualAssistant.Desktop.Tests.Services;
 
 public class DesktopContextServiceTests : IAsyncDisposable
 {

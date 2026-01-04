@@ -3,7 +3,7 @@ using Microsoft.Extensions.Logging;
 using Olbrasoft.VirtualAssistant.Voice.Services;
 using Olbrasoft.VirtualAssistant.Core.StateMachine;
 using Olbrasoft.VirtualAssistant.Voice.StateMachine;
-using VirtualAssistant.Core.Services;
+using Olbrasoft.VirtualAssistant.Core.Services;
 
 namespace Olbrasoft.VirtualAssistant.Service.Services;
 

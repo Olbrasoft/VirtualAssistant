@@ -1,4 +1,4 @@
-namespace VirtualAssistant.Core.Models;
+namespace Olbrasoft.VirtualAssistant.Core.Models;
 
 /// <summary>
 /// Represents the context of a notification, including target application and urgency.

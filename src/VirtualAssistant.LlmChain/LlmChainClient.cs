@@ -6,11 +6,11 @@ using System.Text.Json;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
 using Olbrasoft.VirtualAssistant.Core.Utilities;
-using VirtualAssistant.LlmChain.Configuration;
-using VirtualAssistant.LlmChain.Dtos;
-using VirtualAssistant.LlmChain.Exceptions;
+using Olbrasoft.VirtualAssistant.LlmChain.Configuration;
+using Olbrasoft.VirtualAssistant.LlmChain.Dtos;
+using Olbrasoft.VirtualAssistant.LlmChain.Exceptions;
 
-namespace VirtualAssistant.LlmChain;
+namespace Olbrasoft.VirtualAssistant.LlmChain;
 
 /// <summary>
 /// LLM chain client with intelligent provider failover and key rotation.

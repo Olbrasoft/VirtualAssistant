@@ -5,7 +5,7 @@ using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
 using Olbrasoft.VirtualAssistant.Core.Processes;
 using Olbrasoft.VirtualAssistant.Service.Dtos;
-using VirtualAssistant.Core.Services;
+using Olbrasoft.VirtualAssistant.Core.Services;
 
 namespace Olbrasoft.VirtualAssistant.Service.Services;
 

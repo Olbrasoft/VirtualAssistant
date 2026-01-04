@@ -4,9 +4,9 @@ using Microsoft.Extensions.Logging;
 using Olbrasoft.LinuxDesktop.Core.Models;
 using Olbrasoft.LinuxDesktop.Core.Services;
 using Olbrasoft.LinuxDesktop.DBus.Services;
-using VirtualAssistant.Desktop.Configuration;
+using Olbrasoft.VirtualAssistant.Desktop.Configuration;
 
-namespace VirtualAssistant.Desktop.Extensions;
+namespace Olbrasoft.VirtualAssistant.Desktop.Extensions;
 
 /// <summary>
 /// Dependency injection extensions for desktop monitoring services.

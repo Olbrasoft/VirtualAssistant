@@ -1,11 +1,11 @@
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
 using System.Text.RegularExpressions;
-using VirtualAssistant.Core.Models;
-using VirtualAssistant.Core.Services;
-using VirtualAssistant.Desktop.Configuration;
+using Olbrasoft.VirtualAssistant.Core.Models;
+using Olbrasoft.VirtualAssistant.Core.Services;
+using Olbrasoft.VirtualAssistant.Desktop.Configuration;
 
-namespace VirtualAssistant.Desktop.Services;
+namespace Olbrasoft.VirtualAssistant.Desktop.Services;
 
 /// <summary>
 /// Context-aware notification filter that prevents redundant notifications

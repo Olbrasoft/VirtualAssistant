@@ -1,4 +1,4 @@
-namespace VirtualAssistant.Core.Services;
+namespace Olbrasoft.VirtualAssistant.Core.Services;
 
 /// <summary>
 /// Service for detecting GNOME workspaces to optimize TTS notifications.

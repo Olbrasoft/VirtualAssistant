@@ -4,9 +4,9 @@ using Moq;
 using Olbrasoft.Data.Cqrs;
 using Olbrasoft.VirtualAssistant.Service.Services;
 using Olbrasoft.VirtualAssistant.Voice.Configuration;
-using VirtualAssistant.Data.Entities;
+using Olbrasoft.VirtualAssistant.Data.Entities;
 
-namespace VirtualAssistant.Service.Tests.Services;
+namespace Olbrasoft.VirtualAssistant.Service.Tests.Services;
 
 /// <summary>
 /// Unit tests for <see cref="DictationPersistenceService"/>.

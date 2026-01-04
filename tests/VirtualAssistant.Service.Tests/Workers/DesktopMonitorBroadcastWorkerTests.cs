@@ -5,10 +5,10 @@ using Olbrasoft.Testing.Xunit.Attributes;
 using Olbrasoft.VirtualAssistant.Service.Hubs;
 using Olbrasoft.VirtualAssistant.Service.Workers;
 using System.Reactive.Subjects;
-using VirtualAssistant.Core.Models;
-using VirtualAssistant.Core.Services;
+using Olbrasoft.VirtualAssistant.Core.Models;
+using Olbrasoft.VirtualAssistant.Core.Services;
 
-namespace VirtualAssistant.Service.Tests.Workers;
+namespace Olbrasoft.VirtualAssistant.Service.Tests.Workers;
 
 /// <summary>
 /// Unit tests for DesktopMonitorBroadcastWorker.

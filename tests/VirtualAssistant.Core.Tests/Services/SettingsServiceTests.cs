@@ -3,7 +3,7 @@ using Microsoft.Extensions.Logging;
 using Moq;
 using Olbrasoft.VirtualAssistant.Core.Services;
 
-namespace VirtualAssistant.Core.Tests.Services;
+namespace Olbrasoft.VirtualAssistant.Core.Tests.Services;
 
 public class SettingsServiceTests : IDisposable
 {

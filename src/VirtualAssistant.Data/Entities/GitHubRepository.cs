@@ -1,6 +1,6 @@
 using Olbrasoft.Data.Entities.Abstractions;
 
-namespace VirtualAssistant.Data.Entities;
+namespace Olbrasoft.VirtualAssistant.Data.Entities;
 
 /// <summary>
 /// Minimal reference to a GitHub repository.

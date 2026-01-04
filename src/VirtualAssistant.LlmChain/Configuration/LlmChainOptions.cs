@@ -1,4 +1,4 @@
-namespace VirtualAssistant.LlmChain.Configuration;
+namespace Olbrasoft.VirtualAssistant.LlmChain.Configuration;
 
 /// <summary>
 /// Configuration options for the LLM provider chain.

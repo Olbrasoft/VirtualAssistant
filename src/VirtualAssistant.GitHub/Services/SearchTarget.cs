@@ -1,4 +1,4 @@
-namespace VirtualAssistant.GitHub.Services;
+namespace Olbrasoft.VirtualAssistant.GitHub.Services;
 
 /// <summary>
 /// Specifies which fields to search when performing semantic search.

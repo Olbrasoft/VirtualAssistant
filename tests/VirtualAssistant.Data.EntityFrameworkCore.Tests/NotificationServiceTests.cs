@@ -1,11 +1,11 @@
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Logging;
 using Moq;
-using VirtualAssistant.Core.Services;
-using VirtualAssistant.Data.Entities;
-using VirtualAssistant.Data.Enums;
+using Olbrasoft.VirtualAssistant.Core.Services;
+using Olbrasoft.VirtualAssistant.Data.Entities;
+using Olbrasoft.VirtualAssistant.Data.Enums;
 
-namespace VirtualAssistant.Data.EntityFrameworkCore.Tests;
+namespace Olbrasoft.VirtualAssistant.Data.EntityFrameworkCore.Tests;
 
 public class NotificationServiceTests
 {
