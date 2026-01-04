@@ -12,14 +12,9 @@ public class SaveLlmErrorCommandHandler(VirtualAssistantDbContext context)
 {
     protected override async Task<LlmError> GetResultToHandleAsync(SaveLlmErrorCommand command, CancellationToken token)
     {
-        if (command.WhisperTranscriptionId <= 0)
-            throw new ArgumentException("WhisperTranscriptionId must be greater than 0", nameof(command.WhisperTranscriptionId));
-
-        if (command.DurationMs <= 0)
-            throw new ArgumentException("DurationMs must be greater than 0", nameof(command.DurationMs));
-
-        if (string.IsNullOrWhiteSpace(command.ErrorMessage))
-            throw new ArgumentException("ErrorMessage must not be null or empty", nameof(command.ErrorMessage));
+        ArgumentOutOfRangeException.ThrowIfNegativeOrZero(command.WhisperTranscriptionId, nameof(command.WhisperTranscriptionId));
+        ArgumentOutOfRangeException.ThrowIfNegativeOrZero(command.DurationMs, nameof(command.DurationMs));
+        ArgumentException.ThrowIfNullOrWhiteSpace(command.ErrorMessage, nameof(command.ErrorMessage));
 
         var error = new LlmError
         {

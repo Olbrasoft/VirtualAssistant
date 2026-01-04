@@ -13,8 +13,7 @@ public class GetTranscriptionCorrectionByIdQueryHandler(VirtualAssistantDbContex
 {
     protected override async Task<TranscriptionCorrection?> GetResultToHandleAsync(GetTranscriptionCorrectionByIdQuery query, CancellationToken token)
     {
-        if (query.Id <= 0)
-            throw new ArgumentException("Id must be greater than 0", nameof(query.Id));
+        ArgumentOutOfRangeException.ThrowIfNegativeOrZero(query.Id, nameof(query.Id));
 
         return await Where(c => c.Id == query.Id)
             .FirstOrDefaultAsync(token);
