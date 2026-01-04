@@ -1,7 +1,5 @@
-extern alias TmdsDBusHighLevel;
-
 using Microsoft.Extensions.Logging;
-using TmdsDBusHighLevel::Tmds.DBus;
+using Tmds.DBus;
 using VirtualAssistant.Core.Models;
 using VirtualAssistant.Desktop.DBus;
 

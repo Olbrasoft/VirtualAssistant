@@ -1,6 +1,4 @@
-extern alias TmdsDBusHighLevel;
-
-using TmdsDBusHighLevel::Tmds.DBus;
+using Tmds.DBus;
 
 namespace VirtualAssistant.Desktop.DBus;
 
