@@ -16,7 +16,8 @@ public class SaveLlmCorrectionCommandHandler(VirtualAssistantDbContext context)
         {
             WhisperTranscriptionId = command.WhisperTranscriptionId,
             CorrectedText = command.CorrectedText,
-            DurationMs = command.DurationMs
+            DurationMs = command.DurationMs,
+            CreatedAt = System.DateTime.UtcNow
         };
 
         Context.LlmCorrections.Add(correction);

@@ -13,6 +13,15 @@ public class SearchVoiceTranscriptionsQueryHandler(VirtualAssistantDbContext con
 {
     protected override async Task<IReadOnlyList<VoiceTranscription>> GetResultToHandleAsync(SearchVoiceTranscriptionsQuery query, CancellationToken token)
     {
+        // If search query is empty, return recent transcriptions
+        if (string.IsNullOrWhiteSpace(query.SearchQuery))
+        {
+            return await Context.Set<VoiceTranscription>()
+                .OrderByDescending(v => v.CreatedAt)
+                .Take(100)
+                .ToListAsync(token);
+        }
+
         var escapedSearch = EscapeLikePattern(query.SearchQuery);
         var searchPattern = $"%{escapedSearch}%";
 

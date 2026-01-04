@@ -12,6 +12,9 @@ public class AddTranscriptionCorrectionCommandHandler(VirtualAssistantDbContext 
 {
     protected override async Task<bool> GetResultToHandleAsync(AddTranscriptionCorrectionCommand command, CancellationToken token)
     {
+        command.Correction.CreatedAt = DateTimeOffset.UtcNow;
+        command.Correction.UpdatedAt = DateTimeOffset.UtcNow;
+
         Context.TranscriptionCorrections.Add(command.Correction);
         await Context.SaveChangesAsync(token);
         return true;

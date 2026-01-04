@@ -15,7 +15,8 @@ public class SaveWhisperTranscriptionCommandHandler(VirtualAssistantDbContext co
         var transcription = new WhisperTranscription
         {
             TranscribedText = command.Text,
-            AudioDurationMs = command.DurationMs
+            AudioDurationMs = command.DurationMs,
+            CreatedAt = DateTime.UtcNow
         };
 
         Context.WhisperTranscriptions.Add(transcription);

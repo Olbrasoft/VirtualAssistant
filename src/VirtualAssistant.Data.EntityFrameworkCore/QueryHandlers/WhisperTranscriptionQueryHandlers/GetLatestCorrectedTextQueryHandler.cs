@@ -23,6 +23,7 @@ public class GetLatestCorrectedTextQueryHandler(VirtualAssistantDbContext contex
         // Check if there's an LLM correction for this transcription
         var correction = await Context.LlmCorrections
             .Where(c => c.WhisperTranscriptionId == latestTranscription.Id)
+            .OrderByDescending(c => c.CreatedAt)
             .Select(c => c.CorrectedText)
             .FirstOrDefaultAsync(token);
 

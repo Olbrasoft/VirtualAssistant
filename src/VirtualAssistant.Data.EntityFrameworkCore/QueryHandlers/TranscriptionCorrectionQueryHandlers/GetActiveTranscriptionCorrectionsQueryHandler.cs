@@ -15,7 +15,9 @@ public class GetActiveTranscriptionCorrectionsQueryHandler(VirtualAssistantDbCon
     protected override async Task<IReadOnlyList<TranscriptionCorrection>> GetResultToHandleAsync(GetActiveTranscriptionCorrectionsQuery query, CancellationToken token)
     {
         return await Where(c => c.IsActive)
+            .AsNoTracking()
             .OrderByDescending(c => c.Priority)
+            .ThenBy(c => c.Id)
             .ToListAsync(token);
     }
 }
