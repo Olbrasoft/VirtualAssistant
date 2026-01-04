@@ -55,8 +55,9 @@ public class DesktopMonitorBackgroundService : BackgroundService
 
     /// <summary>
     /// Gets the current desktop context (cached from last update).
+    /// Thread-safe via Interlocked read.
     /// </summary>
-    public DesktopContext? CurrentContext => _currentContext;
+    public DesktopContext? CurrentContext => Interlocked.CompareExchange(ref _currentContext, null, null);
 
     protected override async Task ExecuteAsync(CancellationToken stoppingToken)
     {
@@ -104,16 +105,18 @@ public class DesktopMonitorBackgroundService : BackgroundService
                 var eventArgs = new WorkspaceChangedEventArgs(args.NewIndex, args.TotalWorkspaces);
                 _workspaceChanges.OnNext(eventArgs);
 
-                // Update cached context
-                if (_currentContext != null)
+                // Update cached context (thread-safe via Interlocked.Exchange)
+                var current = Interlocked.CompareExchange(ref _currentContext, null, null);
+                if (current != null)
                 {
-                    _currentContext = _currentContext with
+                    var updated = current with
                     {
                         CurrentWorkspace = args.NewIndex,
                         TotalWorkspaces = args.TotalWorkspaces,
                         Timestamp = DateTime.UtcNow
                     };
-                    _contextUpdates.OnNext(_currentContext);
+                    Interlocked.Exchange(ref _currentContext, updated);
+                    _contextUpdates.OnNext(updated);
                 }
             });
             _logger.LogInformation("Subscribed to WorkspaceChanged signal");
@@ -127,17 +130,19 @@ public class DesktopMonitorBackgroundService : BackgroundService
                 var eventArgs = new FocusChangedEventArgs(args.WindowTitle, args.AppId, args.WmClass);
                 _focusChanges.OnNext(eventArgs);
 
-                // Update cached context
-                if (_currentContext != null)
+                // Update cached context (thread-safe via Interlocked.Exchange)
+                var current = Interlocked.CompareExchange(ref _currentContext, null, null);
+                if (current != null)
                 {
-                    _currentContext = _currentContext with
+                    var updated = current with
                     {
                         ActiveWindowTitle = args.WindowTitle,
                         ActiveWindowClass = args.WmClass,
                         ActiveApplication = args.AppId,
                         Timestamp = DateTime.UtcNow
                     };
-                    _contextUpdates.OnNext(_currentContext);
+                    Interlocked.Exchange(ref _currentContext, updated);
+                    _contextUpdates.OnNext(updated);
                 }
             });
             _logger.LogInformation("Subscribed to FocusChanged signal");

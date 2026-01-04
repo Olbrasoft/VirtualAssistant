@@ -30,7 +30,7 @@ public class DesktopContextService : IDesktopContextService, IAsyncDisposable
         if (_focusTracker != null)
         {
             // Start polling for changes (500ms interval)
-            _pollTimer = new Timer(PollForChangesAsync, null, TimeSpan.Zero, TimeSpan.FromMilliseconds(500));
+            _pollTimer = new Timer(state => _ = PollForChangesAsync(), null, TimeSpan.Zero, TimeSpan.FromMilliseconds(500));
             _logger.LogInformation("Desktop context monitoring active via FocusTracker (polling mode)");
         }
         else
@@ -41,7 +41,7 @@ public class DesktopContextService : IDesktopContextService, IAsyncDisposable
 
     public IObservable<DesktopContextChange> ContextChanges => _contextChanges;
 
-    private async void PollForChangesAsync(object? state)
+    private async Task PollForChangesAsync()
     {
         if (_disposed || _focusTracker == null) return;
 
@@ -61,30 +61,33 @@ public class DesktopContextService : IDesktopContextService, IAsyncDisposable
                 // Detect changes and emit events
                 if (_lastContext.CurrentWorkspace != newContext.CurrentWorkspace)
                 {
+                    var oldContext = _lastContext;
                     var change = new DesktopContextChange(
-                        _lastContext, newContext, ChangeType.WorkspaceChanged);
+                        oldContext, newContext, ChangeType.WorkspaceChanged);
+                    _logger.LogDebug("Workspace changed: {OldWs} -> {NewWs}",
+                        oldContext.CurrentWorkspace, newContext.CurrentWorkspace);
                     _lastContext = newContext;
                     _contextChanges.OnNext(change);
-                    _logger.LogDebug("Workspace changed: {OldWs} -> {NewWs}",
-                        _lastContext.CurrentWorkspace, newContext.CurrentWorkspace);
                 }
                 else if (_lastContext.ActiveApplication != newContext.ActiveApplication)
                 {
+                    var oldContext = _lastContext;
                     var change = new DesktopContextChange(
-                        _lastContext, newContext, ChangeType.ApplicationChanged);
+                        oldContext, newContext, ChangeType.ApplicationChanged);
+                    _logger.LogDebug("Application changed: {OldApp} -> {NewApp}",
+                        oldContext.ActiveApplication, newContext.ActiveApplication);
                     _lastContext = newContext;
                     _contextChanges.OnNext(change);
-                    _logger.LogDebug("Application changed: {OldApp} -> {NewApp}",
-                        _lastContext.ActiveApplication, newContext.ActiveApplication);
                 }
                 else if (_lastContext.ActiveWindowTitle != newContext.ActiveWindowTitle)
                 {
+                    var oldContext = _lastContext;
                     var change = new DesktopContextChange(
-                        _lastContext, newContext, ChangeType.WindowFocusChanged);
+                        oldContext, newContext, ChangeType.WindowFocusChanged);
+                    _logger.LogDebug("Window focus changed: {OldTitle} -> {NewTitle}",
+                        oldContext.ActiveWindowTitle, newContext.ActiveWindowTitle);
                     _lastContext = newContext;
                     _contextChanges.OnNext(change);
-                    _logger.LogDebug("Window focus changed: {OldTitle} -> {NewTitle}",
-                        _lastContext.ActiveWindowTitle, newContext.ActiveWindowTitle);
                 }
             }
             finally
@@ -152,7 +155,8 @@ public class DesktopContextService : IDesktopContextService, IAsyncDisposable
         finally
         {
             _lock.Release();
-            _lock.Dispose();
         }
+
+        _lock.Dispose();
     }
 }

@@ -16,6 +16,7 @@ public class FocusTrackerService : IFocusTrackerService
     private IDesktopState? _desktopState;
     private readonly SemaphoreSlim _initLock = new(1, 1);
     private bool _initialized;
+    private bool _initializationFailed;
     private bool _disposed;
 
     private const string ServiceName = "org.olbrasoft.Desktop";
@@ -29,11 +30,21 @@ public class FocusTrackerService : IFocusTrackerService
     private async Task EnsureInitializedAsync(CancellationToken cancellationToken = default)
     {
         if (_initialized) return;
+        if (_initializationFailed)
+        {
+            throw new InvalidOperationException(
+                "FocusTrackerService initialization previously failed - focus-tracker extension may not be available");
+        }
 
         await _initLock.WaitAsync(cancellationToken);
         try
         {
             if (_initialized) return;
+            if (_initializationFailed)
+            {
+                throw new InvalidOperationException(
+                    "FocusTrackerService initialization previously failed - focus-tracker extension may not be available");
+            }
 
             _connection = new Connection(Address.Session!);
             await _connection.ConnectAsync();
@@ -54,6 +65,7 @@ public class FocusTrackerService : IFocusTrackerService
             _connection?.Dispose();
             _connection = null;
             _desktopState = null;
+            _initializationFailed = true;
             _logger.LogWarning(ex, "Failed to initialize FocusTrackerService - focus-tracker extension may not be available");
             throw;
         }

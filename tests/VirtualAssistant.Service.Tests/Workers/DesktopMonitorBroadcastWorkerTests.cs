@@ -81,7 +81,8 @@ public class DesktopMonitorBroadcastWorkerTests : IDisposable
         _contextChangesSubject.OnNext(change);
         await Task.Delay(200); // Give worker time to process
 
-        // Assert - workspace is 1-based for UI display (CurrentWorkspace 1 becomes 2)
+        // Assert - workspace indices converted from 0-based (internal) to 1-based (UI display)
+        // Example: internal index 1 displays as 2 in UI
         _clientProxyMock.Verify(
             x => x.SendCoreAsync(
                 "WorkspaceChanged",

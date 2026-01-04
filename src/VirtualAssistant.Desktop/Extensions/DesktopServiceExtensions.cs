@@ -38,20 +38,11 @@ public static class DesktopServiceExtensions
 
         // Register FocusTrackerService (focus-tracker GNOME extension integration)
         // Uses lazy initialization - D-Bus connection created on first use
-#pragma warning disable CS8634 // Nullable type constraint warning - DesktopContextService handles null
-        services.AddSingleton<Services.IFocusTrackerService?>(sp =>
-#pragma warning restore CS8634
+        // Always returns instance - graceful degradation handled by FocusTrackerService itself
+        // Initialization errors caught on first use and tracked via _initializationFailed flag
+        services.AddSingleton<Services.IFocusTrackerService>(sp =>
         {
             var logger = sp.GetRequiredService<ILogger<Services.FocusTrackerService>>();
-
-            if (!options.GracefulDegradation)
-            {
-                // No graceful degradation - let initialization errors propagate
-                return new Services.FocusTrackerService(logger);
-            }
-
-            // With graceful degradation - return instance even if extension unavailable
-            // Connection errors will be logged on first use
             return new Services.FocusTrackerService(logger);
         });
 
@@ -61,7 +52,7 @@ public static class DesktopServiceExtensions
             var logger = sp.GetRequiredService<ILogger<IdleMonitorService>>();
             try
             {
-                // Safe in console app context (see FocusTrackerService comment above)
+                // Synchronous initialization safe in DI registration context
                 return IdleMonitorService.CreateAsync().GetAwaiter().GetResult();
             }
             catch (Exception ex)

@@ -5,21 +5,12 @@ namespace VirtualAssistant.Desktop.DBus;
 /// <summary>
 /// Event args for workspace change D-Bus signal.
 /// </summary>
-public struct WorkspaceChangedArgs
-{
-    public int NewIndex;
-    public int TotalWorkspaces;
-}
+public readonly record struct WorkspaceChangedArgs(int NewIndex, int TotalWorkspaces);
 
 /// <summary>
 /// Event args for focus change D-Bus signal.
 /// </summary>
-public struct FocusChangedArgs
-{
-    public string WindowTitle;
-    public string AppId;
-    public string WmClass;
-}
+public readonly record struct FocusChangedArgs(string WindowTitle, string AppId, string WmClass);
 
 /// <summary>
 /// D-Bus interface for org.olbrasoft.Desktop (focus-tracker GNOME extension).
