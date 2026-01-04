@@ -15,9 +15,12 @@
     <PackageReference Include="Microsoft.Extensions.Hosting.Abstractions" Version="10.0.1" />
     <PackageReference Include="Microsoft.Extensions.Logging.Abstractions" Version="10.0.1" />
     <PackageReference Include="Microsoft.Extensions.Options.ConfigurationExtensions" Version="10.0.0" />
-    <PackageReference Include="Olbrasoft.LinuxDesktop.DBus" Version="1.0.*-*" />
+    <PackageReference Include="Olbrasoft.LinuxDesktop.DBus" Version="1.0.39-local" />
     <PackageReference Include="System.Reactive" Version="6.0.1" />
-    <PackageReference Include="Tmds.DBus" Version="0.23.0" />
+    <PackageReference Include="Tmds.DBus" Version="0.23.0">
+      <Aliases>TmdsDBusHighLevel</Aliases>
+      <PrivateAssets>compile</PrivateAssets>
+    </PackageReference>
     <PackageReference Include="Tmds.DBus.Protocol" Version="0.22.0" />
   </ItemGroup>
 

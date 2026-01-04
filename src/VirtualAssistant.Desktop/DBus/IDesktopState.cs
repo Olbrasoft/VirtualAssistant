@@ -1,4 +1,6 @@
-using Tmds.DBus;
+extern alias TmdsDBusHighLevel;
+
+using TmdsDBusHighLevel::Tmds.DBus;
 
 namespace VirtualAssistant.Desktop.DBus;
 
@@ -17,7 +19,7 @@ public readonly record struct FocusChangedArgs(string WindowTitle, string AppId,
 /// Provides properties and signals for desktop state monitoring.
 /// </summary>
 [DBusInterface("org.olbrasoft.Desktop")]
-internal interface IDesktopState : IDBusObject
+public interface IDesktopState : IDBusObject
 {
     /// <summary>
     /// Gets a property value from the D-Bus service.
