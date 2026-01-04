@@ -129,13 +129,6 @@ VirtualAssistant monitors your desktop activity via LinuxDesktop NuGet packages 
 - Urgent notifications always delivered (contains "urgent", "critical", "error")
 - Always delivers SystemAlert and UserMessage sources
 
-**✅ Real-time Desktop Monitor UI**
-- Web dashboard at `http://localhost:5055/desktop-monitor/`
-- Live workspace tracking (current/total workspaces)
-- Active window and application monitoring
-- Real-time event log with timestamped changes
-- SignalR-based push updates (no polling)
-
 ### Requirements
 
 **GNOME Shell Extensions (OPTIONAL, recommended for full functionality):**

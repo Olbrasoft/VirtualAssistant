@@ -1,7 +1,6 @@
 using Olbrasoft.VirtualAssistant.Core.Services;
 using Olbrasoft.VirtualAssistant.Voice.Services;
 using Olbrasoft.VirtualAssistant.Service.Services;
-using Olbrasoft.VirtualAssistant.Service.Hubs;
 using VirtualAssistant.Core.Services;
 
 namespace Olbrasoft.VirtualAssistant.Service.Extensions;
@@ -48,14 +47,10 @@ public static class EndpointExtensions
     /// </summary>
     public static WebApplication MapVirtualAssistantEndpoints(this WebApplication app)
     {
-        // Enable static files (wwwroot)
-        app.UseStaticFiles();
-
         app.MapControllers();
         app.MapAssistantSpeechEndpoints();
         app.MapTtsEndpoints();
         app.MapMuteEndpoints();
-        app.MapDesktopMonitorHub();
         app.MapGet("/health", () => Results.Ok("OK"));
 
         return app;
@@ -198,15 +193,6 @@ public static class EndpointExtensions
             return Results.Ok(new { muted = muteService.IsMuted });
         });
 
-        return app;
-    }
-
-    /// <summary>
-    /// Maps Desktop Monitor SignalR hub endpoint.
-    /// </summary>
-    public static WebApplication MapDesktopMonitorHub(this WebApplication app)
-    {
-        app.MapHub<DesktopMonitorHub>("/hub/desktop-monitor");
         return app;
     }
 }

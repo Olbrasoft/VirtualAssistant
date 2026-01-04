@@ -23,13 +23,8 @@ public static class ServiceCollectionExtensions
             .AddTtsServices(configuration)
             .AddLlmServices(configuration)
             .AddTrayServices(configuration)
-            .AddWorkerServices();
-
-        // MVC Controllers
-        services.AddControllers();
-
-        // SignalR for Desktop Monitor real-time communication
-        services.AddSignalR();
+            .AddWorkerServices()
+            .AddControllers();
 
         return services;
     }
