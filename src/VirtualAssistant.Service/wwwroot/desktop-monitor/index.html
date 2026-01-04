@@ -1,0 +1,274 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Desktop Context Monitor - VirtualAssistant</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            background: #1e1e1e;
+            color: #d4d4d4;
+            padding: 20px;
+        }
+
+        .container {
+            max-width: 1200px;
+            margin: 0 auto;
+        }
+
+        h1 {
+            color: #569cd6;
+            margin-bottom: 20px;
+            display: flex;
+            align-items: center;
+            gap: 10px;
+        }
+
+        .status {
+            display: inline-block;
+            width: 12px;
+            height: 12px;
+            border-radius: 50%;
+            background: #f48771;
+        }
+
+        .status.connected {
+            background: #6a9955;
+        }
+
+        .stats {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
+            gap: 15px;
+            margin-bottom: 20px;
+        }
+
+        .stat-card {
+            background: #252526;
+            border: 1px solid #3e3e42;
+            border-radius: 8px;
+            padding: 15px;
+        }
+
+        .stat-label {
+            font-size: 12px;
+            color: #858585;
+            text-transform: uppercase;
+            margin-bottom: 5px;
+        }
+
+        .stat-value {
+            font-size: 18px;
+            color: #d4d4d4;
+            font-weight: 500;
+        }
+
+        .log-container {
+            background: #1e1e1e;
+            border: 1px solid #3e3e42;
+            border-radius: 8px;
+            padding: 15px;
+            height: 500px;
+            overflow-y: auto;
+            font-family: 'Consolas', 'Courier New', monospace;
+            font-size: 13px;
+        }
+
+        .log-entry {
+            padding: 4px 0;
+            border-bottom: 1px solid #2d2d30;
+        }
+
+        .log-entry:last-child {
+            border-bottom: none;
+        }
+
+        .log-time {
+            color: #858585;
+            margin-right: 10px;
+        }
+
+        .log-workspace {
+            color: #dcdcaa;
+        }
+
+        .log-focus {
+            color: #4ec9b0;
+        }
+
+        .log-success {
+            color: #6a9955;
+        }
+
+        .log-error {
+            color: #f48771;
+        }
+
+        .log-info {
+            color: #569cd6;
+        }
+
+        .clear-btn {
+            background: #0e639c;
+            color: white;
+            border: none;
+            padding: 10px 20px;
+            border-radius: 4px;
+            cursor: pointer;
+            margin-top: 10px;
+        }
+
+        .clear-btn:hover {
+            background: #1177bb;
+        }
+
+        /* Scrollbar styling */
+        .log-container::-webkit-scrollbar {
+            width: 10px;
+        }
+
+        .log-container::-webkit-scrollbar-track {
+            background: #1e1e1e;
+        }
+
+        .log-container::-webkit-scrollbar-thumb {
+            background: #3e3e42;
+            border-radius: 5px;
+        }
+
+        .log-container::-webkit-scrollbar-thumb:hover {
+            background: #4e4e52;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>
+            <span class="status" id="connection-status"></span>
+            Desktop Context Monitor
+        </h1>
+
+        <div class="stats">
+            <div class="stat-card">
+                <div class="stat-label">Current Workspace</div>
+                <div class="stat-value" id="current-workspace">-</div>
+            </div>
+            <div class="stat-card">
+                <div class="stat-label">Total Workspaces</div>
+                <div class="stat-value" id="total-workspaces">-</div>
+            </div>
+            <div class="stat-card">
+                <div class="stat-label">Active Window</div>
+                <div class="stat-value" id="active-window">-</div>
+            </div>
+            <div class="stat-card">
+                <div class="stat-label">Active Application</div>
+                <div class="stat-value" id="active-app">-</div>
+            </div>
+        </div>
+
+        <div class="log-container" id="log-container"></div>
+        <button class="clear-btn" onclick="clearLogs()">Clear Logs</button>
+    </div>
+
+    <script src="https://cdn.jsdelivr.net/npm/@microsoft/signalr@8.0.7/dist/browser/signalr.min.js"></script>
+    <script>
+        const logContainer = document.getElementById('log-container');
+        const connectionStatus = document.getElementById('connection-status');
+        let logCount = 0;
+        const maxLogs = 500;
+
+        // Build SignalR connection
+        const connection = new signalR.HubConnectionBuilder()
+            .withUrl("/hub/desktop-monitor")
+            .withAutomaticReconnect()
+            .build();
+
+        function addLog(message, cssClass = '') {
+            const now = new Date();
+            const time = now.toLocaleTimeString('cs-CZ');
+
+            const entry = document.createElement('div');
+            entry.className = 'log-entry';
+            entry.innerHTML = `<span class="log-time">${time}</span><span class="${cssClass}">${escapeHtml(message)}</span>`;
+
+            logContainer.appendChild(entry);
+            logContainer.scrollTop = logContainer.scrollHeight;
+
+            // Limit log entries
+            logCount++;
+            if (logCount > maxLogs) {
+                logContainer.removeChild(logContainer.firstChild);
+                logCount--;
+            }
+        }
+
+        function escapeHtml(text) {
+            const div = document.createElement('div');
+            div.textContent = text;
+            return div.innerHTML;
+        }
+
+        function clearLogs() {
+            logContainer.innerHTML = '';
+            logCount = 0;
+        }
+
+        // SignalR event handlers
+        connection.on("WorkspaceChanged", (newIndex, totalWorkspaces) => {
+            document.getElementById('current-workspace').textContent = newIndex;
+            document.getElementById('total-workspaces').textContent = totalWorkspaces;
+        });
+
+        connection.on("FocusChanged", (windowTitle, appId, wmClass) => {
+            document.getElementById('active-window').textContent = windowTitle || '-';
+            document.getElementById('active-app').textContent = appId || '-';
+        });
+
+        connection.on("LogMessage", (message) => {
+            let cssClass = '';
+            if (message.startsWith('✓')) cssClass = 'log-success';
+            else if (message.startsWith('✗')) cssClass = 'log-error';
+            else if (message.startsWith('WorkspaceChanged')) cssClass = 'log-workspace';
+            else if (message.startsWith('ApplicationChanged')) cssClass = 'log-focus';
+            else if (message.startsWith('WindowFocusChanged')) cssClass = 'log-focus';
+            else if (message.startsWith('📡')) cssClass = 'log-info';
+
+            addLog(message, cssClass);
+        });
+
+        connection.onreconnecting(() => {
+            connectionStatus.classList.remove('connected');
+            addLog('⚠ Reconnecting to server...', 'log-error');
+        });
+
+        connection.onreconnected(() => {
+            connectionStatus.classList.add('connected');
+            addLog('✓ Reconnected to server', 'log-success');
+        });
+
+        connection.onclose(() => {
+            connectionStatus.classList.remove('connected');
+            addLog('✗ Connection closed', 'log-error');
+        });
+
+        // Start connection
+        connection.start()
+            .then(() => {
+                connectionStatus.classList.add('connected');
+                addLog('✓ Connected to Desktop Context Monitor', 'log-success');
+            })
+            .catch(err => {
+                console.error('SignalR connection error:', err);
+                addLog(`✗ Connection failed: ${err}`, 'log-error');
+            });
+    </script>
+</body>
+</html>
