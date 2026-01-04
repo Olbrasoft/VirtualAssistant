@@ -58,7 +58,7 @@ public class DesktopMonitorBroadcastWorkerTests : IDisposable
         using var cts = new CancellationTokenSource();
 
         // Act
-        var executeTask = _sut.StartAsync(cts.Token);
+        _ = _sut.StartAsync(cts.Token);
         await Task.Delay(100); // Give worker time to subscribe
 
         // Assert
@@ -81,11 +81,11 @@ public class DesktopMonitorBroadcastWorkerTests : IDisposable
         _contextChangesSubject.OnNext(change);
         await Task.Delay(200); // Give worker time to process
 
-        // Assert
+        // Assert - workspace is 1-based for UI display (CurrentWorkspace 1 becomes 2)
         _clientProxyMock.Verify(
             x => x.SendCoreAsync(
                 "WorkspaceChanged",
-                It.Is<object[]>(args => (int)args[0] == 1 && (int)args[1] == 4),
+                It.Is<object[]>(args => (int)args[0] == 2 && (int)args[1] == 4),
                 It.IsAny<CancellationToken>()
             ),
             Times.Once
@@ -208,6 +208,6 @@ public class DesktopMonitorBroadcastWorkerTests : IDisposable
     public void Dispose()
     {
         _contextChangesSubject?.Dispose();
-        _sut?.StopAsync(CancellationToken.None).Wait();
+        _sut?.StopAsync(CancellationToken.None).GetAwaiter().GetResult();
     }
 }

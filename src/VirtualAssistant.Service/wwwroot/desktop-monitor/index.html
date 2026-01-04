@@ -175,13 +175,14 @@
         </div>
 
         <div class="log-container" id="log-container"></div>
-        <button class="clear-btn" onclick="clearLogs()">Clear Logs</button>
+        <button class="clear-btn" id="clear-logs-btn">Clear Logs</button>
     </div>
 
     <script src="https://cdn.jsdelivr.net/npm/@microsoft/signalr@8.0.7/dist/browser/signalr.min.js"></script>
     <script>
         const logContainer = document.getElementById('log-container');
         const connectionStatus = document.getElementById('connection-status');
+        const clearLogsButton = document.getElementById('clear-logs-btn');
         let logCount = 0;
         const maxLogs = 500;
 
@@ -258,6 +259,11 @@
             connectionStatus.classList.remove('connected');
             addLog('✗ Connection closed', 'log-error');
         });
+
+        // Attach event listener to clear logs button
+        if (clearLogsButton) {
+            clearLogsButton.addEventListener('click', clearLogs);
+        }
 
         // Start connection
         connection.start()

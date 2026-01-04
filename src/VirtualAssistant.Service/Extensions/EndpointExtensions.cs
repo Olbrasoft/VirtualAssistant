@@ -203,6 +203,9 @@ public static class EndpointExtensions
 
     /// <summary>
     /// Maps Desktop Monitor SignalR hub endpoint.
+    /// WARNING: No authentication configured. Desktop context data (workspace, window titles, app names)
+    /// is broadcast to all connected clients. Intended for localhost use only.
+    /// For network access, implement authentication/authorization.
     /// </summary>
     public static WebApplication MapDesktopMonitorHub(this WebApplication app)
     {
