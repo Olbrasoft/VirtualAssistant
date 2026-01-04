@@ -107,6 +107,9 @@ public static class WorkerServicesExtensions
         // Startup notification (Phase 1: simple "System started")
         services.AddHostedService<StartupNotificationService>();
 
+        // Desktop Monitor broadcasting (SignalR hub updates)
+        services.AddHostedService<DesktopMonitorBroadcastWorker>();
+
         return services;
     }
 }
