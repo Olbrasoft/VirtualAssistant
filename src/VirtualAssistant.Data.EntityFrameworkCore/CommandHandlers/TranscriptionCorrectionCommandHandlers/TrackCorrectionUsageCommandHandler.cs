@@ -13,12 +13,25 @@ public class TrackCorrectionUsageCommandHandler(VirtualAssistantDbContext contex
 {
     protected override async Task<bool> GetResultToHandleAsync(TrackCorrectionUsageCommand command, CancellationToken token)
     {
-        // TranscriptionCorrection doesn't have UsageCount or LastUsedAt properties
-        // This command is designed for future analytics feature
-        // For now, just verify the correction exists
+        // Ensure the referenced correction exists
         var exists = await Context.TranscriptionCorrections
             .AnyAsync(c => c.Id == command.CorrectionId, token);
 
-        return exists;
+        if (!exists)
+        {
+            return false;
+        }
+
+        // Record usage of the correction for analytics
+        var usage = new TranscriptionCorrectionUsage
+        {
+            // Link the usage record to the applied correction
+            CorrectionId = command.CorrectionId
+        };
+
+        Context.Add(usage);
+        await Context.SaveChangesAsync(token);
+
+        return true;
     }
 }

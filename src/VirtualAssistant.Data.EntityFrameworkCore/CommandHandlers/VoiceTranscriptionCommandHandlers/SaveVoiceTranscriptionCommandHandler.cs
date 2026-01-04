@@ -16,7 +16,8 @@ public class SaveVoiceTranscriptionCommandHandler(VirtualAssistantDbContext cont
         {
             TranscribedText = command.Text,
             SourceApp = command.SourceApp,
-            DurationMs = command.DurationMs
+            DurationMs = command.DurationMs,
+            CreatedAt = DateTime.UtcNow
         };
 
         Context.VoiceTranscriptions.Add(transcription);

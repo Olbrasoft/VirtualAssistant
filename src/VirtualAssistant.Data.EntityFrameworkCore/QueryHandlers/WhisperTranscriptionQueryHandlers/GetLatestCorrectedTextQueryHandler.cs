@@ -13,8 +13,8 @@ public class GetLatestCorrectedTextQueryHandler(VirtualAssistantDbContext contex
 {
     protected override async Task<string?> GetResultToHandleAsync(GetLatestCorrectedTextQuery query, CancellationToken token)
     {
-        var latestTranscription = await Where(w => true)
-            .OrderByDescending(w => w.Id)
+        var latestTranscription = await Context.Set<WhisperTranscription>()
+            .OrderByDescending(w => w.CreatedAt)
             .FirstOrDefaultAsync(token);
 
         if (latestTranscription == null)
@@ -23,6 +23,7 @@ public class GetLatestCorrectedTextQueryHandler(VirtualAssistantDbContext contex
         // Check if there's an LLM correction for this transcription
         var correction = await Context.LlmCorrections
             .Where(c => c.WhisperTranscriptionId == latestTranscription.Id)
+            .OrderByDescending(c => c.CreatedAt)
             .Select(c => c.CorrectedText)
             .FirstOrDefaultAsync(token);
 

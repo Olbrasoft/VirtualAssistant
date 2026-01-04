@@ -13,8 +13,8 @@ public class GetRecentVoiceTranscriptionsQueryHandler(VirtualAssistantDbContext 
 {
     protected override async Task<IReadOnlyList<VoiceTranscription>> GetResultToHandleAsync(GetRecentVoiceTranscriptionsQuery query, CancellationToken token)
     {
-        return await Where(v => true)
-            .OrderByDescending(v => v.Id)
+        return await Context.Set<VoiceTranscription>()
+            .OrderByDescending(v => v.CreatedAt)
             .Take(query.Count)
             .ToListAsync(token);
     }

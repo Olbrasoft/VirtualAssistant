@@ -16,7 +16,8 @@ public class SaveLlmErrorCommandHandler(VirtualAssistantDbContext context)
         {
             WhisperTranscriptionId = command.WhisperTranscriptionId,
             ErrorMessage = command.ErrorMessage,
-            DurationMs = command.DurationMs
+            DurationMs = command.DurationMs,
+            CreatedAt = DateTime.UtcNow
         };
 
         Context.LlmErrors.Add(error);
