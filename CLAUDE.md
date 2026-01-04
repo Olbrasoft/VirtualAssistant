@@ -95,24 +95,25 @@ journalctl --user -u virtual-assistant.service -n 50
 
 ## Architecture
 
-Clean Architecture with CQRS pattern (target architecture):
+Clean Architecture with CQRS pattern:
 - **VirtualAssistant.Service** - ASP.NET Core main service (port 5055)
 - **VirtualAssistant.Core** - Domain logic, business services orchestrating queries/commands
 - **VirtualAssistant.Voice** - TTS/STT with **inline Whisper.net** (GPU-accelerated), VAD (Silero ONNX), LLM routing
-- **VirtualAssistant.Data** - Entities, DTOs, Queries, Commands (CQRS definitions)
+- **VirtualAssistant.Data** - Entities, DTOs, Queries, Commands
 - **VirtualAssistant.Data.EntityFrameworkCore** - DbContext, QueryHandlers, CommandHandlers, migrations (auto-apply on startup)
 - **VirtualAssistant.GitHub** - GitHub API, issue sync with embeddings
 
-**CQRS Implementation Status:**
-- ⚠️ **Partial implementation** - Currently uses Repository pattern (transitional state)
-- ✅ Uses `Olbrasoft.Data.Cqrs.Common` infrastructure (IQueryProcessor, ICommandExecutor)
-- ❌ Missing: Queries/, Commands/ folders in `.Data` project
-- ❌ Missing: QueryHandlers/, CommandHandlers/ folders in `.Data.EntityFrameworkCore` project
-- 📋 **TODO:** Complete CQRS implementation following Blog application pattern (see engineering handbook)
+**CQRS Architecture:**
+Architektura IS CQRS. Veškeré queries a commands jsou v **VirtualAssistant.Data** projektu.
+Implementace query handlers a command handlers jsou v **VirtualAssistant.Data.EntityFrameworkCore** projektu.
 
-**Current Pattern (temporary):**
-- Uses `I*Repository` interfaces (e.g., `IWhisperTranscriptionRepository`) - to be replaced with CQRS
-- Service Layer orchestrates repositories - to be updated to use IQueryProcessor/ICommandExecutor
+**Pattern Details:**
+- **Queries:** Query definitions (IQuery<TResult>) v VirtualAssistant.Data/Queries/
+- **Commands:** Command definitions (ICommand<TResult>) v VirtualAssistant.Data/Commands/
+- **QueryHandlers:** Query handler implementations v VirtualAssistant.Data.EntityFrameworkCore/QueryHandlers/
+- **CommandHandlers:** Command handler implementations v VirtualAssistant.Data.EntityFrameworkCore/CommandHandlers/
+- **Infrastructure:** Olbrasoft.Data.Cqrs.Common (IQueryProcessor, ICommandExecutor - vlastní mediátor pattern)
+- **Dependency Injection:** Services depend on IQueryProcessor/ICommandExecutor interfaces, implementations registered in Service layer
 
 **Speech-to-Text (inline):**
 - `WhisperSpeechTranscriber` - Direct Whisper.net integration (no gRPC microservice)
