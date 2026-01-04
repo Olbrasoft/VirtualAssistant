@@ -1,7 +1,7 @@
 using Olbrasoft.Data.Cqrs;
 using VirtualAssistant.Data.Entities;
 
-namespace Olbrasoft.VirtualAssistant.Data.Queries.LlmCorrectionQueries;
+namespace Olbrasoft.VirtualAssistant.Data.Queries.TranscriptionCorrectionQueries;
 
 /// <summary>
 /// Query to get all active corrections ordered by priority (highest first).
