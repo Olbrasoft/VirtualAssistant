@@ -65,6 +65,120 @@ Clean Architecture with CQRS pattern:
 | PostgreSQL | localhost | DB with pgvector extension |
 | EdgeTTS Server | localhost:5555 | Fallback TTS provider |
 
+## Desktop Context Awareness (LinuxDesktop Integration)
+
+VirtualAssistant monitors your desktop activity via LinuxDesktop NuGet packages to provide context-aware assistance.
+
+### Features
+
+**✅ Context-aware LLM prompts**
+- Programming prompt when in IDE (code, cursor, pycharm, rider)
+- Chat prompt when in messaging apps (whatsapp-for-linux, telegram, slack)
+- Search prompt when browsing (chrome, firefox, edge)
+- General prompt as fallback
+
+**✅ Intelligent notifications**
+- Skips "Claude Code finished task" if you're already in Claude Code
+- Delivers notifications only when you're in different app
+- Urgent notifications always delivered (contains "urgent", "critical", "error")
+- Always delivers SystemAlert and UserMessage sources
+
+### Requirements
+
+**GNOME Shell Extensions (OPTIONAL, recommended for full functionality):**
+1. `window-calls@domandoman.xyz` - Window/workspace D-Bus API
+2. `focus-tracker@olbrasoft.cz` - Custom extension for focus events
+
+**Verify extensions:**
+```bash
+gnome-extensions list --enabled | grep -E "window-calls|focus-tracker"
+```
+
+**Install missing extensions:**
+```bash
+gnome-extensions enable window-calls@domandoman.xyz
+gnome-extensions enable focus-tracker@olbrasoft.cz
+```
+
+### Configuration
+
+**appsettings.json:**
+```json
+{
+  "DesktopMonitoring": {
+    "Enabled": true,
+    "PollingIntervalMs": 500,
+    "GracefulDegradation": true,
+    "LogContextChanges": true
+  },
+  "ContextMapping": {
+    "Programming": ["code", "cursor", "rider", "pycharm", "idea"],
+    "Chat": ["whatsapp-for-linux", "telegram", "slack", "discord"],
+    "Browsing": ["chrome", "firefox", "chromium", "brave", "edge"]
+  },
+  "NotificationFiltering": {
+    "Enabled": true,
+    "AppNameMapping": {
+      "Claude Code": "code",
+      "OpenCode": "code",
+      "VS Code": "code",
+      "GitHub": "chrome",
+      "PyCharm": "pycharm"
+    },
+    "AlwaysDeliverSources": ["SystemAlert", "UserMessage"]
+  }
+}
+```
+
+### Troubleshooting
+
+#### Extension Not Running
+
+**Symptoms:** Logs show "Desktop monitoring unavailable"
+
+**Solution:**
+```bash
+# Check extensions
+gnome-extensions list --enabled
+
+# Enable missing extensions
+gnome-extensions enable window-calls@domandoman.xyz
+gnome-extensions enable focus-tracker@olbrasoft.cz
+
+# Restart GNOME Shell (X11)
+# Press Alt+F2, type 'r', press Enter
+
+# Or logout/login (Wayland)
+```
+
+#### Context Changes Not Detected
+
+**Symptoms:** Same prompt used for all apps
+
+**Solution:**
+```bash
+# Check logs for context detection
+journalctl --user -u virtual-assistant.service -f | grep "context"
+
+# Verify GNOME extensions running
+dbus-send --session --print-reply \
+  --dest=org.gnome.Shell \
+  /org/gnome/Shell \
+  org.gnome.Shell.Eval \
+  string:'global.get_window_actors().length'
+
+# Should return number of windows
+```
+
+#### Graceful Degradation
+
+If GNOME extensions are not available:
+- Service starts without errors
+- Desktop monitoring disabled
+- All notifications delivered (no filtering)
+- General prompt used for all contexts
+- Warnings logged but no crashes
+
 ## Services
 
 | Service | Port | Command |

@@ -24,6 +24,7 @@
     <ProjectReference Include="..\VirtualAssistant.GitHub\VirtualAssistant.GitHub.csproj" />
     <ProjectReference Include="..\VirtualAssistant.Core\VirtualAssistant.Core.csproj" />
     <ProjectReference Include="..\VirtualAssistant.LlmChain\VirtualAssistant.LlmChain.csproj" />
+    <ProjectReference Include="..\VirtualAssistant.Desktop\VirtualAssistant.Desktop.csproj" />
   </ItemGroup>
 
   <ItemGroup>
