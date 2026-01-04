@@ -329,6 +329,61 @@ Priority order (circuit breaker pattern):
   6. Push fixes to feature branch
   7. **Only then** merge to `main` (triggers automatic deployment)
 
+### Integration Tests & CI/CD
+
+**CRITICAL:** Integration tests MUST NOT run on GitHub Actions!
+
+**Why:**
+- Integration tests call external services (LLM APIs, databases, network services)
+- CI environment lacks required credentials/secrets
+- Tests are timing-sensitive and flaky in loaded CI environment
+- May incur API costs or rate limits
+
+**How to mark integration tests:**
+
+1. **Add package** to test project:
+   ```xml
+   <PackageReference Include="Olbrasoft.Testing.Xunit.Attributes" Version="1.*" />
+   ```
+
+2. **Use `[SkipOnCIFact]` instead of `[Fact]`:**
+   ```csharp
+   using Olbrasoft.Testing.Xunit.Attributes;
+
+   [SkipOnCIFact]  // Skips in CI, runs locally
+   public async Task LlmRouter_CallsRealAPI_ReturnsResponse()
+   {
+       // Test that calls external LLM API
+   }
+   ```
+
+3. **Use for:**
+   - Tests calling external APIs (LLM providers, GitHub API, etc.)
+   - Tests with timing dependencies (`Task.Delay`, SignalR broadcasts)
+   - Tests requiring specific system state (GNOME extensions, D-Bus)
+   - Database integration tests requiring PostgreSQL
+
+**Verification:**
+```bash
+# Runs locally
+dotnet test
+
+# Skips in CI environment
+CI=true dotnet test  # Test should be skipped
+```
+
+**Examples:**
+- `VirtualAssistant.LlmChain.IntegrationTests` - All tests marked with `[SkipOnCIFact]`
+- `VirtualAssistant.Service.Tests/Workers/DesktopMonitorBroadcastWorkerTests.cs` - Timing-sensitive SignalR test
+
+**Filter in CI pipeline:**
+```bash
+# GitHub Actions uses this filter
+dotnet test --filter "FullyQualifiedName!~IntegrationTests"
+```
+
+This ensures fast, reliable CI builds without external dependencies.
+
 ## Deployment Checklist
 
 **BEFORE claiming "deployment completed":**
