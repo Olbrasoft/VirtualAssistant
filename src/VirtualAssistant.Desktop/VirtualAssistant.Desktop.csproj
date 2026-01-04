@@ -15,10 +15,15 @@
     <PackageReference Include="Microsoft.Extensions.Logging.Abstractions" Version="10.0.1" />
     <PackageReference Include="Microsoft.Extensions.Options.ConfigurationExtensions" Version="10.0.0" />
     <PackageReference Include="Olbrasoft.LinuxDesktop.DBus" Version="1.0.*-*" />
+    <PackageReference Include="System.Reactive" Version="6.0.1" />
   </ItemGroup>
 
   <ItemGroup>
     <InternalsVisibleTo Include="VirtualAssistant.Desktop.Tests" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\VirtualAssistant.Core\VirtualAssistant.Core.csproj" />
   </ItemGroup>
 
 </Project>

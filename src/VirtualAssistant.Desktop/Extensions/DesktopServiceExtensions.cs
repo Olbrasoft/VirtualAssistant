@@ -96,6 +96,9 @@ public static class DesktopServiceExtensions
             }
         });
 
+        // Register DesktopContextService
+        services.AddSingleton<VirtualAssistant.Core.Services.IDesktopContextService, Services.DesktopContextService>();
+
         return services;
     }
 
