@@ -1,6 +1,8 @@
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
-using VirtualAssistant.Data;
+using Olbrasoft.Data.Cqrs;
+using Olbrasoft.VirtualAssistant.Data.Commands.TranscriptionCorrectionCommands;
+using Olbrasoft.VirtualAssistant.Data.Queries.TranscriptionCorrectionQueries;
 using VirtualAssistant.Data.Entities;
 
 namespace Olbrasoft.VirtualAssistant.Voice.Filters;
@@ -95,22 +97,20 @@ public class DatabaseCorrectionFilterStrategy : ITextFilterStrategy
 
             try
             {
-                // Create a new scope to get scoped repository
+                // Create a new scope to get scoped query processor
                 using var scope = _serviceScopeFactory.CreateScope();
-                var repository = scope.ServiceProvider.GetService<ITranscriptionCorrectionRepository>();
+                var queryProcessor = scope.ServiceProvider.GetService<IQueryProcessor>();
 
-                if (repository == null)
+                if (queryProcessor == null)
                 {
-                    _logger.LogWarning("ITranscriptionCorrectionRepository not available");
+                    _logger.LogWarning("IQueryProcessor not available");
                     _cacheExpiry = DateTime.UtcNow.AddSeconds(30);
                     return;
                 }
 
                 // Synchronous call is acceptable for cache refresh
-                _cachedCorrections = repository
-                    .GetActiveCorrectionsAsync()
-                    .GetAwaiter()
-                    .GetResult();
+                var query = new GetActiveTranscriptionCorrectionsQuery(queryProcessor);
+                _cachedCorrections = query.ToResultAsync().GetAwaiter().GetResult();
 
                 _cacheExpiry = DateTime.UtcNow.Add(CacheDuration);
 
@@ -139,13 +139,17 @@ public class DatabaseCorrectionFilterStrategy : ITextFilterStrategy
 
         try
         {
-            // Create a new scope to get scoped repository
+            // Create a new scope to get scoped command executor
             using var scope = _serviceScopeFactory.CreateScope();
-            var repository = scope.ServiceProvider.GetService<ITranscriptionCorrectionRepository>();
+            var commandExecutor = scope.ServiceProvider.GetService<ICommandExecutor>();
 
-            if (repository != null)
+            if (commandExecutor != null)
             {
-                await repository.TrackUsageAsync(correctionId);
+                var command = new TrackCorrectionUsageCommand(commandExecutor)
+                {
+                    CorrectionId = correctionId
+                };
+                await command.ToResultAsync();
             }
         }
         catch (Exception ex)

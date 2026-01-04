@@ -1,8 +1,10 @@
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
+using Olbrasoft.Data.Cqrs;
 using Olbrasoft.VirtualAssistant.Core.Services;
+using Olbrasoft.VirtualAssistant.Data.Commands.LlmCorrectionCommands;
+using Olbrasoft.VirtualAssistant.Data.Commands.WhisperTranscriptionCommands;
 using Olbrasoft.VirtualAssistant.Voice.Configuration;
-using VirtualAssistant.Data;
 using VirtualAssistant.Data.Entities;
 
 namespace Olbrasoft.VirtualAssistant.Service.Services;
@@ -14,19 +16,16 @@ namespace Olbrasoft.VirtualAssistant.Service.Services;
 public class DictationPersistenceService : IDictationPersistenceService
 {
     private readonly ILogger<DictationPersistenceService> _logger;
-    private readonly IWhisperTranscriptionRepository _whisperRepository;
-    private readonly ILlmCorrectionRepository _llmRepository;
+    private readonly ICommandExecutor _commandExecutor;
     private readonly AudioRecordingOptions _options;
 
     public DictationPersistenceService(
         ILogger<DictationPersistenceService> logger,
-        IWhisperTranscriptionRepository whisperRepository,
-        ILlmCorrectionRepository llmRepository,
+        ICommandExecutor commandExecutor,
         IOptions<AudioRecordingOptions> options)
     {
         _logger = logger ?? throw new ArgumentNullException(nameof(logger));
-        _whisperRepository = whisperRepository ?? throw new ArgumentNullException(nameof(whisperRepository));
-        _llmRepository = llmRepository ?? throw new ArgumentNullException(nameof(llmRepository));
+        _commandExecutor = commandExecutor ?? throw new ArgumentNullException(nameof(commandExecutor));
         ArgumentNullException.ThrowIfNull(options);
         _options = options.Value;
     }
@@ -68,10 +67,12 @@ public class DictationPersistenceService : IDictationPersistenceService
         WhisperTranscription transcription;
         try
         {
-            transcription = await _whisperRepository.SaveAsync(
-                originalText,
-                durationMs: audioDurationMs,
-                cancellationToken);
+            var command = new SaveWhisperTranscriptionCommand(_commandExecutor)
+            {
+                Text = originalText,
+                DurationMs = audioDurationMs
+            };
+            transcription = await command.ToResultAsync(cancellationToken);
 
             _logger.LogDebug("Saved Whisper transcription to database with ID {Id}", transcription.Id);
         }
@@ -87,11 +88,13 @@ public class DictationPersistenceService : IDictationPersistenceService
         {
             try
             {
-                var correction = await _llmRepository.SaveAsync(
-                    whisperTranscriptionId: transcription.Id,
-                    correctedText: correctedText,
-                    durationMs: llmDurationMs,
-                    cancellationToken);
+                var command = new SaveLlmCorrectionCommand(_commandExecutor)
+                {
+                    WhisperTranscriptionId = transcription.Id,
+                    CorrectedText = correctedText,
+                    DurationMs = llmDurationMs
+                };
+                var correction = await command.ToResultAsync(cancellationToken);
 
                 _logger.LogDebug(
                     "Saved LLM correction {Id} for transcription {TranscriptionId} (duration: {Duration}ms): '{Original}' → '{Corrected}'",

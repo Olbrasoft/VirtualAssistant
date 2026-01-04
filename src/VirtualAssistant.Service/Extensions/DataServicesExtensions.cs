@@ -29,10 +29,6 @@ public static class DataServicesExtensions
         // CQRS - Register Query/Command handlers from VirtualAssistant.Data.EntityFrameworkCore assembly
         services.AddCqrs(ServiceLifetime.Scoped, typeof(VirtualAssistantDbContext).Assembly);
 
-        // Whisper transcription and LLM correction repositories
-        services.AddScoped<IWhisperTranscriptionRepository, WhisperTranscriptionRepository>();
-        services.AddScoped<ILlmCorrectionRepository, LlmCorrectionRepository>();
-
         // GitHub sync services
         services.AddGitHubServices(configuration);
 

@@ -1,9 +1,9 @@
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
 using Moq;
+using Olbrasoft.Data.Cqrs;
 using Olbrasoft.VirtualAssistant.Service.Services;
 using Olbrasoft.VirtualAssistant.Voice.Configuration;
-using VirtualAssistant.Data;
 using VirtualAssistant.Data.Entities;
 
 namespace VirtualAssistant.Service.Tests.Services;
@@ -16,16 +16,14 @@ namespace VirtualAssistant.Service.Tests.Services;
 public class DictationPersistenceServiceTests
 {
     private readonly Mock<ILogger<DictationPersistenceService>> _loggerMock;
-    private readonly Mock<IWhisperTranscriptionRepository> _whisperRepoMock;
-    private readonly Mock<ILlmCorrectionRepository> _llmRepoMock;
+    private readonly Mock<ICommandExecutor> _commandExecutorMock;
     private readonly IOptions<AudioRecordingOptions> _defaultOptions;
     private readonly DictationPersistenceService _service;
 
     public DictationPersistenceServiceTests()
     {
         _loggerMock = new Mock<ILogger<DictationPersistenceService>>();
-        _whisperRepoMock = new Mock<IWhisperTranscriptionRepository>();
-        _llmRepoMock = new Mock<ILlmCorrectionRepository>();
+        _commandExecutorMock = new Mock<ICommandExecutor>();
         _defaultOptions = Options.Create(new AudioRecordingOptions
         {
             SampleRate = 16000,
@@ -36,8 +34,7 @@ public class DictationPersistenceServiceTests
 
         _service = new DictationPersistenceService(
             _loggerMock.Object,
-            _whisperRepoMock.Object,
-            _llmRepoMock.Object,
+            _commandExecutorMock.Object,
             _defaultOptions);
     }
 
@@ -57,8 +54,8 @@ public class DictationPersistenceServiceTests
             AudioDurationMs = 1000
         };
 
-        _whisperRepoMock
-            .Setup(x => x.SaveAsync(originalText, (int?)1000, It.IsAny<CancellationToken>()))
+        _commandExecutorMock
+            .Setup(x => x.ExecuteAsync(It.IsAny<ICommand<WhisperTranscription>>(), It.IsAny<CancellationToken>()))
             .ReturnsAsync(expectedTranscription);
 
         // Act
@@ -71,8 +68,12 @@ public class DictationPersistenceServiceTests
 
         // Assert
         Assert.Equal(123, result);
-        _whisperRepoMock.Verify(x => x.SaveAsync(originalText, 1000, It.IsAny<CancellationToken>()), Times.Once);
-        _llmRepoMock.Verify(x => x.SaveAsync(It.IsAny<int>(), It.IsAny<string>(), It.IsAny<int>(), It.IsAny<CancellationToken>()), Times.Never);
+        _commandExecutorMock.Verify(x => x.ExecuteAsync(
+            It.Is<ICommand<WhisperTranscription>>(cmd =>
+                cmd is Olbrasoft.VirtualAssistant.Data.Commands.WhisperTranscriptionCommands.SaveWhisperTranscriptionCommand),
+            It.IsAny<CancellationToken>()), Times.Once);
+        _commandExecutorMock.Verify(x => x.ExecuteAsync(
+            It.IsAny<ICommand<LlmCorrection>>(), It.IsAny<CancellationToken>()), Times.Never);
     }
 
     [Fact]
@@ -99,12 +100,12 @@ public class DictationPersistenceServiceTests
             DurationMs = llmDurationMs
         };
 
-        _whisperRepoMock
-            .Setup(x => x.SaveAsync(originalText, (int?)1000, It.IsAny<CancellationToken>()))
+        _commandExecutorMock
+            .Setup(x => x.ExecuteAsync(It.IsAny<ICommand<WhisperTranscription>>(), It.IsAny<CancellationToken>()))
             .ReturnsAsync(expectedTranscription);
 
-        _llmRepoMock
-            .Setup(x => x.SaveAsync(456, correctedText, llmDurationMs, It.IsAny<CancellationToken>()))
+        _commandExecutorMock
+            .Setup(x => x.ExecuteAsync(It.IsAny<ICommand<LlmCorrection>>(), It.IsAny<CancellationToken>()))
             .ReturnsAsync(expectedCorrection);
 
         // Act
@@ -117,8 +118,14 @@ public class DictationPersistenceServiceTests
 
         // Assert
         Assert.Equal(456, result);
-        _whisperRepoMock.Verify(x => x.SaveAsync(originalText, 1000, It.IsAny<CancellationToken>()), Times.Once);
-        _llmRepoMock.Verify(x => x.SaveAsync(456, correctedText, llmDurationMs, It.IsAny<CancellationToken>()), Times.Once);
+        _commandExecutorMock.Verify(x => x.ExecuteAsync(
+            It.Is<ICommand<WhisperTranscription>>(cmd =>
+                cmd is Olbrasoft.VirtualAssistant.Data.Commands.WhisperTranscriptionCommands.SaveWhisperTranscriptionCommand),
+            It.IsAny<CancellationToken>()), Times.Once);
+        _commandExecutorMock.Verify(x => x.ExecuteAsync(
+            It.Is<ICommand<LlmCorrection>>(cmd =>
+                cmd is Olbrasoft.VirtualAssistant.Data.Commands.LlmCorrectionCommands.SaveLlmCorrectionCommand),
+            It.IsAny<CancellationToken>()), Times.Once);
     }
 
     [Fact]
@@ -136,8 +143,8 @@ public class DictationPersistenceServiceTests
             AudioDurationMs = 500
         };
 
-        _whisperRepoMock
-            .Setup(x => x.SaveAsync(originalText, (int?)500, It.IsAny<CancellationToken>()))
+        _commandExecutorMock
+            .Setup(x => x.ExecuteAsync(It.IsAny<ICommand<WhisperTranscription>>(), It.IsAny<CancellationToken>()))
             .ReturnsAsync(expectedTranscription);
 
         // Act
@@ -150,7 +157,8 @@ public class DictationPersistenceServiceTests
 
         // Assert
         Assert.Equal(111, result);
-        _llmRepoMock.Verify(x => x.SaveAsync(It.IsAny<int>(), It.IsAny<string>(), It.IsAny<int>(), It.IsAny<CancellationToken>()), Times.Never);
+        _commandExecutorMock.Verify(x => x.ExecuteAsync(
+            It.IsAny<ICommand<LlmCorrection>>(), It.IsAny<CancellationToken>()), Times.Never);
     }
 
     #endregion
@@ -168,8 +176,8 @@ public class DictationPersistenceServiceTests
         var audioData = new byte[audioBytes];
         var text = "test";
 
-        _whisperRepoMock
-            .Setup(x => x.SaveAsync(text, It.IsAny<int?>(), It.IsAny<CancellationToken>()))
+        _commandExecutorMock
+            .Setup(x => x.ExecuteAsync(It.IsAny<ICommand<WhisperTranscription>>(), It.IsAny<CancellationToken>()))
             .ReturnsAsync(new WhisperTranscription { Id = 1, TranscribedText = text, AudioDurationMs = expectedDurationMs });
 
         // Act
@@ -181,8 +189,11 @@ public class DictationPersistenceServiceTests
             CancellationToken.None);
 
         // Assert
-        _whisperRepoMock.Verify(
-            x => x.SaveAsync(text, (int?)expectedDurationMs, It.IsAny<CancellationToken>()),
+        _commandExecutorMock.Verify(
+            x => x.ExecuteAsync(
+                It.Is<ICommand<WhisperTranscription>>(cmd =>
+                    cmd is Olbrasoft.VirtualAssistant.Data.Commands.WhisperTranscriptionCommands.SaveWhisperTranscriptionCommand),
+                It.IsAny<CancellationToken>()),
             Times.Once,
             $"Expected duration {expectedDurationMs}ms for {audioBytes} bytes");
     }
@@ -198,8 +209,8 @@ public class DictationPersistenceServiceTests
         var audioData = new byte[16000];
         var text = "test";
 
-        _whisperRepoMock
-            .Setup(x => x.SaveAsync(It.IsAny<string>(), It.IsAny<int?>(), It.IsAny<CancellationToken>()))
+        _commandExecutorMock
+            .Setup(x => x.ExecuteAsync(It.IsAny<ICommand<WhisperTranscription>>(), It.IsAny<CancellationToken>()))
             .ThrowsAsync(new InvalidOperationException("Database error"));
 
         // Act
@@ -222,12 +233,12 @@ public class DictationPersistenceServiceTests
         var originalText = "original";
         var correctedText = "corrected";
 
-        _whisperRepoMock
-            .Setup(x => x.SaveAsync(originalText, (int?)500, It.IsAny<CancellationToken>()))
+        _commandExecutorMock
+            .Setup(x => x.ExecuteAsync(It.IsAny<ICommand<WhisperTranscription>>(), It.IsAny<CancellationToken>()))
             .ReturnsAsync(new WhisperTranscription { Id = 999, TranscribedText = originalText, AudioDurationMs = 500 });
 
-        _llmRepoMock
-            .Setup(x => x.SaveAsync(It.IsAny<int>(), It.IsAny<string>(), It.IsAny<int>(), It.IsAny<CancellationToken>()))
+        _commandExecutorMock
+            .Setup(x => x.ExecuteAsync(It.IsAny<ICommand<LlmCorrection>>(), It.IsAny<CancellationToken>()))
             .ThrowsAsync(new InvalidOperationException("LLM save failed"));
 
         // Act
@@ -330,8 +341,8 @@ public class DictationPersistenceServiceTests
         var text = "test";
         var expectedDurationMs = 468; // 15001 / 2 (integer division) = 7500 samples, 7500 / 16000 * 1000 = 468.75ms -> 468ms
 
-        _whisperRepoMock
-            .Setup(x => x.SaveAsync(text, It.IsAny<int?>(), It.IsAny<CancellationToken>()))
+        _commandExecutorMock
+            .Setup(x => x.ExecuteAsync(It.IsAny<ICommand<WhisperTranscription>>(), It.IsAny<CancellationToken>()))
             .ReturnsAsync(new WhisperTranscription { Id = 1, TranscribedText = text, AudioDurationMs = expectedDurationMs });
 
         // Act
@@ -339,7 +350,12 @@ public class DictationPersistenceServiceTests
 
         // Assert
         Assert.Equal(1, result);
-        _whisperRepoMock.Verify(x => x.SaveAsync(text, expectedDurationMs, It.IsAny<CancellationToken>()), Times.Once);
+        _commandExecutorMock.Verify(
+            x => x.ExecuteAsync(
+                It.Is<ICommand<WhisperTranscription>>(cmd =>
+                    cmd is Olbrasoft.VirtualAssistant.Data.Commands.WhisperTranscriptionCommands.SaveWhisperTranscriptionCommand),
+                It.IsAny<CancellationToken>()),
+            Times.Once);
 
         // Verify warning was logged
         _loggerMock.Verify(
