@@ -6,7 +6,7 @@ using Npgsql.EntityFrameworkCore.PostgreSQL.Metadata;
 
 #pragma warning disable CA1814 // Prefer jagged arrays over multidimensional
 
-namespace VirtualAssistant.Data.EntityFrameworkCore.Migrations
+namespace Olbrasoft.VirtualAssistant.Data.EntityFrameworkCore.Migrations
 {
     /// <inheritdoc />
     public partial class AddNotificationSystem : Migration

@@ -1,6 +1,6 @@
 using Tmds.DBus;
 
-namespace VirtualAssistant.Desktop.DBus;
+namespace Olbrasoft.VirtualAssistant.Desktop.DBus;
 
 /// <summary>
 /// Event args for workspace change D-Bus signal.

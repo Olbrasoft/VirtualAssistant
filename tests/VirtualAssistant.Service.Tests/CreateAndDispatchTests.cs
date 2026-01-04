@@ -1,6 +1,6 @@
-using VirtualAssistant.Data.Dtos;
+using Olbrasoft.VirtualAssistant.Data.Dtos;
 
-namespace VirtualAssistant.Service.Tests;
+namespace Olbrasoft.VirtualAssistant.Service.Tests;
 
 public class CreateAndDispatchTests
 {

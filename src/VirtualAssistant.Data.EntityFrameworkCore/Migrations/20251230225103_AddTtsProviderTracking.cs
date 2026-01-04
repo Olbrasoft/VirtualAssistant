@@ -5,7 +5,7 @@ using Microsoft.EntityFrameworkCore.Migrations;
 
 #pragma warning disable CA1814 // Prefer jagged arrays over multidimensional
 
-namespace VirtualAssistant.Data.EntityFrameworkCore.Migrations
+namespace Olbrasoft.VirtualAssistant.Data.EntityFrameworkCore.Migrations
 {
     /// <inheritdoc />
     public partial class AddTtsProviderTracking : Migration

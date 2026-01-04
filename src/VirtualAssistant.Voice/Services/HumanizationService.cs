@@ -1,8 +1,8 @@
 using System.Text.Json;
 using System.Text.RegularExpressions;
 using Microsoft.Extensions.Logging;
-using VirtualAssistant.Core.Services;
-using VirtualAssistant.LlmChain;
+using Olbrasoft.VirtualAssistant.Core.Services;
+using Olbrasoft.VirtualAssistant.LlmChain;
 
 namespace Olbrasoft.VirtualAssistant.Voice.Services;
 

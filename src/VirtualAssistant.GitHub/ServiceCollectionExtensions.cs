@@ -1,9 +1,9 @@
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
-using VirtualAssistant.GitHub.Configuration;
-using VirtualAssistant.GitHub.Services;
+using Olbrasoft.VirtualAssistant.GitHub.Configuration;
+using Olbrasoft.VirtualAssistant.GitHub.Services;
 
-namespace VirtualAssistant.GitHub;
+namespace Olbrasoft.VirtualAssistant.GitHub;
 
 /// <summary>
 /// Extension methods for registering GitHub services in the DI container.

@@ -1,6 +1,6 @@
 using Microsoft.Extensions.Logging;
-using VirtualAssistant.Core.Services;
-using VirtualAssistant.Data.Enums;
+using Olbrasoft.VirtualAssistant.Core.Services;
+using Olbrasoft.VirtualAssistant.Data.Enums;
 
 namespace Olbrasoft.VirtualAssistant.Service.Services;
 

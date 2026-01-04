@@ -1,6 +1,5 @@
 using Olbrasoft.VirtualAssistant.Core.Enums;
 using Olbrasoft.VirtualAssistant.Core.Services;
-using VirtualAssistant.Core.Services;
 
 namespace Olbrasoft.VirtualAssistant.Voice.Pipeline;
 

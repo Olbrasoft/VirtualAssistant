@@ -3,7 +3,7 @@ using Moq;
 using Olbrasoft.NotificationAudio.Abstractions;
 using Olbrasoft.VirtualAssistant.Voice.Services;
 
-namespace VirtualAssistant.Voice.Tests.Services;
+namespace Olbrasoft.VirtualAssistant.Voice.Tests.Services;
 
 /// <summary>
 /// Unit tests for AudioPlaybackService with NotificationAudio integration.

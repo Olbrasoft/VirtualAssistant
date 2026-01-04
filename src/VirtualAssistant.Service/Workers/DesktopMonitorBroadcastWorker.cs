@@ -2,8 +2,8 @@ using Microsoft.AspNetCore.SignalR;
 using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Logging;
 using Olbrasoft.VirtualAssistant.Service.Hubs;
-using VirtualAssistant.Core.Models;
-using VirtualAssistant.Core.Services;
+using Olbrasoft.VirtualAssistant.Core.Models;
+using Olbrasoft.VirtualAssistant.Core.Services;
 
 namespace Olbrasoft.VirtualAssistant.Service.Workers;
 

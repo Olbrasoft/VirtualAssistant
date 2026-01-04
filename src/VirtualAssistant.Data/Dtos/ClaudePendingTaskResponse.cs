@@ -1,4 +1,4 @@
-namespace VirtualAssistant.Data.Dtos;
+namespace Olbrasoft.VirtualAssistant.Data.Dtos;
 
 /// <summary>
 /// Response model for GET /api/claude/tasks/pending endpoint.

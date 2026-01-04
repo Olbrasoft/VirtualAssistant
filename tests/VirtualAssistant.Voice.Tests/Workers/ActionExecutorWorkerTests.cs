@@ -5,7 +5,7 @@ using Olbrasoft.VirtualAssistant.Core.Events;
 using Olbrasoft.VirtualAssistant.Voice.Services;
 using Olbrasoft.VirtualAssistant.Voice.Workers;
 
-namespace VirtualAssistant.Voice.Tests.Workers;
+namespace Olbrasoft.VirtualAssistant.Voice.Tests.Workers;
 
 /// <summary>
 /// Unit tests for ActionExecutorWorker.

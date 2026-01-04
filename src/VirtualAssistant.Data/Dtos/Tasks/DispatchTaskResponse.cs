@@ -1,6 +1,6 @@
 using System.Text.Json.Serialization;
 
-namespace VirtualAssistant.Data.Dtos.Tasks;
+namespace Olbrasoft.VirtualAssistant.Data.Dtos.Tasks;
 
 /// <summary>
 /// Response model for dispatch task endpoint.

@@ -1,8 +1,8 @@
 using Microsoft.EntityFrameworkCore;
 using Olbrasoft.VirtualAssistant.Data.Queries.TranscriptionCorrectionQueries;
-using VirtualAssistant.Data.Entities;
+using Olbrasoft.VirtualAssistant.Data.Entities;
 
-namespace VirtualAssistant.Data.EntityFrameworkCore.QueryHandlers.TranscriptionCorrectionQueryHandlers;
+namespace Olbrasoft.VirtualAssistant.Data.EntityFrameworkCore.QueryHandlers.TranscriptionCorrectionQueryHandlers;
 
 /// <summary>
 /// Handler for GetActiveTranscriptionCorrectionsQuery.

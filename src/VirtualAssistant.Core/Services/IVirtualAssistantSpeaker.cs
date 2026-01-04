@@ -1,6 +1,6 @@
-using VirtualAssistant.Core.Models;
+using Olbrasoft.VirtualAssistant.Core.Models;
 
-namespace VirtualAssistant.Core.Services;
+namespace Olbrasoft.VirtualAssistant.Core.Services;
 
 /// <summary>
 /// Single entry point for all TTS operations in VirtualAssistant.

@@ -1,6 +1,6 @@
-using VirtualAssistant.Core.Models;
+using Olbrasoft.VirtualAssistant.Core.Models;
 
-namespace VirtualAssistant.Core.Services;
+namespace Olbrasoft.VirtualAssistant.Core.Services;
 
 /// <summary>
 /// Service for tracking user's desktop context (workspace, focused window, active application).

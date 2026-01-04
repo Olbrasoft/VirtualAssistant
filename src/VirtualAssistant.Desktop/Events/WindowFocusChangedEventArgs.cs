@@ -1,6 +1,6 @@
-using VirtualAssistant.Desktop.Models;
+using Olbrasoft.VirtualAssistant.Desktop.Models;
 
-namespace VirtualAssistant.Desktop.Events;
+namespace Olbrasoft.VirtualAssistant.Desktop.Events;
 
 /// <summary>
 /// Event arguments for window focus change events.

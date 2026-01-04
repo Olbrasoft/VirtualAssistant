@@ -1,4 +1,4 @@
-namespace VirtualAssistant.Core.Services;
+namespace Olbrasoft.VirtualAssistant.Core.Services;
 
 /// <summary>
 /// Configuration options for Claude dispatch service.

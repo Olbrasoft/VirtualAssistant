@@ -1,7 +1,7 @@
 using Olbrasoft.VirtualAssistant.Data.Commands.WhisperTranscriptionCommands;
-using VirtualAssistant.Data.Entities;
+using Olbrasoft.VirtualAssistant.Data.Entities;
 
-namespace VirtualAssistant.Data.EntityFrameworkCore.CommandHandlers.WhisperTranscriptionCommandHandlers;
+namespace Olbrasoft.VirtualAssistant.Data.EntityFrameworkCore.CommandHandlers.WhisperTranscriptionCommandHandlers;
 
 /// <summary>
 /// Handler for SaveWhisperTranscriptionCommand.

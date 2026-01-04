@@ -1,6 +1,6 @@
 using Olbrasoft.VirtualAssistant.Core.Utilities;
 
-namespace VirtualAssistant.Core.Tests.Utilities;
+namespace Olbrasoft.VirtualAssistant.Core.Tests.Utilities;
 
 public class RateLimitParserTests
 {

@@ -1,10 +1,10 @@
 using Microsoft.Extensions.Logging;
 using Moq;
 using Olbrasoft.VirtualAssistant.Service.Services;
-using VirtualAssistant.Core.Services;
-using VirtualAssistant.Data.Enums;
+using Olbrasoft.VirtualAssistant.Core.Services;
+using Olbrasoft.VirtualAssistant.Data.Enums;
 
-namespace VirtualAssistant.Service.Tests.Services;
+namespace Olbrasoft.VirtualAssistant.Service.Tests.Services;
 
 /// <summary>
 /// Unit tests for <see cref="NotificationTracker"/>.

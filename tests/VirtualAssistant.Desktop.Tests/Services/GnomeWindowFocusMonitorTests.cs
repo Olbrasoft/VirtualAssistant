@@ -1,10 +1,10 @@
 using Microsoft.Extensions.Logging;
 using Moq;
-using VirtualAssistant.Desktop.Events;
-using VirtualAssistant.Desktop.Models;
-using VirtualAssistant.Desktop.Services;
+using Olbrasoft.VirtualAssistant.Desktop.Events;
+using Olbrasoft.VirtualAssistant.Desktop.Models;
+using Olbrasoft.VirtualAssistant.Desktop.Services;
 
-namespace VirtualAssistant.Desktop.Tests.Services;
+namespace Olbrasoft.VirtualAssistant.Desktop.Tests.Services;
 
 public class GnomeWindowFocusMonitorTests
 {

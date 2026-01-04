@@ -1,4 +1,4 @@
-namespace VirtualAssistant.GitHub.Services;
+namespace Olbrasoft.VirtualAssistant.GitHub.Services;
 
 /// <summary>
 /// Service for ensuring GitHub repository and issue references exist in the database.

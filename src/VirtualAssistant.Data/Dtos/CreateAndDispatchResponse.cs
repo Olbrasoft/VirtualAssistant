@@ -1,4 +1,4 @@
-namespace VirtualAssistant.Data.Dtos;
+namespace Olbrasoft.VirtualAssistant.Data.Dtos;
 
 /// <summary>
 /// Response from unified task create-and-dispatch operation.

@@ -1,4 +1,4 @@
-namespace VirtualAssistant.Data.Dtos.Common;
+namespace Olbrasoft.VirtualAssistant.Data.Dtos.Common;
 
 /// <summary>
 /// Error response model.

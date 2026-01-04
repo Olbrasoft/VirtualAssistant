@@ -1,4 +1,4 @@
-namespace VirtualAssistant.Data.Dtos;
+namespace Olbrasoft.VirtualAssistant.Data.Dtos;
 
 /// <summary>
 /// Result of dispatching a task to an agent.

@@ -1,4 +1,4 @@
-namespace VirtualAssistant.Data.Dtos.Tasks;
+namespace Olbrasoft.VirtualAssistant.Data.Dtos.Tasks;
 
 /// <summary>
 /// Response model for fetch task endpoint.

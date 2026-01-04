@@ -1,6 +1,6 @@
-using VirtualAssistant.Core.Models;
+using Olbrasoft.VirtualAssistant.Core.Models;
 
-namespace VirtualAssistant.Desktop.Configuration;
+namespace Olbrasoft.VirtualAssistant.Desktop.Configuration;
 
 /// <summary>
 /// Configuration options for context-aware notification filtering.

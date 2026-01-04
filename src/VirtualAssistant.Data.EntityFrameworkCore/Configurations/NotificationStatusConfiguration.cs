@@ -1,9 +1,9 @@
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Metadata.Builders;
-using VirtualAssistant.Data.Entities;
-using VirtualAssistant.Data.Enums;
+using Olbrasoft.VirtualAssistant.Data.Entities;
+using Olbrasoft.VirtualAssistant.Data.Enums;
 
-namespace VirtualAssistant.Data.EntityFrameworkCore.Configurations;
+namespace Olbrasoft.VirtualAssistant.Data.EntityFrameworkCore.Configurations;
 
 /// <summary>
 /// EF Core configuration for NotificationStatus entity.

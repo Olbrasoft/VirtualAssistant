@@ -1,8 +1,8 @@
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Metadata.Builders;
-using VirtualAssistant.Data.Entities;
+using Olbrasoft.VirtualAssistant.Data.Entities;
 
-namespace VirtualAssistant.Data.EntityFrameworkCore.Configurations;
+namespace Olbrasoft.VirtualAssistant.Data.EntityFrameworkCore.Configurations;
 
 /// <summary>
 /// EF Core configuration for Notification entity.

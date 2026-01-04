@@ -23,9 +23,8 @@ using Olbrasoft.VirtualAssistant.Voice.Pipeline.Stages;
 using Olbrasoft.VirtualAssistant.Voice.Services;
 using Olbrasoft.VirtualAssistant.Voice.Services.EchoDetection;
 using Olbrasoft.VirtualAssistant.Voice.Similarity;
-using VirtualAssistant.Core.Services;
-using VirtualAssistant.Data;
-using VirtualAssistant.Data.EntityFrameworkCore;
+using Olbrasoft.VirtualAssistant.Data;
+using Olbrasoft.VirtualAssistant.Data.EntityFrameworkCore;
 using OpenCode.DotnetClient;
 
 namespace Olbrasoft.VirtualAssistant.Service.Extensions;

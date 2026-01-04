@@ -3,9 +3,9 @@ using Microsoft.Extensions.Logging;
 using Moq;
 using Olbrasoft.VirtualAssistant.Service.Controllers;
 using Olbrasoft.VirtualAssistant.Voice.Services;
-using VirtualAssistant.Core.Services;
+using Olbrasoft.VirtualAssistant.Core.Services;
 
-namespace VirtualAssistant.Service.Tests.Controllers;
+namespace Olbrasoft.VirtualAssistant.Service.Tests.Controllers;
 
 public class SpeechLockControllerTests
 {

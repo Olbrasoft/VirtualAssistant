@@ -1,10 +1,10 @@
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
 using Moq;
-using VirtualAssistant.GitHub.Configuration;
-using VirtualAssistant.GitHub.Services;
+using Olbrasoft.VirtualAssistant.GitHub.Configuration;
+using Olbrasoft.VirtualAssistant.GitHub.Services;
 
-namespace VirtualAssistant.GitHub.Tests;
+namespace Olbrasoft.VirtualAssistant.GitHub.Tests;
 
 public class GitHubIssueStatusServiceTests
 {

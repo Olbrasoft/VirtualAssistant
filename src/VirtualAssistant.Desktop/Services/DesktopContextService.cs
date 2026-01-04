@@ -1,9 +1,9 @@
 using System.Reactive.Subjects;
 using Microsoft.Extensions.Logging;
-using VirtualAssistant.Core.Models;
-using VirtualAssistant.Core.Services;
+using Olbrasoft.VirtualAssistant.Core.Models;
+using Olbrasoft.VirtualAssistant.Core.Services;
 
-namespace VirtualAssistant.Desktop.Services;
+namespace Olbrasoft.VirtualAssistant.Desktop.Services;
 
 /// <summary>
 /// Service for tracking user's desktop context using DesktopMonitorBackgroundService.

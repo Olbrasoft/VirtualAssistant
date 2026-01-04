@@ -3,10 +3,10 @@ using Microsoft.Extensions.Options;
 using Moq;
 using Olbrasoft.VirtualAssistant.Voice.Configuration;
 using Olbrasoft.VirtualAssistant.Voice.Services;
-using VirtualAssistant.Core.Models;
-using VirtualAssistant.Core.Services;
+using Olbrasoft.VirtualAssistant.Core.Models;
+using Olbrasoft.VirtualAssistant.Core.Services;
 
-namespace VirtualAssistant.Voice.Tests.Services;
+namespace Olbrasoft.VirtualAssistant.Voice.Tests.Services;
 
 /// <summary>
 /// Unit tests for NotificationBatchingService.

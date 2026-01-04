@@ -1,4 +1,4 @@
-namespace VirtualAssistant.LlmChain;
+namespace Olbrasoft.VirtualAssistant.LlmChain;
 
 /// <summary>
 /// Interface for the LLM chain client that provides resilient LLM completions

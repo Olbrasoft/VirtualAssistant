@@ -1,4 +1,4 @@
-namespace VirtualAssistant.Desktop.Models;
+namespace Olbrasoft.VirtualAssistant.Desktop.Models;
 
 /// <summary>
 /// Represents information about a window.

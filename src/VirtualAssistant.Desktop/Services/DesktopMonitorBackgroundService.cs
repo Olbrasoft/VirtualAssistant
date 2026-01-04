@@ -2,10 +2,10 @@ using System.Reactive.Subjects;
 using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Logging;
 using Tmds.DBus;
-using VirtualAssistant.Core.Models;
-using VirtualAssistant.Desktop.DBus;
+using Olbrasoft.VirtualAssistant.Core.Models;
+using Olbrasoft.VirtualAssistant.Desktop.DBus;
 
-namespace VirtualAssistant.Desktop.Services;
+namespace Olbrasoft.VirtualAssistant.Desktop.Services;
 
 /// <summary>
 /// Background service for monitoring desktop state via D-Bus.

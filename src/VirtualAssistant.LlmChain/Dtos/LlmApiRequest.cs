@@ -1,6 +1,6 @@
 using System.Text.Json.Serialization;
 
-namespace VirtualAssistant.LlmChain.Dtos;
+namespace Olbrasoft.VirtualAssistant.LlmChain.Dtos;
 
 /// <summary>
 /// Request model for LLM API calls.

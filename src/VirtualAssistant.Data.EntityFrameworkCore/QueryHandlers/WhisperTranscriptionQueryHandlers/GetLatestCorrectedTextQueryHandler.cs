@@ -1,8 +1,8 @@
 using Microsoft.EntityFrameworkCore;
 using Olbrasoft.VirtualAssistant.Data.Queries.WhisperTranscriptionQueries;
-using VirtualAssistant.Data.Entities;
+using Olbrasoft.VirtualAssistant.Data.Entities;
 
-namespace VirtualAssistant.Data.EntityFrameworkCore.QueryHandlers.WhisperTranscriptionQueryHandlers;
+namespace Olbrasoft.VirtualAssistant.Data.EntityFrameworkCore.QueryHandlers.WhisperTranscriptionQueryHandlers;
 
 /// <summary>
 /// Handler for GetLatestCorrectedTextQuery.

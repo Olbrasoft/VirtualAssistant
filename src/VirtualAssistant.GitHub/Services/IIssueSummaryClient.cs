@@ -1,4 +1,4 @@
-namespace VirtualAssistant.GitHub.Services;
+namespace Olbrasoft.VirtualAssistant.GitHub.Services;
 
 /// <summary>
 /// Client for fetching translated issue summaries from the GitHub.Issues API.

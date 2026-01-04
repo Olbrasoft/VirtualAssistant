@@ -3,7 +3,7 @@ using Microsoft.Extensions.Logging;
 using Olbrasoft.Data.Cqrs;
 using Olbrasoft.VirtualAssistant.Data.Commands.TranscriptionCorrectionCommands;
 using Olbrasoft.VirtualAssistant.Data.Queries.TranscriptionCorrectionQueries;
-using VirtualAssistant.Data.Entities;
+using Olbrasoft.VirtualAssistant.Data.Entities;
 
 namespace Olbrasoft.VirtualAssistant.Voice.Filters;
 

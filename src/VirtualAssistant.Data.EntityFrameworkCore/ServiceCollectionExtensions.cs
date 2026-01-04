@@ -3,7 +3,7 @@ using Microsoft.Extensions.DependencyInjection;
 using Olbrasoft.Data.Cqrs;
 using Pgvector.EntityFrameworkCore;
 
-namespace VirtualAssistant.Data.EntityFrameworkCore;
+namespace Olbrasoft.VirtualAssistant.Data.EntityFrameworkCore;
 
 /// <summary>
 /// Extension methods for registering VirtualAssistant data services in DI container.

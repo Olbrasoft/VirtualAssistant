@@ -1,7 +1,7 @@
 using Microsoft.AspNetCore.Mvc;
 using Olbrasoft.VirtualAssistant.Voice.Services;
-using VirtualAssistant.Core.Services;
-using VirtualAssistant.Data.Dtos.Common;
+using Olbrasoft.VirtualAssistant.Core.Services;
+using Olbrasoft.VirtualAssistant.Data.Dtos.Common;
 
 namespace Olbrasoft.VirtualAssistant.Service.Controllers;
 

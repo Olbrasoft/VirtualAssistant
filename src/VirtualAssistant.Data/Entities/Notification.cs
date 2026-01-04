@@ -1,6 +1,6 @@
 using Olbrasoft.Data.Entities.Abstractions;
 
-namespace VirtualAssistant.Data.Entities;
+namespace Olbrasoft.VirtualAssistant.Data.Entities;
 
 /// <summary>
 /// Represents a notification from an agent stored in the database.

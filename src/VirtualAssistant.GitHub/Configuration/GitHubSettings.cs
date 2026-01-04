@@ -1,4 +1,4 @@
-namespace VirtualAssistant.GitHub.Configuration;
+namespace Olbrasoft.VirtualAssistant.GitHub.Configuration;
 
 /// <summary>
 /// Configuration settings for GitHub integration.

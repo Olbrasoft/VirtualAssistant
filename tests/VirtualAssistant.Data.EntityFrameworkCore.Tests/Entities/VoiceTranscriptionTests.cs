@@ -1,6 +1,6 @@
-using VirtualAssistant.Data.Entities;
+using Olbrasoft.VirtualAssistant.Data.Entities;
 
-namespace VirtualAssistant.Data.EntityFrameworkCore.Tests.Entities;
+namespace Olbrasoft.VirtualAssistant.Data.EntityFrameworkCore.Tests.Entities;
 
 public class VoiceTranscriptionTests
 {

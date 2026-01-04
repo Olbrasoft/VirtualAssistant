@@ -1,6 +1,6 @@
 using System.Text.Json.Serialization;
 
-namespace VirtualAssistant.Data.Dtos;
+namespace Olbrasoft.VirtualAssistant.Data.Dtos;
 
 /// <summary>
 /// Request model for POST /api/claude/tasks/{id}/complete endpoint.

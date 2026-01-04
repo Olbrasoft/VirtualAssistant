@@ -1,9 +1,9 @@
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
 using Octokit;
-using VirtualAssistant.GitHub.Configuration;
+using Olbrasoft.VirtualAssistant.GitHub.Configuration;
 
-namespace VirtualAssistant.GitHub.Services;
+namespace Olbrasoft.VirtualAssistant.GitHub.Services;
 
 /// <summary>
 /// Implementation of GitHub issue status service using Octokit.NET.

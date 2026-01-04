@@ -1,5 +1,5 @@
 using Olbrasoft.Data.Cqrs;
-using VirtualAssistant.Data.Entities;
+using Olbrasoft.VirtualAssistant.Data.Entities;
 
 namespace Olbrasoft.VirtualAssistant.Data.Commands.WhisperTranscriptionCommands;
 

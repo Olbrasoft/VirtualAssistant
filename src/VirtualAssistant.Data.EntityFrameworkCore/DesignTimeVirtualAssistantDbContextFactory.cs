@@ -2,7 +2,7 @@ using Microsoft.EntityFrameworkCore.Design;
 using Microsoft.Extensions.Configuration;
 using Pgvector.EntityFrameworkCore;
 
-namespace VirtualAssistant.Data.EntityFrameworkCore;
+namespace Olbrasoft.VirtualAssistant.Data.EntityFrameworkCore;
 
 /// <summary>
 /// Factory for creating VirtualAssistantDbContext at design time (for EF Core migrations).

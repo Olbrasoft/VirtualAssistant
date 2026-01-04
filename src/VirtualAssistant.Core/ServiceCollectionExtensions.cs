@@ -1,7 +1,7 @@
 using Microsoft.Extensions.DependencyInjection;
-using VirtualAssistant.Core.Services;
+using Olbrasoft.VirtualAssistant.Core.Services;
 
-namespace VirtualAssistant.Core;
+namespace Olbrasoft.VirtualAssistant.Core;
 
 /// <summary>
 /// Extension methods for registering VirtualAssistant.Core services.

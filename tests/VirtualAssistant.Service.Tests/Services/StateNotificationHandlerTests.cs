@@ -6,7 +6,7 @@ using Olbrasoft.VirtualAssistant.Service.Services;
 using Olbrasoft.VirtualAssistant.Service.Workers;
 using Olbrasoft.VirtualAssistant.Voice.StateMachine;
 
-namespace VirtualAssistant.Service.Tests.Services;
+namespace Olbrasoft.VirtualAssistant.Service.Tests.Services;
 
 /// <summary>
 /// Unit tests for <see cref="StateNotificationHandler"/>.

@@ -2,8 +2,8 @@ using System.Collections.Concurrent;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
 using Olbrasoft.VirtualAssistant.Voice.Configuration;
-using VirtualAssistant.Core.Services;
-using VirtualAssistant.Data.Enums;
+using Olbrasoft.VirtualAssistant.Core.Services;
+using Olbrasoft.VirtualAssistant.Data.Enums;
 
 namespace Olbrasoft.VirtualAssistant.Voice.Services;
 

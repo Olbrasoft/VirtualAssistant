@@ -1,4 +1,4 @@
-namespace VirtualAssistant.Core.Models;
+namespace Olbrasoft.VirtualAssistant.Core.Models;
 
 /// <summary>
 /// Represents current desktop context (workspace, focused window, active application).

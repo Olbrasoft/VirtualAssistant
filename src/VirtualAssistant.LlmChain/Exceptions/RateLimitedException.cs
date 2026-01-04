@@ -1,4 +1,4 @@
-namespace VirtualAssistant.LlmChain.Exceptions;
+namespace Olbrasoft.VirtualAssistant.LlmChain.Exceptions;
 
 /// <summary>
 /// Exception thrown when a provider returns 429 (rate limited).

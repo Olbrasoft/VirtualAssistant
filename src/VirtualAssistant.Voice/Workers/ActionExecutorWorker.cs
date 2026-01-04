@@ -5,7 +5,6 @@ using Olbrasoft.VirtualAssistant.Core.Events;
 using Olbrasoft.VirtualAssistant.Core.Services;
 using Olbrasoft.VirtualAssistant.Core.TextInput;
 using Olbrasoft.VirtualAssistant.Voice.Services;
-using VirtualAssistant.Core.Services;
 
 namespace Olbrasoft.VirtualAssistant.Voice.Workers;
 

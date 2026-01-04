@@ -2,7 +2,6 @@ using Microsoft.Extensions.Logging;
 using Olbrasoft.VirtualAssistant.Core.Enums;
 using Olbrasoft.VirtualAssistant.Core.Services;
 using Olbrasoft.VirtualAssistant.Core.TextInput;
-using VirtualAssistant.Core.Services;
 
 namespace Olbrasoft.VirtualAssistant.Voice.Services;
 

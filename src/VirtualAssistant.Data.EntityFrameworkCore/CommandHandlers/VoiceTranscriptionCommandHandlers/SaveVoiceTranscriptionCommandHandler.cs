@@ -1,7 +1,7 @@
 using Olbrasoft.VirtualAssistant.Data.Commands.VoiceTranscriptionCommands;
-using VirtualAssistant.Data.Entities;
+using Olbrasoft.VirtualAssistant.Data.Entities;
 
-namespace VirtualAssistant.Data.EntityFrameworkCore.CommandHandlers.VoiceTranscriptionCommandHandlers;
+namespace Olbrasoft.VirtualAssistant.Data.EntityFrameworkCore.CommandHandlers.VoiceTranscriptionCommandHandlers;
 
 /// <summary>
 /// Handler for SaveVoiceTranscriptionCommand.

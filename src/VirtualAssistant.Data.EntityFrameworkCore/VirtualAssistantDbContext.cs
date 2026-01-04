@@ -1,4 +1,4 @@
-namespace VirtualAssistant.Data.EntityFrameworkCore;
+namespace Olbrasoft.VirtualAssistant.Data.EntityFrameworkCore;
 
 /// <summary>
 /// Database context for VirtualAssistant using PostgreSQL.

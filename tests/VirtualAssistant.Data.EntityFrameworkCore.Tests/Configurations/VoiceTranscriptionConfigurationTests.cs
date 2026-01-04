@@ -1,7 +1,7 @@
 using Microsoft.EntityFrameworkCore;
-using VirtualAssistant.Data.Entities;
+using Olbrasoft.VirtualAssistant.Data.Entities;
 
-namespace VirtualAssistant.Data.EntityFrameworkCore.Tests.Configurations;
+namespace Olbrasoft.VirtualAssistant.Data.EntityFrameworkCore.Tests.Configurations;
 
 public class VoiceTranscriptionConfigurationTests
 {

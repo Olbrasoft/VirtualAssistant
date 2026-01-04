@@ -1,6 +1,5 @@
 using Microsoft.Extensions.Logging;
 using Olbrasoft.VirtualAssistant.Core.Services;
-using VirtualAssistant.Core.Services;
 
 namespace Olbrasoft.VirtualAssistant.Voice.Pipeline.Stages;
 

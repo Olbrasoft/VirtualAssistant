@@ -1,6 +1,6 @@
 using Olbrasoft.Data.Entities.Abstractions;
 
-namespace VirtualAssistant.Data.Entities;
+namespace Olbrasoft.VirtualAssistant.Data.Entities;
 
 /// <summary>
 /// Represents a registered agent worker in the system.
