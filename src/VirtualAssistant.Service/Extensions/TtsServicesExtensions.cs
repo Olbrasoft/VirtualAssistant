@@ -10,7 +10,6 @@ using Olbrasoft.VirtualAssistant.Core.Services;
 using Olbrasoft.VirtualAssistant.Service.Services;
 using Olbrasoft.VirtualAssistant.Voice.Configuration;
 using Olbrasoft.VirtualAssistant.Voice.Services;
-using Olbrasoft.VirtualAssistant.Core.Services;
 using Olbrasoft.VirtualAssistant.LlmChain;
 using Olbrasoft.TextToSpeech.Providers.Extensions;
 using Olbrasoft.TextToSpeech.Providers.Piper.Extensions;

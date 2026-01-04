@@ -5,7 +5,6 @@ using Olbrasoft.VirtualAssistant.Core.Services;
 using Olbrasoft.VirtualAssistant.Core.TextInput;
 using Olbrasoft.VirtualAssistant.Voice.Dtos;
 using Olbrasoft.VirtualAssistant.Voice.Services;
-using Olbrasoft.VirtualAssistant.Core.Services;
 
 namespace Olbrasoft.VirtualAssistant.Voice.Tests.Services;
 
