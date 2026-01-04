@@ -99,6 +99,13 @@ public static class DesktopServiceExtensions
         // Register DesktopContextService
         services.AddSingleton<VirtualAssistant.Core.Services.IDesktopContextService, Services.DesktopContextService>();
 
+        // Configure context mapping
+        services.Configure<Configuration.ContextMappingOptions>(
+            configuration.GetSection(Configuration.ContextMappingOptions.SectionName));
+
+        // Register ContextPromptSelector
+        services.AddSingleton<VirtualAssistant.Core.Services.IContextPromptSelector, Services.ContextPromptSelector>();
+
         return services;
     }
 
