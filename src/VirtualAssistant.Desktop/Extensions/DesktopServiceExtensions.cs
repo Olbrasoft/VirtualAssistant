@@ -36,58 +36,23 @@ public static class DesktopServiceExtensions
             return services;
         }
 
-        // Register LinuxDesktop services with graceful degradation
-        services.AddSingleton<IWindowService>(sp =>
+        // Register FocusTrackerService (focus-tracker GNOME extension integration)
+        // Uses lazy initialization - D-Bus connection created on first use
+        // Always returns instance - graceful degradation handled by FocusTrackerService itself
+        // Initialization errors caught on first use and tracked via _initializationFailed flag
+        services.AddSingleton<Services.IFocusTrackerService>(sp =>
         {
-            var logger = sp.GetRequiredService<ILogger<WindowService>>();
-            try
-            {
-                // GetAwaiter().GetResult() is safe here because:
-                // 1. This is a console app without SynchronizationContext (no deadlock risk)
-                // 2. DI registration requires synchronous factory methods
-                // 3. LinuxDesktop services need async D-Bus initialization
-                return WindowService.CreateAsync().GetAwaiter().GetResult();
-            }
-            catch (Exception ex)
-            {
-                if (options.GracefulDegradation)
-                {
-                    logger.LogWarning(ex,
-                        "Failed to initialize WindowService (GNOME extensions missing?). " +
-                        "Desktop integration will be limited.");
-                    return new NullWindowService();
-                }
-                throw;
-            }
+            var logger = sp.GetRequiredService<ILogger<Services.FocusTrackerService>>();
+            return new Services.FocusTrackerService(logger);
         });
 
-        services.AddSingleton<IWorkspaceService>(sp =>
-        {
-            var logger = sp.GetRequiredService<ILogger<WorkspaceService>>();
-            try
-            {
-                // Safe in console app context (see WindowService comment above)
-                return WorkspaceService.CreateAsync().GetAwaiter().GetResult();
-            }
-            catch (Exception ex)
-            {
-                if (options.GracefulDegradation)
-                {
-                    logger.LogWarning(ex,
-                        "Failed to initialize WorkspaceService (GNOME extensions missing?). " +
-                        "Workspace switching will be unavailable.");
-                    return new NullWorkspaceService();
-                }
-                throw;
-            }
-        });
-
+        // Register IdleService (still useful for idle detection)
         services.AddSingleton<IIdleService>(sp =>
         {
             var logger = sp.GetRequiredService<ILogger<IdleMonitorService>>();
             try
             {
-                // Safe in console app context (see WindowService comment above)
+                // Synchronous initialization safe in DI registration context
                 return IdleMonitorService.CreateAsync().GetAwaiter().GetResult();
             }
             catch (Exception ex)
@@ -102,7 +67,7 @@ public static class DesktopServiceExtensions
             }
         });
 
-        // Register DesktopContextService
+        // Register DesktopContextService (uses FocusTrackerService)
         services.AddSingleton<VirtualAssistant.Core.Services.IDesktopContextService, Services.DesktopContextService>();
 
         // Configure context mapping
@@ -120,80 +85,6 @@ public static class DesktopServiceExtensions
         services.AddSingleton<VirtualAssistant.Core.Services.INotificationFilter, Services.ContextAwareNotificationFilter>();
 
         return services;
-    }
-
-    /// <summary>
-    /// Null object pattern implementation for IWindowService when D-Bus is unavailable.
-    /// </summary>
-    private class NullWindowService : IWindowService
-    {
-        // IWindowQueryService
-        public Task<IReadOnlyList<WindowInfo>> GetWindowsAsync(CancellationToken cancellationToken = default) =>
-            Task.FromResult<IReadOnlyList<WindowInfo>>(Array.Empty<WindowInfo>());
-
-        public Task<WindowDetails?> GetWindowDetailsAsync(uint windowId, CancellationToken cancellationToken = default) =>
-            Task.FromResult<WindowDetails?>(null);
-
-        public Task<WindowInfo?> GetFocusedWindowAsync(CancellationToken cancellationToken = default) =>
-            Task.FromResult<WindowInfo?>(null);
-
-        public Task<string?> GetWindowTitleAsync(uint windowId, CancellationToken cancellationToken = default) =>
-            Task.FromResult<string?>(null);
-
-        // IWindowActionService
-        public Task ActivateWindowAsync(uint windowId, CancellationToken cancellationToken = default) =>
-            Task.CompletedTask;
-
-        public Task CloseWindowAsync(uint windowId, CancellationToken cancellationToken = default) =>
-            Task.CompletedTask;
-
-        public Task MaximizeWindowAsync(uint windowId, CancellationToken cancellationToken = default) =>
-            Task.CompletedTask;
-
-        public Task MinimizeWindowAsync(uint windowId, CancellationToken cancellationToken = default) =>
-            Task.CompletedTask;
-
-        public Task UnmaximizeWindowAsync(uint windowId, CancellationToken cancellationToken = default) =>
-            Task.CompletedTask;
-
-        public Task UnminimizeWindowAsync(uint windowId, CancellationToken cancellationToken = default) =>
-            Task.CompletedTask;
-
-        // IWindowLayoutService
-        public Task MoveWindowAsync(uint windowId, int x, int y, CancellationToken cancellationToken = default) =>
-            Task.CompletedTask;
-
-        public Task ResizeWindowAsync(uint windowId, int width, int height, CancellationToken cancellationToken = default) =>
-            Task.CompletedTask;
-
-        // IWindowWorkspaceService
-        public Task MoveWindowToWorkspaceAsync(uint windowId, int workspaceIndex, CancellationToken cancellationToken = default) =>
-            Task.CompletedTask;
-
-        public ValueTask DisposeAsync() => ValueTask.CompletedTask;
-    }
-
-    /// <summary>
-    /// Null object pattern implementation for IWorkspaceService when D-Bus is unavailable.
-    /// </summary>
-    private class NullWorkspaceService : IWorkspaceService
-    {
-        public Task<IReadOnlyList<WorkspaceInfo>> GetWorkspacesAsync(CancellationToken cancellationToken = default) =>
-            Task.FromResult<IReadOnlyList<WorkspaceInfo>>(Array.Empty<WorkspaceInfo>());
-
-        public Task<int> GetWorkspaceCountAsync(CancellationToken cancellationToken = default) =>
-            Task.FromResult(1);
-
-        public Task<int> GetActiveWorkspaceAsync(CancellationToken cancellationToken = default) =>
-            Task.FromResult(0);
-
-        public Task SwitchWorkspaceAsync(int index, CancellationToken cancellationToken = default) =>
-            Task.CompletedTask;
-
-        public Task<IReadOnlyList<WindowInfo>> GetWorkspaceWindowsAsync(int index, CancellationToken cancellationToken = default) =>
-            Task.FromResult<IReadOnlyList<WindowInfo>>(Array.Empty<WindowInfo>());
-
-        public ValueTask DisposeAsync() => ValueTask.CompletedTask;
     }
 
     /// <summary>

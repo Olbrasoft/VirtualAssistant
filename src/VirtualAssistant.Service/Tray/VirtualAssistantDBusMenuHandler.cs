@@ -14,7 +14,7 @@ namespace Olbrasoft.VirtualAssistant.Service.Tray;
 /// </summary>
 internal class VirtualAssistantDBusMenuHandler : ComCanonicalDbusmenuHandler, SystemTray.Linux.ITrayMenuHandler, Core.Services.ITrayMenuHandler, IServiceStatusUpdater, IDisposable
 {
-    private Connection? _connection;
+    private Tmds.DBus.Protocol.Connection? _connection;
     private readonly ILogger _logger;
     private PathHandler? _menuPathHandler;
 
@@ -121,13 +121,13 @@ internal class VirtualAssistantDBusMenuHandler : ComCanonicalDbusmenuHandler, Sy
         _eventRouter.OnTtsMuteToggleRequested += _ttsMuteToggleHandler;
     }
 
-    public override Connection Connection => _connection ?? throw new InvalidOperationException("Connection not set. Call RegisterWithDbus first.");
+    public override global::Tmds.DBus.Protocol.Connection Connection => _connection ?? throw new InvalidOperationException("Connection not set. Call RegisterWithDbus first.");
 
     /// <summary>
     /// Registers the menu handler with D-Bus connection.
     /// Creates a PathHandler in this assembly and registers itself.
     /// </summary>
-    public void RegisterWithDbus(Connection connection)
+    public void RegisterWithDbus(Tmds.DBus.Protocol.Connection connection)
     {
         _connection = connection ?? throw new ArgumentNullException(nameof(connection));
 
@@ -154,7 +154,7 @@ internal class VirtualAssistantDBusMenuHandler : ComCanonicalDbusmenuHandler, Sy
     /// <summary>
     /// Unregisters the menu handler from D-Bus connection.
     /// </summary>
-    public void UnregisterFromDbus(Connection connection)
+    public void UnregisterFromDbus(Tmds.DBus.Protocol.Connection connection)
     {
         if (_menuPathHandler is not null)
         {

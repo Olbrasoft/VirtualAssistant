@@ -30,3 +30,20 @@ public enum ChangeType
     WindowFocusChanged,
     ApplicationChanged
 }
+
+/// <summary>
+/// Event args for workspace change events from D-Bus signals.
+/// </summary>
+public record WorkspaceChangedEventArgs(
+    int NewIndex,
+    int TotalWorkspaces
+);
+
+/// <summary>
+/// Event args for focus change events from D-Bus signals.
+/// </summary>
+public record FocusChangedEventArgs(
+    string WindowTitle,
+    string AppId,
+    string WmClass
+);

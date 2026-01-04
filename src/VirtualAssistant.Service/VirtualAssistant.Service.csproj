@@ -53,6 +53,7 @@
       <Aliases>EdgeTtsWebSocket</Aliases>
     </PackageReference>
     <PackageReference Include="SkiaSharp.NativeAssets.Linux" Version="3.119.1" />
+    <PackageReference Include="Tmds.DBus.Protocol" Version="0.22.0" />
     <PackageReference Include="Tmds.DBus.SourceGenerator" Version="0.0.21" PrivateAssets="all" />
   </ItemGroup>
 
