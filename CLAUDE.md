@@ -238,6 +238,34 @@ If GNOME extensions are not available:
 journalctl --user -u virtual-assistant.service -f
 ```
 
+## Desktop Monitor Web UI
+
+**Live dashboard** for monitoring desktop context changes in real-time.
+
+**Access:** `http://localhost:5055/desktop-monitor/`
+
+**Features:**
+- ✅ Real-time workspace/window/app tracking via SignalR
+- ✅ VS Code-like dark theme
+- ✅ Color-coded event log (workspace changes, focus changes)
+- ✅ Auto-reconnect on connection loss
+- ✅ Scrollable log with 500-entry limit
+
+**Technology:**
+- SignalR Hub: `/hub/desktop-monitor`
+- CDN: SignalR client 8.0.7 (jsdelivr)
+- Static files: served from `wwwroot/desktop-monitor/`
+
+**Events broadcasted:**
+- `WorkspaceChanged(newIndex, totalWorkspaces)` - Workspace switch
+- `FocusChanged(windowTitle, appId, wmClass)` - Window/app focus
+- `LogMessage(message)` - Detailed change log
+
+**Architecture:**
+- `DesktopMonitorHub` - SignalR hub endpoint
+- `DesktopMonitorBroadcastWorker` - Background worker subscribing to `DesktopContextService.ContextChanges`
+- `index.html` - Client-side dashboard
+
 ## Key API Endpoints
 
 - `/api/github/search?q=...` - Semantic issue search
@@ -245,6 +273,7 @@ journalctl --user -u virtual-assistant.service -f
 - `/api/tasks/create` - Task queue (X-Agent-Name header)
 - `/api/tts/speak` - Text-to-speech
 - `/health` - Health check
+- `/hub/desktop-monitor` - Desktop Monitor SignalR hub
 
 ## Configuration
 
