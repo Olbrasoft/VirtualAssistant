@@ -95,13 +95,19 @@ journalctl --user -u virtual-assistant.service -n 50
 
 ## Architecture
 
-Clean Architecture with CQRS pattern:
+Clean Architecture with Repository + Service pattern:
 - **VirtualAssistant.Service** - ASP.NET Core main service (port 5055)
-- **VirtualAssistant.Core** - Domain logic, AgentHubService, TaskDistributionService
+- **VirtualAssistant.Core** - Domain logic, business services (e.g., NotificationService and other business services)
 - **VirtualAssistant.Voice** - TTS/STT with **inline Whisper.net** (GPU-accelerated), VAD (Silero ONNX), LLM routing
-- **VirtualAssistant.Data** - Entities, DTOs
-- **VirtualAssistant.Data.EntityFrameworkCore** - DbContext, migrations (auto-apply on startup)
+- **VirtualAssistant.Data** - Entities, DTOs, repository interfaces
+- **VirtualAssistant.Data.EntityFrameworkCore** - DbContext, repository implementations, migrations (auto-apply on startup)
 - **VirtualAssistant.GitHub** - GitHub API, issue sync with embeddings
+
+**Pattern Details:**
+- **Repository Pattern:** Data access abstraction via `I*Repository` interfaces (e.g., `IWhisperTranscriptionRepository`)
+- **Service Layer:** Business logic in Core services, orchestrates repositories and domain logic
+- **Dependency Injection:** Services depend on repository interfaces, implementations registered in Service layer
+- **NOT CQRS:** No Command/Query separation, no MediatR, traditional N-tier architecture
 
 **Speech-to-Text (inline):**
 - `WhisperSpeechTranscriber` - Direct Whisper.net integration (no gRPC microservice)
