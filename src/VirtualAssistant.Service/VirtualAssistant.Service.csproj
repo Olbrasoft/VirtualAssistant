@@ -25,11 +25,11 @@
     <ProjectReference Include="..\VirtualAssistant.Core\VirtualAssistant.Core.csproj" />
     <ProjectReference Include="..\VirtualAssistant.LlmChain\VirtualAssistant.LlmChain.csproj" />
     <ProjectReference Include="..\VirtualAssistant.Desktop\VirtualAssistant.Desktop.csproj" />
-    <!-- Use ProjectReference instead of PackageReference to share generated D-Bus code -->
-    <ProjectReference Include="../../../SystemTray/src/SystemTray.Linux/SystemTray.Linux.csproj" />
   </ItemGroup>
 
   <ItemGroup>
+    <!-- SystemTray.Linux NuGet package (replaces ProjectReference for CI/CD compatibility) -->
+    <PackageReference Include="Olbrasoft.SystemTray.Linux" Version="*" />
     <None Update="appsettings.json">
       <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
     </None>
