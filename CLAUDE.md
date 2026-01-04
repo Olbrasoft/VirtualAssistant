@@ -95,19 +95,24 @@ journalctl --user -u virtual-assistant.service -n 50
 
 ## Architecture
 
-Clean Architecture with Repository + Service pattern:
+Clean Architecture with CQRS pattern (target architecture):
 - **VirtualAssistant.Service** - ASP.NET Core main service (port 5055)
-- **VirtualAssistant.Core** - Domain logic, business services (e.g., NotificationService and other business services)
+- **VirtualAssistant.Core** - Domain logic, business services orchestrating queries/commands
 - **VirtualAssistant.Voice** - TTS/STT with **inline Whisper.net** (GPU-accelerated), VAD (Silero ONNX), LLM routing
-- **VirtualAssistant.Data** - Entities, DTOs, repository interfaces
-- **VirtualAssistant.Data.EntityFrameworkCore** - DbContext, repository implementations, migrations (auto-apply on startup)
+- **VirtualAssistant.Data** - Entities, DTOs, Queries, Commands (CQRS definitions)
+- **VirtualAssistant.Data.EntityFrameworkCore** - DbContext, QueryHandlers, CommandHandlers, migrations (auto-apply on startup)
 - **VirtualAssistant.GitHub** - GitHub API, issue sync with embeddings
 
-**Pattern Details:**
-- **Repository Pattern:** Data access abstraction via `I*Repository` interfaces (e.g., `IWhisperTranscriptionRepository`)
-- **Service Layer:** Business logic in Core services, orchestrates repositories and domain logic
-- **Dependency Injection:** Services depend on repository interfaces, implementations registered in Service layer
-- **NOT CQRS:** No Command/Query separation, no MediatR, traditional N-tier architecture
+**CQRS Implementation Status:**
+- ⚠️ **Partial implementation** - Currently uses Repository pattern (transitional state)
+- ✅ Uses `Olbrasoft.Data.Cqrs.Common` infrastructure (IQueryProcessor, ICommandExecutor)
+- ❌ Missing: Queries/, Commands/ folders in `.Data` project
+- ❌ Missing: QueryHandlers/, CommandHandlers/ folders in `.Data.EntityFrameworkCore` project
+- 📋 **TODO:** Complete CQRS implementation following Blog application pattern (see engineering handbook)
+
+**Current Pattern (temporary):**
+- Uses `I*Repository` interfaces (e.g., `IWhisperTranscriptionRepository`) - to be replaced with CQRS
+- Service Layer orchestrates repositories - to be updated to use IQueryProcessor/ICommandExecutor
 
 **Speech-to-Text (inline):**
 - `WhisperSpeechTranscriber` - Direct Whisper.net integration (no gRPC microservice)
