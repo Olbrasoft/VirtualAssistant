@@ -6,6 +6,18 @@ namespace Olbrasoft.VirtualAssistant.Data.Commands.WhisperTranscriptionCommands;
 /// <summary>
 /// Command to save a new Whisper transcription to the database.
 /// </summary>
-/// <param name="Text">The transcribed text. Must not be null or empty.</param>
-/// <param name="DurationMs">Optional audio duration in milliseconds.</param>
-public record SaveWhisperTranscriptionCommand(string Text, int? DurationMs = null) : ICommand<WhisperTranscription>;
+public class SaveWhisperTranscriptionCommand : BaseCommand<WhisperTranscription>
+{
+    public SaveWhisperTranscriptionCommand(ICommandExecutor executor) : base(executor) { }
+    public SaveWhisperTranscriptionCommand(IMediator mediator) : base(mediator) { }
+
+    /// <summary>
+    /// The transcribed text. Must not be null or empty.
+    /// </summary>
+    public string Text { get; set; } = string.Empty;
+
+    /// <summary>
+    /// Optional audio duration in milliseconds.
+    /// </summary>
+    public int? DurationMs { get; set; }
+}
