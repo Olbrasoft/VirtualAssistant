@@ -17,6 +17,52 @@ cd ~/Olbrasoft/VirtualAssistant && ./deploy/deploy.sh /opt/olbrasoft/virtual-ass
 
 **Production path:** `/opt/olbrasoft/virtual-assistant/` (ONLY deployment target)
 
+## CI/CD & Automation
+
+### Pull Request Workflow
+
+**Automated Code Review:**
+- **GitHub Copilot** automatically reviews ALL pull requests
+- Reviews appear as PR comments within minutes of PR creation
+- Address ALL review comments before merging
+- Common issues flagged: threading, performance, null checks, documentation
+
+**IMPORTANT:** Never merge PR without addressing Copilot's code review comments!
+
+### Automated Deployment
+
+**GitHub Actions workflow** (`.github/workflows/deploy.yml`) triggers automatically:
+
+**Trigger:** Push to `main` branch (after PR merge)
+
+**Runs on:** Self-hosted GitHub Actions runner (`~/actions-runner`)
+
+**Pipeline steps:**
+1. ✅ Checkout code (VirtualAssistant + Data dependency)
+2. ✅ Restore dependencies (`dotnet restore`)
+3. ✅ Build (`dotnet build --configuration Release`)
+4. ✅ Run tests (`dotnet test` - must pass!)
+5. ✅ Publish to `/opt/olbrasoft/virtual-assistant/app/`
+6. ✅ Copy assets (icons, sounds) to deployment directory
+7. ✅ Restart `virtual-assistant.service`
+
+**Deployment is FULLY AUTOMATED** - no manual steps required after merge!
+
+**Monitor deployment:**
+```bash
+# Watch GitHub Actions runner logs
+journalctl -u actions.runner.* -f
+
+# Verify deployment success
+systemctl --user status virtual-assistant.service
+journalctl --user -u virtual-assistant.service -n 50
+```
+
+**Deployment fails if:**
+- Build fails
+- Tests fail
+- Secrets missing in `~/.config/systemd/user/virtual-assistant.env`
+
 ## Directory Structure
 
 ```
@@ -237,6 +283,12 @@ Priority order (circuit breaker pattern):
 - **Sub-issues** for task steps (NOT markdown checkboxes)
 - **Push frequently** after every significant change
 - **Never close issues** without user approval
+- **Pull Request workflow:**
+  1. Create feature branch from `main`
+  2. Push changes and create PR
+  3. Wait for automated Copilot code review
+  4. Address ALL review comments
+  5. Merge to `main` (triggers automatic deployment)
 
 ## Deployment Checklist
 
