@@ -2,7 +2,6 @@ using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.DependencyInjection;
 using Olbrasoft.Data.Cqrs;
 using Pgvector.EntityFrameworkCore;
-using VirtualAssistant.Data;
 
 namespace VirtualAssistant.Data.EntityFrameworkCore;
 
@@ -34,9 +33,6 @@ public static class ServiceCollectionExtensions
 
         // Register CQRS handlers from this assembly
         services.AddCqrs(lifetime, typeof(VirtualAssistantDbContext).Assembly);
-
-        // Register repositories
-        services.Add(new ServiceDescriptor(typeof(ITranscriptionRepository), typeof(TranscriptionRepository), lifetime));
 
         return services;
     }
