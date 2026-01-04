@@ -106,6 +106,13 @@ public static class DesktopServiceExtensions
         // Register ContextPromptSelector
         services.AddSingleton<VirtualAssistant.Core.Services.IContextPromptSelector, Services.ContextPromptSelector>();
 
+        // Configure notification filtering
+        services.Configure<Configuration.NotificationFilteringOptions>(
+            configuration.GetSection(Configuration.NotificationFilteringOptions.SectionName));
+
+        // Register NotificationFilter
+        services.AddSingleton<VirtualAssistant.Core.Services.INotificationFilter, Services.ContextAwareNotificationFilter>();
+
         return services;
     }
 
