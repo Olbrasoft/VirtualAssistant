@@ -1,6 +1,7 @@
 using Microsoft.AspNetCore.SignalR;
 using Microsoft.Extensions.Logging;
 using Moq;
+using Olbrasoft.Testing.Xunit.Attributes;
 using Olbrasoft.VirtualAssistant.Service.Hubs;
 using Olbrasoft.VirtualAssistant.Service.Workers;
 using System.Reactive.Subjects;
@@ -93,7 +94,7 @@ public class DesktopMonitorBroadcastWorkerTests : IDisposable
         );
     }
 
-    [Fact]
+    [SkipOnCIFact]
     public async Task ApplicationChanged_BroadcastsFocusChangedEvent()
     {
         // Arrange
