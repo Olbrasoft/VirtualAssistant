@@ -13,7 +13,7 @@ namespace VirtualAssistant.Desktop.Services;
 /// Subscribes to D-Bus signals (event-driven) and emits events via System.Reactive observables.
 /// Based on working implementation from LinuxDesktop.Monitor.Web.
 /// </summary>
-public class DesktopMonitorBackgroundService : BackgroundService
+public class DesktopMonitorBackgroundService : BackgroundService, IDesktopMonitorBackgroundService
 {
     private readonly ILogger<DesktopMonitorBackgroundService> _logger;
     private Connection? _connection;
@@ -36,28 +36,28 @@ public class DesktopMonitorBackgroundService : BackgroundService
     /// <summary>
     /// Observable stream of workspace change events.
     /// </summary>
-    public IObservable<WorkspaceChangedEventArgs> WorkspaceChanges => _workspaceChanges;
+    public virtual IObservable<WorkspaceChangedEventArgs> WorkspaceChanges => _workspaceChanges;
 
     /// <summary>
     /// Observable stream of focus change events.
     /// </summary>
-    public IObservable<FocusChangedEventArgs> FocusChanges => _focusChanges;
+    public virtual IObservable<FocusChangedEventArgs> FocusChanges => _focusChanges;
 
     /// <summary>
     /// Observable stream of complete desktop context updates.
     /// </summary>
-    public IObservable<DesktopContext> ContextUpdates => _contextUpdates;
+    public virtual IObservable<DesktopContext> ContextUpdates => _contextUpdates;
 
     /// <summary>
     /// Indicates whether desktop monitoring is available (GNOME extension installed).
     /// </summary>
-    public bool IsAvailable => _isAvailable;
+    public virtual bool IsAvailable => _isAvailable;
 
     /// <summary>
     /// Gets the current desktop context (cached from last update).
     /// Thread-safe via Interlocked read.
     /// </summary>
-    public DesktopContext? CurrentContext => Interlocked.CompareExchange(ref _currentContext, null, null);
+    public virtual DesktopContext? CurrentContext => Interlocked.CompareExchange(ref _currentContext, null, null);
 
     protected override async Task ExecuteAsync(CancellationToken stoppingToken)
     {

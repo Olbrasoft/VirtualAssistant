@@ -17,10 +17,9 @@ public class DesktopContextServiceTests : IAsyncDisposable
     }
 
     [Fact]
-    public async Task GetCurrentContextAsync_WithValidFocusTracker_ReturnsContext()
+    public async Task GetCurrentContextAsync_WithValidMonitor_ReturnsContext()
     {
         // Arrange
-        var focusTrackerMock = new Mock<IFocusTrackerService>();
         var expectedContext = new DesktopContext(
             CurrentWorkspace: 1,
             TotalWorkspaces: 4,
@@ -30,11 +29,14 @@ public class DesktopContextServiceTests : IAsyncDisposable
             Timestamp: DateTime.UtcNow
         );
 
-        focusTrackerMock.Setup(x => x.GetCurrentContextAsync(default))
-            .ReturnsAsync(expectedContext);
+        var contextSubject = new Subject<DesktopContext>();
+        var monitorMock = new Mock<IDesktopMonitorBackgroundService>();
+        monitorMock.Setup(x => x.CurrentContext).Returns(expectedContext);
+        monitorMock.Setup(x => x.IsAvailable).Returns(true);
+        monitorMock.Setup(x => x.ContextUpdates).Returns(contextSubject);
 
         await using var sut = new DesktopContextService(
-            focusTrackerMock.Object,
+            monitorMock.Object,
             _loggerMock.Object);
 
         // Act
@@ -48,7 +50,7 @@ public class DesktopContextServiceTests : IAsyncDisposable
     }
 
     [Fact]
-    public async Task GetCurrentContextAsync_WithNullFocusTracker_ReturnsEmptyContext()
+    public async Task GetCurrentContextAsync_WithNullMonitor_ReturnsEmptyContext()
     {
         // Arrange
         await using var sut = new DesktopContextService(null, _loggerMock.Object);
@@ -61,7 +63,7 @@ public class DesktopContextServiceTests : IAsyncDisposable
         Assert.Equal("Unknown", result.ActiveWindowTitle);
         Assert.Equal(0, result.CurrentWorkspace);
 
-        // Verify warning was logged (may be logged multiple times - constructor + method call)
+        // Verify warning was logged
         _loggerMock.Verify(
             x => x.Log(
                 LogLevel.Warning,
@@ -73,15 +75,17 @@ public class DesktopContextServiceTests : IAsyncDisposable
     }
 
     [Fact]
-    public async Task GetCurrentContextAsync_WhenServiceThrows_ReturnsEmptyContext()
+    public async Task GetCurrentContextAsync_WhenMonitorNotAvailable_ReturnsEmptyContext()
     {
         // Arrange
-        var focusTrackerMock = new Mock<IFocusTrackerService>();
-        focusTrackerMock.Setup(x => x.GetCurrentContextAsync(default))
-            .ThrowsAsync(new Exception("D-Bus connection failed"));
+        var contextSubject = new Subject<DesktopContext>();
+        var monitorMock = new Mock<IDesktopMonitorBackgroundService>();
+        monitorMock.Setup(x => x.IsAvailable).Returns(false);
+        monitorMock.Setup(x => x.CurrentContext).Returns((DesktopContext?)null);
+        monitorMock.Setup(x => x.ContextUpdates).Returns(contextSubject);
 
         await using var sut = new DesktopContextService(
-            focusTrackerMock.Object,
+            monitorMock.Object,
             _loggerMock.Object);
 
         // Act
@@ -90,24 +94,28 @@ public class DesktopContextServiceTests : IAsyncDisposable
         // Assert
         Assert.Equal("Unknown", result.ActiveApplication);
 
-        // Verify error was logged
+        // Verify warning was logged
         _loggerMock.Verify(
             x => x.Log(
-                LogLevel.Error,
+                LogLevel.Warning,
                 It.IsAny<EventId>(),
-                It.Is<It.IsAnyType>((v, t) => v.ToString()!.Contains("Failed to get current desktop context")),
-                It.IsAny<Exception>(),
+                It.Is<It.IsAnyType>((v, t) => v.ToString()!.Contains("unavailable")),
+                null,
                 It.IsAny<Func<It.IsAnyType, Exception?, string>>()),
             Times.Once);
     }
 
     [Fact]
-    public async Task IsAvailableAsync_WithFocusTracker_ReturnsTrue()
+    public async Task IsAvailableAsync_WithAvailableMonitor_ReturnsTrue()
     {
         // Arrange
-        var focusTrackerMock = new Mock<IFocusTrackerService>();
+        var contextSubject = new Subject<DesktopContext>();
+        var monitorMock = new Mock<IDesktopMonitorBackgroundService>();
+        monitorMock.Setup(x => x.IsAvailable).Returns(true);
+        monitorMock.Setup(x => x.ContextUpdates).Returns(contextSubject);
+
         await using var sut = new DesktopContextService(
-            focusTrackerMock.Object,
+            monitorMock.Object,
             _loggerMock.Object);
 
         // Act
@@ -118,7 +126,7 @@ public class DesktopContextServiceTests : IAsyncDisposable
     }
 
     [Fact]
-    public async Task IsAvailableAsync_WithNullFocusTracker_ReturnsFalse()
+    public async Task IsAvailableAsync_WithNullMonitor_ReturnsFalse()
     {
         // Arrange
         await using var sut = new DesktopContextService(null, _loggerMock.Object);
@@ -131,27 +139,131 @@ public class DesktopContextServiceTests : IAsyncDisposable
     }
 
     [Fact]
+    public async Task IsAvailableAsync_WhenMonitorNotAvailable_ReturnsFalse()
+    {
+        // Arrange
+        var contextSubject = new Subject<DesktopContext>();
+        var monitorMock = new Mock<IDesktopMonitorBackgroundService>();
+        monitorMock.Setup(x => x.IsAvailable).Returns(false);
+        monitorMock.Setup(x => x.ContextUpdates).Returns(contextSubject);
+
+        await using var sut = new DesktopContextService(
+            monitorMock.Object,
+            _loggerMock.Object);
+
+        // Act
+        var result = await sut.IsAvailableAsync();
+
+        // Assert
+        Assert.False(result);
+    }
+
+    [Fact]
     public async Task ContextChanges_ReturnsObservable()
     {
         // Arrange
-        var focusTrackerMock = new Mock<IFocusTrackerService>();
+        var monitorMock = new Mock<IDesktopMonitorBackgroundService>();
+        monitorMock.Setup(x => x.ContextUpdates).Returns(new Subject<DesktopContext>());
+
         await using var sut = new DesktopContextService(
-            focusTrackerMock.Object,
+            monitorMock.Object,
             _loggerMock.Object);
 
         // Act & Assert
         Assert.NotNull(sut.ContextChanges);
     }
 
-    [Fact(Skip = "Polling-based implementation - event emission tested via manual verification")]
-    public async Task ContextChanges_DetectsChangesViaPolling()
+    [Fact]
+    public async Task ContextChanges_EmitsWorkspaceChange_WhenMonitorEmitsWorkspaceChange()
     {
-        // NOTE: This test is skipped because DesktopContextService now uses polling
-        // to detect changes, which makes timing-dependent tests flaky.
-        // Manual testing confirms that workspace/app/window changes are properly detected
-        // and emitted via the ContextChanges observable.
+        // Arrange
+        var contextSubject = new Subject<DesktopContext>();
+        var monitorMock = new Mock<IDesktopMonitorBackgroundService>();
+        monitorMock.Setup(x => x.ContextUpdates).Returns(contextSubject);
 
-        await Task.CompletedTask;
+        await using var sut = new DesktopContextService(
+            monitorMock.Object,
+            _loggerMock.Object);
+
+        DesktopContextChange? capturedChange = null;
+        sut.ContextChanges.Subscribe(change => capturedChange = change);
+
+        var initialContext = new DesktopContext(0, 4, "Window 1", "app1", "app1", DateTime.UtcNow);
+        var newContext = new DesktopContext(1, 4, "Window 1", "app1", "app1", DateTime.UtcNow);
+
+        // Act - emit initial context, then workspace change
+        contextSubject.OnNext(initialContext);
+        contextSubject.OnNext(newContext);
+
+        await Task.Delay(100); // Give time for processing
+
+        // Assert
+        Assert.NotNull(capturedChange);
+        Assert.Equal(ChangeType.WorkspaceChanged, capturedChange.Type);
+        Assert.Equal(0, capturedChange.PreviousContext.CurrentWorkspace);
+        Assert.Equal(1, capturedChange.NewContext.CurrentWorkspace);
+    }
+
+    [Fact]
+    public async Task ContextChanges_EmitsApplicationChange_WhenMonitorEmitsApplicationChange()
+    {
+        // Arrange
+        var contextSubject = new Subject<DesktopContext>();
+        var monitorMock = new Mock<IDesktopMonitorBackgroundService>();
+        monitorMock.Setup(x => x.ContextUpdates).Returns(contextSubject);
+
+        await using var sut = new DesktopContextService(
+            monitorMock.Object,
+            _loggerMock.Object);
+
+        DesktopContextChange? capturedChange = null;
+        sut.ContextChanges.Subscribe(change => capturedChange = change);
+
+        var initialContext = new DesktopContext(0, 4, "Window 1", "app1", "app1", DateTime.UtcNow);
+        var newContext = new DesktopContext(0, 4, "Window 2", "app2", "app2", DateTime.UtcNow);
+
+        // Act
+        contextSubject.OnNext(initialContext);
+        contextSubject.OnNext(newContext);
+
+        await Task.Delay(100);
+
+        // Assert
+        Assert.NotNull(capturedChange);
+        Assert.Equal(ChangeType.ApplicationChanged, capturedChange.Type);
+        Assert.Equal("app1", capturedChange.PreviousContext.ActiveApplication);
+        Assert.Equal("app2", capturedChange.NewContext.ActiveApplication);
+    }
+
+    [Fact]
+    public async Task ContextChanges_EmitsWindowFocusChange_WhenMonitorEmitsWindowTitleChange()
+    {
+        // Arrange
+        var contextSubject = new Subject<DesktopContext>();
+        var monitorMock = new Mock<IDesktopMonitorBackgroundService>();
+        monitorMock.Setup(x => x.ContextUpdates).Returns(contextSubject);
+
+        await using var sut = new DesktopContextService(
+            monitorMock.Object,
+            _loggerMock.Object);
+
+        DesktopContextChange? capturedChange = null;
+        sut.ContextChanges.Subscribe(change => capturedChange = change);
+
+        var initialContext = new DesktopContext(0, 4, "Window 1", "app1", "app1", DateTime.UtcNow);
+        var newContext = new DesktopContext(0, 4, "Window 2", "app1", "app1", DateTime.UtcNow);
+
+        // Act
+        contextSubject.OnNext(initialContext);
+        contextSubject.OnNext(newContext);
+
+        await Task.Delay(100);
+
+        // Assert
+        Assert.NotNull(capturedChange);
+        Assert.Equal(ChangeType.WindowFocusChanged, capturedChange.Type);
+        Assert.Equal("Window 1", capturedChange.PreviousContext.ActiveWindowTitle);
+        Assert.Equal("Window 2", capturedChange.NewContext.ActiveWindowTitle);
     }
 
     public async ValueTask DisposeAsync()

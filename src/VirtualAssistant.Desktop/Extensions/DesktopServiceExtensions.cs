@@ -36,15 +36,14 @@ public static class DesktopServiceExtensions
             return services;
         }
 
-        // Register FocusTrackerService (focus-tracker GNOME extension integration)
-        // Uses lazy initialization - D-Bus connection created on first use
-        // Always returns instance - graceful degradation handled by FocusTrackerService itself
-        // Initialization errors caught on first use and tracked via _initializationFailed flag
-        services.AddSingleton<Services.IFocusTrackerService>(sp =>
-        {
-            var logger = sp.GetRequiredService<ILogger<Services.FocusTrackerService>>();
-            return new Services.FocusTrackerService(logger);
-        });
+        // Register DesktopMonitorBackgroundService (event-driven D-Bus monitoring)
+        // Uses BackgroundService pattern with stable thread context for D-Bus connection
+        // Registered as singleton implementing both the interface and concrete type
+        // Also registered as hosted service for auto-start
+        services.AddSingleton<Services.DesktopMonitorBackgroundService>();
+        services.AddSingleton<Services.IDesktopMonitorBackgroundService>(sp =>
+            sp.GetRequiredService<Services.DesktopMonitorBackgroundService>());
+        services.AddHostedService(sp => sp.GetRequiredService<Services.DesktopMonitorBackgroundService>());
 
         // Register IdleService (still useful for idle detection)
         services.AddSingleton<IIdleService>(sp =>
@@ -67,8 +66,13 @@ public static class DesktopServiceExtensions
             }
         });
 
-        // Register DesktopContextService (uses FocusTrackerService)
-        services.AddSingleton<VirtualAssistant.Core.Services.IDesktopContextService, Services.DesktopContextService>();
+        // Register DesktopContextService (subscribes to DesktopMonitorBackgroundService events)
+        services.AddSingleton<VirtualAssistant.Core.Services.IDesktopContextService>(sp =>
+        {
+            var monitor = sp.GetService<Services.IDesktopMonitorBackgroundService>();
+            var logger = sp.GetRequiredService<ILogger<Services.DesktopContextService>>();
+            return new Services.DesktopContextService(monitor, logger);
+        });
 
         // Configure context mapping
         services.Configure<Configuration.ContextMappingOptions>(

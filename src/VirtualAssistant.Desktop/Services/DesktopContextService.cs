@@ -6,52 +6,50 @@ using VirtualAssistant.Core.Services;
 namespace VirtualAssistant.Desktop.Services;
 
 /// <summary>
-/// Service for tracking user's desktop context using FocusTracker extension.
-/// Uses polling to detect changes and emit events via reactive observable.
+/// Service for tracking user's desktop context using DesktopMonitorBackgroundService.
+/// Subscribes to event-driven D-Bus signals and emits desktop context changes.
 /// </summary>
 public class DesktopContextService : IDesktopContextService, IAsyncDisposable
 {
-    private readonly IFocusTrackerService? _focusTracker;
+    private readonly IDesktopMonitorBackgroundService? _monitor;
     private readonly ILogger<DesktopContextService> _logger;
     private readonly Subject<DesktopContextChange> _contextChanges = new();
-    private readonly Timer? _pollTimer;
     private readonly SemaphoreSlim _lock = new(1, 1);
+    private IDisposable? _contextSubscription;
 
     private DesktopContext? _lastContext;
     private bool _disposed;
 
     public DesktopContextService(
-        IFocusTrackerService? focusTracker,
+        IDesktopMonitorBackgroundService? monitor,
         ILogger<DesktopContextService> logger)
     {
-        _focusTracker = focusTracker;
+        _monitor = monitor;
         _logger = logger;
 
-        if (_focusTracker != null)
+        if (_monitor != null)
         {
-            // Start polling for changes (500ms interval)
-            _pollTimer = new Timer(state => _ = PollForChangesAsync(), null, TimeSpan.Zero, TimeSpan.FromMilliseconds(500));
-            _logger.LogInformation("Desktop context monitoring active via FocusTracker (polling mode)");
+            // Subscribe to context updates from BackgroundService (event-driven, no polling!)
+            _contextSubscription = _monitor.ContextUpdates.Subscribe(OnContextUpdate);
+            _logger.LogInformation("Desktop context monitoring active via DesktopMonitorBackgroundService (event-driven)");
         }
         else
         {
-            _logger.LogWarning("Desktop monitoring unavailable - FocusTrackerService is null (graceful degradation)");
+            _logger.LogWarning("Desktop monitoring unavailable - DesktopMonitorBackgroundService is null (graceful degradation)");
         }
     }
 
     public IObservable<DesktopContextChange> ContextChanges => _contextChanges;
 
-    private async Task PollForChangesAsync()
+    private void OnContextUpdate(DesktopContext newContext)
     {
-        if (_disposed || _focusTracker == null) return;
+        if (_disposed) return;
 
         try
         {
-            await _lock.WaitAsync();
+            _lock.Wait();
             try
             {
-                var newContext = await _focusTracker.GetCurrentContextAsync();
-
                 if (_lastContext == null)
                 {
                     _lastContext = newContext;
@@ -97,32 +95,33 @@ public class DesktopContextService : IDesktopContextService, IAsyncDisposable
         }
         catch (Exception ex)
         {
-            _logger.LogError(ex, "Error polling for desktop context changes");
+            _logger.LogError(ex, "Error processing desktop context update");
         }
     }
 
-    public async Task<DesktopContext> GetCurrentContextAsync(CancellationToken ct = default)
+    public Task<DesktopContext> GetCurrentContextAsync(CancellationToken ct = default)
     {
-        if (_focusTracker == null)
+        if (_monitor == null || !_monitor.IsAvailable)
         {
             _logger.LogWarning("Desktop monitoring unavailable, returning empty context");
-            return CreateEmptyContext();
+            return Task.FromResult(CreateEmptyContext());
         }
 
         try
         {
-            return await _focusTracker.GetCurrentContextAsync(ct);
+            var context = _monitor.CurrentContext ?? CreateEmptyContext();
+            return Task.FromResult(context);
         }
         catch (Exception ex)
         {
             _logger.LogError(ex, "Failed to get current desktop context");
-            return CreateEmptyContext();
+            return Task.FromResult(CreateEmptyContext());
         }
     }
 
     public Task<bool> IsAvailableAsync(CancellationToken ct = default)
     {
-        return Task.FromResult(_focusTracker != null);
+        return Task.FromResult(_monitor != null && _monitor.IsAvailable);
     }
 
     private static DesktopContext CreateEmptyContext() => new(
@@ -139,16 +138,14 @@ public class DesktopContextService : IDesktopContextService, IAsyncDisposable
         if (_disposed) return;
         _disposed = true;
 
-        _pollTimer?.Dispose();
+        // Unsubscribe from BackgroundService events
+        _contextSubscription?.Dispose();
 
         await _lock.WaitAsync();
         try
         {
             _contextChanges.OnCompleted();
             _contextChanges.Dispose();
-
-            if (_focusTracker != null)
-                await _focusTracker.DisposeAsync();
 
             _logger.LogInformation("DesktopContextService disposed");
         }
