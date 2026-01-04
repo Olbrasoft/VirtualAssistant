@@ -12,6 +12,15 @@ public class SaveLlmCorrectionCommandHandler(VirtualAssistantDbContext context)
 {
     protected override async Task<LlmCorrection> GetResultToHandleAsync(SaveLlmCorrectionCommand command, CancellationToken token)
     {
+        if (command.WhisperTranscriptionId <= 0)
+            throw new ArgumentException("WhisperTranscriptionId must be greater than 0", nameof(command.WhisperTranscriptionId));
+
+        if (command.DurationMs <= 0)
+            throw new ArgumentException("DurationMs must be greater than 0", nameof(command.DurationMs));
+
+        if (string.IsNullOrWhiteSpace(command.CorrectedText))
+            throw new ArgumentException("CorrectedText must not be null or empty", nameof(command.CorrectedText));
+
         var correction = new LlmCorrection
         {
             WhisperTranscriptionId = command.WhisperTranscriptionId,
