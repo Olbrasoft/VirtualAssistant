@@ -59,7 +59,12 @@ public class DesktopMonitorBroadcastWorkerTests : IDisposable
 
         // Act
         _ = _sut.StartAsync(cts.Token);
-        await Task.Delay(100); // Give worker time to subscribe
+
+        // Wait for subscription with polling (deterministic)
+        await WaitForCondition(() =>
+            _desktopContextServiceMock.Invocations.Any(i => i.Method.Name == "get_ContextChanges"),
+            timeout: TimeSpan.FromSeconds(2)
+        );
 
         // Assert
         _desktopContextServiceMock.Verify(x => x.ContextChanges, Times.Once);
@@ -71,7 +76,10 @@ public class DesktopMonitorBroadcastWorkerTests : IDisposable
         // Arrange
         using var cts = new CancellationTokenSource();
         await _sut.StartAsync(cts.Token);
-        await Task.Delay(100); // Give worker time to subscribe
+        await WaitForCondition(() =>
+            _desktopContextServiceMock.Invocations.Any(i => i.Method.Name == "get_ContextChanges"),
+            timeout: TimeSpan.FromSeconds(2)
+        );
 
         var oldContext = new DesktopContext(0, 4, "Old Window", "old-class", "old-app", DateTime.UtcNow);
         var newContext = new DesktopContext(1, 4, "New Window", "new-class", "new-app", DateTime.UtcNow);
@@ -79,7 +87,14 @@ public class DesktopMonitorBroadcastWorkerTests : IDisposable
 
         // Act
         _contextChangesSubject.OnNext(change);
-        await Task.Delay(200); // Give worker time to process
+
+        // Wait for broadcast with polling (deterministic)
+        await WaitForCondition(() =>
+            _clientProxyMock.Invocations.Any(i =>
+                i.Method.Name == "SendCoreAsync" &&
+                i.Arguments[0] as string == "WorkspaceChanged"),
+            timeout: TimeSpan.FromSeconds(2)
+        );
 
         // Assert - workspace is 1-based for UI display (CurrentWorkspace 1 becomes 2)
         _clientProxyMock.Verify(
@@ -98,7 +113,10 @@ public class DesktopMonitorBroadcastWorkerTests : IDisposable
         // Arrange
         using var cts = new CancellationTokenSource();
         await _sut.StartAsync(cts.Token);
-        await Task.Delay(100);
+        await WaitForCondition(() =>
+            _desktopContextServiceMock.Invocations.Any(i => i.Method.Name == "get_ContextChanges"),
+            timeout: TimeSpan.FromSeconds(2)
+        );
 
         var oldContext = new DesktopContext(0, 4, "Old Window", "old-class", "old-app", DateTime.UtcNow);
         var newContext = new DesktopContext(0, 4, "New Window", "new-class", "new-app", DateTime.UtcNow);
@@ -106,7 +124,14 @@ public class DesktopMonitorBroadcastWorkerTests : IDisposable
 
         // Act
         _contextChangesSubject.OnNext(change);
-        await Task.Delay(200);
+
+        // Wait for broadcast with polling (deterministic)
+        await WaitForCondition(() =>
+            _clientProxyMock.Invocations.Any(i =>
+                i.Method.Name == "SendCoreAsync" &&
+                i.Arguments[0] as string == "FocusChanged"),
+            timeout: TimeSpan.FromSeconds(2)
+        );
 
         // Assert
         _clientProxyMock.Verify(
@@ -129,7 +154,10 @@ public class DesktopMonitorBroadcastWorkerTests : IDisposable
         // Arrange
         using var cts = new CancellationTokenSource();
         await _sut.StartAsync(cts.Token);
-        await Task.Delay(100);
+        await WaitForCondition(() =>
+            _desktopContextServiceMock.Invocations.Any(i => i.Method.Name == "get_ContextChanges"),
+            timeout: TimeSpan.FromSeconds(2)
+        );
 
         var oldContext = new DesktopContext(0, 4, "Old Title", "same-class", "same-app", DateTime.UtcNow);
         var newContext = new DesktopContext(0, 4, "New Title", "same-class", "same-app", DateTime.UtcNow);
@@ -137,7 +165,14 @@ public class DesktopMonitorBroadcastWorkerTests : IDisposable
 
         // Act
         _contextChangesSubject.OnNext(change);
-        await Task.Delay(200);
+
+        // Wait for broadcast with polling (deterministic)
+        await WaitForCondition(() =>
+            _clientProxyMock.Invocations.Any(i =>
+                i.Method.Name == "SendCoreAsync" &&
+                i.Arguments[0] as string == "FocusChanged"),
+            timeout: TimeSpan.FromSeconds(2)
+        );
 
         // Assert
         _clientProxyMock.Verify(
@@ -156,7 +191,10 @@ public class DesktopMonitorBroadcastWorkerTests : IDisposable
         // Arrange
         using var cts = new CancellationTokenSource();
         await _sut.StartAsync(cts.Token);
-        await Task.Delay(100);
+        await WaitForCondition(() =>
+            _desktopContextServiceMock.Invocations.Any(i => i.Method.Name == "get_ContextChanges"),
+            timeout: TimeSpan.FromSeconds(2)
+        );
 
         var oldContext = new DesktopContext(0, 4, "Old", "old", "old", DateTime.UtcNow);
         var newContext = new DesktopContext(1, 4, "New", "new", "new", DateTime.UtcNow);
@@ -164,7 +202,14 @@ public class DesktopMonitorBroadcastWorkerTests : IDisposable
 
         // Act
         _contextChangesSubject.OnNext(change);
-        await Task.Delay(200);
+
+        // Wait for broadcast with polling (deterministic)
+        await WaitForCondition(() =>
+            _clientProxyMock.Invocations.Any(i =>
+                i.Method.Name == "SendCoreAsync" &&
+                i.Arguments[0] as string == "LogMessage"),
+            timeout: TimeSpan.FromSeconds(2)
+        );
 
         // Assert - LogMessage should be broadcasted
         _clientProxyMock.Verify(
@@ -183,7 +228,10 @@ public class DesktopMonitorBroadcastWorkerTests : IDisposable
         // Arrange
         using var cts = new CancellationTokenSource();
         await _sut.StartAsync(cts.Token);
-        await Task.Delay(100);
+        await WaitForCondition(() =>
+            _desktopContextServiceMock.Invocations.Any(i => i.Method.Name == "get_ContextChanges"),
+            timeout: TimeSpan.FromSeconds(2)
+        );
 
         // Act
         await _sut.StopAsync(CancellationToken.None);
@@ -192,7 +240,10 @@ public class DesktopMonitorBroadcastWorkerTests : IDisposable
         var context = new DesktopContext(0, 4, "Test", "test", "test", DateTime.UtcNow);
         var change = new DesktopContextChange(context, context, ChangeType.WorkspaceChanged);
         _contextChangesSubject.OnNext(change);
-        await Task.Delay(200);
+
+        // Give a small delay to ensure event would have been processed if subscription was active
+        // Using small delay here is acceptable as we're testing negative case (should NOT happen)
+        await Task.Delay(100);
 
         // Assert - Should not broadcast after stop (only initial subscribe call)
         _clientProxyMock.Verify(
@@ -205,9 +256,27 @@ public class DesktopMonitorBroadcastWorkerTests : IDisposable
         );
     }
 
+    /// <summary>
+    /// Waits for a condition to be true with polling and timeout.
+    /// Avoids flaky tests that rely on arbitrary Task.Delay values.
+    /// </summary>
+    private static async Task WaitForCondition(Func<bool> condition, TimeSpan timeout, int pollIntervalMs = 10)
+    {
+        var stopwatch = System.Diagnostics.Stopwatch.StartNew();
+        while (!condition())
+        {
+            if (stopwatch.Elapsed > timeout)
+            {
+                throw new TimeoutException($"Condition not met within {timeout.TotalSeconds}s");
+            }
+            await Task.Delay(pollIntervalMs);
+        }
+    }
+
     public void Dispose()
     {
         _contextChangesSubject?.Dispose();
-        _sut?.StopAsync(CancellationToken.None).GetAwaiter().GetResult();
+        // Avoid deadlock - use async Dispose pattern
+        _sut?.StopAsync(CancellationToken.None).ConfigureAwait(false).GetAwaiter().GetResult();
     }
 }

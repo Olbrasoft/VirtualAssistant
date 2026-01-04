@@ -1,5 +1,6 @@
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
+using VirtualAssistant.Desktop.Extensions;
 
 namespace Olbrasoft.VirtualAssistant.Service.Extensions;
 
@@ -23,6 +24,7 @@ public static class ServiceCollectionExtensions
             .AddTtsServices(configuration)
             .AddLlmServices(configuration)
             .AddTrayServices(configuration)
+            .AddDesktopMonitoring(configuration)
             .AddWorkerServices();
 
         // MVC Controllers

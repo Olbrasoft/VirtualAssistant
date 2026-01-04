@@ -18,6 +18,7 @@ public class DesktopMonitorBroadcastWorker : BackgroundService
     private readonly IHubContext<DesktopMonitorHub> _hubContext;
     private readonly object _subscriptionLock = new();
     private IDisposable? _subscription;
+    private CancellationToken _stoppingToken;
 
     public DesktopMonitorBroadcastWorker(
         ILogger<DesktopMonitorBroadcastWorker> logger,
@@ -31,13 +32,25 @@ public class DesktopMonitorBroadcastWorker : BackgroundService
 
     protected override Task ExecuteAsync(CancellationToken stoppingToken)
     {
+        _stoppingToken = stoppingToken;
         _logger.LogInformation("Desktop Monitor broadcast worker starting...");
 
         // Subscribe to desktop context changes
+        // Using async void lambda is safe here because Observable.Subscribe has error handling
         lock (_subscriptionLock)
         {
             _subscription = _desktopContextService.ContextChanges.Subscribe(
-                change => _ = OnContextChanged(change),
+                async change =>
+                {
+                    try
+                    {
+                        await OnContextChanged(change);
+                    }
+                    catch (Exception ex)
+                    {
+                        _logger.LogError(ex, "Unhandled error in context change handler");
+                    }
+                },
                 error => _logger.LogError(error, "Error in desktop context change stream"),
                 () => _logger.LogInformation("Desktop context change stream completed")
             );
@@ -79,7 +92,7 @@ public class DesktopMonitorBroadcastWorker : BackgroundService
     private async Task BroadcastWorkspaceChanged(DesktopContext context)
     {
         _logger.LogDebug("Broadcasting workspace change: {Index}/{Total}", context.CurrentWorkspace + 1, context.TotalWorkspaces);
-        await _hubContext.Clients.All.SendAsync("WorkspaceChanged", context.CurrentWorkspace + 1, context.TotalWorkspaces);
+        await _hubContext.Clients.All.SendAsync("WorkspaceChanged", context.CurrentWorkspace + 1, context.TotalWorkspaces, _stoppingToken);
     }
 
     private async Task BroadcastFocusChanged(DesktopContext context)
@@ -89,14 +102,15 @@ public class DesktopMonitorBroadcastWorker : BackgroundService
             "FocusChanged",
             context.ActiveWindowTitle,
             context.ActiveApplication,
-            context.ActiveWindowClass
+            context.ActiveWindowClass,
+            _stoppingToken
         );
     }
 
     private async Task BroadcastLogMessage(string message)
     {
         _logger.LogDebug("Broadcasting log message: {Message}", message);
-        await _hubContext.Clients.All.SendAsync("LogMessage", message);
+        await _hubContext.Clients.All.SendAsync("LogMessage", message, _stoppingToken);
     }
 
     public override Task StopAsync(CancellationToken cancellationToken)

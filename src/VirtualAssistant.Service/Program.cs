@@ -47,9 +47,16 @@ public class Program
         // Build WebApplication
         var builder = WebApplication.CreateBuilder(args);
 
-        // Configure Kestrel
+        // Configure Kestrel - bind to all interfaces for network access
         var listenerPort = builder.Configuration.GetValue<int>("ListenerApiPort", 5055);
-        builder.WebHost.UseUrls($"http://localhost:{listenerPort}");
+        // SECURITY WARNING: Binding to 0.0.0.0 exposes the service to all network interfaces,
+        // including external networks. This service currently has NO authentication.
+        // For production use on untrusted networks, consider:
+        // 1. Binding to localhost only (127.0.0.1) for local-only access
+        // 2. Adding authentication middleware (API keys, OAuth, etc.)
+        // 3. Using a reverse proxy (nginx) with access control
+        // 4. Configuring firewall rules to restrict access
+        builder.WebHost.UseUrls($"http://0.0.0.0:{listenerPort}");
 
         // Configuration
         builder.Configuration
@@ -60,6 +67,10 @@ public class Program
         builder.Services.AddVirtualAssistantServices(builder.Configuration);
 
         _app = builder.Build();
+
+        // Enable default files (index.html) and static files (wwwroot) before endpoint mapping
+        _app.UseDefaultFiles();
+        _app.UseStaticFiles();
 
         // Apply migrations and configure endpoints
         _app.ApplyDatabaseMigrations();
