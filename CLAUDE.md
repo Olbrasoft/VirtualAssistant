@@ -104,15 +104,15 @@ Clean Architecture with CQRS pattern:
 - **VirtualAssistant.GitHub** - GitHub API, issue sync with embeddings
 
 **CQRS Architecture:**
-Architektura IS CQRS. Veškeré queries a commands jsou v **VirtualAssistant.Data** projektu.
-Implementace query handlers a command handlers jsou v **VirtualAssistant.Data.EntityFrameworkCore** projektu.
+The architecture is CQRS. All queries and commands are in the **VirtualAssistant.Data** project.
+Query handler and command handler implementations are in the **VirtualAssistant.Data.EntityFrameworkCore** project.
 
 **Pattern Details:**
-- **Queries:** Query definitions (IQuery<TResult>) v VirtualAssistant.Data/Queries/
-- **Commands:** Command definitions (ICommand<TResult>) v VirtualAssistant.Data/Commands/
-- **QueryHandlers:** Query handler implementations v VirtualAssistant.Data.EntityFrameworkCore/QueryHandlers/
-- **CommandHandlers:** Command handler implementations v VirtualAssistant.Data.EntityFrameworkCore/CommandHandlers/
-- **Infrastructure:** Olbrasoft.Data.Cqrs.Common (IQueryProcessor, ICommandExecutor - vlastní mediátor pattern)
+- **Queries:** Query definitions (IQuery<TResult>) in VirtualAssistant.Data/Queries/
+- **Commands:** Command definitions (ICommand<TResult>) in VirtualAssistant.Data/Commands/
+- **QueryHandlers:** Query handler implementations in VirtualAssistant.Data.EntityFrameworkCore/QueryHandlers/
+- **CommandHandlers:** Command handler implementations in VirtualAssistant.Data.EntityFrameworkCore/CommandHandlers/
+- **Infrastructure:** Olbrasoft.Data.Cqrs.Common (IQueryProcessor, ICommandExecutor - custom mediator pattern)
 - **Dependency Injection:** Services depend on IQueryProcessor/ICommandExecutor interfaces, implementations registered in Service layer
 
 **Speech-to-Text (inline):**
