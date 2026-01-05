@@ -53,9 +53,11 @@ cd ~/Olbrasoft/VirtualAssistant && ./deploy/deploy.sh /opt/olbrasoft/virtual-ass
 3. 📝 **Read ALL review comments carefully**
 4. 🔧 **Fix ALL issues** mentioned in review comments
 5. ✅ Push fixes to feature branch
-6. ✅ **Only then** merge PR to main
+6. ⚠️ **VERIFY all comments are fixed** - Use `mcp__github__pull_request_read` with `get_reviews` AND `get_review_comments` to check
+7. ✅ **Only then** merge PR to main
 
 **CRITICAL:** Never merge PR without addressing Copilot's code review comments!
+**CRITICAL:** Always check BOTH `get_reviews` AND `get_review_comments` before merging - they return different data!
 
 ### Automated Deployment
 

@@ -35,16 +35,16 @@ namespace Olbrasoft.VirtualAssistant.Data.EntityFrameworkCore.Migrations
                 table: "prompts",
                 column: "app_id_pattern");
 
-            // Step 2: Seed default prompts
+            // Step 2: Seed default prompts (created_at will use database default NOW())
             migrationBuilder.InsertData(
                 table: "prompts",
-                columns: new[] { "id", "name", "application_name", "app_id_pattern", "prompt_file_name", "created_at" },
+                columns: new[] { "id", "name", "application_name", "app_id_pattern", "prompt_file_name" },
                 values: new object[,]
                 {
-                    { 1, "OpenCode Correction", "OpenCode", "opencode", "OpenCodeCorrection.md", DateTime.UtcNow },
-                    { 2, "Claude Code Correction", "Claude Code", "code", "ClaudeCodeCorrection.md", DateTime.UtcNow },
-                    { 3, "Ferdium Correction", "Ferdium", "ferdium", "FerdiumCorrection.md", DateTime.UtcNow },
-                    { 4, "Default Correction", "Default", "*", "DefaultCorrection.md", DateTime.UtcNow }
+                    { 1, "OpenCode Correction", "OpenCode", "opencode", "OpenCodeCorrection.md" },
+                    { 2, "Claude Code Correction", "Claude Code", "code", "ClaudeCodeCorrection.md" },
+                    { 3, "Ferdium Correction", "Ferdium", "ferdium", "FerdiumCorrection.md" },
+                    { 4, "Default Correction", "Default", "*", "DefaultCorrection.md" }
                 });
 
             // Step 3: Add prompt_id column with temporary DEFAULT 4 (for existing records)
@@ -56,14 +56,8 @@ namespace Olbrasoft.VirtualAssistant.Data.EntityFrameworkCore.Migrations
                 defaultValue: 4);
 
             // Step 4: Remove DEFAULT constraint (runtime ALWAYS provides explicit PromptId)
-            migrationBuilder.AlterColumn<int>(
-                name: "prompt_id",
-                table: "llm_corrections",
-                type: "integer",
-                nullable: false,
-                oldClrType: typeof(int),
-                oldType: "integer",
-                oldDefaultValue: 4);
+            // Use explicit SQL to ensure default is properly removed
+            migrationBuilder.Sql("ALTER TABLE llm_corrections ALTER COLUMN prompt_id DROP DEFAULT;");
 
             // Step 5: Add FK constraint and index
             migrationBuilder.CreateIndex(
@@ -83,12 +77,10 @@ namespace Olbrasoft.VirtualAssistant.Data.EntityFrameworkCore.Migrations
         /// <inheritdoc />
         protected override void Down(MigrationBuilder migrationBuilder)
         {
+            // Correct order: FK → Index → Column → Table
             migrationBuilder.DropForeignKey(
                 name: "FK_llm_corrections_prompts_prompt_id",
                 table: "llm_corrections");
-
-            migrationBuilder.DropTable(
-                name: "prompts");
 
             migrationBuilder.DropIndex(
                 name: "IX_llm_corrections_prompt_id",
@@ -97,6 +89,9 @@ namespace Olbrasoft.VirtualAssistant.Data.EntityFrameworkCore.Migrations
             migrationBuilder.DropColumn(
                 name: "prompt_id",
                 table: "llm_corrections");
+
+            migrationBuilder.DropTable(
+                name: "prompts");
         }
     }
 }
