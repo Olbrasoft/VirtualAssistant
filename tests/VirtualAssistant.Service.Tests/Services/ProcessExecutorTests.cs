@@ -1,7 +1,7 @@
 using Microsoft.Extensions.Logging;
 using Moq;
 using Olbrasoft.VirtualAssistant.Core.Processes;
-using Olbrasoft.VirtualAssistant.Service.Services;
+using Olbrasoft.VirtualAssistant.Service.Infrastructure;
 
 namespace Olbrasoft.VirtualAssistant.Service.Tests.Services;
 

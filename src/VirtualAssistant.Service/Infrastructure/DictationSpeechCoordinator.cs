@@ -5,7 +5,7 @@ using Olbrasoft.VirtualAssistant.Core.StateMachine;
 using Olbrasoft.VirtualAssistant.Voice.StateMachine;
 using Olbrasoft.VirtualAssistant.Core.Services;
 
-namespace Olbrasoft.VirtualAssistant.Service.Services;
+namespace Olbrasoft.VirtualAssistant.Service.Infrastructure;
 
 /// <summary>
 /// Coordinates TTS speech with dictation state to prevent audio interference.

@@ -7,7 +7,7 @@ using Olbrasoft.VirtualAssistant.Core.Configuration;
 using Olbrasoft.VirtualAssistant.Core.Keyboard;
 using Olbrasoft.VirtualAssistant.Core.Services;
 using Olbrasoft.VirtualAssistant.Core.Speech;
-using Olbrasoft.VirtualAssistant.Service.Services;
+using Olbrasoft.VirtualAssistant.Service.Infrastructure;
 using Olbrasoft.VirtualAssistant.Service.Workers;
 using Olbrasoft.VirtualAssistant.Voice;
 using Olbrasoft.VirtualAssistant.Voice.Filters;

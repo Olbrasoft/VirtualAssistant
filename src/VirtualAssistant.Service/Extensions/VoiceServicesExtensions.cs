@@ -13,7 +13,7 @@ using Olbrasoft.VirtualAssistant.Core.Speech;
 using Olbrasoft.VirtualAssistant.Core.TextInput;
 using Olbrasoft.VirtualAssistant.Core.StateMachine;
 using Olbrasoft.VirtualAssistant.Core.WindowManagement;
-using Olbrasoft.VirtualAssistant.Service.Services;
+using Olbrasoft.VirtualAssistant.Service.Infrastructure;
 using Olbrasoft.VirtualAssistant.Voice;
 using Olbrasoft.VirtualAssistant.Voice.Audio;
 using Olbrasoft.VirtualAssistant.Voice.Configuration;

@@ -1,6 +1,6 @@
 using Olbrasoft.VirtualAssistant.Core.Services;
 using Olbrasoft.VirtualAssistant.Voice.Services;
-using Olbrasoft.VirtualAssistant.Service.Services;
+using Olbrasoft.VirtualAssistant.Service.Infrastructure;
 using Olbrasoft.VirtualAssistant.Service.Hubs;
 
 namespace Olbrasoft.VirtualAssistant.Service.Extensions;

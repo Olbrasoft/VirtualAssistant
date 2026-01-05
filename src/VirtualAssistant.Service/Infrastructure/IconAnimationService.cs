@@ -2,7 +2,7 @@ using Microsoft.Extensions.Logging;
 using Olbrasoft.VirtualAssistant.Core.Services;
 using Olbrasoft.VirtualAssistant.Core.StateMachine;
 
-namespace Olbrasoft.VirtualAssistant.Service.Services;
+namespace Olbrasoft.VirtualAssistant.Service.Infrastructure;
 
 /// <summary>
 /// Manages hand icon animations based on dictation state.

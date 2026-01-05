@@ -2,7 +2,7 @@ using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Logging;
 using Olbrasoft.VirtualAssistant.Core.Services;
 
-namespace Olbrasoft.VirtualAssistant.Service.Services;
+namespace Olbrasoft.VirtualAssistant.Service.Infrastructure;
 
 /// <summary>
 /// Background service that plays a startup notification when the application starts.

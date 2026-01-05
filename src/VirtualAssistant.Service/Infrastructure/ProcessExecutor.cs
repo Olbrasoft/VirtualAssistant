@@ -3,7 +3,7 @@ using System.Text;
 using Microsoft.Extensions.Logging;
 using Olbrasoft.VirtualAssistant.Core.Processes;
 
-namespace Olbrasoft.VirtualAssistant.Service.Services;
+namespace Olbrasoft.VirtualAssistant.Service.Infrastructure;
 
 /// <summary>
 /// Default implementation of <see cref="IProcessExecutor"/>.

@@ -4,7 +4,7 @@ using Microsoft.Extensions.Options;
 using Olbrasoft.VirtualAssistant.Core.Services;
 using Olbrasoft.VirtualAssistant.Service.Configuration;
 
-namespace Olbrasoft.VirtualAssistant.Service.Services;
+namespace Olbrasoft.VirtualAssistant.Service.Infrastructure;
 
 /// <summary>
 /// Manages lifecycle of dependent systemd services (log-viewer).

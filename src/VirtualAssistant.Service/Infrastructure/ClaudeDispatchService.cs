@@ -7,7 +7,7 @@ using Olbrasoft.VirtualAssistant.Core.Processes;
 using Olbrasoft.VirtualAssistant.Service.Dtos;
 using Olbrasoft.VirtualAssistant.Core.Services;
 
-namespace Olbrasoft.VirtualAssistant.Service.Services;
+namespace Olbrasoft.VirtualAssistant.Service.Infrastructure;
 
 /// <summary>
 /// Service for dispatching tasks to Claude Code via headless mode.

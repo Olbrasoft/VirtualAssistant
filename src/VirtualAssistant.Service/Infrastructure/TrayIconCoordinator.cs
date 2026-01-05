@@ -1,7 +1,7 @@
 using Microsoft.Extensions.Logging;
 using Olbrasoft.VirtualAssistant.Core.Services;
 
-namespace Olbrasoft.VirtualAssistant.Service.Services;
+namespace Olbrasoft.VirtualAssistant.Service.Infrastructure;
 
 /// <summary>
 /// Coordinates tray icon management for left hand, center (VirtualAssistant), and right hand icons.

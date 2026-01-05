@@ -2,7 +2,7 @@ using Microsoft.Extensions.Logging;
 using Olbrasoft.VirtualAssistant.Core.Services;
 using Olbrasoft.VirtualAssistant.Data.Enums;
 
-namespace Olbrasoft.VirtualAssistant.Service.Services;
+namespace Olbrasoft.VirtualAssistant.Service.Infrastructure;
 
 /// <summary>
 /// Tracks notification lifecycle and handles database status updates.

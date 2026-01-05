@@ -1,7 +1,7 @@
 using Olbrasoft.SystemTray.Linux;
 using Olbrasoft.VirtualAssistant.Core.Services;
 
-namespace Olbrasoft.VirtualAssistant.Service.Services;
+namespace Olbrasoft.VirtualAssistant.Service.Infrastructure;
 
 /// <summary>
 /// Adapter for SystemTray.Linux TrayIconManager to ITrayIconManager interface.

@@ -7,7 +7,7 @@ using Olbrasoft.VirtualAssistant.Data.Commands.WhisperTranscriptionCommands;
 using Olbrasoft.VirtualAssistant.Voice.Configuration;
 using Olbrasoft.VirtualAssistant.Data.Entities;
 
-namespace Olbrasoft.VirtualAssistant.Service.Services;
+namespace Olbrasoft.VirtualAssistant.Service.Infrastructure;
 
 /// <summary>
 /// Service for persisting dictation transcriptions and LLM corrections to database.
