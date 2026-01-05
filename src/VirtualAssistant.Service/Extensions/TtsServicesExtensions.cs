@@ -108,8 +108,7 @@ public static class TtsServicesExtensions
         // LLM Chain for multi-provider fallback
         services.AddLlmChain(configuration);
 
-        // Notification humanization and batching services
-        services.AddSingleton<IHumanizationService, HumanizationService>();
+        // Notification batching services
         services.AddScoped<INotificationTracker, NotificationTracker>();
         services.AddSingleton<INotificationBatchingService, NotificationBatchingService>();
 
