@@ -116,34 +116,12 @@ public class MenuEventDispatcher : IMenuEventDispatcher
 
         try
         {
-            _logger.LogInformation("Reloading LLM prompt...");
+            _logger.LogInformation("Reloading LLM prompts...");
 
-            // Copy prompt from source to deployment location
-            var sourceFile = "/home/jirka/Olbrasoft/VirtualAssistant/src/VirtualAssistant.Voice/Prompts/MistralSystemPrompt.md";
-            var deployDir = "/opt/olbrasoft/virtual-assistant/app/Prompts";
-            var deployFile = Path.Combine(deployDir, "MistralSystemPrompt.md");
-
-            // Create deployment directory if it doesn't exist
-            if (!Directory.Exists(deployDir))
-            {
-                Directory.CreateDirectory(deployDir);
-                _logger.LogInformation("Created deployment directory: {Directory}", deployDir);
-            }
-
-            // Copy file from source to deployment location
-            if (File.Exists(sourceFile))
-            {
-                File.Copy(sourceFile, deployFile, overwrite: true);
-                _logger.LogInformation("Copied prompt from {Source} to {Destination}", sourceFile, deployFile);
-            }
-            else
-            {
-                _logger.LogWarning("Source prompt file not found: {SourceFile}", sourceFile);
-            }
-
-            // Clear cache and reload prompt
+            // Prompts are deployed via deploy.sh script, no manual copy needed
+            // Just clear the cache and reload prompts from deployment location
             _llmProvider.ReloadPrompt();
-            _logger.LogInformation("LLM prompt reloaded successfully");
+            _logger.LogInformation("LLM prompts reloaded successfully from deployment location");
         }
         catch (Exception ex)
         {

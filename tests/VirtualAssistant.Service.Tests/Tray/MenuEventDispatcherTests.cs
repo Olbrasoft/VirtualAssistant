@@ -311,12 +311,9 @@ public class MenuEventDispatcherTests
 
     #region HandleReloadPrompt Tests
 
-    // DISABLED: These tests modify filesystem (side-effects)
-    // HandleReloadPrompt() calls File.Copy() and Directory.CreateDirectory()
-    // Creates /opt/olbrasoft/virtual-assistant/app/Prompts directory
-    // Copies MistralSystemPrompt.md file to deployment location
-    // Unit tests should not have side-effects on the system
-    // TODO: Refactor HandleReloadPrompt to use IFileSystem interface for testability
+    // DISABLED: These tests are no longer needed
+    // HandleReloadPrompt() now only clears cache via ILlmProvider.ReloadPrompt()
+    // No filesystem operations, prompts deployed via deploy.sh script
 
     //[Fact]
     //public void HandleReloadPrompt_WithoutProvider_LogsWarning()

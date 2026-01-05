@@ -59,7 +59,7 @@ public class MistralProvider : ILlmProvider
     /// <summary>
     /// Gets the system prompt based on current desktop context.
     /// Returns (promptText, promptId) tuple.
-    /// Falls back to legacy MistralSystemPrompt on any error during context-aware prompt selection.
+    /// Falls back to DefaultCorrection prompt on any error during context-aware prompt selection.
     /// </summary>
     private async Task<(string PromptText, int? PromptId)> GetSystemPromptAsync(CancellationToken ct)
     {
@@ -82,8 +82,8 @@ public class MistralProvider : ILlmProvider
             // Ensure we have a valid prompt (could be null if database is misconfigured)
             if (prompt == null)
             {
-                _logger.LogWarning("No default prompt found in database, falling back to legacy MistralSystemPrompt");
-                return (_promptCache.GetPrompt("MistralSystemPrompt"), null);
+                _logger.LogWarning("No default prompt found in database, falling back to DefaultCorrection");
+                return (_promptCache.GetPrompt("DefaultCorrection"), null);
             }
 
             // Load prompt from cache (or filesystem/embedded)
@@ -97,14 +97,14 @@ public class MistralProvider : ILlmProvider
         catch (InvalidOperationException ex)
         {
             // Expected exception when desktop monitoring is unavailable or prompt query fails
-            _logger.LogWarning(ex, "Failed to get context-aware prompt, falling back to legacy MistralSystemPrompt");
-            return (_promptCache.GetPrompt("MistralSystemPrompt"), null);
+            _logger.LogWarning(ex, "Failed to get context-aware prompt, falling back to DefaultCorrection");
+            return (_promptCache.GetPrompt("DefaultCorrection"), null);
         }
         catch (Exception ex)
         {
             // Unexpected exception - log as error to surface potential bugs or configuration issues
-            _logger.LogError(ex, "Unexpected error getting context-aware prompt, falling back to legacy MistralSystemPrompt");
-            return (_promptCache.GetPrompt("MistralSystemPrompt"), null);
+            _logger.LogError(ex, "Unexpected error getting context-aware prompt, falling back to DefaultCorrection");
+            return (_promptCache.GetPrompt("DefaultCorrection"), null);
         }
     }
 
