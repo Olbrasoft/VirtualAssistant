@@ -276,7 +276,7 @@ public class DictationWorker : BackgroundService, IDictationControl
         {
             correctionResult = new LlmCorrectionResult(
                 CorrectedText: correctedText,
-                PromptId: null,  // PromptId is populated by TranscriptionService, not available here
+                PromptId: result.PromptId,  // PromptId from TranscriptionService (context-aware prompt selection)
                 DurationMs: result.LlmDurationMs.Value
             );
         }

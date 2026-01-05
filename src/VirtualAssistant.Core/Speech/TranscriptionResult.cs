@@ -44,6 +44,12 @@ public class TranscriptionResult
     public int? LlmDurationMs { get; init; }
 
     /// <summary>
+    /// Gets the ID of the prompt used for LLM correction.
+    /// Null if LLM correction was not applied or if transcription failed.
+    /// </summary>
+    public int? PromptId { get; init; }
+
+    /// <summary>
     /// Initializes a new instance for successful transcription.
     /// </summary>
     public TranscriptionResult(string text, float confidence)

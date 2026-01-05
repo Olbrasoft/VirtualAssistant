@@ -59,7 +59,7 @@ public class MistralProvider : ILlmProvider
     /// <summary>
     /// Gets the system prompt based on current desktop context.
     /// Returns (promptText, promptId) tuple.
-    /// Falls back to legacy MistralSystemPrompt if desktop monitoring unavailable.
+    /// Falls back to legacy MistralSystemPrompt on any error during context-aware prompt selection.
     /// </summary>
     private async Task<(string PromptText, int? PromptId)> GetSystemPromptAsync(CancellationToken ct)
     {
@@ -79,6 +79,13 @@ public class MistralProvider : ILlmProvider
             prompt ??= await _queryProcessor.ProcessAsync(
                 new GetDefaultPromptQuery(), ct);
 
+            // Ensure we have a valid prompt (could be null if database is misconfigured)
+            if (prompt == null)
+            {
+                _logger.LogWarning("No default prompt found in database, falling back to legacy MistralSystemPrompt");
+                return (_promptCache.GetPrompt("MistralSystemPrompt"), null);
+            }
+
             // Load prompt from cache (or filesystem/embedded)
             var promptText = _promptCache.GetPrompt(prompt.PromptFileName);
 
@@ -87,9 +94,16 @@ public class MistralProvider : ILlmProvider
 
             return (promptText, prompt.Id);
         }
+        catch (InvalidOperationException ex)
+        {
+            // Expected exception when desktop monitoring is unavailable or prompt query fails
+            _logger.LogWarning(ex, "Failed to get context-aware prompt, falling back to legacy MistralSystemPrompt");
+            return (_promptCache.GetPrompt("MistralSystemPrompt"), null);
+        }
         catch (Exception ex)
         {
-            _logger.LogWarning(ex, "Failed to get context-aware prompt, falling back to legacy MistralSystemPrompt");
+            // Unexpected exception - log as error to surface potential bugs or configuration issues
+            _logger.LogError(ex, "Unexpected error getting context-aware prompt, falling back to legacy MistralSystemPrompt");
             return (_promptCache.GetPrompt("MistralSystemPrompt"), null);
         }
     }
@@ -115,21 +129,8 @@ public class MistralProvider : ILlmProvider
     /// </summary>
     public void ReloadPrompt()
     {
-        // Clear all known correction prompts
-        var promptNames = new[]
-        {
-            "MistralSystemPrompt",      // Legacy
-            "ClaudeCodeCorrection",
-            "OpenCodeCorrection",
-            "FerdiumCorrection",
-            "DefaultCorrection"
-        };
-
-        foreach (var name in promptNames)
-        {
-            _promptCache.ClearPrompt(name);
-        }
-
+        // Clear all cached prompts (avoids maintaining hardcoded list of prompt names)
+        _promptCache.ClearCache();
         _logger.LogInformation("All Mistral prompt caches cleared, will reload on next request");
     }
 

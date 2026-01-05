@@ -20,7 +20,7 @@ public class SaveLlmCorrectionCommandHandler(VirtualAssistantDbContext context)
             WhisperTranscriptionId = command.WhisperTranscriptionId,
             CorrectedText = command.CorrectedText,
             DurationMs = command.DurationMs,
-            PromptId = command.PromptId ?? 4, // Fallback to Default prompt (ID = 4) if null
+            PromptId = command.PromptId, // NULL indicates no prompt tracking (e.g., legacy code or system without desktop monitoring)
             CreatedAt = System.DateTime.UtcNow
         };
 

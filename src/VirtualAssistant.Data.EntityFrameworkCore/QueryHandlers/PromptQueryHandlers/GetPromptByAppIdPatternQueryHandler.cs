@@ -18,13 +18,12 @@ public class GetPromptByAppIdPatternQueryHandler(VirtualAssistantDbContext conte
 
         var appLower = query.ActiveApplication.ToLowerInvariant();
 
-        // Get all prompts except Default (AppIdPattern = "*")
-        var prompts = await Context.Prompts
-            .Where(p => p.AppIdPattern != "*")
-            .ToListAsync(token);
-
-        // Find first match where ActiveApplication contains AppIdPattern
+        // Find first match where ActiveApplication contains AppIdPattern (case-insensitive, database-side filtering)
         // Example: activeApp = "google-chrome-stable" matches AppIdPattern = "chrome"
-        return prompts.FirstOrDefault(p => appLower.Contains(p.AppIdPattern.ToLowerInvariant()));
+        // Uses EF.Functions.Like for database-side pattern matching to avoid loading all prompts into memory
+        return await Context.Prompts
+            .Where(p => p.AppIdPattern != "*")
+            .Where(p => EF.Functions.Like(appLower, "%" + p.AppIdPattern.ToLower() + "%"))
+            .FirstOrDefaultAsync(token);
     }
 }
