@@ -73,13 +73,6 @@ public static class DesktopServiceExtensions
             return new Services.DesktopContextService(monitor, logger);
         });
 
-        // Configure context mapping
-        services.Configure<ContextMappingOptions>(
-            configuration.GetSection(Configuration.ContextMappingOptions.SectionName));
-
-        // Register ContextPromptSelector
-        services.AddSingleton<Core.Services.IContextPromptSelector, Services.ContextPromptSelector>();
-
         // Configure notification filtering
         services.Configure<NotificationFilteringOptions>(
             configuration.GetSection(Configuration.NotificationFilteringOptions.SectionName));
