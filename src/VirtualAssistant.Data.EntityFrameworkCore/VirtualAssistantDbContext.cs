@@ -84,6 +84,11 @@ public class VirtualAssistantDbContext : DbContext
     /// </summary>
     public DbSet<TranscriptionCorrectionUsage> TranscriptionCorrectionUsage => Set<TranscriptionCorrectionUsage>();
 
+    /// <summary>
+    /// Gets or sets the Prompts DbSet for context-aware LLM correction prompts.
+    /// </summary>
+    public DbSet<Prompt> Prompts => Set<Prompt>();
+
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {
         base.OnModelCreating(modelBuilder);
