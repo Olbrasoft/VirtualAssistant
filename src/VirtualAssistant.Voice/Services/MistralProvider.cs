@@ -59,53 +59,78 @@ public class MistralProvider : ILlmProvider
     /// <summary>
     /// Gets the system prompt based on current desktop context.
     /// Returns (promptText, promptId) tuple.
-    /// Falls back to DefaultCorrection prompt on any error during context-aware prompt selection.
+    /// Uses window title to detect terminal apps (Claude Code, OpenCode) when app is terminal emulator.
+    /// Always returns valid prompt ID (never null) - defaults to ID 4 (DefaultCorrection) on any error.
     /// </summary>
-    private async Task<(string PromptText, int? PromptId)> GetSystemPromptAsync(CancellationToken ct)
+    private async Task<(string PromptText, int PromptId)> GetSystemPromptAsync(CancellationToken ct)
     {
         try
         {
             // Get current desktop context
             var context = await _desktopContextService.GetCurrentContextAsync(ct);
-            var activeApp = context.ActiveApplication; // e.g., "code", "ferdium", "chrome"
+            var activeApp = context.ActiveApplication; // e.g., "code.desktop", "terminator.desktop"
+            var windowTitle = context.ActiveWindowTitle; // e.g., "Claude Code - file.cs"
 
-            _logger.LogDebug("Active application for prompt selection: '{App}'", activeApp);
+            // For terminal emulators, detect app from window title
+            var detectedApp = DetectAppFromContext(activeApp, windowTitle);
 
-            // Find appropriate prompt based on active application
+            _logger.LogDebug("Active application: '{App}', Window: '{Title}', Detected: '{Detected}'",
+                activeApp, windowTitle, detectedApp);
+
+            // Find appropriate prompt based on detected application
             var prompt = await _queryProcessor.ProcessAsync(
-                new GetPromptByAppIdPatternQuery(activeApp), ct);
+                new GetPromptByAppIdPatternQuery(detectedApp), ct);
 
             // Fallback to Default if no match
             prompt ??= await _queryProcessor.ProcessAsync(
                 new GetDefaultPromptQuery(), ct);
 
-            // Ensure we have a valid prompt (could be null if database is misconfigured)
+            // Ensure we have a valid prompt (should always work with GetDefaultPromptQuery)
             if (prompt == null)
             {
-                _logger.LogWarning("No default prompt found in database, falling back to DefaultCorrection");
-                return (_promptCache.GetPrompt("DefaultCorrection"), null);
+                _logger.LogError("CRITICAL: No default prompt found in database - using hardcoded fallback");
+                return (_promptCache.GetPrompt("DefaultCorrection"), 4); // Hardcoded fallback to ID 4
             }
 
             // Load prompt from cache (or filesystem/embedded)
             var promptText = _promptCache.GetPrompt(prompt.PromptFileName);
 
             _logger.LogDebug("Using prompt '{Prompt}' (ID: {Id}) for app '{App}'",
-                prompt.PromptFileName, prompt.Id, activeApp);
+                prompt.PromptFileName, prompt.Id, detectedApp);
 
             return (promptText, prompt.Id);
         }
-        catch (InvalidOperationException ex)
-        {
-            // Expected exception when desktop monitoring is unavailable or prompt query fails
-            _logger.LogWarning(ex, "Failed to get context-aware prompt, falling back to DefaultCorrection");
-            return (_promptCache.GetPrompt("DefaultCorrection"), null);
-        }
         catch (Exception ex)
         {
-            // Unexpected exception - log as error to surface potential bugs or configuration issues
-            _logger.LogError(ex, "Unexpected error getting context-aware prompt, falling back to DefaultCorrection");
-            return (_promptCache.GetPrompt("DefaultCorrection"), null);
+            // Any exception - log error and use default prompt with ID 4
+            _logger.LogError(ex, "Error getting context-aware prompt, falling back to DefaultCorrection (ID 4)");
+            return (_promptCache.GetPrompt("DefaultCorrection"), 4);
         }
+    }
+
+    /// <summary>
+    /// Detects the application from desktop context.
+    /// For terminal emulators, uses window title to detect apps like Claude Code or OpenCode.
+    /// </summary>
+    private static string DetectAppFromContext(string activeApp, string windowTitle)
+    {
+        // Terminal emulators - detect app from window title
+        var terminalApps = new[] { "terminator", "kitty", "gnome-terminal", "konsole", "alacritty" };
+        var isTerminal = terminalApps.Any(t => activeApp.Contains(t, StringComparison.OrdinalIgnoreCase));
+
+        if (isTerminal && !string.IsNullOrEmpty(windowTitle))
+        {
+            var title = windowTitle.ToLowerInvariant();
+
+            // Detect Claude Code or OpenCode in window title
+            if (title.Contains("claude code") || title.Contains("opencode"))
+            {
+                return "code"; // Maps to Programming Correction prompt (ID 2)
+            }
+        }
+
+        // Return original app ID
+        return activeApp;
     }
 
     /// <summary>
