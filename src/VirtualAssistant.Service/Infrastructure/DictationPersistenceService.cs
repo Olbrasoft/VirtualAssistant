@@ -67,12 +67,11 @@ public class DictationPersistenceService : IDictationPersistenceService
         WhisperTranscription transcription;
         try
         {
-            var command = new SaveWhisperTranscriptionCommand(_commandExecutor)
-            {
-                Text = originalText,
-                DurationMs = audioDurationMs
-            };
-            transcription = await command.ToResultAsync(cancellationToken);
+            var command = new SaveWhisperTranscriptionCommand(
+                Text: originalText,
+                DurationMs: audioDurationMs
+            );
+            transcription = await _commandExecutor.ExecuteAsync(command, cancellationToken);
 
             _logger.LogDebug("Saved Whisper transcription to database with ID {Id}", transcription.Id);
         }

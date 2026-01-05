@@ -11,7 +11,7 @@ namespace Olbrasoft.VirtualAssistant.Data.EntityFrameworkCore.QueryHandlers;
 /// <typeparam name="TQuery">The type of the query.</typeparam>
 /// <typeparam name="TResult">The type of the result.</typeparam>
 public abstract class VirtualAssistantDbQueryHandler<TEntity, TQuery, TResult> : DbQueryHandler<VirtualAssistantDbContext, TEntity, TQuery, TResult>
-    where TQuery : BaseQuery<TResult>
+    where TQuery : IQuery<TResult>
     where TEntity : class
 {
     /// <summary>
@@ -74,7 +74,7 @@ public abstract class VirtualAssistantDbQueryHandler<TEntity, TQuery, TResult> :
 /// <typeparam name="TEntity">The type of the entity.</typeparam>
 /// <typeparam name="TQuery">The type of the query.</typeparam>
 public abstract class VirtualAssistantDbQueryHandler<TEntity, TQuery> : VirtualAssistantDbQueryHandler<TEntity, TQuery, bool>
-    where TQuery : BaseQuery<bool>
+    where TQuery : IQuery<bool>
     where TEntity : class
 {
     protected VirtualAssistantDbQueryHandler(VirtualAssistantDbContext context) : base(context)
