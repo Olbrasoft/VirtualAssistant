@@ -9,11 +9,9 @@ Linux virtuální asistent pro ovládání desktopu a integraci s AI coding agen
 - **VAD (Voice Activity Detection)** – Silero ONNX model pro detekci hlasu
 - **Multi-provider LLM routing** – Groq, Cerebras, Mistral s automatickým fallbackem
 - **Lokální ASR** – Whisper.NET s large-v3 modelem (FHS-compliant umístění)
-- **Inter-agent komunikace** – Hub API pro komunikaci mezi AI agenty
-- **Task Queue** – Automatická distribuce úkolů mezi agenty (ClaudeCode headless mode)
-- **GitHub synchronizace** – Synchronizace issues s embeddings pro sémantické vyhledávání
+- **GitHub synchronizace** – Synchronizace issues s embeddings pro sémantické vyhledávání (Ollama nomic-embed-text)
 - **TTS s fallbackem** – AzureTTS (primární), EdgeTTS, VoiceRSS, Google, Piper s circuit breaker pattern
-- **DependentServicesManager** – Správa závislých služeb (TextToSpeech.Service)
+- **Desktop Context Awareness** – GNOME integration pro context-aware LLM prompty
 - **Manuální mute** – Tlačítko myši pro dočasné ztlumení poslechu
 
 ## Architektura
@@ -25,22 +23,22 @@ Linux virtuální asistent pro ovládání desktopu a integraci s AI coding agen
 │  VirtualAssistant.Voice          │  VirtualAssistant.Service               │
 │  - 4 background workers:         │  - ASP.NET Core API (port 5055)         │
 │    • AudioCapturerWorker         │  - Tray ikona (GTK)                     │
-│    • VoiceActivityWorker         │  - DependentServicesManager             │
-│    • TranscriptionRouterWorker   │  - REST API controllers                 │
+│    • VoiceActivityWorker         │  - REST API controllers                 │
+│    • TranscriptionRouterWorker   │  - SignalR Hub (Desktop Monitor)        │
 │    • ActionExecutorWorker        │                                         │
 │  - TTS Provider Chain            │                                         │
-│  - Whisper.NET (STT)             │                                         │
+│  - Whisper.NET (inline STT)      │                                         │
 ├─────────────────────────────────────────────────────────────────────────────┤
 │  VirtualAssistant.Core           │  VirtualAssistant.GitHub                │
-│  - AgentHubService               │  - GitHub API integrace                 │
-│  - AgentTaskService              │  - Synchronizace issues                 │
-│  - TaskDistributionService       │  - Sémantické vyhledávání (pgvector)    │
-│  - IManualMuteService            │  - Ollama embeddings                    │
+│  - NotificationService           │  - GitHub API integrace                 │
+│  - DictationPersistenceService   │  - Synchronizace issues                 │
+│  - DesktopContextService         │  - Sémantické vyhledávání (pgvector)    │
+│  - IManualMuteService            │  - Ollama embeddings (nomic-embed-text) │
 ├─────────────────────────────────────────────────────────────────────────────┤
-│  VirtualAssistant.Data           │  TextToSpeech.Service (External)        │
-│  - Entity Framework Core         │  - Separate TTS service                 │
-│  - PostgreSQL + pgvector         │  - Managed by DependentServicesManager  │
-│  - CQRS handlers                 │                                         │
+│  VirtualAssistant.Data           │  VirtualAssistant.Desktop               │
+│  - Entity Framework Core         │  - GNOME LinuxDesktop integration       │
+│  - PostgreSQL + pgvector         │  - Desktop context awareness            │
+│  - CQRS queries/commands         │  - Window/workspace tracking            │
 └─────────────────────────────────────────────────────────────────────────────┘
 ```
 
@@ -50,17 +48,15 @@ Linux virtuální asistent pro ovládání desktopu a integraci s AI coding agen
 
 | Projekt | Popis |
 |---------|-------|
-| `VirtualAssistant.Core` | Business logic: AgentHubService, AgentTaskService, TaskDistributionService, DependentServicesManager, IManualMuteService |
-| `VirtualAssistant.Voice` | 4 background workers, TTS provider chain, Whisper STT, LLM routing |
 | `VirtualAssistant.Service` | ASP.NET Core hlavní služba s tray ikonou (port 5055) |
-| `VirtualAssistant.Data` | Entity, enumy, DTO |
-| `VirtualAssistant.Data.EntityFrameworkCore` | DbContext, konfigurace, migrace (auto-apply on startup) |
-| `VirtualAssistant.GitHub` | GitHub API klient, synchronizace issues, embeddings (Ollama) |
-| `VirtualAssistant.Tray` | Standalone tray aplikace (GTK) |
-| `VirtualAssistant.Desktop` | Desktop komponenty |
-| `VirtualAssistant.Plugins` | Plugin framework (placeholder) |
-| `VirtualAssistant.Agent` | Agent modul (placeholder) |
-| `VirtualAssistant.Api` | Minimal API (development) |
+| `VirtualAssistant.Core` | Business logic services, NotificationService, DictationPersistenceService |
+| `VirtualAssistant.Voice` | 4 background workers, TTS provider chain, Whisper STT inline, VAD |
+| `VirtualAssistant.Data` | CQRS queries, commands, entities, DTOs, enums |
+| `VirtualAssistant.Data.EntityFrameworkCore` | DbContext, query/command handlers, migrations (auto-apply on startup) |
+| `VirtualAssistant.GitHub` | GitHub API klient, synchronizace issues, embeddings (Ollama nomic-embed-text 768d) |
+| `VirtualAssistant.LlmChain` | Multi-provider LLM routing (Groq, Cerebras, Mistral, OpenRouter) with circuit breaker |
+| `VirtualAssistant.Desktop` | Desktop context awareness (GNOME LinuxDesktop integration) |
+| `VirtualAssistant.Api` | Minimal API endpoints |
 
 ## API Endpointy
 
@@ -102,39 +98,6 @@ Služba běží na `http://localhost:5055`.
 | POST | `/api/mute` | Nastaví mute stav (mění ikonu tray) |
 | GET | `/api/mute` | Vrátí aktuální mute stav |
 
-### Agent Hub (Inter-agent Komunikace)
-
-| Metoda | Endpoint | Popis |
-|--------|----------|-------|
-| POST | `/api/hub/send` | Odešle zprávu jinému agentovi |
-| GET | `/api/hub/pending/{agent}` | Nevyřízené zprávy pro agenta |
-| POST | `/api/hub/approve/{id}` | Schválí zprávu čekající na schválení |
-| POST | `/api/hub/cancel/{id}` | Zruší nevyřízenou zprávu |
-| POST | `/api/hub/delivered/{id}` | Označí zprávu jako doručenou |
-| POST | `/api/hub/processed/{id}` | Označí zprávu jako zpracovanou |
-| GET | `/api/hub/queue` | Všechny zprávy ve frontě |
-| GET | `/api/hub/awaiting-approval` | Zprávy čekající na schválení |
-| POST | `/api/hub/start` | Zahájí nový task (s volitelným sessionId) |
-| POST | `/api/hub/progress` | Progress update pro běžící task |
-| POST | `/api/hub/complete` | Dokončí task |
-| GET | `/api/hub/active` | Aktivní tasky (volitelně filtrované) |
-| GET | `/api/hub/task/{taskId}` | Historie konkrétního tasku |
-
-### Task Queue (Automatická Distribuce)
-
-| Metoda | Endpoint | Popis |
-|--------|----------|-------|
-| POST | `/api/tasks/create` | Vytvoří task (X-Agent-Name header) |
-| GET | `/api/tasks/pending/{agent}` | Nevyřízené tasky pro agenta |
-| GET | `/api/tasks/awaiting-approval` | Tasky čekající na schválení |
-| GET | `/api/tasks/{taskId}` | Detail tasku |
-| GET | `/api/tasks` | Všechny tasky (limit query param) |
-| POST | `/api/tasks/{taskId}/approve` | Schválí task |
-| POST | `/api/tasks/{taskId}/cancel` | Zruší task |
-| POST | `/api/tasks/{taskId}/complete` | Dokončí task s výsledkem |
-| GET | `/api/tasks/idle/{agent}` | Zjistí zda je agent nečinný |
-| GET | `/api/tasks/ready-to-send` | Tasky připravené k odeslání |
-
 ### GitHub Synchronizace
 
 | Metoda | Endpoint | Popis |
@@ -152,68 +115,6 @@ Služba běží na `http://localhost:5055`.
 PostgreSQL databáze s pgvector extenzí pro sémantické vyhledávání.
 
 ### Tabulky
-
-#### `agents`
-Registrovaní AI agenti (opencode, claude).
-
-| Sloupec | Typ | Popis |
-|---------|-----|-------|
-| id | int | PK |
-| name | text | Identifikátor (opencode, claude) |
-| label | text | GitHub label (agent:opencode) |
-| is_active | bool | Je agent aktivní |
-| created_at | timestamp | Datum vytvoření |
-
-#### `agent_messages`
-Zprávy mezi agenty (Hub API).
-
-| Sloupec | Typ | Popis |
-|---------|-----|-------|
-| id | int | PK |
-| source_agent | text | Zdrojový agent |
-| target_agent | text | Cílový agent |
-| message_type | text | Typ zprávy |
-| content | text | Obsah zprávy |
-| status | text | pending/approved/delivered/processed/cancelled |
-| phase | int | Start=0, Progress=1, Complete=2 |
-| session_id | text | ID relace (pro deduplikaci) |
-| parent_message_id | int | FK na rodičovskou zprávu |
-| requires_approval | bool | Vyžaduje schválení |
-| created_at | timestamp | Vytvořeno |
-| approved_at | timestamp | Schváleno |
-| delivered_at | timestamp | Doručeno |
-| processed_at | timestamp | Zpracováno |
-
-#### `agent_tasks`
-Task queue pro automatickou distribuci.
-
-| Sloupec | Typ | Popis |
-|---------|-----|-------|
-| id | int | PK |
-| github_issue_url | text | URL GitHub issue |
-| github_issue_number | int | Číslo issue |
-| summary | text | Popis úkolu |
-| created_by_agent_id | int | FK na agents |
-| target_agent_id | int | FK na agents |
-| status | text | pending/approved/sent/completed/cancelled |
-| requires_approval | bool | Vyžaduje schválení |
-| result | text | Výsledek |
-| created_at | timestamp | Vytvořeno |
-| approved_at | timestamp | Schváleno |
-| sent_at | timestamp | Odesláno |
-| completed_at | timestamp | Dokončeno |
-
-#### `agent_task_sends`
-Log doručení tasků.
-
-| Sloupec | Typ | Popis |
-|---------|-----|-------|
-| id | int | PK |
-| task_id | int | FK na agent_tasks |
-| agent_id | int | FK na agents |
-| sent_at | timestamp | Čas odeslání |
-| delivery_method | text | Způsob doručení (hub_api) |
-| response | text | Odpověď |
 
 #### `github_repositories`
 Synchronizovaná GitHub repositories.
@@ -238,29 +139,96 @@ Synchronizované GitHub issues s embeddings.
 | body | text | Popis |
 | state | text | open/closed |
 | html_url | text | URL |
-| title_embedding | vector(1536) | Embedding titulku |
-| body_embedding | vector(1536) | Embedding popisu |
+| title_embedding | vector(768) | Embedding titulku (nomic-embed-text) |
+| body_embedding | vector(768) | Embedding popisu (nomic-embed-text) |
 | embedding_generated_at | timestamp | Kdy generováno |
 
-#### `github_issue_agents`
-Přiřazení agentů k issues.
-
-| Sloupec | Typ | Popis |
-|---------|-----|-------|
-| id | int | PK |
-| github_issue_id | int | FK na github_issues |
-| agent_label | text | Label agenta |
-
 #### `voice_transcriptions`
-Historie hlasových přepisů.
+Historie hlasových přepisů (dictation mode).
 
 | Sloupec | Typ | Popis |
 |---------|-----|-------|
 | id | int | PK |
 | transcribed_text | text | Přepsaný text |
-| source_app | text | Aktivní aplikace |
-| duration_ms | int | Délka nahrávky |
+| source_app | text | Aktivní aplikace během diktování |
+| duration_ms | int | Délka nahrávky v ms |
 | created_at | timestamp | Vytvořeno |
+
+#### `whisper_transcriptions`
+Historie Whisper AI přepisů (continuous listening).
+
+| Sloupec | Typ | Popis |
+|---------|-----|-------|
+| id | int | PK |
+| transcribed_text | text | Přepsaný text z Whisper AI |
+| audio_duration_ms | int | Délka audio záznamu v ms |
+| created_at | timestamp | Vytvořeno |
+
+#### `notifications`
+Notifikace od agentů.
+
+| Sloupec | Typ | Popis |
+|---------|-----|-------|
+| id | int | PK |
+| text | text | Text notifikace |
+| agent_id | int | FK na agents (zdroj notifikace) |
+| notification_status_id | int | FK na notification_statuses |
+| created_at | timestamp | Vytvořeno |
+| final_provider_id | int | FK na providers (použitý TTS provider) |
+| final_tts_status | text | success/error/timeout/all_failed |
+| tts_completed_at | timestamp | Kdy dokončeno TTS |
+
+#### `notification_statuses`
+Statusy notifikací.
+
+| Sloupec | Typ | Popis |
+|---------|-----|-------|
+| id | int | PK |
+| name | text | pending/processing/played |
+
+#### `providers`
+TTS providery (AzureTTS, EdgeTTS, VoiceRss, Google, Piper).
+
+| Sloupec | Typ | Popis |
+|---------|-----|-------|
+| id | int | PK |
+| name | text | Název providera |
+
+#### `notification_tts_attempts`
+Log TTS pokusů pro notifikace (circuit breaker tracking).
+
+| Sloupec | Typ | Popis |
+|---------|-----|-------|
+| id | int | PK |
+| notification_id | int | FK na notifications |
+| provider_id | int | FK na providers |
+| attempt_order | int | Pořadí pokusu (1, 2, 3...) |
+| status | text | success/error/timeout |
+| error_message | text | Chybová zpráva |
+| attempted_at | timestamp | Kdy pokus |
+
+#### `transcription_corrections`
+Slovník oprav pro Whisper přepisy (case-insensitive).
+
+| Sloupec | Typ | Popis |
+|---------|-----|-------|
+| id | int | PK |
+| incorrect_text | text | Špatný text z Whisper |
+| correct_text | text | Správný text |
+| is_active | bool | Je oprava aktivní |
+| priority | int | Priorita (vyšší = dříve aplikováno) |
+| created_at | timestamp | Vytvořeno |
+| updated_at | timestamp | Aktualizováno |
+
+#### `transcription_correction_usages`
+Sledování použití oprav (analytics).
+
+| Sloupec | Typ | Popis |
+|---------|-----|-------|
+| id | int | PK |
+| transcription_correction_id | int | FK na transcription_corrections |
+| used_at | timestamp | Kdy použito |
+| context | text | Kontext (dictation, continuous-listening) |
 
 #### `system_startups`
 Log startů systému.
@@ -453,42 +421,15 @@ systemctl --user start edge-tts-server
 
 ## Background Services
 
-### Voice Workers (4 specialized workers)
+**4 Voice Workers** (pipelined architecture):
+1. **AudioCapturerWorker** - Continuous audio capture via PipeWire (respects mute state)
+2. **VoiceActivityWorker** - VAD detection using Silero ONNX model
+3. **TranscriptionRouterWorker** - Whisper.NET transcription + LLM routing (Groq → Cerebras → Mistral fallback)
+4. **ActionExecutorWorker** - Executes actions from LLM decisions (OpenCode API, TTS, save notes)
 
-#### 1. AudioCapturerWorker
-- Kontinuální audio capture přes PipeWire (pw-record)
-- Respektuje mute stav (IManualMuteService)
-- Publikuje AudioChunkCapturedEvent s RMS kalkulací
-
-#### 2. VoiceActivityWorker
-- Voice Activity Detection (Silero VAD ONNX)
-- Detekuje začátek a konec řeči
-- Publikuje VoiceActivityDetectedEvent
-
-#### 3. TranscriptionRouterWorker
-- Whisper.NET transcription (large-v3 model)
-- LLM routing (Groq → Cerebras → Mistral fallback)
-- Rozhodování o akci (opencode, respond, ignore, savenote, etc.)
-
-#### 4. ActionExecutorWorker
-- Provádí akce z LLM rozhodnutí
-- Volá OpenCode API, TTS, nebo ukládá poznámky
-
-### TaskDistributionService
-
-Automaticky distribuuje schválené úkoly nečinným agentům (každých 10s).
-
-Workflow:
-1. Agent vytvoří task přes `/api/tasks/create`
-2. Uživatel schválí přes `/api/tasks/{id}/approve` (pokud `requires_approval=true`)
-3. TaskDistributionService zjistí že cílový agent je nečinný
-4. Odešle task přes `/api/hub/dispatch-task`
-5. Pro ClaudeCode: headless mode (`claude -p "..." --output-format json`)
-6. Notifikuje uživatele přes TTS
-
-### GitHubSyncBackgroundService
-
-Periodicky synchronizuje GitHub issues a generuje embeddings (Ollama).
+**Other Background Workers:**
+- **GitHubSyncBackgroundService** - Periodic GitHub issue sync with embeddings (Ollama nomic-embed-text)
+- **DesktopMonitorBroadcastWorker** - Broadcasts desktop context changes via SignalR (real-time dashboard)
 
 ## Licence
 

@@ -1,6 +1,6 @@
 # VirtualAssistant - Claude Code Guide
 
-Linux voice-controlled virtual assistant with inter-agent communication hub.
+Linux voice-controlled virtual assistant with desktop context awareness.
 
 ## Build & Deploy
 
@@ -16,6 +16,26 @@ cd ~/Olbrasoft/VirtualAssistant && ./deploy/deploy.sh /opt/olbrasoft/virtual-ass
 ```
 
 **Production path:** `/opt/olbrasoft/virtual-assistant/` (ONLY deployment target)
+
+## Recent Changes (2025-01-05)
+
+**Project cleanup completed:**
+- ✅ Removed `VirtualAssistant.Agent` and `VirtualAssistant.Agent.Tests` (empty placeholder projects)
+- ✅ Removed empty query/command directories (GitHubIssueQueries, LlmCorrectionQueries, NotificationQueries)
+- ✅ Removed 22 `.gitkeep` placeholder files
+- ✅ Removed Agent Hub and Task Queue features (migrations dropped tables)
+
+**CQRS refactoring completed (issues #558-#562):**
+- ✅ All queries and commands converted to C# records with primary constructors
+- ✅ Removed verbose class-based commands/queries
+- ✅ Cleaner, more concise CQRS definitions
+
+**Current project count:** 9 projects (down from 11)
+
+**Database schema changes:**
+- Embeddings: OpenAI 1536d → Ollama nomic-embed-text 768d
+- New tables: `whisper_transcriptions`, `notifications`, `notification_statuses`, `providers`, `notification_tts_attempts`, `transcription_corrections`, `transcription_correction_usages`
+- Dropped tables: `agent_messages`, `agent_tasks`, `agent_task_sends`, `github_issue_agents`
 
 ## CI/CD & Automation
 
@@ -301,10 +321,11 @@ journalctl --user -u virtual-assistant.service -f
 
 ## Key API Endpoints
 
-- `/api/github/search?q=...` - Semantic issue search
-- `/api/hub/send` - Inter-agent messaging
-- `/api/tasks/create` - Task queue (X-Agent-Name header)
-- `/api/tts/speak` - Text-to-speech
+- `/api/github/search?q=...` - Semantic issue search (Ollama nomic-embed-text embeddings)
+- `/api/notifications` - Create notifications with TTS
+- `/api/tts/speak` - Text-to-speech (source: opencode/claude/assistant)
+- `/api/assistant-speech/start|end` - Echo cancellation control
+- `/api/mute` - Mute control (GET/POST)
 - `/health` - Health check
 - `/hub/desktop-monitor` - Desktop Monitor SignalR hub
 
