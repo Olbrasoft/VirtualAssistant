@@ -37,14 +37,15 @@ namespace Olbrasoft.VirtualAssistant.Data.EntityFrameworkCore.Migrations
 
             // Step 2: Seed default prompts (created_at will use database default NOW())
             // Note: prompt_file_name should NOT include .md extension (HybridPromptLoader adds it)
+            // Note: app_id_pattern is CASE-SENSITIVE and matches against Active Window Title
             migrationBuilder.InsertData(
                 table: "prompts",
                 columns: new[] { "id", "name", "application_name", "app_id_pattern", "prompt_file_name" },
                 values: new object[,]
                 {
-                    { 1, "OpenCode Correction", "OpenCode", "opencode", "OpenCodeCorrection" },
-                    { 2, "Programming Correction", "Programming (VS Code/Claude Code/OpenCode)", "code", "ClaudeCodeCorrection" },
-                    { 3, "Ferdium Correction", "Ferdium", "ferdium", "FerdiumCorrection" },
+                    { 1, "OpenCode Correction", "OpenCode", "OpenCode", "OpenCodeCorrection" },
+                    { 2, "Claude Code Correction", "Claude Code", "Claude Code", "ClaudeCodeCorrection" },
+                    { 3, "Ferdium Correction", "Ferdium", "Ferdium", "FerdiumCorrection" },
                     { 4, "Default Correction", "Default", "*", "DefaultCorrection" }
                 });
 

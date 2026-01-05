@@ -17,15 +17,14 @@ public class GetPromptByAppIdPatternQueryHandler(VirtualAssistantDbContext conte
     {
         ArgumentException.ThrowIfNullOrWhiteSpace(query.ActiveWindowTitle, nameof(query.ActiveWindowTitle));
 
-        var titleLower = query.ActiveWindowTitle.ToLowerInvariant();
-
-        // Find first match where ActiveWindowTitle contains AppIdPattern (case-insensitive, database-side filtering)
-        // Example: windowTitle = "Claude Code - file.cs" matches AppIdPattern = "code"
-        // Example: windowTitle = "Ferdium - WhatsApp - (1) WhatsApp" matches AppIdPattern = "ferdium"
+        // Find first match where ActiveWindowTitle contains AppIdPattern (case-sensitive!)
+        // Example: windowTitle = "Claude Code - file.cs" matches AppIdPattern = "Claude Code"
+        // Example: windowTitle = "OpenCode" matches AppIdPattern = "OpenCode"
+        // Example: windowTitle = "Ferdium - WhatsApp - (1) WhatsApp" matches AppIdPattern = "Ferdium"
         // Uses EF.Functions.Like for database-side pattern matching to avoid loading all prompts into memory
         return await Context.Prompts
             .Where(p => p.AppIdPattern != "*")
-            .Where(p => EF.Functions.Like(titleLower, "%" + p.AppIdPattern.ToLower() + "%"))
+            .Where(p => EF.Functions.Like(query.ActiveWindowTitle, "%" + p.AppIdPattern + "%"))
             .FirstOrDefaultAsync(token);
     }
 }
