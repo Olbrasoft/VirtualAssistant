@@ -88,13 +88,12 @@ public class DictationPersistenceService : IDictationPersistenceService
         {
             try
             {
-                var command = new SaveLlmCorrectionCommand(_commandExecutor)
-                {
-                    WhisperTranscriptionId = transcription.Id,
-                    CorrectedText = correctedText,
-                    DurationMs = llmDurationMs
-                };
-                var correction = await command.ToResultAsync(cancellationToken);
+                var command = new SaveLlmCorrectionCommand(
+                    WhisperTranscriptionId: transcription.Id,
+                    CorrectedText: correctedText,
+                    DurationMs: llmDurationMs
+                );
+                var correction = await _commandExecutor.ExecuteAsync(command, cancellationToken);
 
                 _logger.LogDebug(
                     "Saved LLM correction {Id} for transcription {TranscriptionId} (duration: {Duration}ms): '{Original}' → '{Corrected}'",
