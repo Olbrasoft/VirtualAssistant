@@ -1,4 +1,5 @@
 using Microsoft.AspNetCore.Mvc;
+using Olbrasoft.VirtualAssistant.Core.Models;
 using Olbrasoft.VirtualAssistant.Core.Services;
 
 namespace Olbrasoft.VirtualAssistant.Service.Controllers;

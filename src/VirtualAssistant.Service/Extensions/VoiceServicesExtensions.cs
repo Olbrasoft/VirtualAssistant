@@ -14,8 +14,6 @@ using Olbrasoft.VirtualAssistant.Service.Infrastructure;
 using Olbrasoft.VirtualAssistant.Voice.Audio;
 using Olbrasoft.VirtualAssistant.Voice.Configuration;
 using Olbrasoft.VirtualAssistant.Voice.Filters;
-using Olbrasoft.VirtualAssistant.Voice.Pipeline;
-using Olbrasoft.VirtualAssistant.Voice.Pipeline.Stages;
 using Olbrasoft.VirtualAssistant.Voice.Services;
 using Olbrasoft.VirtualAssistant.Voice.Services.EchoDetection;
 using Olbrasoft.VirtualAssistant.Voice.Similarity;
@@ -93,9 +91,6 @@ public static class VoiceServicesExtensions
 
             return new TranscriptionService(logger, transcriber, configuration, textFilter, llmProvider);
         });
-
-        // Repeat text intent detection service (for PTT history feature)
-        services.AddSingleton<IRepeatTextIntentService, RepeatTextIntentService>();
 
         // Text input service for OpenCode
         var openCodeUrl = configuration["OpenCodeUrl"] ?? "http://localhost:4096";
@@ -231,20 +226,6 @@ public static class VoiceServicesExtensions
         services.Configure<TtsProfilesOptions>(
             configuration.GetSection(TtsProfilesOptions.SectionName));
         services.AddSingleton<ITtsProfileResolver, TtsProfileResolver>();
-
-        // Voice processing pipeline (Issue #471 - Pipeline pattern)
-        // Register pipeline stages in order of execution
-        services.AddSingleton<IVoicePipelineStage, TranscriptionStage>();
-        services.AddSingleton<IVoicePipelineStage, EchoFilterStage>();
-        services.AddSingleton<IVoicePipelineStage, CancelCommandStage>();
-        services.AddSingleton<IVoicePipelineStage, LocalFilterStage>();
-        services.AddSingleton<IVoicePipelineStage, StopCommandStage>();
-        services.AddSingleton<IVoicePipelineStage, RepeatTextIntentStage>();
-        services.AddSingleton<IVoicePipelineStage, LlmRoutingStage>();
-        services.AddSingleton<IVoicePipelineStage, ActionExecutionStage>();
-
-        // Voice pipeline facade
-        services.AddSingleton<IVoicePipeline, VoicePipeline>();
 
         return services;
     }

@@ -1,3 +1,5 @@
+using Olbrasoft.VirtualAssistant.Core.Models;
+
 namespace Olbrasoft.VirtualAssistant.Core.Services;
 
 /// <summary>

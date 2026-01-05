@@ -31,12 +31,6 @@ public static class LlmServicesExtensions
         // HttpClient
         services.AddHttpClient();
 
-        // LLM Routers - register as BaseLlmRouterService for MultiProvider to collect
-        services.AddSingleton<BaseLlmRouterService, CerebrasRouterService>();
-        services.AddSingleton<BaseLlmRouterService, GroqRouterService>();
-        services.AddSingleton<BaseLlmRouterService, MistralRouterService>();
-        services.AddSingleton<ILlmRouterService, MultiProviderLlmRouter>();
-
         return services;
     }
 }
