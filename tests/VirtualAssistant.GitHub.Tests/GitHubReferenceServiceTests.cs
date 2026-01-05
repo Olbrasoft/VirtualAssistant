@@ -1,6 +1,5 @@
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Logging;
-using Moq;
 using Olbrasoft.VirtualAssistant.Data.EntityFrameworkCore;
 using Olbrasoft.VirtualAssistant.GitHub.Services;
 

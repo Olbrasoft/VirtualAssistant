@@ -1,5 +1,4 @@
 using Olbrasoft.VirtualAssistant.Data.Commands.LlmCorrectionCommands;
-using Olbrasoft.VirtualAssistant.Data.Entities;
 
 namespace Olbrasoft.VirtualAssistant.Data.EntityFrameworkCore.CommandHandlers.LlmCorrectionCommandHandlers;
 

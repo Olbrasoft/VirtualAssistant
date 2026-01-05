@@ -1,6 +1,3 @@
-using Microsoft.EntityFrameworkCore;
-using Microsoft.EntityFrameworkCore.Metadata.Builders;
-using Olbrasoft.VirtualAssistant.Data.Entities;
 using Olbrasoft.VirtualAssistant.Data.Enums;
 
 namespace Olbrasoft.VirtualAssistant.Data.EntityFrameworkCore.Configurations;

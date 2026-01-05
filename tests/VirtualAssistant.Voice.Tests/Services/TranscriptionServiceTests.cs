@@ -1,4 +1,3 @@
-using System.Reflection;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.Logging;
 using Moq;
@@ -80,7 +79,7 @@ public class TranscriptionServiceTests
         // Arrange & Act
         var method = typeof(TranscriptionService).GetMethod(
             "TranscribeAsync",
-            new[] { typeof(byte[]), typeof(CancellationToken) }
+            [typeof(byte[]), typeof(CancellationToken)]
         );
 
         // Assert

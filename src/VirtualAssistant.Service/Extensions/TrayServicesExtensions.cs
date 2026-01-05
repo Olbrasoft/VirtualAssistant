@@ -1,6 +1,3 @@
-using Microsoft.Extensions.Configuration;
-using Microsoft.Extensions.DependencyInjection;
-using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
 using Olbrasoft.VirtualAssistant.Core.Configuration;
 using Olbrasoft.VirtualAssistant.Core.Services;
@@ -9,7 +6,6 @@ using Olbrasoft.VirtualAssistant.Service.Infrastructure;
 using Olbrasoft.VirtualAssistant.Service.Tray;
 using Olbrasoft.VirtualAssistant.Service.Tray.Menu;
 using Olbrasoft.VirtualAssistant.Service.Workers;
-using Olbrasoft.VirtualAssistant.Voice;
 using Olbrasoft.VirtualAssistant.Voice.Services;
 using Olbrasoft.SystemTray.Linux;
 using SystemTrayMenuHandler = Olbrasoft.SystemTray.Linux.ITrayMenuHandler;
@@ -126,7 +122,7 @@ public static class TrayServicesExtensions
             var iconCoordinator = sp.GetRequiredService<ITrayIconCoordinator>();
             var iconAnimationService = sp.GetRequiredService<IIconAnimationService>();
             var lifecycleManager = sp.GetService<IServiceLifecycleManager>();
-            var dictationStateMachine = sp.GetService<Olbrasoft.VirtualAssistant.Voice.StateMachine.IDictationStateMachine>();
+            var dictationStateMachine = sp.GetService<Voice.StateMachine.IDictationStateMachine>();
             var dictationWorker = sp.GetService<DictationWorker>();
 
             return new StateNotificationHandler(

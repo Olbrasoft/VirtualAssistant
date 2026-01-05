@@ -1,5 +1,4 @@
-﻿using System;
-using Microsoft.EntityFrameworkCore.Migrations;
+﻿using Microsoft.EntityFrameworkCore.Migrations;
 using Npgsql.EntityFrameworkCore.PostgreSQL.Metadata;
 
 #nullable disable
@@ -124,7 +123,7 @@ namespace Olbrasoft.VirtualAssistant.Data.EntityFrameworkCore.Migrations
             migrationBuilder.CreateIndex(
                 name: "IX_transcription_corrections_is_active_priority",
                 table: "transcription_corrections",
-                columns: new[] { "is_active", "priority" });
+                columns: ["is_active", "priority"]);
 
             migrationBuilder.CreateIndex(
                 name: "IX_whisper_transcriptions_created_at",

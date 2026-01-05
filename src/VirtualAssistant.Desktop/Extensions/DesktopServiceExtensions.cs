@@ -1,7 +1,6 @@
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
-using Olbrasoft.LinuxDesktop.Core.Models;
 using Olbrasoft.LinuxDesktop.Core.Services;
 using Olbrasoft.LinuxDesktop.DBus.Services;
 using Olbrasoft.VirtualAssistant.Desktop.Configuration;
@@ -67,7 +66,7 @@ public static class DesktopServiceExtensions
         });
 
         // Register DesktopContextService (subscribes to DesktopMonitorBackgroundService events)
-        services.AddSingleton<VirtualAssistant.Core.Services.IDesktopContextService>(sp =>
+        services.AddSingleton<Core.Services.IDesktopContextService>(sp =>
         {
             var monitor = sp.GetService<Services.IDesktopMonitorBackgroundService>();
             var logger = sp.GetRequiredService<ILogger<Services.DesktopContextService>>();
@@ -75,18 +74,18 @@ public static class DesktopServiceExtensions
         });
 
         // Configure context mapping
-        services.Configure<Configuration.ContextMappingOptions>(
+        services.Configure<ContextMappingOptions>(
             configuration.GetSection(Configuration.ContextMappingOptions.SectionName));
 
         // Register ContextPromptSelector
-        services.AddSingleton<VirtualAssistant.Core.Services.IContextPromptSelector, Services.ContextPromptSelector>();
+        services.AddSingleton<Core.Services.IContextPromptSelector, Services.ContextPromptSelector>();
 
         // Configure notification filtering
-        services.Configure<Configuration.NotificationFilteringOptions>(
+        services.Configure<NotificationFilteringOptions>(
             configuration.GetSection(Configuration.NotificationFilteringOptions.SectionName));
 
         // Register NotificationFilter
-        services.AddSingleton<VirtualAssistant.Core.Services.INotificationFilter, Services.ContextAwareNotificationFilter>();
+        services.AddSingleton<Core.Services.INotificationFilter, Services.ContextAwareNotificationFilter>();
 
         return services;
     }

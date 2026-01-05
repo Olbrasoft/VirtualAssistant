@@ -70,7 +70,7 @@ public class DictationPersistenceServiceTests
         Assert.Equal(123, result);
         _commandExecutorMock.Verify(x => x.ExecuteAsync(
             It.Is<ICommand<WhisperTranscription>>(cmd =>
-                cmd is Olbrasoft.VirtualAssistant.Data.Commands.WhisperTranscriptionCommands.SaveWhisperTranscriptionCommand),
+                cmd is Data.Commands.WhisperTranscriptionCommands.SaveWhisperTranscriptionCommand),
             It.IsAny<CancellationToken>()), Times.Once);
         _commandExecutorMock.Verify(x => x.ExecuteAsync(
             It.IsAny<ICommand<LlmCorrection>>(), It.IsAny<CancellationToken>()), Times.Never);
@@ -120,11 +120,11 @@ public class DictationPersistenceServiceTests
         Assert.Equal(456, result);
         _commandExecutorMock.Verify(x => x.ExecuteAsync(
             It.Is<ICommand<WhisperTranscription>>(cmd =>
-                cmd is Olbrasoft.VirtualAssistant.Data.Commands.WhisperTranscriptionCommands.SaveWhisperTranscriptionCommand),
+                cmd is Data.Commands.WhisperTranscriptionCommands.SaveWhisperTranscriptionCommand),
             It.IsAny<CancellationToken>()), Times.Once);
         _commandExecutorMock.Verify(x => x.ExecuteAsync(
             It.Is<ICommand<LlmCorrection>>(cmd =>
-                cmd is Olbrasoft.VirtualAssistant.Data.Commands.LlmCorrectionCommands.SaveLlmCorrectionCommand),
+                cmd is Data.Commands.LlmCorrectionCommands.SaveLlmCorrectionCommand),
             It.IsAny<CancellationToken>()), Times.Once);
     }
 
@@ -192,7 +192,7 @@ public class DictationPersistenceServiceTests
         _commandExecutorMock.Verify(
             x => x.ExecuteAsync(
                 It.Is<ICommand<WhisperTranscription>>(cmd =>
-                    cmd is Olbrasoft.VirtualAssistant.Data.Commands.WhisperTranscriptionCommands.SaveWhisperTranscriptionCommand),
+                    cmd is Data.Commands.WhisperTranscriptionCommands.SaveWhisperTranscriptionCommand),
                 It.IsAny<CancellationToken>()),
             Times.Once,
             $"Expected duration {expectedDurationMs}ms for {audioBytes} bytes");
@@ -353,7 +353,7 @@ public class DictationPersistenceServiceTests
         _commandExecutorMock.Verify(
             x => x.ExecuteAsync(
                 It.Is<ICommand<WhisperTranscription>>(cmd =>
-                    cmd is Olbrasoft.VirtualAssistant.Data.Commands.WhisperTranscriptionCommands.SaveWhisperTranscriptionCommand),
+                    cmd is Data.Commands.WhisperTranscriptionCommands.SaveWhisperTranscriptionCommand),
                 It.IsAny<CancellationToken>()),
             Times.Once);
 

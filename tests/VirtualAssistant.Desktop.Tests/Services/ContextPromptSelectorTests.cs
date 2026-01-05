@@ -5,7 +5,6 @@ using Olbrasoft.VirtualAssistant.Core.Models;
 using Olbrasoft.VirtualAssistant.Core.Services;
 using Olbrasoft.VirtualAssistant.Desktop.Configuration;
 using Olbrasoft.VirtualAssistant.Desktop.Services;
-using Xunit;
 
 namespace Olbrasoft.VirtualAssistant.Desktop.Tests.Services;
 
@@ -20,9 +19,9 @@ public class ContextPromptSelectorTests
         _loggerMock = new Mock<ILogger<ContextPromptSelector>>();
         _options = new ContextMappingOptions
         {
-            Programming = new[] { "code", "cursor", "rider", "vscode" },
-            Chat = new[] { "whatsapp-for-linux", "telegram", "slack" },
-            Browsing = new[] { "chrome", "firefox", "edge" }
+            Programming = ["code", "cursor", "rider", "vscode"],
+            Chat = ["whatsapp-for-linux", "telegram", "slack"],
+            Browsing = ["chrome", "firefox", "edge"]
         };
 
         var optionsMock = new Mock<IOptions<ContextMappingOptions>>();

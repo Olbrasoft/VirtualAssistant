@@ -1,8 +1,6 @@
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
-using Microsoft.Extensions.Logging;
 using Olbrasoft.Testing.Xunit.Attributes;
-using Olbrasoft.VirtualAssistant.LlmChain;
 using Olbrasoft.VirtualAssistant.LlmChain.Configuration;
 using Xunit.Abstractions;
 

@@ -1,5 +1,4 @@
-﻿using System;
-using Microsoft.EntityFrameworkCore.Migrations;
+﻿using Microsoft.EntityFrameworkCore.Migrations;
 using Npgsql.EntityFrameworkCore.PostgreSQL.Metadata;
 
 #nullable disable
@@ -57,7 +56,7 @@ namespace Olbrasoft.VirtualAssistant.Data.EntityFrameworkCore.Migrations
 
             migrationBuilder.InsertData(
                 table: "notification_statuses",
-                columns: new[] { "id", "name" },
+                columns: ["id", "name"],
                 values: new object[,]
                 {
                     { 1, "NewlyReceived" },

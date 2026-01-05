@@ -14,8 +14,8 @@ public class TrayIconCoordinatorTests
     private readonly Mock<ITrayIconManager> _managerMock;
     private readonly Mock<IManualMuteService> _muteServiceMock;
     private readonly Mock<ILogger<TrayIconCoordinator>> _loggerMock;
-    private readonly Mock<Olbrasoft.VirtualAssistant.Core.Services.ITrayMenuHandler> _menuHandlerMock;
-    private readonly Mock<Olbrasoft.VirtualAssistant.Core.Services.ITrayIcon> _trayIconMock;
+    private readonly Mock<ITrayMenuHandler> _menuHandlerMock;
+    private readonly Mock<ITrayIcon> _trayIconMock;
     private readonly string _iconsPath = "/test/icons";
 
     public TrayIconCoordinatorTests()
@@ -23,8 +23,8 @@ public class TrayIconCoordinatorTests
         _managerMock = new Mock<ITrayIconManager>();
         _muteServiceMock = new Mock<IManualMuteService>();
         _loggerMock = new Mock<ILogger<TrayIconCoordinator>>();
-        _menuHandlerMock = new Mock<Olbrasoft.VirtualAssistant.Core.Services.ITrayMenuHandler>();
-        _trayIconMock = new Mock<Olbrasoft.VirtualAssistant.Core.Services.ITrayIcon>();
+        _menuHandlerMock = new Mock<ITrayMenuHandler>();
+        _trayIconMock = new Mock<ITrayIcon>();
     }
 
     #region Constructor Tests
@@ -78,7 +78,7 @@ public class TrayIconCoordinatorTests
                 It.IsAny<string>(),
                 It.IsAny<string>(),
                 It.IsAny<string>(),
-                It.IsAny<Olbrasoft.VirtualAssistant.Core.Services.ITrayMenuHandler?>()))
+                It.IsAny<ITrayMenuHandler?>()))
             .ReturnsAsync(_trayIconMock.Object);
 
         var coordinator = new TrayIconCoordinator(
@@ -120,7 +120,7 @@ public class TrayIconCoordinatorTests
                 It.IsAny<string>(),
                 It.IsAny<string>(),
                 It.IsAny<string>(),
-                It.IsAny<Olbrasoft.VirtualAssistant.Core.Services.ITrayMenuHandler?>()))
+                It.IsAny<ITrayMenuHandler?>()))
             .ReturnsAsync(_trayIconMock.Object);
 
         var coordinator = new TrayIconCoordinator(
@@ -149,7 +149,7 @@ public class TrayIconCoordinatorTests
                 It.IsAny<string>(),
                 It.IsAny<string>(),
                 It.IsAny<string>(),
-                It.IsAny<Olbrasoft.VirtualAssistant.Core.Services.ITrayMenuHandler?>()))
+                It.IsAny<ITrayMenuHandler?>()))
             .ThrowsAsync(expectedException);
 
         var coordinator = new TrayIconCoordinator(
@@ -177,7 +177,7 @@ public class TrayIconCoordinatorTests
                 It.IsAny<string>(),
                 It.IsAny<string>(),
                 It.IsAny<string>(),
-                It.IsAny<Olbrasoft.VirtualAssistant.Core.Services.ITrayMenuHandler?>()))
+                It.IsAny<ITrayMenuHandler?>()))
             .ReturnsAsync(_trayIconMock.Object);
 
         var coordinator = new TrayIconCoordinator(
@@ -206,7 +206,7 @@ public class TrayIconCoordinatorTests
                 It.IsAny<string>(),
                 It.IsAny<string>(),
                 It.IsAny<string>(),
-                It.IsAny<Olbrasoft.VirtualAssistant.Core.Services.ITrayMenuHandler?>()))
+                It.IsAny<ITrayMenuHandler?>()))
             .ReturnsAsync(_trayIconMock.Object);
 
         var coordinator = new TrayIconCoordinator(
@@ -263,7 +263,7 @@ public class TrayIconCoordinatorTests
                 It.IsAny<string>(),
                 It.IsAny<string>(),
                 It.IsAny<string>(),
-                It.IsAny<Olbrasoft.VirtualAssistant.Core.Services.ITrayMenuHandler?>()))
+                It.IsAny<ITrayMenuHandler?>()))
             .ReturnsAsync(_trayIconMock.Object);
 
         var coordinator = new TrayIconCoordinator(
@@ -320,7 +320,7 @@ public class TrayIconCoordinatorTests
                 It.IsAny<string>(),
                 It.IsAny<string>(),
                 It.IsAny<string>(),
-                It.IsAny<Olbrasoft.VirtualAssistant.Core.Services.ITrayMenuHandler?>()))
+                It.IsAny<ITrayMenuHandler?>()))
             .ReturnsAsync(_trayIconMock.Object);
 
         var coordinator = new TrayIconCoordinator(
@@ -377,7 +377,7 @@ public class TrayIconCoordinatorTests
                 It.IsAny<string>(),
                 It.IsAny<string>(),
                 It.IsAny<string>(),
-                It.IsAny<Olbrasoft.VirtualAssistant.Core.Services.ITrayMenuHandler?>()))
+                It.IsAny<ITrayMenuHandler?>()))
             .ReturnsAsync(_trayIconMock.Object);
 
         var coordinator = new TrayIconCoordinator(
@@ -434,7 +434,7 @@ public class TrayIconCoordinatorTests
                 It.IsAny<string>(),
                 It.IsAny<string>(),
                 It.IsAny<string>(),
-                It.IsAny<Olbrasoft.VirtualAssistant.Core.Services.ITrayMenuHandler?>()))
+                It.IsAny<ITrayMenuHandler?>()))
             .ReturnsAsync(_trayIconMock.Object);
 
         var coordinator = new TrayIconCoordinator(

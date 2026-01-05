@@ -1,4 +1,3 @@
-using Microsoft.Extensions.Logging;
 using Olbrasoft.VirtualAssistant.Core.Services;
 using Olbrasoft.VirtualAssistant.Core.StateMachine;
 using Olbrasoft.VirtualAssistant.Service.Workers;

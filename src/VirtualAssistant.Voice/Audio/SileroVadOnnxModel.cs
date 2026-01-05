@@ -198,9 +198,9 @@ public class SileroVadOnnxModel : IDisposable
 
         var inputs = new List<NamedOnnxValue>
         {
-            NamedOnnxValue.CreateFromTensor("input", new DenseTensor<float>(x.SelectMany(a => a).ToArray(), new[] { x.Length, x[0].Length })),
-            NamedOnnxValue.CreateFromTensor("sr", new DenseTensor<long>(new[] { (long)sr }, new[] { 1 })),
-            NamedOnnxValue.CreateFromTensor("state", new DenseTensor<float>(_state.SelectMany(a => a.SelectMany(b => b)).ToArray(), new[] { _state.Length, _state[0].Length, _state[0][0].Length }))
+            NamedOnnxValue.CreateFromTensor("input", new DenseTensor<float>(x.SelectMany(a => a).ToArray(), [x.Length, x[0].Length])),
+            NamedOnnxValue.CreateFromTensor("sr", new DenseTensor<long>(new[] { (long)sr }, [1])),
+            NamedOnnxValue.CreateFromTensor("state", new DenseTensor<float>(_state.SelectMany(a => a.SelectMany(b => b)).ToArray(), [_state.Length, _state[0].Length, _state[0][0].Length]))
         };
 
         using var outputs = _session.Run(inputs);

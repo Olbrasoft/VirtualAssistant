@@ -5,7 +5,6 @@ using Olbrasoft.VirtualAssistant.Core.Models;
 using Olbrasoft.VirtualAssistant.Core.Services;
 using Olbrasoft.VirtualAssistant.Desktop.Configuration;
 using Olbrasoft.VirtualAssistant.Desktop.Services;
-using Xunit;
 
 namespace Olbrasoft.VirtualAssistant.Desktop.Tests.Services;
 
@@ -30,7 +29,7 @@ public class ContextAwareNotificationFilterTests
                 ["PyCharm"] = "pycharm",
                 ["Rider"] = "rider"
             },
-            AlwaysDeliverSources = new[] { NotificationSource.SystemAlert, NotificationSource.UserMessage }
+            AlwaysDeliverSources = [NotificationSource.SystemAlert, NotificationSource.UserMessage]
         };
 
         var optionsMock = new Mock<IOptions<NotificationFilteringOptions>>();

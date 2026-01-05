@@ -1,6 +1,4 @@
-using Microsoft.EntityFrameworkCore;
 using Olbrasoft.VirtualAssistant.Data.Queries.VoiceTranscriptionQueries;
-using Olbrasoft.VirtualAssistant.Data.Entities;
 
 namespace Olbrasoft.VirtualAssistant.Data.EntityFrameworkCore.QueryHandlers.VoiceTranscriptionQueryHandlers;
 

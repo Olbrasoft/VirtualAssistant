@@ -1,6 +1,3 @@
-using Microsoft.Extensions.Options;
-using Olbrasoft.VirtualAssistant.Core.Configuration;
-using Olbrasoft.VirtualAssistant.Core.Services;
 using Olbrasoft.VirtualAssistant.Service.Extensions;
 using Olbrasoft.VirtualAssistant.Service.Tray;
 
@@ -48,7 +45,7 @@ public class Program
         var builder = WebApplication.CreateBuilder(args);
 
         // Configure Kestrel - bind to all interfaces for network access
-        var listenerPort = builder.Configuration.GetValue<int>("ListenerApiPort", 5055);
+        var listenerPort = builder.Configuration.GetValue("ListenerApiPort", 5055);
         // SECURITY WARNING: Binding to 0.0.0.0 exposes the service to all network interfaces,
         // including external networks. This service currently has NO authentication.
         // For production use on untrusted networks, consider:

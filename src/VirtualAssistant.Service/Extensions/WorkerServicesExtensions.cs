@@ -1,15 +1,10 @@
-using Microsoft.Extensions.Configuration;
-using Microsoft.Extensions.DependencyInjection;
-using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
 using Olbrasoft.VirtualAssistant.Core.Audio;
 using Olbrasoft.VirtualAssistant.Core.Configuration;
 using Olbrasoft.VirtualAssistant.Core.Keyboard;
 using Olbrasoft.VirtualAssistant.Core.Services;
-using Olbrasoft.VirtualAssistant.Core.Speech;
 using Olbrasoft.VirtualAssistant.Service.Infrastructure;
 using Olbrasoft.VirtualAssistant.Service.Workers;
-using Olbrasoft.VirtualAssistant.Voice;
 using Olbrasoft.VirtualAssistant.Voice.Filters;
 using Olbrasoft.VirtualAssistant.Voice.Services;
 
@@ -34,7 +29,7 @@ public static class WorkerServicesExtensions
         {
             var logger = sp.GetRequiredService<ILogger<DictationWorker>>();
             var keyboardMonitor = sp.GetRequiredService<IKeyboardMonitor>();
-            var stateMachine = sp.GetRequiredService<Olbrasoft.VirtualAssistant.Voice.StateMachine.IDictationStateMachine>();
+            var stateMachine = sp.GetRequiredService<Voice.StateMachine.IDictationStateMachine>();
             var keyboardSimulation = sp.GetRequiredService<IKeyboardSimulationService>();
             var typingSound = sp.GetRequiredKeyedService<ISoundEffectPlayer>("typing");
             var cancelSound = sp.GetRequiredKeyedService<ISoundEffectPlayer>("cancel");
@@ -46,9 +41,9 @@ public static class WorkerServicesExtensions
             var audioCaptureService = new AudioCaptureService(audioCaptureLogger, configuration);
 
             // Create AudioRecordingCoordinator with dedicated audio capture
-            var coordinatorLogger = sp.GetRequiredService<ILogger<Olbrasoft.VirtualAssistant.Voice.Audio.AudioRecordingCoordinator>>();
-            var audioRecordingOptions = sp.GetRequiredService<IOptions<Olbrasoft.VirtualAssistant.Voice.Configuration.AudioRecordingOptions>>();
-            var recordingCoordinator = new Olbrasoft.VirtualAssistant.Voice.Audio.AudioRecordingCoordinator(
+            var coordinatorLogger = sp.GetRequiredService<ILogger<Voice.Audio.AudioRecordingCoordinator>>();
+            var audioRecordingOptions = sp.GetRequiredService<IOptions<Voice.Configuration.AudioRecordingOptions>>();
+            var recordingCoordinator = new Voice.Audio.AudioRecordingCoordinator(
                 coordinatorLogger,
                 audioCaptureService,
                 audioRecordingOptions);

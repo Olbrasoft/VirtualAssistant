@@ -1,6 +1,4 @@
-using Microsoft.Extensions.Logging;
 using Olbrasoft.VirtualAssistant.Core.Services;
-using Olbrasoft.VirtualAssistant.Service.Infrastructure;
 using SystemTrayMenuHandler = Olbrasoft.SystemTray.Linux.ITrayMenuHandler;
 
 namespace Olbrasoft.VirtualAssistant.Service.Tray;

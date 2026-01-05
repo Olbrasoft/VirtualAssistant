@@ -1,8 +1,4 @@
-using Microsoft.Extensions.Configuration;
-using Microsoft.Extensions.DependencyInjection;
-using Microsoft.Extensions.Logging;
 using Olbrasoft.Data.Cqrs;
-using Olbrasoft.VirtualAssistant.Data;
 using Olbrasoft.VirtualAssistant.Data.EntityFrameworkCore;
 using Olbrasoft.VirtualAssistant.GitHub;
 using Olbrasoft.VirtualAssistant.Core;

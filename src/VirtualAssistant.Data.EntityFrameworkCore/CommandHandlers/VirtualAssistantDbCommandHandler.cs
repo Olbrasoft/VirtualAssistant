@@ -1,7 +1,3 @@
-using Olbrasoft.Data.Cqrs;
-using Olbrasoft.Data.Cqrs.EntityFrameworkCore;
-using Olbrasoft.Mapping;
-
 namespace Olbrasoft.VirtualAssistant.Data.EntityFrameworkCore.CommandHandlers;
 
 /// <summary>

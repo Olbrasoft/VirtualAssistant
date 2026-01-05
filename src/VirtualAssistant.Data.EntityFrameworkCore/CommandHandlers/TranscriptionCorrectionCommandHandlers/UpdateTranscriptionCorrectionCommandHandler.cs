@@ -1,5 +1,4 @@
 using Olbrasoft.VirtualAssistant.Data.Commands.TranscriptionCorrectionCommands;
-using Olbrasoft.VirtualAssistant.Data.Entities;
 
 namespace Olbrasoft.VirtualAssistant.Data.EntityFrameworkCore.CommandHandlers.TranscriptionCorrectionCommandHandlers;
 

@@ -1,5 +1,3 @@
-using Microsoft.Extensions.Logging;
-using Olbrasoft.SystemTray.Linux;
 using Olbrasoft.VirtualAssistant.Core.Services;
 using Olbrasoft.VirtualAssistant.Service.Tray.Menu;
 using Tmds.DBus.Protocol;
@@ -12,7 +10,7 @@ namespace Olbrasoft.VirtualAssistant.Service.Tray;
 /// Provides context menu for the VirtualAssistant tray icon.
 /// Facade pattern coordinating MenuStateManager, MenuLayoutBuilder, and MenuEventRouter.
 /// </summary>
-internal class VirtualAssistantDBusMenuHandler : ComCanonicalDbusmenuHandler, SystemTray.Linux.ITrayMenuHandler, Core.Services.ITrayMenuHandler, IServiceStatusUpdater, IDisposable
+internal class VirtualAssistantDBusMenuHandler : ComCanonicalDbusmenuHandler, SystemTray.Linux.ITrayMenuHandler, ITrayMenuHandler, IServiceStatusUpdater, IDisposable
 {
     private Connection? _connection;
     private readonly ILogger _logger;
@@ -154,7 +152,7 @@ internal class VirtualAssistantDBusMenuHandler : ComCanonicalDbusmenuHandler, Sy
     /// <summary>
     /// Unregisters the menu handler from D-Bus connection.
     /// </summary>
-    public void UnregisterFromDbus(Tmds.DBus.Protocol.Connection connection)
+    public void UnregisterFromDbus(Connection connection)
     {
         if (_menuPathHandler is not null)
         {

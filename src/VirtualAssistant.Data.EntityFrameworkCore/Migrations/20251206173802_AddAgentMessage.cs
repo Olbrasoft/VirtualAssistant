@@ -1,5 +1,4 @@
-﻿using System;
-using Microsoft.EntityFrameworkCore.Migrations;
+﻿using Microsoft.EntityFrameworkCore.Migrations;
 using Npgsql.EntityFrameworkCore.PostgreSQL.Metadata;
 
 #nullable disable
@@ -38,7 +37,7 @@ namespace Olbrasoft.VirtualAssistant.Data.EntityFrameworkCore.Migrations
             migrationBuilder.CreateIndex(
                 name: "ix_agent_messages_approval_status",
                 table: "agent_messages",
-                columns: new[] { "requires_approval", "status" },
+                columns: ["requires_approval", "status"],
                 filter: "requires_approval = true AND status = 'pending'");
 
             migrationBuilder.CreateIndex(
@@ -49,7 +48,7 @@ namespace Olbrasoft.VirtualAssistant.Data.EntityFrameworkCore.Migrations
             migrationBuilder.CreateIndex(
                 name: "ix_agent_messages_target_status",
                 table: "agent_messages",
-                columns: new[] { "target_agent", "status" });
+                columns: ["target_agent", "status"]);
         }
 
         /// <inheritdoc />

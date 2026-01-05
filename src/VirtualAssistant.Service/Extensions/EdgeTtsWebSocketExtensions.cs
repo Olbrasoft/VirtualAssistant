@@ -1,7 +1,4 @@
 extern alias EdgeTtsWebSocket;
-
-using Microsoft.Extensions.Configuration;
-using Microsoft.Extensions.DependencyInjection;
 using Olbrasoft.TextToSpeech.Core.Interfaces;
 using EdgeTtsConfig = EdgeTtsWebSocket::Olbrasoft.TextToSpeech.Providers.EdgeTTS.EdgeTtsConfiguration;
 using EdgeTtsWsProvider = EdgeTtsWebSocket::Olbrasoft.TextToSpeech.Providers.EdgeTTS.EdgeTtsProvider;

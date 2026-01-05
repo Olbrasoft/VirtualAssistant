@@ -32,7 +32,7 @@ namespace Olbrasoft.VirtualAssistant.Data.EntityFrameworkCore.Migrations
             migrationBuilder.CreateIndex(
                 name: "ix_agent_messages_source_phase",
                 table: "agent_messages",
-                columns: new[] { "source_agent", "phase" });
+                columns: ["source_agent", "phase"]);
 
             migrationBuilder.AddForeignKey(
                 name: "FK_agent_messages_agent_messages_parent_message_id",

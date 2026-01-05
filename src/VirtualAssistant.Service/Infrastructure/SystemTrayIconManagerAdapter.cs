@@ -1,5 +1,4 @@
 using Olbrasoft.SystemTray.Linux;
-using Olbrasoft.VirtualAssistant.Core.Services;
 
 namespace Olbrasoft.VirtualAssistant.Service.Infrastructure;
 
@@ -23,13 +22,13 @@ public class SystemTrayIconManagerAdapter : Core.Services.ITrayIconManager
         Core.Services.ITrayMenuHandler? menuHandler)
     {
         // Convert ITrayMenuHandler to Olbrasoft.SystemTray.Linux.ITrayMenuHandler
-        SystemTray.Linux.ITrayMenuHandler? linuxMenuHandler = null;
-        if (menuHandler is SystemTray.Linux.ITrayMenuHandler handler)
+        ITrayMenuHandler? linuxMenuHandler = null;
+        if (menuHandler is ITrayMenuHandler handler)
         {
             linuxMenuHandler = handler;
         }
 
-        var icon = await _manager.CreateIconAsync(id, iconPath, tooltip, linuxMenuHandler);
+        var icon = await _manager.CreateIconAsync(id, iconPath, tooltip, null);
         return icon != null ? new TrayIconAdapter(icon) : null;
     }
 
@@ -43,9 +42,9 @@ public class SystemTrayIconManagerAdapter : Core.Services.ITrayIconManager
     /// </summary>
     private class TrayIconAdapter : Core.Services.ITrayIcon
     {
-        private readonly SystemTray.Linux.ITrayIcon _icon;
+        private readonly ITrayIcon _icon;
 
-        public TrayIconAdapter(SystemTray.Linux.ITrayIcon icon)
+        public TrayIconAdapter(ITrayIcon icon)
         {
             _icon = icon ?? throw new ArgumentNullException(nameof(icon));
         }

@@ -28,7 +28,7 @@ namespace Olbrasoft.VirtualAssistant.Data.EntityFrameworkCore.Migrations
 
             migrationBuilder.InsertData(
                 table: "notification_statuses",
-                columns: new[] { "id", "name" },
+                columns: ["id", "name"],
                 values: new object[,]
                 {
                     { 4, "Summarized" },

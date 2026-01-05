@@ -125,8 +125,8 @@ public class MenuLayoutBuilder : IMenuLayoutBuilder
             var logViewerLabel = GetLogViewerLabel();
             var llmCorrectionLabel = GetLlmCorrectionLabel();
 
-            children = new VariantValue[]
-            {
+            children =
+            [
                 CreateChildVariant(MenuItemIds.StatusId, "VirtualAssistant - poslouchám", false, enabled: false),
                 CreateChildVariant(MenuItemIds.Separator1Id, "", true),
                 CreateChildVariant(MenuItemIds.DictationToggleId, dictationLabel, false),
@@ -140,7 +140,7 @@ public class MenuLayoutBuilder : IMenuLayoutBuilder
                 CreateChildVariant(MenuItemIds.LogViewerId, logViewerLabel, false),
                 CreateChildVariant(MenuItemIds.Separator4Id, "", true),
                 CreateChildVariant(MenuItemIds.QuitId, "Ukončit", false)
-            };
+            ];
         }
 
         return (MenuItemIds.RootId, rootProps, children);

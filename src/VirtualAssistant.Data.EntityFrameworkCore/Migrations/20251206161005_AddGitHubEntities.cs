@@ -1,5 +1,4 @@
-﻿using System;
-using Microsoft.EntityFrameworkCore.Migrations;
+﻿using Microsoft.EntityFrameworkCore.Migrations;
 using Npgsql.EntityFrameworkCore.PostgreSQL.Metadata;
 
 #nullable disable
@@ -63,7 +62,7 @@ namespace Olbrasoft.VirtualAssistant.Data.EntityFrameworkCore.Migrations
             migrationBuilder.CreateIndex(
                 name: "IX_github_issues_repository_id_issue_number",
                 table: "github_issues",
-                columns: new[] { "repository_id", "issue_number" },
+                columns: ["repository_id", "issue_number"],
                 unique: true);
 
             migrationBuilder.CreateIndex(

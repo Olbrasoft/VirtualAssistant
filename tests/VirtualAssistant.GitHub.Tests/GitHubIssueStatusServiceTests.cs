@@ -1,7 +1,3 @@
-using Microsoft.Extensions.Logging;
-using Microsoft.Extensions.Options;
-using Moq;
-using Olbrasoft.VirtualAssistant.GitHub.Configuration;
 using Olbrasoft.VirtualAssistant.GitHub.Services;
 
 namespace Olbrasoft.VirtualAssistant.GitHub.Tests;

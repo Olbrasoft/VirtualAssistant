@@ -64,8 +64,8 @@ public class SpeechBufferManagerTests
     [Fact]
     public void TransferPreBufferToSpeech_MovesAllChunks()
     {
-        _manager.AddToPreBuffer(new byte[] { 1, 2, 3 });
-        _manager.AddToPreBuffer(new byte[] { 4, 5, 6 });
+        _manager.AddToPreBuffer([1, 2, 3]);
+        _manager.AddToPreBuffer([4, 5, 6]);
 
         _manager.TransferPreBufferToSpeech();
 
@@ -75,11 +75,11 @@ public class SpeechBufferManagerTests
     [Fact]
     public void TransferPreBufferToSpeech_ClearsPreBuffer()
     {
-        _manager.AddToPreBuffer(new byte[] { 1, 2, 3 });
+        _manager.AddToPreBuffer([1, 2, 3]);
         _manager.TransferPreBufferToSpeech();
 
         // Add more to pre-buffer after transfer
-        _manager.AddToPreBuffer(new byte[] { 7, 8, 9 });
+        _manager.AddToPreBuffer([7, 8, 9]);
         _manager.ClearSpeechBuffer();
         _manager.TransferPreBufferToSpeech();
 
@@ -94,8 +94,8 @@ public class SpeechBufferManagerTests
     [Fact]
     public void AddToSpeechBuffer_AddsDirectly()
     {
-        _manager.AddToSpeechBuffer(new byte[] { 1, 2, 3 });
-        _manager.AddToSpeechBuffer(new byte[] { 4, 5 });
+        _manager.AddToSpeechBuffer([1, 2, 3]);
+        _manager.AddToSpeechBuffer([4, 5]);
 
         Assert.Equal(5, _manager.SpeechBufferSize);
     }
@@ -107,8 +107,8 @@ public class SpeechBufferManagerTests
     [Fact]
     public void GetCombinedSpeechData_CombinesAllChunks()
     {
-        _manager.AddToSpeechBuffer(new byte[] { 1, 2, 3 });
-        _manager.AddToSpeechBuffer(new byte[] { 4, 5, 6 });
+        _manager.AddToSpeechBuffer([1, 2, 3]);
+        _manager.AddToSpeechBuffer([4, 5, 6]);
 
         var result = _manager.GetCombinedSpeechData();
 
@@ -131,8 +131,8 @@ public class SpeechBufferManagerTests
     [Fact]
     public void ClearSpeechBuffer_ClearsOnlySpeechBuffer()
     {
-        _manager.AddToPreBuffer(new byte[] { 1, 2, 3 });
-        _manager.AddToSpeechBuffer(new byte[] { 4, 5, 6 });
+        _manager.AddToPreBuffer([1, 2, 3]);
+        _manager.AddToSpeechBuffer([4, 5, 6]);
 
         _manager.ClearSpeechBuffer();
 
@@ -150,8 +150,8 @@ public class SpeechBufferManagerTests
     [Fact]
     public void ClearAll_ClearsBothBuffers()
     {
-        _manager.AddToPreBuffer(new byte[] { 1, 2, 3 });
-        _manager.AddToSpeechBuffer(new byte[] { 4, 5, 6 });
+        _manager.AddToPreBuffer([1, 2, 3]);
+        _manager.AddToSpeechBuffer([4, 5, 6]);
 
         _manager.ClearAll();
 

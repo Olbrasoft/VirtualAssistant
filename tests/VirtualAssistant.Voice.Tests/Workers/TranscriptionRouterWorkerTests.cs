@@ -37,11 +37,11 @@ public class TranscriptionRouterWorkerTests : IDisposable
         _repeatTextIntentMock = new Mock<IRepeatTextIntentService>();
 
         // Capture event handlers
-        _eventBusMock.Setup(x => x.Subscribe<SpeechEndedEvent>(It.IsAny<Func<SpeechEndedEvent, CancellationToken, Task>>()))
+        _eventBusMock.Setup(x => x.Subscribe(It.IsAny<Func<SpeechEndedEvent, CancellationToken, Task>>()))
             .Callback<Func<SpeechEndedEvent, CancellationToken, Task>>(handler => _speechEndedHandler = handler)
             .Returns(Mock.Of<IDisposable>());
 
-        _eventBusMock.Setup(x => x.Subscribe<TranscriptionCancelledEvent>(It.IsAny<Func<TranscriptionCancelledEvent, CancellationToken, Task>>()))
+        _eventBusMock.Setup(x => x.Subscribe(It.IsAny<Func<TranscriptionCancelledEvent, CancellationToken, Task>>()))
             .Callback<Func<TranscriptionCancelledEvent, CancellationToken, Task>>(handler => _transcriptionCancelledHandler = handler)
             .Returns(Mock.Of<IDisposable>());
 
@@ -65,10 +65,10 @@ public class TranscriptionRouterWorkerTests : IDisposable
     {
         // Assert
         _eventBusMock.Verify(
-            x => x.Subscribe<SpeechEndedEvent>(It.IsAny<Func<SpeechEndedEvent, CancellationToken, Task>>()),
+            x => x.Subscribe(It.IsAny<Func<SpeechEndedEvent, CancellationToken, Task>>()),
             Times.Once);
         _eventBusMock.Verify(
-            x => x.Subscribe<TranscriptionCancelledEvent>(It.IsAny<Func<TranscriptionCancelledEvent, CancellationToken, Task>>()),
+            x => x.Subscribe(It.IsAny<Func<TranscriptionCancelledEvent, CancellationToken, Task>>()),
             Times.Once);
     }
 

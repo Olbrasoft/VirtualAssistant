@@ -1,6 +1,5 @@
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.Logging;
-using Olbrasoft.VirtualAssistant.Voice.Configuration;
 
 namespace Olbrasoft.VirtualAssistant.Voice.Services;
 

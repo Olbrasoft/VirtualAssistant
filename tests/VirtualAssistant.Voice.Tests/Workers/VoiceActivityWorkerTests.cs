@@ -39,7 +39,7 @@ public class VoiceActivityWorkerTests : IDisposable
         });
 
         // Capture the audio chunk handler
-        _eventBusMock.Setup(x => x.Subscribe<AudioChunkCapturedEvent>(It.IsAny<Func<AudioChunkCapturedEvent, CancellationToken, Task>>()))
+        _eventBusMock.Setup(x => x.Subscribe(It.IsAny<Func<AudioChunkCapturedEvent, CancellationToken, Task>>()))
             .Callback<Func<AudioChunkCapturedEvent, CancellationToken, Task>>(handler => _audioChunkHandler = handler)
             .Returns(Mock.Of<IDisposable>());
 
@@ -62,7 +62,7 @@ public class VoiceActivityWorkerTests : IDisposable
     {
         // Assert
         _eventBusMock.Verify(
-            x => x.Subscribe<AudioChunkCapturedEvent>(It.IsAny<Func<AudioChunkCapturedEvent, CancellationToken, Task>>()),
+            x => x.Subscribe(It.IsAny<Func<AudioChunkCapturedEvent, CancellationToken, Task>>()),
             Times.Once);
     }
 

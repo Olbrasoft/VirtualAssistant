@@ -1,7 +1,4 @@
-using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.DependencyInjection;
-using Olbrasoft.Data.Cqrs;
-using Pgvector.EntityFrameworkCore;
 
 namespace Olbrasoft.VirtualAssistant.Data.EntityFrameworkCore;
 

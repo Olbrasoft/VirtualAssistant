@@ -1,6 +1,5 @@
 using Microsoft.EntityFrameworkCore.Design;
 using Microsoft.Extensions.Configuration;
-using Pgvector.EntityFrameworkCore;
 
 namespace Olbrasoft.VirtualAssistant.Data.EntityFrameworkCore;
 

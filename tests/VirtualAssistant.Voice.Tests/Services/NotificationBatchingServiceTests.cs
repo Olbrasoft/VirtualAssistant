@@ -187,7 +187,7 @@ public class NotificationBatchingServiceTests : IDisposable
     public async Task QueueNotification_WhenSpeechLocked_WaitsForUnlock()
     {
         // Arrange
-        var lockSequence = new Queue<bool>(new[] { true, true, false }); // Locked twice, then unlocked
+        var lockSequence = new Queue<bool>([true, true, false]); // Locked twice, then unlocked
         _speechLockServiceMock
             .Setup(x => x.IsLocked)
             .Returns(() => lockSequence.Count > 0 ? lockSequence.Dequeue() : false);

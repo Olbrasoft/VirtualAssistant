@@ -1,5 +1,4 @@
-﻿using System;
-using Microsoft.EntityFrameworkCore.Migrations;
+﻿using Microsoft.EntityFrameworkCore.Migrations;
 using Npgsql.EntityFrameworkCore.PostgreSQL.Metadata;
 
 #nullable disable
@@ -36,7 +35,7 @@ namespace Olbrasoft.VirtualAssistant.Data.EntityFrameworkCore.Migrations
             migrationBuilder.CreateIndex(
                 name: "ix_agent_responses_agent_name_started_at",
                 table: "agent_responses",
-                columns: new[] { "agent_name", "started_at" });
+                columns: ["agent_name", "started_at"]);
 
             migrationBuilder.CreateIndex(
                 name: "ix_agent_responses_status",

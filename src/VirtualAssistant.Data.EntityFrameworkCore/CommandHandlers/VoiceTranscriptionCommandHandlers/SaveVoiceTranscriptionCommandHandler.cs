@@ -1,5 +1,4 @@
 using Olbrasoft.VirtualAssistant.Data.Commands.VoiceTranscriptionCommands;
-using Olbrasoft.VirtualAssistant.Data.Entities;
 
 namespace Olbrasoft.VirtualAssistant.Data.EntityFrameworkCore.CommandHandlers.VoiceTranscriptionCommandHandlers;
 

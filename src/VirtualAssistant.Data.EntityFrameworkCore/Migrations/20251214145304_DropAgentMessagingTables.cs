@@ -1,5 +1,4 @@
-﻿using System;
-using Microsoft.EntityFrameworkCore.Migrations;
+﻿using Microsoft.EntityFrameworkCore.Migrations;
 using Npgsql.EntityFrameworkCore.PostgreSQL.Metadata;
 
 #nullable disable
@@ -142,7 +141,7 @@ namespace Olbrasoft.VirtualAssistant.Data.EntityFrameworkCore.Migrations
             migrationBuilder.CreateIndex(
                 name: "ix_agent_messages_approval_status",
                 table: "agent_messages",
-                columns: new[] { "requires_approval", "status" },
+                columns: ["requires_approval", "status"],
                 filter: "requires_approval = true AND status = 'pending'");
 
             migrationBuilder.CreateIndex(
@@ -163,12 +162,12 @@ namespace Olbrasoft.VirtualAssistant.Data.EntityFrameworkCore.Migrations
             migrationBuilder.CreateIndex(
                 name: "ix_agent_messages_source_phase",
                 table: "agent_messages",
-                columns: new[] { "source_agent", "phase" });
+                columns: ["source_agent", "phase"]);
 
             migrationBuilder.CreateIndex(
                 name: "ix_agent_messages_target_status",
                 table: "agent_messages",
-                columns: new[] { "target_agent", "status" });
+                columns: ["target_agent", "status"]);
 
             migrationBuilder.CreateIndex(
                 name: "ix_agent_responses_agent_name",
@@ -178,7 +177,7 @@ namespace Olbrasoft.VirtualAssistant.Data.EntityFrameworkCore.Migrations
             migrationBuilder.CreateIndex(
                 name: "ix_agent_responses_agent_name_started_at",
                 table: "agent_responses",
-                columns: new[] { "agent_name", "started_at" });
+                columns: ["agent_name", "started_at"]);
 
             migrationBuilder.CreateIndex(
                 name: "IX_agent_responses_agent_task_id",

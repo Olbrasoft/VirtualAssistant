@@ -1,5 +1,4 @@
-﻿using System;
-using Microsoft.EntityFrameworkCore.Migrations;
+﻿using Microsoft.EntityFrameworkCore.Migrations;
 using Npgsql.EntityFrameworkCore.PostgreSQL.Metadata;
 
 #nullable disable
@@ -121,7 +120,7 @@ namespace Olbrasoft.VirtualAssistant.Data.EntityFrameworkCore.Migrations
             migrationBuilder.CreateIndex(
                 name: "ix_agent_tasks_target_status",
                 table: "agent_tasks",
-                columns: new[] { "target_agent_id", "status" });
+                columns: ["target_agent_id", "status"]);
 
             migrationBuilder.CreateIndex(
                 name: "ix_agents_is_active",
@@ -137,13 +136,13 @@ namespace Olbrasoft.VirtualAssistant.Data.EntityFrameworkCore.Migrations
             // Seed initial agents
             migrationBuilder.InsertData(
                 table: "agents",
-                columns: new[] { "name", "label", "is_active", "created_at" },
-                values: new object[] { "opencode", "agent:opencode", true, DateTime.UtcNow });
+                columns: ["name", "label", "is_active", "created_at"],
+                values: ["opencode", "agent:opencode", true, DateTime.UtcNow]);
 
             migrationBuilder.InsertData(
                 table: "agents",
-                columns: new[] { "name", "label", "is_active", "created_at" },
-                values: new object[] { "claude", "agent:claude", true, DateTime.UtcNow });
+                columns: ["name", "label", "is_active", "created_at"],
+                values: ["claude", "agent:claude", true, DateTime.UtcNow]);
         }
 
         /// <inheritdoc />

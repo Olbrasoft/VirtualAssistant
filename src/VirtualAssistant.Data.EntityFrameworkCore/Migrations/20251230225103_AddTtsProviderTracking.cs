@@ -1,5 +1,4 @@
-﻿using System;
-using Microsoft.EntityFrameworkCore.Migrations;
+﻿using Microsoft.EntityFrameworkCore.Migrations;
 
 #nullable disable
 
@@ -92,7 +91,7 @@ namespace Olbrasoft.VirtualAssistant.Data.EntityFrameworkCore.Migrations
             migrationBuilder.CreateIndex(
                 name: "ix_providers_name_type",
                 table: "providers",
-                columns: new[] { "name", "type" },
+                columns: ["name", "type"],
                 unique: true);
 
             migrationBuilder.CreateIndex(
@@ -127,7 +126,7 @@ namespace Olbrasoft.VirtualAssistant.Data.EntityFrameworkCore.Migrations
             // Insert seed data
             migrationBuilder.InsertData(
                 table: "providers",
-                columns: new[] { "id", "created_at", "enabled", "name", "priority", "type" },
+                columns: ["id", "created_at", "enabled", "name", "priority", "type"],
                 values: new object[,]
                 {
                     { 1, new DateTime(2024, 12, 30, 22, 51, 45, 0, DateTimeKind.Utc), true, "AzureTTS", 1, "tts" },

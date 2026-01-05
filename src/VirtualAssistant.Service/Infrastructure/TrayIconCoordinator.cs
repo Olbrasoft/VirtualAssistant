@@ -1,4 +1,3 @@
-using Microsoft.Extensions.Logging;
 using Olbrasoft.VirtualAssistant.Core.Services;
 
 namespace Olbrasoft.VirtualAssistant.Service.Infrastructure;
@@ -12,12 +11,12 @@ public class TrayIconCoordinator : ITrayIconCoordinator, IDisposable
     private readonly ITrayIconManager _manager;
     private readonly string _iconsPath;
     private readonly IManualMuteService _muteService;
-    private readonly Core.Services.ITrayMenuHandler? _menuHandler;
+    private readonly ITrayMenuHandler? _menuHandler;
     private readonly ILogger<TrayIconCoordinator> _logger;
 
-    private Core.Services.ITrayIcon? _leftHandIcon;
-    private Core.Services.ITrayIcon? _rightHandIcon;
-    private Core.Services.ITrayIcon? _centerIcon;
+    private ITrayIcon? _leftHandIcon;
+    private ITrayIcon? _rightHandIcon;
+    private ITrayIcon? _centerIcon;
 
     private string _currentLeftHandIcon = "default-left-hand.svg";
     private string _currentRightHandIcon = "default-right-hand.svg";
@@ -30,7 +29,7 @@ public class TrayIconCoordinator : ITrayIconCoordinator, IDisposable
         string iconsPath,
         IManualMuteService muteService,
         ILogger<TrayIconCoordinator> logger,
-        Core.Services.ITrayMenuHandler? menuHandler = null)
+        ITrayMenuHandler? menuHandler = null)
     {
         _manager = manager ?? throw new ArgumentNullException(nameof(manager));
         _iconsPath = iconsPath ?? throw new ArgumentNullException(nameof(iconsPath));

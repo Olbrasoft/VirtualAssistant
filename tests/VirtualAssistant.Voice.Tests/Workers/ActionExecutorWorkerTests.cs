@@ -26,7 +26,7 @@ public class ActionExecutorWorkerTests : IDisposable
         _actionHandlerMock = new Mock<IActionHandlerService>();
 
         // Capture action requested handler
-        _eventBusMock.Setup(x => x.Subscribe<ActionRequestedEvent>(It.IsAny<Func<ActionRequestedEvent, CancellationToken, Task>>()))
+        _eventBusMock.Setup(x => x.Subscribe(It.IsAny<Func<ActionRequestedEvent, CancellationToken, Task>>()))
             .Callback<Func<ActionRequestedEvent, CancellationToken, Task>>(handler => _actionRequestedHandler = handler)
             .Returns(Mock.Of<IDisposable>());
 
@@ -46,7 +46,7 @@ public class ActionExecutorWorkerTests : IDisposable
     {
         // Assert
         _eventBusMock.Verify(
-            x => x.Subscribe<ActionRequestedEvent>(It.IsAny<Func<ActionRequestedEvent, CancellationToken, Task>>()),
+            x => x.Subscribe(It.IsAny<Func<ActionRequestedEvent, CancellationToken, Task>>()),
             Times.Once);
     }
 

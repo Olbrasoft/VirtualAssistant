@@ -1,5 +1,3 @@
-using Microsoft.Extensions.Configuration;
-using Microsoft.Extensions.DependencyInjection;
 using Olbrasoft.VirtualAssistant.Desktop.Extensions;
 
 namespace Olbrasoft.VirtualAssistant.Service.Extensions;

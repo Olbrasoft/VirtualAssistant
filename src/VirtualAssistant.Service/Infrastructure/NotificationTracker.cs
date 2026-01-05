@@ -1,4 +1,3 @@
-using Microsoft.Extensions.Logging;
 using Olbrasoft.VirtualAssistant.Core.Services;
 using Olbrasoft.VirtualAssistant.Data.Enums;
 
@@ -26,7 +25,7 @@ public class NotificationTracker : INotificationTracker
     {
         _logger.LogDebug("Marking notification {NotificationId} as Processing", notificationId);
         await _notificationService.UpdateStatusAsync(
-            new[] { notificationId },
+            [notificationId],
             NotificationStatusEnum.Processing,
             cancellationToken);
     }
@@ -36,7 +35,7 @@ public class NotificationTracker : INotificationTracker
     {
         _logger.LogDebug("Marking notification {NotificationId} as Played", notificationId);
         await _notificationService.UpdateStatusAsync(
-            new[] { notificationId },
+            [notificationId],
             NotificationStatusEnum.Played,
             cancellationToken);
     }
