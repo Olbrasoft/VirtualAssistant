@@ -59,7 +59,7 @@ public class MistralProvider : ILlmProvider
     /// <summary>
     /// Gets the system prompt based on current desktop context.
     /// Returns (promptText, promptId) tuple.
-    /// Uses window title to detect terminal apps (Claude Code, OpenCode) when app is terminal emulator.
+    /// Matches app_id_pattern against Active Window Title (e.g., "Claude Code", "Ferdium - WhatsApp", "OpenCode").
     /// Always returns valid prompt ID (never null) - defaults to ID 4 (DefaultCorrection) on any error.
     /// </summary>
     private async Task<(string PromptText, int PromptId)> GetSystemPromptAsync(CancellationToken ct)
@@ -68,18 +68,17 @@ public class MistralProvider : ILlmProvider
         {
             // Get current desktop context
             var context = await _desktopContextService.GetCurrentContextAsync(ct);
-            var activeApp = context.ActiveApplication; // e.g., "code.desktop", "terminator.desktop"
-            var windowTitle = context.ActiveWindowTitle; // e.g., "Claude Code - file.cs"
+            var windowTitle = context.ActiveWindowTitle; // e.g., "Claude Code", "Ferdium - WhatsApp", "OpenCode"
 
-            // For terminal emulators, detect app from window title
-            var detectedApp = DetectAppFromContext(activeApp, windowTitle);
+            _logger.LogDebug("Active window: '{Title}', looking for matching prompt pattern",
+                windowTitle);
 
-            _logger.LogDebug("Active application: '{App}', Window: '{Title}', Detected: '{Detected}'",
-                activeApp, windowTitle, detectedApp);
-
-            // Find appropriate prompt based on detected application
+            // Find appropriate prompt based on window title (pattern matching against app_id_pattern)
+            // Example: "Claude Code" matches pattern "code" → Programming Correction (ID 2)
+            // Example: "OpenCode" matches pattern "opencode" → OpenCode Correction (ID 1)
+            // Example: "Ferdium - WhatsApp" matches pattern "ferdium" → Ferdium Correction (ID 3)
             var prompt = await _queryProcessor.ProcessAsync(
-                new GetPromptByAppIdPatternQuery(detectedApp), ct);
+                new GetPromptByAppIdPatternQuery(windowTitle), ct);
 
             // Fallback to Default if no match
             prompt ??= await _queryProcessor.ProcessAsync(
@@ -95,8 +94,8 @@ public class MistralProvider : ILlmProvider
             // Load prompt from cache (or filesystem/embedded)
             var promptText = _promptCache.GetPrompt(prompt.PromptFileName);
 
-            _logger.LogDebug("Using prompt '{Prompt}' (ID: {Id}) for app '{App}'",
-                prompt.PromptFileName, prompt.Id, detectedApp);
+            _logger.LogDebug("Using prompt '{Prompt}' (ID: {Id}) for window '{Title}'",
+                prompt.PromptFileName, prompt.Id, windowTitle);
 
             return (promptText, prompt.Id);
         }
@@ -106,31 +105,6 @@ public class MistralProvider : ILlmProvider
             _logger.LogError(ex, "Error getting context-aware prompt, falling back to DefaultCorrection (ID 4)");
             return (_promptCache.GetPrompt("DefaultCorrection"), 4);
         }
-    }
-
-    /// <summary>
-    /// Detects the application from desktop context.
-    /// For terminal emulators, uses window title to detect apps like Claude Code or OpenCode.
-    /// </summary>
-    private static string DetectAppFromContext(string activeApp, string windowTitle)
-    {
-        // Terminal emulators - detect app from window title
-        var terminalApps = new[] { "terminator", "kitty", "gnome-terminal", "konsole", "alacritty" };
-        var isTerminal = terminalApps.Any(t => activeApp.Contains(t, StringComparison.OrdinalIgnoreCase));
-
-        if (isTerminal && !string.IsNullOrEmpty(windowTitle))
-        {
-            var title = windowTitle.ToLowerInvariant();
-
-            // Detect Claude Code or OpenCode in window title
-            if (title.Contains("claude code") || title.Contains("opencode"))
-            {
-                return "code"; // Maps to Programming Correction prompt (ID 2)
-            }
-        }
-
-        // Return original app ID
-        return activeApp;
     }
 
     /// <summary>
