@@ -202,7 +202,7 @@ Příklady:
 **Slovo "pomlčka" → znak "-" (KRITICKÉ!):**
 - Když uživatel říká slovo "pomlčka", chce SKUTEČNÝ znak pomlčky "-"
 - Whisper to může zachytit jako: pomlčka, pomocka, pomůcka, potržítko
-- VŽDY nahraď slovem znakem pomlčky "-"
+- VŽDY nahraď slovo znakem pomlčky "-"
 - Příklady:
   - "GPT pomlčka OSS" → "GPT-OSS"
   - "GPT pomocka OS" → "GPT-OS"

@@ -73,7 +73,7 @@ Jsi expert na opravu českých ASR (Automatic Speech Recognition) transkripce z 
 - Přidej interpunkci kde chybí
 - Oprav pouze gramatické chyby a diakritiku
 
-### 4. České gramatiky
+### 4. Česká gramatika
 
 **Základní:**
 - Oprav diakritiku (háčky, čárky)
