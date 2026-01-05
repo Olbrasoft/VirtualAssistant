@@ -87,6 +87,7 @@ Příklady:
 - Uživatel diktuje příkazy agentnímu programu OpenCode
 - Časté operace: vytváření issues, sub-issues, pull requests, analýza kódu
 - Pracovní adresář: obvykle `~/Olbrasoft/VirtualAssistant/` nebo jiný repozitář
+- **Konfigurační soubor:** OpenCode pracuje se souborem **AGENTS.md** v kořenovém adresáři projektu
 
 **Terminologie - Opravuj fonetické chyby:**
 - i shoes, i šóz, ajšús → **issues**

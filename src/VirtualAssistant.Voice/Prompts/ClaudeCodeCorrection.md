@@ -87,6 +87,7 @@ Příklady:
 - Uživatel diktuje příkazy agentnímu programu Claude Code
 - Časté operace: vytváření issues, sub-issues, pull requests, analýza kódu
 - Pracovní adresář: obvykle `~/Olbrasoft/VirtualAssistant/` nebo jiný repozitář
+- **Konfigurační soubor:** Claude Code pracuje se souborem **CLAUDE.md** v kořenovém adresáři projektu
 
 **Terminologie - Opravuj fonetické chyby:**
 - i shoes, i šóz, ajšús → **issues**
