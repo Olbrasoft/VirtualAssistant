@@ -31,7 +31,18 @@ public class LlmCorrection
     public DateTime CreatedAt { get; set; } = DateTime.UtcNow;
 
     /// <summary>
+    /// Foreign key to Prompt - which context-aware prompt was used for this correction.
+    /// NOT NULL - every correction always has a prompt (specific or Default with pattern "*").
+    /// </summary>
+    public int PromptId { get; set; }
+
+    /// <summary>
     /// Navigation property to the original Whisper transcription.
     /// </summary>
     public WhisperTranscription WhisperTranscription { get; set; } = null!;
+
+    /// <summary>
+    /// Navigation property to the prompt that was used for this correction.
+    /// </summary>
+    public Prompt Prompt { get; set; } = null!;
 }

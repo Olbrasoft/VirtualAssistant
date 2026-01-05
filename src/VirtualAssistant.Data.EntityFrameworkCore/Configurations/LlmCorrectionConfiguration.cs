@@ -32,13 +32,23 @@ public class LlmCorrectionConfiguration : IEntityTypeConfiguration<LlmCorrection
             .IsRequired()
             .HasDefaultValueSql("NOW()");
 
-        // Foreign key relationship
+        builder.Property(l => l.PromptId)
+            .HasColumnName("prompt_id")
+            .IsRequired(); // NOT NULL - always has a prompt
+
+        // Foreign key relationships
         builder.HasOne(l => l.WhisperTranscription)
             .WithMany()
             .HasForeignKey(l => l.WhisperTranscriptionId)
             .OnDelete(DeleteBehavior.Cascade);
 
+        builder.HasOne(l => l.Prompt)
+            .WithMany(p => p.LlmCorrections)
+            .HasForeignKey(l => l.PromptId)
+            .OnDelete(DeleteBehavior.Restrict);
+
         builder.HasIndex(l => l.WhisperTranscriptionId);
+        builder.HasIndex(l => l.PromptId);
         builder.HasIndex(l => l.CreatedAt);
     }
 }
