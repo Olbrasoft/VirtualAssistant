@@ -146,6 +146,24 @@
         .log-container::-webkit-scrollbar-thumb:hover {
             background: #4e4e52;
         }
+
+        /* Application color coding */
+        .app-code,
+        .app-cursor {
+            color: #9B59B6 !important;  /* Purple - Claude Code */
+        }
+
+        .app-opencode {
+            color: #007ACC !important;  /* Blue - OpenCode */
+        }
+
+        .app-ferdium {
+            color: #27AE60 !important;  /* Green - Ferdium */
+        }
+
+        .log-prompt {
+            color: #ce9178;  /* Orange - Prompt change log */
+        }
     </style>
 </head>
 <body>
@@ -171,6 +189,18 @@
             <div class="stat-card">
                 <div class="stat-label">Active Application</div>
                 <div class="stat-value" id="active-app">-</div>
+            </div>
+            <div class="stat-card">
+                <div class="stat-label">Application Name</div>
+                <div class="stat-value" id="app-name">-</div>
+            </div>
+            <div class="stat-card">
+                <div class="stat-label">App ID</div>
+                <div class="stat-value" id="app-id">-</div>
+            </div>
+            <div class="stat-card">
+                <div class="stat-label">Correction Prompt</div>
+                <div class="stat-value" id="correction-prompt">-</div>
             </div>
         </div>
 
@@ -231,6 +261,20 @@
         connection.on("FocusChanged", (windowTitle, appId, wmClass) => {
             document.getElementById('active-window').textContent = windowTitle || '-';
             document.getElementById('active-app').textContent = appId || '-';
+        });
+
+        connection.on("PromptChanged", (appName, appId, promptFile) => {
+            // Update UI elements
+            document.getElementById('app-name').textContent = appName;
+            document.getElementById('app-id').textContent = appId;
+            document.getElementById('correction-prompt').textContent = promptFile;
+
+            // Apply color coding based on app ID
+            const appNameElement = document.getElementById('app-name');
+            appNameElement.className = `stat-value app-${appId.toLowerCase()}`;
+
+            // Add log entry with prompt emoji
+            addLog(`📝 Prompt: ${appName} → ${promptFile}`, 'log-prompt');
         });
 
         connection.on("LogMessage", (message) => {
