@@ -109,8 +109,8 @@ public class DatabaseCorrectionFilterStrategy : ITextFilterStrategy
                 }
 
                 // Synchronous call is acceptable for cache refresh
-                var query = new GetActiveTranscriptionCorrectionsQuery(queryProcessor);
-                _cachedCorrections = query.ToResultAsync().GetAwaiter().GetResult();
+                var query = new GetActiveTranscriptionCorrectionsQuery();
+                _cachedCorrections = queryProcessor.ProcessAsync(query, CancellationToken.None).GetAwaiter().GetResult();
 
                 _cacheExpiry = DateTime.UtcNow.Add(CacheDuration);
 
@@ -145,11 +145,10 @@ public class DatabaseCorrectionFilterStrategy : ITextFilterStrategy
 
             if (commandExecutor != null)
             {
-                var command = new TrackCorrectionUsageCommand(commandExecutor)
-                {
-                    CorrectionId = correctionId
-                };
-                await command.ToResultAsync();
+                var command = new TrackCorrectionUsageCommand(
+                    CorrectionId: correctionId
+                );
+                await commandExecutor.ExecuteAsync(command, CancellationToken.None);
             }
         }
         catch (Exception ex)
