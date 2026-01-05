@@ -1,6 +1,7 @@
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
 using Olbrasoft.Data.Cqrs;
+using Olbrasoft.VirtualAssistant.Core.Models;
 using Olbrasoft.VirtualAssistant.Core.Services;
 using Olbrasoft.VirtualAssistant.Data.Commands.LlmCorrectionCommands;
 using Olbrasoft.VirtualAssistant.Data.Commands.WhisperTranscriptionCommands;
@@ -34,8 +35,7 @@ public class DictationPersistenceService : IDictationPersistenceService
     public async Task<int?> SaveTranscriptionAsync(
         byte[] audioData,
         string originalText,
-        string? correctedText,
-        int llmDurationMs,
+        LlmCorrectionResult? correctionResult,
         CancellationToken cancellationToken = default)
     {
         // Input validation
@@ -83,24 +83,26 @@ public class DictationPersistenceService : IDictationPersistenceService
 
         // If LLM correction was applied, save it to database
         // Note: If LLM save fails, we still return the transcription ID (graceful degradation)
-        if (correctedText != null && correctedText != originalText)
+        if (correctionResult != null && correctionResult.CorrectedText != originalText)
         {
             try
             {
                 var command = new SaveLlmCorrectionCommand(
                     WhisperTranscriptionId: transcription.Id,
-                    CorrectedText: correctedText,
-                    DurationMs: llmDurationMs
+                    CorrectedText: correctionResult.CorrectedText,
+                    DurationMs: correctionResult.DurationMs,
+                    PromptId: correctionResult.PromptId  // NEW: Track which prompt was used
                 );
                 var correction = await _commandExecutor.ExecuteAsync(command, cancellationToken);
 
                 _logger.LogDebug(
-                    "Saved LLM correction {Id} for transcription {TranscriptionId} (duration: {Duration}ms): '{Original}' → '{Corrected}'",
+                    "Saved LLM correction {Id} for transcription {TranscriptionId} using prompt ID {PromptId} (duration: {Duration}ms): '{Original}' → '{Corrected}'",
                     correction.Id,
                     transcription.Id,
-                    llmDurationMs,
+                    correctionResult.PromptId,
+                    correctionResult.DurationMs,
                     originalText.Length > 30 ? originalText[..30] + "..." : originalText,
-                    correctedText.Length > 30 ? correctedText[..30] + "..." : correctedText);
+                    correctionResult.CorrectedText.Length > 30 ? correctionResult.CorrectedText[..30] + "..." : correctionResult.CorrectedText);
             }
             catch (Exception ex)
             {

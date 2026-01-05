@@ -2,6 +2,7 @@ using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
 using Moq;
 using Olbrasoft.Data.Cqrs;
+using Olbrasoft.VirtualAssistant.Core.Models;
 using Olbrasoft.VirtualAssistant.Service.Infrastructure;
 using Olbrasoft.VirtualAssistant.Voice.Configuration;
 using Olbrasoft.VirtualAssistant.Data.Entities;
@@ -46,7 +47,6 @@ public class DictationPersistenceServiceTests
         // Arrange
         var audioData = new byte[32000]; // 1 second of audio (16-bit mono @ 16kHz)
         var originalText = "Hello world";
-        string? correctedText = null; // No LLM correction
         var expectedTranscription = new WhisperTranscription
         {
             Id = 123,
@@ -62,8 +62,7 @@ public class DictationPersistenceServiceTests
         var result = await _service.SaveTranscriptionAsync(
             audioData,
             originalText,
-            correctedText,
-            llmDurationMs: 0,
+            correctionResult: null,  // No LLM correction
             CancellationToken.None);
 
         // Assert
@@ -109,11 +108,11 @@ public class DictationPersistenceServiceTests
             .ReturnsAsync(expectedCorrection);
 
         // Act
+        var correctionResult = new LlmCorrectionResult(correctedText, null, llmDurationMs);
         var result = await _service.SaveTranscriptionAsync(
             audioData,
             originalText,
-            correctedText,
-            llmDurationMs,
+            correctionResult,
             CancellationToken.None);
 
         // Assert
@@ -148,11 +147,11 @@ public class DictationPersistenceServiceTests
             .ReturnsAsync(expectedTranscription);
 
         // Act
+        var correctionResult = new LlmCorrectionResult(correctedText, null, 100);
         var result = await _service.SaveTranscriptionAsync(
             audioData,
             originalText,
-            correctedText,
-            llmDurationMs: 100,
+            correctionResult,
             CancellationToken.None);
 
         // Assert
@@ -184,8 +183,7 @@ public class DictationPersistenceServiceTests
         await _service.SaveTranscriptionAsync(
             audioData,
             text,
-            null,
-            llmDurationMs: 0,
+            correctionResult: null,
             CancellationToken.None);
 
         // Assert
@@ -217,8 +215,7 @@ public class DictationPersistenceServiceTests
         var result = await _service.SaveTranscriptionAsync(
             audioData,
             text,
-            null,
-            llmDurationMs: 0,
+            correctionResult: null,
             CancellationToken.None);
 
         // Assert
@@ -242,11 +239,11 @@ public class DictationPersistenceServiceTests
             .ThrowsAsync(new InvalidOperationException("LLM save failed"));
 
         // Act
+        var correctionResult = new LlmCorrectionResult(correctedText, null, 100);
         var result = await _service.SaveTranscriptionAsync(
             audioData,
             originalText,
-            correctedText,
-            llmDurationMs: 100,
+            correctionResult,
             CancellationToken.None);
 
         // Assert
@@ -267,7 +264,7 @@ public class DictationPersistenceServiceTests
 
         // Act & Assert
         var exception = await Assert.ThrowsAsync<ArgumentException>(
-            () => _service.SaveTranscriptionAsync(audioData!, text, null, 0, CancellationToken.None));
+            () => _service.SaveTranscriptionAsync(audioData!, text, null, CancellationToken.None));
 
         Assert.Equal("audioData", exception.ParamName);
         Assert.Contains("cannot be null or empty", exception.Message);
@@ -282,7 +279,7 @@ public class DictationPersistenceServiceTests
 
         // Act & Assert
         var exception = await Assert.ThrowsAsync<ArgumentException>(
-            () => _service.SaveTranscriptionAsync(audioData, text, null, 0, CancellationToken.None));
+            () => _service.SaveTranscriptionAsync(audioData, text, null, CancellationToken.None));
 
         Assert.Equal("audioData", exception.ParamName);
         Assert.Contains("cannot be null or empty", exception.Message);
@@ -297,7 +294,7 @@ public class DictationPersistenceServiceTests
 
         // Act & Assert
         var exception = await Assert.ThrowsAsync<ArgumentException>(
-            () => _service.SaveTranscriptionAsync(audioData, originalText!, null, 0, CancellationToken.None));
+            () => _service.SaveTranscriptionAsync(audioData, originalText!, null, CancellationToken.None));
 
         Assert.Equal("originalText", exception.ParamName);
         Assert.Contains("cannot be null or empty", exception.Message);
@@ -312,7 +309,7 @@ public class DictationPersistenceServiceTests
 
         // Act & Assert
         var exception = await Assert.ThrowsAsync<ArgumentException>(
-            () => _service.SaveTranscriptionAsync(audioData, originalText, null, 0, CancellationToken.None));
+            () => _service.SaveTranscriptionAsync(audioData, originalText, null, CancellationToken.None));
 
         Assert.Equal("originalText", exception.ParamName);
         Assert.Contains("cannot be null or empty", exception.Message);
@@ -327,7 +324,7 @@ public class DictationPersistenceServiceTests
 
         // Act & Assert
         var exception = await Assert.ThrowsAsync<ArgumentException>(
-            () => _service.SaveTranscriptionAsync(audioData, originalText, null, 0, CancellationToken.None));
+            () => _service.SaveTranscriptionAsync(audioData, originalText, null, CancellationToken.None));
 
         Assert.Equal("originalText", exception.ParamName);
         Assert.Contains("cannot be null or empty", exception.Message);
@@ -346,7 +343,7 @@ public class DictationPersistenceServiceTests
             .ReturnsAsync(new WhisperTranscription { Id = 1, TranscribedText = text, AudioDurationMs = expectedDurationMs });
 
         // Act
-        var result = await _service.SaveTranscriptionAsync(audioData, text, null, 0, CancellationToken.None);
+        var result = await _service.SaveTranscriptionAsync(audioData, text, null, CancellationToken.None);
 
         // Assert
         Assert.Equal(1, result);

@@ -89,10 +89,9 @@ public class TranscriptionService : ITranscriptionService
             try
             {
                 var beforeLlm = processedText;
-                var sw = Stopwatch.StartNew();
-                processedText = await _llmProvider.CorrectTextAsync(processedText, cancellationToken);
-                sw.Stop();
-                llmDurationMs = (int)sw.ElapsedMilliseconds;
+                var correctionResult = await _llmProvider.CorrectTextAsync(processedText, cancellationToken);
+                processedText = correctionResult.CorrectedText;
+                llmDurationMs = correctionResult.DurationMs;
 
                 if (beforeLlm != processedText)
                 {
