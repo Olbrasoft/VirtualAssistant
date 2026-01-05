@@ -68,8 +68,9 @@ public class NotificationTrackerTests
         // Assert
         _notificationServiceMock.Verify(
             x => x.UpdateStatusAsync(
-                It.Is<int[]>(ids => ids.Length == 1 && ids[0] == notificationId),
-                NotificationStatusEnum.Processing),
+                It.Is<IEnumerable<int>>(ids => ids.Count() == 1 && ids.First() == notificationId),
+                NotificationStatusEnum.Processing,
+                It.IsAny<CancellationToken>()),
             Times.Once);
     }
 
@@ -86,8 +87,9 @@ public class NotificationTrackerTests
         // Assert
         _notificationServiceMock.Verify(
             x => x.UpdateStatusAsync(
-                It.Is<int[]>(ids => ids.Length == 1 && ids[0] == notificationId),
-                NotificationStatusEnum.Processing),
+                It.Is<IEnumerable<int>>(ids => ids.Count() == 1 && ids.First() == notificationId),
+                NotificationStatusEnum.Processing,
+                It.IsAny<CancellationToken>()),
             Times.Once);
     }
 
@@ -108,8 +110,9 @@ public class NotificationTrackerTests
         // Assert
         _notificationServiceMock.Verify(
             x => x.UpdateStatusAsync(
-                It.Is<int[]>(ids => ids.Length == 1 && ids[0] == notificationId),
-                NotificationStatusEnum.Played),
+                It.Is<IEnumerable<int>>(ids => ids.Count() == 1 && ids.First() == notificationId),
+                NotificationStatusEnum.Played,
+                It.IsAny<CancellationToken>()),
             Times.Once);
     }
 
@@ -126,8 +129,9 @@ public class NotificationTrackerTests
         // Assert
         _notificationServiceMock.Verify(
             x => x.UpdateStatusAsync(
-                It.Is<int[]>(ids => ids.Length == 1 && ids[0] == notificationId),
-                NotificationStatusEnum.Played),
+                It.Is<IEnumerable<int>>(ids => ids.Count() == 1 && ids.First() == notificationId),
+                NotificationStatusEnum.Played,
+                It.IsAny<CancellationToken>()),
             Times.Once);
     }
 
@@ -229,8 +233,9 @@ public class NotificationTrackerTests
         // Assert
         _notificationServiceMock.Verify(
             x => x.UpdateStatusAsync(
-                It.Is<int[]>(ids => ids.Length == 1 && ids[0] == notificationId),
-                NotificationStatusEnum.Processing),
+                It.Is<IEnumerable<int>>(ids => ids.Count() == 1 && ids.First() == notificationId),
+                NotificationStatusEnum.Processing,
+                It.IsAny<CancellationToken>()),
             Times.Once);
 
         _notificationServiceMock.Verify(
@@ -239,8 +244,9 @@ public class NotificationTrackerTests
 
         _notificationServiceMock.Verify(
             x => x.UpdateStatusAsync(
-                It.Is<int[]>(ids => ids.Length == 1 && ids[0] == notificationId),
-                NotificationStatusEnum.Played),
+                It.Is<IEnumerable<int>>(ids => ids.Count() == 1 && ids.First() == notificationId),
+                NotificationStatusEnum.Played,
+                It.IsAny<CancellationToken>()),
             Times.Once);
     }
 
