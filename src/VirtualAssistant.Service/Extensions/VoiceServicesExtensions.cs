@@ -1,4 +1,5 @@
 using Microsoft.Extensions.Options;
+using Olbrasoft.Data.Cqrs;
 using Olbrasoft.VirtualAssistant.Core.Audio;
 using Olbrasoft.VirtualAssistant.Core.Clipboard;
 using Olbrasoft.VirtualAssistant.Core.Configuration;
@@ -186,8 +187,10 @@ public static class VoiceServicesExtensions
             var options = sp.GetRequiredService<IOptions<MistralOptions>>();
             var promptCache = sp.GetRequiredService<IPromptCache>();
             var logger = sp.GetRequiredService<ILogger<MistralProvider>>();
+            var desktopContextService = sp.GetRequiredService<IDesktopContextService>();
+            var queryProcessor = sp.GetRequiredService<IQueryProcessor>();
 
-            return new MistralProvider(httpClient, options, promptCache, logger);
+            return new MistralProvider(httpClient, options, promptCache, logger, desktopContextService, queryProcessor);
         });
 
         // Text filtering pipeline (Phase 3 - from PushToTalk)

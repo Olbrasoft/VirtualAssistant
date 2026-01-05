@@ -1,6 +1,7 @@
 using Microsoft.AspNetCore.SignalR;
 using Microsoft.Extensions.Logging;
 using Moq;
+using Olbrasoft.Data.Cqrs;
 using Olbrasoft.Testing.Xunit.Attributes;
 using Olbrasoft.VirtualAssistant.Service.Hubs;
 using Olbrasoft.VirtualAssistant.Service.Workers;
@@ -21,6 +22,7 @@ public class DesktopMonitorBroadcastWorkerTests : IDisposable
     private readonly Mock<IHubContext<DesktopMonitorHub>> _hubContextMock;
     private readonly Mock<IHubClients> _hubClientsMock;
     private readonly Mock<IClientProxy> _clientProxyMock;
+    private readonly Mock<IQueryProcessor> _queryProcessorMock;
     private readonly Subject<DesktopContextChange> _contextChangesSubject;
     private readonly DesktopMonitorBroadcastWorker _sut;
 
@@ -31,6 +33,7 @@ public class DesktopMonitorBroadcastWorkerTests : IDisposable
         _hubContextMock = new Mock<IHubContext<DesktopMonitorHub>>();
         _hubClientsMock = new Mock<IHubClients>();
         _clientProxyMock = new Mock<IClientProxy>();
+        _queryProcessorMock = new Mock<IQueryProcessor>();
 
         // Setup Subject for observable stream
         _contextChangesSubject = new Subject<DesktopContextChange>();
@@ -48,7 +51,8 @@ public class DesktopMonitorBroadcastWorkerTests : IDisposable
         _sut = new DesktopMonitorBroadcastWorker(
             _loggerMock.Object,
             _desktopContextServiceMock.Object,
-            _hubContextMock.Object
+            _hubContextMock.Object,
+            _queryProcessorMock.Object
         );
     }
 

@@ -68,6 +68,7 @@ public class TranscriptionService : ITranscriptionService
         var processedText = result.Text;
         string? filteredText = null;
         int? llmDurationMs = null;
+        int? promptId = null;
 
         // 1. Apply text filtering (database corrections, file replacements, remove patterns, whitespace normalization)
         if (_textFilter != null && _textFilter.IsEnabled)
@@ -89,10 +90,10 @@ public class TranscriptionService : ITranscriptionService
             try
             {
                 var beforeLlm = processedText;
-                var sw = Stopwatch.StartNew();
-                processedText = await _llmProvider.CorrectTextAsync(processedText, cancellationToken);
-                sw.Stop();
-                llmDurationMs = (int)sw.ElapsedMilliseconds;
+                var correctionResult = await _llmProvider.CorrectTextAsync(processedText, cancellationToken);
+                processedText = correctionResult.CorrectedText;
+                llmDurationMs = correctionResult.DurationMs;
+                promptId = correctionResult.PromptId;
 
                 if (beforeLlm != processedText)
                 {
@@ -114,7 +115,8 @@ public class TranscriptionService : ITranscriptionService
             {
                 OriginalText = originalText,  // Whisper output before processing
                 FilteredText = filteredText,  // Text after filtering but before LLM (null if no filtering)
-                LlmDurationMs = llmDurationMs // LLM correction duration in ms (null if no LLM correction)
+                LlmDurationMs = llmDurationMs, // LLM correction duration in ms (null if no LLM correction)
+                PromptId = promptId           // Prompt ID used for LLM correction (null if no LLM correction)
             };
         }
 

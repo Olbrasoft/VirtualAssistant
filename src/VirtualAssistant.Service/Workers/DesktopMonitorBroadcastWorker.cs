@@ -1,7 +1,9 @@
 using Microsoft.AspNetCore.SignalR;
+using Olbrasoft.Data.Cqrs;
 using Olbrasoft.VirtualAssistant.Service.Hubs;
 using Olbrasoft.VirtualAssistant.Core.Models;
 using Olbrasoft.VirtualAssistant.Core.Services;
+using Olbrasoft.VirtualAssistant.Data.Queries.PromptQueries;
 
 namespace Olbrasoft.VirtualAssistant.Service.Workers;
 
@@ -14,17 +16,20 @@ public class DesktopMonitorBroadcastWorker : BackgroundService
     private readonly ILogger<DesktopMonitorBroadcastWorker> _logger;
     private readonly IDesktopContextService _desktopContextService;
     private readonly IHubContext<DesktopMonitorHub> _hubContext;
+    private readonly IQueryProcessor _queryProcessor;
     private readonly object _subscriptionLock = new();
     private IDisposable? _subscription;
 
     public DesktopMonitorBroadcastWorker(
         ILogger<DesktopMonitorBroadcastWorker> logger,
         IDesktopContextService desktopContextService,
-        IHubContext<DesktopMonitorHub> hubContext)
+        IHubContext<DesktopMonitorHub> hubContext,
+        IQueryProcessor queryProcessor)
     {
         _logger = logger;
         _desktopContextService = desktopContextService;
         _hubContext = hubContext;
+        _queryProcessor = queryProcessor;
     }
 
     protected override Task ExecuteAsync(CancellationToken stoppingToken)
@@ -62,6 +67,7 @@ public class DesktopMonitorBroadcastWorker : BackgroundService
                 case ChangeType.ApplicationChanged:
                 case ChangeType.WindowFocusChanged:
                     await BroadcastFocusChanged(newContext);
+                    await BroadcastPromptChanged(newContext.ActiveApplication);  // NEW: Broadcast prompt change
                     break;
             }
 
@@ -95,6 +101,37 @@ public class DesktopMonitorBroadcastWorker : BackgroundService
     {
         _logger.LogDebug("Broadcasting log message: {Message}", message);
         await _hubContext.Clients.All.SendAsync("LogMessage", message);
+    }
+
+    private async Task BroadcastPromptChanged(string activeApplication)
+    {
+        try
+        {
+            // Detect prompt for current application (reuses queries from #582)
+            var prompt = await _queryProcessor.ProcessAsync(
+                new GetPromptByAppIdPatternQuery(activeApplication),
+                CancellationToken.None);
+
+            // Fallback to Default if no match
+            prompt ??= await _queryProcessor.ProcessAsync(
+                new GetDefaultPromptQuery(),
+                CancellationToken.None);
+
+            _logger.LogDebug(
+                "Broadcasting prompt change: {AppName} (ID: {AppId}) → {Prompt}",
+                prompt.ApplicationName, activeApplication, prompt.PromptFileName);
+
+            // Broadcast prompt change to all connected clients
+            await _hubContext.Clients.All.SendAsync(
+                "PromptChanged",
+                prompt.ApplicationName,        // e.g., "Claude Code"
+                activeApplication,             // e.g., "code"
+                prompt.PromptFileName);        // e.g., "ClaudeCodeCorrection.md"
+        }
+        catch (Exception ex)
+        {
+            _logger.LogWarning(ex, "Failed to detect prompt for application '{App}'", activeApplication);
+        }
     }
 
     public override Task StopAsync(CancellationToken cancellationToken)

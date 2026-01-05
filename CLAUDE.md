@@ -59,6 +59,22 @@ cd ~/Olbrasoft/VirtualAssistant && ./deploy/deploy.sh /opt/olbrasoft/virtual-ass
 **CRITICAL:** Never merge PR without addressing Copilot's code review comments!
 **CRITICAL:** Always check BOTH `get_reviews` AND `get_review_comments` before merging - they return different data!
 
+**PR Scope Rule (MANDATORY):**
+- **Group of issues** (1 or more) done together → ONE pull request ✅
+- **Once PR is created and pushed**, code review starts automatically
+- **After PR creation**: ONLY commits for review fixes allowed
+- ❌ **NEVER add NEW issues to existing PR** after code review started
+- ✅ **New issue(s)** (not in original group) → **NEW branch + NEW PR**
+
+Example (CORRECT):
+- Issues #582 + #583 together → Branch `feature/issues-582-583` → PR #591 ✅
+- Review fixes for PR #591 → Commit to PR #591 ✅
+
+Example (WRONG):
+- Issue #582 → PR #591 created
+- Issue #583 (new issue after PR created) → Commit to PR #591 ❌
+- Should be: Issue #583 → NEW PR #592 ✅
+
 ### Automated Deployment
 
 **GitHub Actions workflow** (`.github/workflows/deploy.yml`) triggers automatically:

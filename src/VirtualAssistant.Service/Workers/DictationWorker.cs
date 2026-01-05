@@ -2,6 +2,7 @@ using Microsoft.Extensions.Options;
 using Olbrasoft.VirtualAssistant.Core.Audio;
 using Olbrasoft.VirtualAssistant.Core.Configuration;
 using Olbrasoft.VirtualAssistant.Core.Keyboard;
+using Olbrasoft.VirtualAssistant.Core.Models;
 using Olbrasoft.VirtualAssistant.Core.Services;
 using Olbrasoft.VirtualAssistant.Core.Speech;
 using Olbrasoft.VirtualAssistant.Voice.Services;
@@ -269,11 +270,21 @@ public class DictationWorker : BackgroundService, IDictationControl
         var originalText = result.OriginalText ?? result.Text;
         var correctedText = (result.OriginalText != null && result.Text != result.OriginalText) ? result.Text : null;
 
+        // Construct LlmCorrectionResult if LLM correction was applied
+        LlmCorrectionResult? correctionResult = null;
+        if (correctedText != null && result.LlmDurationMs.HasValue)
+        {
+            correctionResult = new LlmCorrectionResult(
+                CorrectedText: correctedText,
+                PromptId: result.PromptId,  // PromptId from TranscriptionService (context-aware prompt selection)
+                DurationMs: result.LlmDurationMs.Value
+            );
+        }
+
         await persistenceService.SaveTranscriptionAsync(
             audioData,
             originalText,
-            correctedText,
-            result.LlmDurationMs ?? 0,
+            correctionResult,
             _transcriptionCts!.Token);
     }
 

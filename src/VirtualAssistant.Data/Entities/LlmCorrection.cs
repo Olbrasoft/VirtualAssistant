@@ -32,9 +32,9 @@ public class LlmCorrection
 
     /// <summary>
     /// Foreign key to Prompt - which context-aware prompt was used for this correction.
-    /// NOT NULL - every correction always has a prompt (specific or Default with pattern "*").
+    /// NULL indicates no prompt tracking (e.g., legacy code or system without desktop monitoring).
     /// </summary>
-    public int PromptId { get; set; }
+    public int? PromptId { get; set; }
 
     /// <summary>
     /// Navigation property to the original Whisper transcription.

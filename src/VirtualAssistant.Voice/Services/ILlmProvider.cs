@@ -1,3 +1,5 @@
+using Olbrasoft.VirtualAssistant.Core.Models;
+
 namespace Olbrasoft.VirtualAssistant.Voice.Services;
 
 /// <summary>
@@ -20,8 +22,8 @@ public interface ILlmProvider
     /// </summary>
     /// <param name="text">Text to correct</param>
     /// <param name="cancellationToken">Cancellation token</param>
-    /// <returns>Corrected text</returns>
-    Task<string> CorrectTextAsync(string text, CancellationToken cancellationToken = default);
+    /// <returns>LLM correction result including corrected text, prompt ID, and duration</returns>
+    Task<LlmCorrectionResult> CorrectTextAsync(string text, CancellationToken cancellationToken = default);
 
     /// <summary>
     /// Gets the API usage information from the last response headers.
