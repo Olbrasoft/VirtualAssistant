@@ -28,7 +28,7 @@ public class SystemTrayIconManagerAdapter : Core.Services.ITrayIconManager
             linuxMenuHandler = handler;
         }
 
-        var icon = await _manager.CreateIconAsync(id, iconPath, tooltip, null);
+        var icon = await _manager.CreateIconAsync(id, iconPath, tooltip, linuxMenuHandler);
         return icon != null ? new TrayIconAdapter(icon) : null;
     }
 
