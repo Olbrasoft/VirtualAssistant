@@ -214,6 +214,57 @@ Invalid agent names will throw `ArgumentException` in `NotificationService.MapAg
 3. Profile selects voice (e.g., "gemini" → cs-CZ-VlastaNeural, "claude-code" → cs-CZ-AntoninNeural)
 4. TTS provider chain attempts synthesis (Azure → EdgeTTS → VoiceRSS → Google → Piper)
 
+### MCP Servers for Agent Integration
+
+Each agent can send notifications via dedicated MCP (Model Context Protocol) servers:
+
+| Agent | MCP Server | Location | Purpose |
+|-------|------------|----------|---------|
+| claude-code | mcp-notify | ~/apps/mcp-notify/ | Notifications from Claude Code |
+| gemini | mcp-notify-gemini | ~/apps/mcp-notify-gemini/ | Notifications from Gemini CLI |
+
+**Configuration** (in `~/.claude.json`):
+```json
+{
+  "mcpServers": {
+    "notify": {
+      "type": "stdio",
+      "command": "node",
+      "args": ["/home/jirka/apps/mcp-notify/dist/index.js"],
+      "env": {}
+    },
+    "mcp-notify-gemini": {
+      "type": "stdio",
+      "command": "node",
+      "args": ["/home/jirka/apps/mcp-notify-gemini/dist/index.js"],
+      "env": {}
+    }
+  }
+}
+```
+
+**Tool Usage** (for agents):
+```javascript
+// From Claude Code or Gemini CLI
+mcp__notify__notify({
+  text: "Zahajuji práci na issue #255",
+  issueIds: [255]
+})
+
+// Or for Gemini specifically
+mcp__mcp-notify-gemini__notify({
+  text: "Dokončil jsem úkol",
+  issueIds: [100]
+})
+```
+
+**How it works:**
+1. Agent calls MCP tool `notify({ text, issueIds })`
+2. MCP server sends POST request to `/api/notifications`
+3. Notification created in database with correct agent ID
+4. TTS speaks notification with agent-specific voice
+5. Notification displayed in UI and tracked in database
+
 ## Dependencies
 
 | Dependency | Location | Purpose |
