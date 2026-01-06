@@ -223,10 +223,10 @@ public class NotificationService : INotificationService
         return normalized switch
         {
             "opencode" => AgentType.OpenCode,
-            "claude-code" => AgentType.ClaudeCode,
+            "claude" or "claude-code" => AgentType.ClaudeCode,
             "gemini" => AgentType.Gemini,
             _ => throw new ArgumentException(
-                $"Invalid agent name '{agentName}'. Allowed values: opencode, claude-code, gemini",
+                $"Invalid agent name '{agentName}'. Allowed values: opencode, claude, claude-code, gemini",
                 nameof(agentName))
         };
     }
