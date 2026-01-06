@@ -28,30 +28,13 @@ public class NotificationService : INotificationService
         ArgumentException.ThrowIfNullOrWhiteSpace(text, nameof(text));
         ArgumentException.ThrowIfNullOrWhiteSpace(agentName, nameof(agentName));
 
-        // Normalize agent name to lowercase for lookup
-        var normalizedName = agentName.ToLowerInvariant();
-
-        var agent = await _dbContext.Agents
-            .FirstOrDefaultAsync(a => a.Name.ToLower() == normalizedName, ct);
-
-        if (agent == null)
-        {
-            _logger.LogWarning("Agent '{AgentName}' not found in database, creating new agent", agentName);
-            agent = new Agent
-            {
-                Name = normalizedName,
-                Label = $"agent:{normalizedName}",
-                IsActive = true,
-                CreatedAt = DateTime.UtcNow
-            };
-            _dbContext.Agents.Add(agent);
-            await _dbContext.SaveChangesAsync(ct);
-        }
+        // Map agent name to AgentType enum (validates against allowed agents)
+        var agentType = MapAgentNameToType(agentName);
 
         var notification = new Notification
         {
             Text = text,
-            AgentId = agent.Id,
+            AgentId = (int)agentType, // Use enum value directly as agent_id
             CreatedAt = DateTime.UtcNow,
             NotificationStatusId = (int)NotificationStatusEnum.NewlyReceived
         };
@@ -78,7 +61,7 @@ public class NotificationService : INotificationService
         else
         {
             _logger.LogInformation("Created notification {Id} from agent {AgentName} (ID: {AgentId})",
-                notification.Id, agentName, agent.Id);
+                notification.Id, agentName, notification.AgentId);
         }
 
         return notification.Id;
@@ -226,5 +209,25 @@ public class NotificationService : INotificationService
 
         _logger.LogDebug("Recorded TTS outcome for notification {Id}: {Status} via {Provider} ({Duration}ms)",
             notificationId, status, providerName ?? "none", durationMs ?? 0);
+    }
+
+    /// <summary>
+    /// Maps agent name string to AgentType enum.
+    /// Throws ArgumentException if agent name is not valid.
+    /// </summary>
+    private static AgentType MapAgentNameToType(string agentName)
+    {
+        // Normalize to lowercase for case-insensitive comparison
+        var normalized = agentName.ToLowerInvariant().Trim();
+
+        return normalized switch
+        {
+            "opencode" => AgentType.OpenCode,
+            "claude-code" => AgentType.ClaudeCode,
+            "gemini" => AgentType.Gemini,
+            _ => throw new ArgumentException(
+                $"Invalid agent name '{agentName}'. Allowed values: opencode, claude-code, gemini",
+                nameof(agentName))
+        };
     }
 }
