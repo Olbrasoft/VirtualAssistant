@@ -67,7 +67,7 @@ public class VirtualAssistantSpeaker : IVirtualAssistantSpeaker
     /// Speaks the given text using the text-to-speech service.
     /// </summary>
     /// <param name="text">The text to speak. Empty or whitespace text is skipped.</param>
-    /// <param name="agentName">Optional agent name for identification (not currently used).</param>
+    /// <param name="agentName">Optional agent name for voice selection (e.g., "gemini", "claude-code"). Defaults to "assistant".</param>
     /// <param name="skipCache">If true, bypasses TTS audio cache and regenerates speech.</param>
     /// <param name="ct">Cancellation token to stop speech playback.</param>
     /// <returns>Result of the TTS operation including provider used and duration.</returns>
@@ -87,7 +87,8 @@ public class VirtualAssistantSpeaker : IVirtualAssistantSpeaker
             return new TtsResult(Success: false, Skipped: true);
         }
 
-        _logger.LogDebug("Speaking text: {Text} (skipCache: {SkipCache})", TruncateText(text, 50), skipCache);
+        _logger.LogDebug("Speaking text: {Text} (agent: {Agent}, skipCache: {SkipCache})",
+            TruncateText(text, 50), agentName ?? "assistant", skipCache);
 
         // Begin speaking - get cancellation token for this speech
         var speechToken = _speechQueueService.BeginSpeaking();
@@ -98,8 +99,9 @@ public class VirtualAssistantSpeaker : IVirtualAssistantSpeaker
         var stopwatch = Stopwatch.StartNew();
         try
         {
-            // Use "assistant" as the voice source for all VirtualAssistant speech
-            var (success, providerUsed) = await _ttsService.SpeakAsync(text, source: "assistant", skipCache, linkedCts.Token);
+            // Use agent name for voice selection, default to "assistant" if not provided
+            var source = agentName ?? "assistant";
+            var (success, providerUsed) = await _ttsService.SpeakAsync(text, source: source, skipCache, linkedCts.Token);
             stopwatch.Stop();
 
             return new TtsResult(

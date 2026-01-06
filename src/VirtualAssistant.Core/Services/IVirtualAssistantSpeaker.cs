@@ -26,11 +26,10 @@ public interface IVirtualAssistantSpeaker
     int QueueCount { get; }
 
     /// <summary>
-    /// Speaks the text using TTS.
-    /// If agentName is provided, checks workspace and skips TTS if user is on same workspace as agent.
+    /// Speaks the text using TTS with agent-specific voice selection.
     /// </summary>
     /// <param name="text">Text to speak</param>
-    /// <param name="agentName">Optional agent name for workspace detection (e.g., "opencode", "claude")</param>
+    /// <param name="agentName">Optional agent name for voice selection (e.g., "gemini", "claude-code", "opencode"). Defaults to "assistant".</param>
     /// <param name="skipCache">If true, bypasses TTS cache and always generates fresh audio (use for notifications with dynamic content)</param>
     /// <param name="ct">Cancellation token</param>
     /// <returns>Result of the TTS operation including provider used and duration.</returns>
