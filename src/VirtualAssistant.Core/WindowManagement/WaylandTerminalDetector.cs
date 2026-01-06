@@ -49,8 +49,17 @@ public class WaylandTerminalDetector : ITerminalDetector
             // Get current desktop context from LinuxDesktop monitoring
             var context = await _desktopContextService.GetCurrentContextAsync(cancellationToken);
 
+            // If desktop monitoring is unavailable (D-Bus frozen, extension not running),
+            // default to terminal paste (Ctrl+Shift+V) as it's safer and works in more cases
+            if (string.IsNullOrEmpty(context.ActiveApplication) || context.ActiveApplication == "Unknown")
+            {
+                _logger.LogWarning("Desktop monitoring unavailable (ActiveApplication: {ActiveApp}), defaulting to terminal paste (Ctrl+Shift+V) for safety",
+                    context.ActiveApplication ?? "(null)");
+                return true; // Default to terminal paste when unknown
+            }
+
             // Check if active application is a known terminal
-            if (!string.IsNullOrEmpty(context.ActiveApplication) && TerminalAppIds.Contains(context.ActiveApplication))
+            if (TerminalAppIds.Contains(context.ActiveApplication))
             {
                 _logger.LogDebug("Detected terminal application: {ActiveApp} (window: {WindowTitle})",
                     context.ActiveApplication, context.ActiveWindowTitle);
@@ -58,13 +67,13 @@ public class WaylandTerminalDetector : ITerminalDetector
             }
 
             _logger.LogDebug("Non-terminal application detected: {ActiveApp} (window: {WindowTitle})",
-                context.ActiveApplication ?? "(unknown)", context.ActiveWindowTitle);
+                context.ActiveApplication, context.ActiveWindowTitle);
             return false;
         }
         catch (Exception ex)
         {
-            _logger.LogWarning(ex, "Error detecting terminal application, assuming non-terminal");
-            return false;
+            _logger.LogWarning(ex, "Error detecting terminal application, defaulting to terminal paste (Ctrl+Shift+V) for safety");
+            return true; // Default to terminal paste on error
         }
     }
 

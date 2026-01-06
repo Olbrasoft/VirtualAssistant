@@ -52,8 +52,10 @@ public class XDoToolKeyboardService : IKeyboardSimulationService
             // Step 2: Copy our text to clipboard
             await _clipboardManager.SetClipboardAsync(textToType, cancellationToken);
 
-            // Small delay to ensure clipboard is ready
-            await Task.Delay(50, cancellationToken);
+            // Delay to ensure clipboard is ready and CopyQ processes the change
+            // CopyQ (clipboard manager) monitors clipboard and may interfere with paste
+            // Longer delay (150ms) prevents race conditions with clipboard managers
+            await Task.Delay(150, cancellationToken);
 
             // Step 3: Simulate paste using dotool (clipboard already contains our text)
             // Note: dotool type doesn't support Czech diacritics properly, so we use paste simulation

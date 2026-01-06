@@ -32,6 +32,8 @@ public static class DesktopServiceExtensions
 
         if (!options.Enabled)
         {
+            // Register null implementation when desktop monitoring is disabled
+            services.AddSingleton<Core.Services.IDesktopContextService, NullDesktopContextService>();
             return services;
         }
 
@@ -98,5 +100,29 @@ public static class DesktopServiceExtensions
             Task.FromResult(false);
 
         public ValueTask DisposeAsync() => ValueTask.CompletedTask;
+    }
+
+    /// <summary>
+    /// Null object pattern implementation for IDesktopContextService when desktop monitoring is disabled.
+    /// Returns empty context with "Unknown" values.
+    /// </summary>
+    private class NullDesktopContextService : Core.Services.IDesktopContextService
+    {
+        private readonly System.Reactive.Subjects.Subject<Core.Models.DesktopContextChange> _contextChanges = new();
+
+        public IObservable<Core.Models.DesktopContextChange> ContextChanges => _contextChanges;
+
+        public Task<Core.Models.DesktopContext> GetCurrentContextAsync(CancellationToken ct = default) =>
+            Task.FromResult(new Core.Models.DesktopContext(
+                CurrentWorkspace: 0,
+                TotalWorkspaces: 0,
+                ActiveWindowTitle: "Unknown",
+                ActiveWindowClass: "Unknown",
+                ActiveApplication: "Unknown",
+                Timestamp: DateTime.UtcNow
+            ));
+
+        public Task<bool> IsAvailableAsync(CancellationToken ct = default) =>
+            Task.FromResult(false);
     }
 }
