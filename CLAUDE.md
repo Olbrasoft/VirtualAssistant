@@ -247,7 +247,7 @@ Each agent can send notifications via dedicated MCP (Model Context Protocol) ser
 ```javascript
 // From Claude Code or Gemini CLI
 mcp__notify__notify({
-  text: "Zahajuji praci na issue #255",
+  text: "Zahajuji práci na issue #255",
   issueIds: [255]
 })
 
