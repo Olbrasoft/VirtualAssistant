@@ -173,6 +173,47 @@ Query handler and command handler implementations are in the **VirtualAssistant.
 - Thread-safe concurrent transcription
 - Models: ggml-medium.bin (continuous listening), ggml-large-v3-turbo.bin (dictation)
 
+## Agent Support
+
+VirtualAssistant supports multiple AI agents with agent-specific voice differentiation via TTS profiles.
+
+### Supported Agents
+
+| Agent | Voice | Provider | Agent ID | TTS Profile |
+|-------|-------|----------|----------|-------------|
+| claude-code | Antonín (male) | Azure | 4 | claude-code |
+| opencode | Antonín (male) | Azure | 1 | (default) |
+| gemini | Vlasta (female) | Azure | 11 | gemini |
+
+### Agent Identification
+
+Agents are identified by `source` parameter in notification API:
+
+```json
+POST /api/notifications
+{
+  "text": "Message to speak",
+  "source": "gemini",  // Determines agent and voice
+  "issueIds": [123]
+}
+```
+
+### AgentType Enum
+
+Agents are validated using `AgentType` enum (VirtualAssistant.Data/Enums/AgentType.cs):
+- `AgentType.OpenCode = 1`
+- `AgentType.ClaudeCode = 4`
+- `AgentType.Gemini = 11`
+
+Invalid agent names will throw `ArgumentException` in `NotificationService.MapAgentNameToType()`.
+
+### Voice Selection Mechanism
+
+1. Agent name passed to `VirtualAssistantSpeaker.SpeakAsync(text, agentName)`
+2. `TtsService` maps agent name to TTS profile (appsettings.json → TtsProfiles.Profiles)
+3. Profile selects voice (e.g., "gemini" → cs-CZ-VlastaNeural, "claude-code" → cs-CZ-AntoninNeural)
+4. TTS provider chain attempts synthesis (Azure → EdgeTTS → VoiceRSS → Google → Piper)
+
 ## Dependencies
 
 | Dependency | Location | Purpose |
@@ -340,8 +381,8 @@ journalctl --user -u virtual-assistant.service -f
 ## Key API Endpoints
 
 - `/api/github/search?q=...` - Semantic issue search (Ollama nomic-embed-text embeddings)
-- `/api/notifications` - Create notifications with TTS
-- `/api/tts/speak` - Text-to-speech (source: opencode/claude/assistant)
+- `/api/notifications` - Create notifications with TTS (agent-specific voices via `source` parameter)
+- `/api/tts/speak` - Text-to-speech (source: claude-code/opencode/gemini/assistant)
 - `/api/assistant-speech/start|end` - Echo cancellation control
 - `/api/mute` - Mute control (GET/POST)
 - `/health` - Health check
