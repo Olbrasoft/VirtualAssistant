@@ -5,6 +5,7 @@ Linux virtuální asistent pro ovládání desktopu a integraci s AI coding agen
 ## Funkce
 
 - **Voice-to-OpenCode** – hlasové příkazy směrované do AI coding agenta
+- **Multi-Agent Support** – Claude Code, OpenCode, Gemini CLI s různými hlasy (mužský Antonín/ženský Vlasta)
 - **Kontinuální poslech** – 4 specializované workery (Audio Capture, VAD, Transcription, Action Executor)
 - **VAD (Voice Activity Detection)** – Silero ONNX model pro detekci hlasu
 - **Multi-provider LLM routing** – Groq, Cerebras, Mistral s automatickým fallbackem
@@ -13,6 +14,31 @@ Linux virtuální asistent pro ovládání desktopu a integraci s AI coding agen
 - **TTS s fallbackem** – AzureTTS (primární), EdgeTTS, VoiceRSS, Google, Piper s circuit breaker pattern
 - **Desktop Context Awareness** – GNOME integration pro context-aware LLM prompty
 - **Manuální mute** – Tlačítko myši pro dočasné ztlumení poslechu
+
+## Agent Integration
+
+VirtualAssistant podporuje notifikace z více AI agentů s rozlišením hlasů pomocí TTS profilů:
+
+```
+┌───────────────────────────────────────────────────────────────────────────┐
+│                     Notification Sources                                  │
+├───────────────────────────────────────────────────────────────────────────┤
+│  Claude Code (MCP mcp-notify) ────────► Agent: claude-code (male voice)  │
+│  OpenCode (plugin notify.js) ─────────► Agent: opencode (male voice)     │
+│  Gemini CLI (MCP mcp-notify-gemini) ──► Agent: gemini (female voice)     │
+├───────────────────────────────────────────────────────────────────────────┤
+│                      Voice Selection                                      │
+│  • TtsProfiles configuration maps agent name to voice                     │
+│  • Azure TTS primary provider (Antonín male / Vlasta female)             │
+│  • Fallback chain: EdgeTTS → VoiceRss → Google → Piper                   │
+└───────────────────────────────────────────────────────────────────────────┘
+```
+
+| Agent | Voice | Provider | Agent ID |
+|-------|-------|----------|----------|
+| claude-code | cs-CZ-AntoninNeural (male) | Azure | 4 |
+| opencode | cs-CZ-AntoninNeural (male) | Azure | 1 |
+| gemini | cs-CZ-VlastaNeural (female) | Azure | 11 |
 
 ## Architektura
 
@@ -78,7 +104,7 @@ Služba běží na `http://localhost:5055`.
 
 | Metoda | Endpoint | Popis |
 |--------|----------|-------|
-| POST | `/api/tts/speak` | Pošle text k přečtení (source: opencode/claude/assistant) |
+| POST | `/api/tts/speak` | Pošle text k přečtení (source: claude-code/opencode/gemini/assistant) |
 | GET | `/api/tts/queue` | Vrátí počet zpráv ve frontě |
 | POST | `/api/tts/stop` | Zastaví aktuální přehrávání |
 | POST | `/api/tts/flush-queue` | Přehraje všechny zprávy ve frontě |
@@ -109,6 +135,36 @@ Služba běží na `http://localhost:5055`.
 | GET | `/api/github/search?q=...` | Sémantické vyhledávání v issues |
 | GET | `/api/github/duplicates?title=...` | Hledání duplicitních issues |
 | GET | `/api/github/issues/open/{owner}/{repo}` | Otevřené issues repository |
+
+## Příklady Použití
+
+### Notifikace z různých agentů
+
+```bash
+# Claude Code - mužský hlas (Antonín)
+curl -X POST http://localhost:5055/api/notifications \
+  -H "Content-Type: application/json" \
+  -d '{"text": "Build dokončen úspěšně", "source": "claude-code", "issueIds": [123]}'
+
+# OpenCode - mužský hlas (Antonín)
+curl -X POST http://localhost:5055/api/notifications \
+  -H "Content-Type: application/json" \
+  -d '{"text": "Refactoring hotový", "source": "opencode"}'
+
+# Gemini CLI - ženský hlas (Vlasta)
+curl -X POST http://localhost:5055/api/notifications \
+  -H "Content-Type: application/json" \
+  -d '{"text": "Analýza kódu dokončena", "source": "gemini", "issueIds": [456]}'
+```
+
+### Přímé TTS
+
+```bash
+# TTS s výběrem hlasu podle agenta
+curl -X POST http://localhost:5055/api/tts/speak \
+  -H "Content-Type: application/json" \
+  -d '{"text": "Testovací zpráva", "source": "gemini"}'
+```
 
 ## Databázové Schema
 
