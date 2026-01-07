@@ -17,6 +17,9 @@ namespace Olbrasoft.VirtualAssistant.Data.EntityFrameworkCore.Migrations
                 table: "prompts",
                 columns: new[] { "id", "name", "application_name", "app_id_pattern", "prompt_file_name" },
                 values: new object[] { 5, "Gemini Correction", "Gemini", "Gemini", "GeminiCorrection" });
+
+            // Reset sequence to avoid primary key conflicts with future auto-generated IDs
+            migrationBuilder.Sql("SELECT setval('prompts_id_seq', 5, true);");
         }
 
         /// <inheritdoc />
