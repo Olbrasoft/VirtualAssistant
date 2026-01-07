@@ -1,7 +1,7 @@
+using System.Net.Http.Headers;
 using System.Text;
 using System.Text.Json;
 using Microsoft.Extensions.Logging;
-using Microsoft.Extensions.Options;
 using Olbrasoft.VirtualAssistant.LlmChain.Configuration;
 using Olbrasoft.VirtualAssistant.LlmChain.Dtos;
 
@@ -9,32 +9,20 @@ namespace Olbrasoft.VirtualAssistant.LlmChain;
 
 /// <summary>
 /// Builds HTTP requests for LLM API calls.
+/// Creates fully configured HttpRequestMessage instances to avoid
+/// modifying shared/pooled HttpClient instances from IHttpClientFactory.
 /// </summary>
 public class LlmRequestBuilder : ILlmRequestBuilder
 {
     private readonly ILogger<LlmRequestBuilder> _logger;
-    private readonly LlmChainOptions _options;
 
-    public LlmRequestBuilder(
-        ILogger<LlmRequestBuilder> logger,
-        IOptions<LlmChainOptions> options)
+    public LlmRequestBuilder(ILogger<LlmRequestBuilder> logger)
     {
         _logger = logger ?? throw new ArgumentNullException(nameof(logger));
-        ArgumentNullException.ThrowIfNull(options);
-        _options = options.Value;
     }
 
     /// <inheritdoc />
-    public void ConfigureHttpClient(HttpClient httpClient, LlmProviderConfig provider, string apiKey)
-    {
-        httpClient.BaseAddress = new Uri(provider.BaseUrl);
-        httpClient.DefaultRequestHeaders.Clear();
-        httpClient.DefaultRequestHeaders.Add("Authorization", $"Bearer {apiKey}");
-        httpClient.Timeout = _options.RequestTimeout;
-    }
-
-    /// <inheritdoc />
-    public StringContent BuildRequestContent(LlmChainRequest request, LlmProviderConfig provider)
+    public HttpRequestMessage BuildRequest(LlmChainRequest request, LlmProviderConfig provider, string apiKey)
     {
         var llmRequest = new LlmApiRequest
         {
@@ -49,8 +37,20 @@ public class LlmRequestBuilder : ILlmRequestBuilder
         };
 
         var requestJson = JsonSerializer.Serialize(llmRequest);
+
+        // Build complete request URL
+        var requestUri = new Uri(new Uri(provider.BaseUrl), "chat/completions");
+
+        var httpRequest = new HttpRequestMessage(HttpMethod.Post, requestUri)
+        {
+            Content = new StringContent(requestJson, Encoding.UTF8, "application/json")
+        };
+
+        // Set authorization header on the request, not the shared client
+        httpRequest.Headers.Authorization = new AuthenticationHeaderValue("Bearer", apiKey);
+
         _logger.LogDebug("Built LLM request for {Provider}: {Model}", provider.Name, provider.Model);
 
-        return new StringContent(requestJson, Encoding.UTF8, "application/json");
+        return httpRequest;
     }
 }

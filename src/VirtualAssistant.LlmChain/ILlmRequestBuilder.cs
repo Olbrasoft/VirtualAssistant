@@ -9,18 +9,13 @@ namespace Olbrasoft.VirtualAssistant.LlmChain;
 public interface ILlmRequestBuilder
 {
     /// <summary>
-    /// Configures an HttpClient for the specified provider.
-    /// </summary>
-    /// <param name="httpClient">The HttpClient to configure</param>
-    /// <param name="provider">The LLM provider configuration</param>
-    /// <param name="apiKey">The API key to use for authentication</param>
-    void ConfigureHttpClient(HttpClient httpClient, LlmProviderConfig provider, string apiKey);
-
-    /// <summary>
-    /// Builds the JSON request body for an LLM API call.
+    /// Builds a complete HTTP request message for an LLM API call.
+    /// Returns a fully configured HttpRequestMessage that can be sent via HttpClient.
+    /// This approach avoids modifying shared/pooled HttpClient instances.
     /// </summary>
     /// <param name="request">The LLM chain request</param>
     /// <param name="provider">The LLM provider configuration</param>
-    /// <returns>StringContent with JSON body ready for HTTP POST</returns>
-    StringContent BuildRequestContent(LlmChainRequest request, LlmProviderConfig provider);
+    /// <param name="apiKey">The API key to use for authentication</param>
+    /// <returns>Configured HttpRequestMessage ready to send</returns>
+    HttpRequestMessage BuildRequest(LlmChainRequest request, LlmProviderConfig provider, string apiKey);
 }

@@ -167,11 +167,12 @@ public class LlmChainClient : ILlmChainClient
         CancellationToken ct)
     {
         var httpClient = _httpClientFactory.CreateClient($"LlmChain_{provider.Name}");
-        _requestBuilder.ConfigureHttpClient(httpClient, provider, apiKey);
+        httpClient.Timeout = _options.RequestTimeout;
 
-        using var content = _requestBuilder.BuildRequestContent(request, provider);
+        // Build complete request message (avoids modifying shared HttpClient)
+        using var httpRequest = _requestBuilder.BuildRequest(request, provider, apiKey);
 
-        var response = await httpClient.PostAsync("chat/completions", content, ct);
+        var response = await httpClient.SendAsync(httpRequest, ct);
 
         if (response.StatusCode == System.Net.HttpStatusCode.TooManyRequests)
         {
