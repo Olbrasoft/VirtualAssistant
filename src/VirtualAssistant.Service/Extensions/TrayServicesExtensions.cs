@@ -81,13 +81,17 @@ public static class TrayServicesExtensions
 
         // NOTE: SpeechToText service manager removed (issue #466) - STT runs inline now
 
+        // Systemd service controller for managing systemd services (OCP - issue #650)
+        services.AddSingleton<ISystemdServiceController, SystemdServiceController>();
+
         // Service lifecycle manager for managing dependent services
         services.AddSingleton<IServiceLifecycleManager>(sp =>
         {
             var logger = sp.GetRequiredService<ILogger<ServiceLifecycleManager>>();
             var options = sp.GetRequiredService<IOptions<ServiceMonitoringOptions>>();
+            var serviceController = sp.GetRequiredService<ISystemdServiceController>();
             var menuHandler = sp.GetRequiredService<SystemTrayMenuHandler>();
-            return new ServiceLifecycleManager(logger, options, menuHandler as IServiceStatusUpdater);
+            return new ServiceLifecycleManager(logger, options, serviceController, menuHandler as IServiceStatusUpdater);
         });
 
         // Icon animation service for hand icon animations
