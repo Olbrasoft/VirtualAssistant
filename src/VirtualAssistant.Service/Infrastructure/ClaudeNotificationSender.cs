@@ -20,8 +20,9 @@ public class ClaudeNotificationSender : IClaudeNotificationSender
         IHttpClientFactory httpClientFactory,
         IOptions<ClaudeDispatchOptions> options)
     {
-        _logger = logger;
-        _httpClientFactory = httpClientFactory;
+        _logger = logger ?? throw new ArgumentNullException(nameof(logger));
+        _httpClientFactory = httpClientFactory ?? throw new ArgumentNullException(nameof(httpClientFactory));
+        ArgumentNullException.ThrowIfNull(options);
         _options = options.Value;
     }
 
@@ -45,7 +46,7 @@ public class ClaudeNotificationSender : IClaudeNotificationSender
         try
         {
             var client = _httpClientFactory.CreateClient();
-            var content = new StringContent(
+            using var content = new StringContent(
                 JsonSerializer.Serialize(new { text = message, source = "claude" }),
                 Encoding.UTF8,
                 "application/json");

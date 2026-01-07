@@ -25,7 +25,8 @@ public class ClaudeDispatchService : IClaudeDispatchService
         IClaudeOutputParser outputParser,
         IClaudeNotificationSender notificationSender)
     {
-        _logger = logger;
+        _logger = logger ?? throw new ArgumentNullException(nameof(logger));
+        ArgumentNullException.ThrowIfNull(options);
         _options = options.Value;
         _processExecutor = processExecutor ?? throw new ArgumentNullException(nameof(processExecutor));
         _outputParser = outputParser ?? throw new ArgumentNullException(nameof(outputParser));

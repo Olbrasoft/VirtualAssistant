@@ -14,7 +14,7 @@ public class ClaudeOutputParser : IClaudeOutputParser
 
     public ClaudeOutputParser(ILogger<ClaudeOutputParser> logger)
     {
-        _logger = logger;
+        _logger = logger ?? throw new ArgumentNullException(nameof(logger));
     }
 
     /// <inheritdoc />
@@ -28,13 +28,16 @@ public class ClaudeOutputParser : IClaudeOutputParser
         try
         {
             // Claude outputs multiple JSON lines, we want the final result
-            var lines = output.Split('\n', StringSplitOptions.RemoveEmptyEntries);
+            var trimmedLines = output
+                .Split('\n', StringSplitOptions.RemoveEmptyEntries)
+                .Select(line => line.Trim())
+                .Reverse();
+
             ClaudeJsonResponse? response = null;
 
             // Parse each line and look for the "result" type
-            foreach (var line in lines.Reverse())
+            foreach (var trimmed in trimmedLines)
             {
-                var trimmed = line.Trim();
                 if (!trimmed.StartsWith('{'))
                 {
                     continue;
