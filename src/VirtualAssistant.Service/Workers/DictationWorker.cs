@@ -108,7 +108,19 @@ public class DictationWorker : BackgroundService, IDictationControl
         }
     }
 
-    private async void OnKeyReleased(object? sender, KeyEventArgs e)
+    /// <summary>
+    /// Event handler for key release. Uses fire-and-forget pattern
+    /// to delegate to async handler with proper exception handling.
+    /// </summary>
+    private void OnKeyReleased(object? sender, KeyEventArgs e)
+    {
+        _ = HandleKeyReleasedAsync(e);
+    }
+
+    /// <summary>
+    /// Handles key release events and manages dictation workflow accordingly.
+    /// </summary>
+    private async Task HandleKeyReleasedAsync(KeyEventArgs e)
     {
         try
         {

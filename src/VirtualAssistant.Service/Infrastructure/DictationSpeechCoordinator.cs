@@ -44,9 +44,18 @@ public class DictationSpeechCoordinator : IHostedService, IDisposable
     }
 
     /// <summary>
+    /// Event handler for dictation state changes. Uses fire-and-forget pattern
+    /// to delegate to async handler with proper exception handling.
+    /// </summary>
+    private void OnDictationStateChanged(object? sender, DictationState newState)
+    {
+        _ = HandleDictationStateChangedAsync(newState);
+    }
+
+    /// <summary>
     /// Handles dictation state changes and coordinates TTS accordingly.
     /// </summary>
-    private async void OnDictationStateChanged(object? sender, DictationState newState)
+    private async Task HandleDictationStateChangedAsync(DictationState newState)
     {
         try
         {
