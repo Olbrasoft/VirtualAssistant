@@ -199,11 +199,14 @@ public static class VoiceServicesExtensions
         // Strategy pattern filters registered individually
         var textFiltersConfigPath = Path.Combine(AppContext.BaseDirectory, "Filters", "text-filters.json");
 
+        // Repository for database corrections (OCP - decouples from DI container)
+        services.AddSingleton<ITranscriptionCorrectionRepository, TranscriptionCorrectionRepository>();
+
         services.AddSingleton<ITextFilterStrategy>(sp =>
         {
             var logger = sp.GetRequiredService<ILogger<DatabaseCorrectionFilterStrategy>>();
-            var scopeFactory = sp.GetService<IServiceScopeFactory>();
-            return new DatabaseCorrectionFilterStrategy(logger, scopeFactory);
+            var repository = sp.GetService<ITranscriptionCorrectionRepository>();
+            return new DatabaseCorrectionFilterStrategy(logger, repository);
         });
 
         services.AddSingleton<ITextFilterStrategy>(sp =>
