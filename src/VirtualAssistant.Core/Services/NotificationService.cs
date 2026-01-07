@@ -1,97 +1,74 @@
-using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Logging;
+using Olbrasoft.Data.Cqrs;
+using Olbrasoft.VirtualAssistant.Data.Commands.NotificationCommands;
 using Olbrasoft.VirtualAssistant.Data.Entities;
-using Olbrasoft.VirtualAssistant.Data.EntityFrameworkCore;
 using Olbrasoft.VirtualAssistant.Data.Enums;
+using Olbrasoft.VirtualAssistant.Data.Queries.NotificationQueries;
 
 namespace Olbrasoft.VirtualAssistant.Core.Services;
 
 /// <summary>
 /// Service for managing notifications in the database.
+/// Uses CQRS pattern for data access.
 /// </summary>
 public class NotificationService : INotificationService
 {
-    private readonly VirtualAssistantDbContext _dbContext;
+    private readonly ICommandExecutor _commandExecutor;
+    private readonly IQueryProcessor _queryProcessor;
     private readonly ILogger<NotificationService> _logger;
 
     public NotificationService(
-        VirtualAssistantDbContext dbContext,
+        ICommandExecutor commandExecutor,
+        IQueryProcessor queryProcessor,
         ILogger<NotificationService> logger)
     {
-        _dbContext = dbContext;
+        _commandExecutor = commandExecutor;
+        _queryProcessor = queryProcessor;
         _logger = logger;
     }
 
     /// <inheritdoc />
     public async Task<int> CreateNotificationAsync(string text, string agentName, IReadOnlyList<int>? issueIds = null, CancellationToken ct = default)
     {
-        ArgumentException.ThrowIfNullOrWhiteSpace(text, nameof(text));
-        ArgumentException.ThrowIfNullOrWhiteSpace(agentName, nameof(agentName));
+        // Validation delegated to command handler (DRY principle)
+        var command = new CreateNotificationCommand(text, agentName, issueIds);
+        var notificationId = await _commandExecutor.ExecuteAsync(command, ct);
 
-        // Map agent name to AgentType enum (validates against allowed agents)
-        var agentType = MapAgentNameToType(agentName);
-
-        var notification = new Notification
-        {
-            Text = text,
-            AgentId = (int)agentType, // Use enum value directly as agent_id
-            CreatedAt = DateTime.UtcNow,
-            NotificationStatusId = (int)NotificationStatusEnum.NewlyReceived
-        };
-
-        _dbContext.Notifications.Add(notification);
-        await _dbContext.SaveChangesAsync(ct);
-
-        // Add GitHub issue associations if provided
         if (issueIds is { Count: > 0 })
         {
-            foreach (var issueId in issueIds.Distinct())
-            {
-                _dbContext.NotificationGitHubIssues.Add(new NotificationGitHubIssue
-                {
-                    NotificationId = notification.Id,
-                    GitHubIssueId = issueId
-                });
-            }
-            await _dbContext.SaveChangesAsync(ct);
-
             _logger.LogInformation("Created notification {Id} from agent {AgentName} with {IssueCount} linked issues",
-                notification.Id, agentName, issueIds.Count);
+                notificationId, agentName, issueIds.Count);
         }
         else
         {
-            _logger.LogInformation("Created notification {Id} from agent {AgentName} (ID: {AgentId})",
-                notification.Id, agentName, notification.AgentId);
+            _logger.LogInformation("Created notification {Id} from agent {AgentName}",
+                notificationId, agentName);
         }
 
-        return notification.Id;
+        return notificationId;
     }
 
     /// <inheritdoc />
     public async Task<IReadOnlyList<Notification>> GetNewNotificationsAsync(CancellationToken ct = default)
     {
-        return await _dbContext.Notifications
-            .Where(n => n.NotificationStatusId == (int)NotificationStatusEnum.NewlyReceived)
-            .OrderBy(n => n.CreatedAt)
-            .ToListAsync(ct);
+        var query = new GetNewNotificationsQuery();
+        return await _queryProcessor.ProcessAsync(query, ct);
     }
 
     /// <inheritdoc />
     public async Task UpdateStatusAsync(int notificationId, NotificationStatusEnum newStatus, CancellationToken ct = default)
     {
-        var notification = await _dbContext.Notifications.FindAsync([notificationId], ct);
-        if (notification == null)
+        var command = new UpdateNotificationStatusCommand(notificationId, newStatus);
+        var success = await _commandExecutor.ExecuteAsync(command, ct);
+
+        if (!success)
         {
             _logger.LogWarning("Notification {Id} not found for status update", notificationId);
-            return;
         }
-
-        var oldStatus = (NotificationStatusEnum)notification.NotificationStatusId;
-        notification.NotificationStatusId = (int)newStatus;
-        await _dbContext.SaveChangesAsync(ct);
-
-        _logger.LogDebug("Notification {Id} status changed: {OldStatus} -> {NewStatus}",
-            notificationId, oldStatus, newStatus);
+        else
+        {
+            _logger.LogDebug("Notification {Id} status changed to {NewStatus}", notificationId, newStatus);
+        }
     }
 
     /// <inheritdoc />
@@ -100,18 +77,10 @@ public class NotificationService : INotificationService
         var ids = notificationIds.ToList();
         if (ids.Count == 0) return;
 
-        var notifications = await _dbContext.Notifications
-            .Where(n => ids.Contains(n.Id))
-            .ToListAsync(ct);
+        var command = new UpdateNotificationStatusBatchCommand(ids, newStatus);
+        var count = await _commandExecutor.ExecuteAsync(command, ct);
 
-        foreach (var notification in notifications)
-        {
-            notification.NotificationStatusId = (int)newStatus;
-        }
-
-        await _dbContext.SaveChangesAsync(ct);
-
-        _logger.LogDebug("Updated {Count} notifications to status {NewStatus}", notifications.Count, newStatus);
+        _logger.LogDebug("Updated {Count} notifications to status {NewStatus}", count, newStatus);
     }
 
     /// <inheritdoc />
@@ -123,11 +92,8 @@ public class NotificationService : INotificationService
             return [];
         }
 
-        var issueIds = await _dbContext.NotificationGitHubIssues
-            .Where(ngi => ids.Contains(ngi.NotificationId))
-            .Select(ngi => ngi.GitHubIssueId)
-            .Distinct()
-            .ToListAsync(ct);
+        var query = new GetAssociatedIssueIdsQuery(ids);
+        var issueIds = await _queryProcessor.ProcessAsync(query, ct);
 
         _logger.LogDebug("Found {IssueCount} associated GitHub issues for {NotificationCount} notifications",
             issueIds.Count, ids.Count);
@@ -138,96 +104,17 @@ public class NotificationService : INotificationService
     /// <inheritdoc />
     public async Task RecordTtsOutcomeAsync(int notificationId, string? providerName, string status, int? durationMs = null, CancellationToken ct = default)
     {
-        var notification = await _dbContext.Notifications.FindAsync([notificationId], ct);
-        if (notification == null)
+        var command = new RecordTtsOutcomeCommand(notificationId, providerName, status, durationMs);
+        var success = await _commandExecutor.ExecuteAsync(command, ct);
+
+        if (!success)
         {
             _logger.LogWarning("Notification {Id} not found for TTS tracking", notificationId);
-            return;
         }
-
-        // Find or create provider
-        Provider? provider = null;
-        if (providerName != null)
+        else
         {
-            provider = await _dbContext.Providers
-                .FirstOrDefaultAsync(p => p.Name == providerName && p.Type == "tts", ct);
-
-            if (provider == null)
-            {
-                // Create provider on-the-fly if it doesn't exist
-                // NOTE: SaveChangesAsync is required here to get provider.Id for foreign key
-                // Unique constraint on (Name, Type) prevents duplicates
-                try
-                {
-                    provider = new Provider
-                    {
-                        Name = providerName,
-                        Type = "tts",
-                        Enabled = true,
-                        Priority = 0 // Default priority
-                    };
-                    _dbContext.Providers.Add(provider);
-                    await _dbContext.SaveChangesAsync(ct);
-
-                    _logger.LogInformation("Created new TTS provider: {ProviderName}", providerName);
-                }
-                catch (DbUpdateException)
-                {
-                    // Handle race condition - another thread created the same provider
-                    // Clear tracked entity and re-query
-                    _dbContext.Entry(provider!).State = EntityState.Detached;
-                    provider = await _dbContext.Providers
-                        .FirstOrDefaultAsync(p => p.Name == providerName && p.Type == "tts", ct);
-
-                    if (provider == null)
-                        throw; // Rethrow if it's a different error
-                }
-            }
+            _logger.LogDebug("Recorded TTS outcome for notification {Id}: {Status} via {Provider} ({Duration}ms)",
+                notificationId, status, providerName ?? "none", durationMs ?? 0);
         }
-
-        // Update notification TTS tracking fields
-        notification.FinalProviderId = provider?.Id;
-        notification.FinalTtsStatus = status;
-        notification.TtsCompletedAt = DateTime.UtcNow;
-
-        // Record attempt (we only track the final outcome, not the full fallback chain since that's in external service)
-        if (provider != null)
-        {
-            var attempt = new NotificationTtsAttempt
-            {
-                NotificationId = notificationId,
-                ProviderId = provider.Id,
-                AttemptOrder = 1, // Only tracking final attempt
-                StatusCode = status,
-                DurationMs = durationMs,
-                CreatedAt = DateTime.UtcNow
-            };
-            _dbContext.NotificationTtsAttempts.Add(attempt);
-        }
-
-        await _dbContext.SaveChangesAsync(ct);
-
-        _logger.LogDebug("Recorded TTS outcome for notification {Id}: {Status} via {Provider} ({Duration}ms)",
-            notificationId, status, providerName ?? "none", durationMs ?? 0);
-    }
-
-    /// <summary>
-    /// Maps agent name string to AgentType enum.
-    /// Throws ArgumentException if agent name is not valid.
-    /// </summary>
-    private static AgentType MapAgentNameToType(string agentName)
-    {
-        // Normalize to lowercase for case-insensitive comparison
-        var normalized = agentName.ToLowerInvariant().Trim();
-
-        return normalized switch
-        {
-            "opencode" => AgentType.OpenCode,
-            "claude" or "claude-code" => AgentType.ClaudeCode,
-            "gemini" => AgentType.Gemini,
-            _ => throw new ArgumentException(
-                $"Invalid agent name '{agentName}'. Allowed values: opencode, claude, claude-code, gemini",
-                nameof(agentName))
-        };
     }
 }
