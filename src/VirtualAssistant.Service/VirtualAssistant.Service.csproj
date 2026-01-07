@@ -19,6 +19,10 @@
   </PropertyGroup>
 
   <ItemGroup>
+    <InternalsVisibleTo Include="VirtualAssistant.Service.Tests" />
+  </ItemGroup>
+
+  <ItemGroup>
     <ProjectReference Include="..\VirtualAssistant.Voice\VirtualAssistant.Voice.csproj" />
     <ProjectReference Include="..\VirtualAssistant.Data.EntityFrameworkCore\VirtualAssistant.Data.EntityFrameworkCore.csproj" />
     <ProjectReference Include="..\VirtualAssistant.GitHub\VirtualAssistant.GitHub.csproj" />

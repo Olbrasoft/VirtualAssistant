@@ -1,3 +1,4 @@
+using Microsoft.Extensions.Configuration;
 using NeoSmart.SecureStore;
 
 namespace Olbrasoft.VirtualAssistant.Service.Configuration;
@@ -6,23 +7,24 @@ namespace Olbrasoft.VirtualAssistant.Service.Configuration;
 /// Configuration provider that loads secrets from SecureStore encrypted vault.
 /// Secrets are loaded into IConfiguration and can be accessed by key name.
 /// </summary>
+/// <remarks>
+/// Note: Logging is not available during configuration provider load phase.
+/// Console output is used for diagnostics instead.
+/// </remarks>
 public class SecureStoreConfigurationProvider : ConfigurationProvider
 {
     private readonly string _secretsPath;
     private readonly string _keyPath;
-    private readonly ILogger<SecureStoreConfigurationProvider>? _logger;
 
     /// <summary>
     /// Initializes a new instance of SecureStoreConfigurationProvider.
     /// </summary>
     /// <param name="secretsPath">Path to secrets.json vault file.</param>
     /// <param name="keyPath">Path to secrets.key file.</param>
-    /// <param name="logger">Optional logger for diagnostics.</param>
-    public SecureStoreConfigurationProvider(string secretsPath, string keyPath, ILogger<SecureStoreConfigurationProvider>? logger = null)
+    public SecureStoreConfigurationProvider(string secretsPath, string keyPath)
     {
         _secretsPath = secretsPath;
         _keyPath = keyPath;
-        _logger = logger;
     }
 
     /// <summary>
@@ -32,13 +34,13 @@ public class SecureStoreConfigurationProvider : ConfigurationProvider
     {
         if (!File.Exists(_secretsPath))
         {
-            _logger?.LogWarning("SecureStore vault not found at {Path}, skipping", _secretsPath);
+            Console.WriteLine($"[SecureStore] Vault not found at {_secretsPath}, skipping");
             return;
         }
 
         if (!File.Exists(_keyPath))
         {
-            _logger?.LogWarning("SecureStore key file not found at {Path}, skipping", _keyPath);
+            Console.WriteLine($"[SecureStore] Key file not found at {_keyPath}, skipping");
             return;
         }
 
@@ -54,11 +56,11 @@ public class SecureStoreConfigurationProvider : ConfigurationProvider
                 loadedCount++;
             }
 
-            _logger?.LogInformation("SecureStore loaded {Count} secrets from {Path}", loadedCount, _secretsPath);
+            Console.WriteLine($"[SecureStore] Loaded {loadedCount} secrets from {_secretsPath}");
         }
         catch (Exception ex)
         {
-            _logger?.LogError(ex, "Failed to load SecureStore vault from {Path}", _secretsPath);
+            Console.WriteLine($"[SecureStore] ERROR: Failed to load vault from {_secretsPath}: {ex.Message}");
             // Don't throw - allow application to start without secrets (will fail later when secret is needed)
         }
     }
@@ -79,16 +81,10 @@ public class SecureStoreConfigurationSource : IConfigurationSource
     /// </summary>
     public string KeyPath { get; set; } = string.Empty;
 
-    /// <summary>
-    /// Gets or sets the optional logger factory.
-    /// </summary>
-    public ILoggerFactory? LoggerFactory { get; set; }
-
     /// <inheritdoc />
     public IConfigurationProvider Build(IConfigurationBuilder builder)
     {
-        var logger = LoggerFactory?.CreateLogger<SecureStoreConfigurationProvider>();
-        return new SecureStoreConfigurationProvider(SecretsPath, KeyPath, logger);
+        return new SecureStoreConfigurationProvider(SecretsPath, KeyPath);
     }
 }
 
@@ -104,13 +100,11 @@ public static class SecureStoreConfigurationExtensions
     /// <param name="builder">Configuration builder.</param>
     /// <param name="secretsPath">Path to secrets.json vault file.</param>
     /// <param name="keyPath">Path to secrets.key file.</param>
-    /// <param name="loggerFactory">Optional logger factory for diagnostics.</param>
     /// <returns>The configuration builder for chaining.</returns>
     public static IConfigurationBuilder AddSecureStore(
         this IConfigurationBuilder builder,
         string secretsPath,
-        string keyPath,
-        ILoggerFactory? loggerFactory = null)
+        string keyPath)
     {
         // Expand ~ to home directory
         secretsPath = ExpandPath(secretsPath);
@@ -119,18 +113,37 @@ public static class SecureStoreConfigurationExtensions
         return builder.Add(new SecureStoreConfigurationSource
         {
             SecretsPath = secretsPath,
-            KeyPath = keyPath,
-            LoggerFactory = loggerFactory
+            KeyPath = keyPath
         });
     }
 
-    private static string ExpandPath(string path)
+    /// <summary>
+    /// Expands tilde (~) in path to user's home directory.
+    /// </summary>
+    /// <param name="path">Path that may contain tilde prefix.</param>
+    /// <returns>Expanded path.</returns>
+    internal static string ExpandPath(string path)
     {
-        if (path.StartsWith('~'))
+        if (string.IsNullOrEmpty(path))
+        {
+            return path;
+        }
+
+        // Handle exactly "~" - just the home directory
+        if (path == "~")
+        {
+            return Environment.GetFolderPath(Environment.SpecialFolder.UserProfile);
+        }
+
+        // Handle "~/..." - home directory with relative path
+        if (path.StartsWith("~/"))
         {
             var home = Environment.GetFolderPath(Environment.SpecialFolder.UserProfile);
-            return Path.Combine(home, path[2..]); // Skip "~/"
+            return Path.Combine(home, path.Substring(2)); // Skip "~/"
         }
+
+        // Path doesn't start with ~/ - return as-is
+        // Note: ~username paths are not supported (Unix-specific, rarely used in .NET)
         return path;
     }
 }
