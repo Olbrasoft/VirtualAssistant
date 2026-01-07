@@ -107,7 +107,8 @@ journalctl --user -u virtual-assistant.service -n 50
 **Deployment fails if:**
 - Build fails
 - Tests fail
-- Secrets missing in `~/.config/systemd/user/virtual-assistant.env`
+- SecureStore keyfile missing at `~/.config/virtual-assistant/keys/secrets.key`
+- Required secrets missing in SecureStore vault
 
 ## Directory Structure
 
@@ -129,7 +130,8 @@ journalctl --user -u virtual-assistant.service -n 50
 
 **Shared resources:**
 - Whisper models: `~/.local/share/whisper-models/` (5.9 GB, FHS-compliant)
-- Secrets: `~/.config/systemd/user/virtual-assistant.env`
+- Secrets: `~/.config/virtual-assistant/secrets/secrets.json` (SecureStore encrypted vault)
+- Keyfile: `~/.config/virtual-assistant/keys/secrets.key` (chmod 600)
 
 ## Architecture
 
@@ -441,24 +443,65 @@ journalctl --user -u virtual-assistant.service -f
 
 ## Configuration
 
-### Secrets Management
+### Secrets Management (SecureStore)
 
-**Production secrets** are in systemd EnvironmentFile:
+All secrets are stored in **SecureStore** encrypted vault:
+- **Vault:** `~/.config/virtual-assistant/secrets/secrets.json` (encrypted, safe to backup)
+- **Keyfile:** `~/.config/virtual-assistant/keys/secrets.key` (chmod 600, NEVER commit to Git)
 
-**~/.config/systemd/user/virtual-assistant.env:**
+**Managing Secrets:**
 ```bash
-# Azure TTS (Priority 1 provider)
-AzureTTS__SubscriptionKey=xxxxx
-AZURE_SPEECH_REGION=westeurope
+# Define paths
+SECRETS_PATH=~/.config/virtual-assistant/secrets/secrets.json
+KEY_PATH=~/.config/virtual-assistant/keys/secrets.key
 
-# GitHub
-GitHub__Token=ghp_xxxxx
+# List all secrets
+SecureStore get -s $SECRETS_PATH -k $KEY_PATH --all
 
-# Database
-ConnectionStrings__DefaultConnection=Host=localhost;Database=virtual_assistant;...
+# Add/update a secret
+SecureStore set -s $SECRETS_PATH -k $KEY_PATH "Database:Password=MyPassword"
+
+# Get specific secret
+SecureStore get -s $SECRETS_PATH -k $KEY_PATH "Database:Password"
+
+# After changes, restart service
+systemctl --user restart virtual-assistant.service
 ```
 
-**Source:** `~/Dokumenty/přístupy/api-keys.md`
+**Current Secrets:**
+| Key | Description |
+|-----|-------------|
+| `Database:Password` | PostgreSQL password |
+| `GitHub:Token` | GitHub API token |
+| `TTS:AzureTTS:SubscriptionKey` | Azure Speech Service key |
+| `TTS:VoiceRSS:ApiKey` | VoiceRSS API key |
+| `GoogleTTS:ApiKey1`, `ApiKey2`, `ApiKey3` | Google Cloud TTS keys |
+| `LlmChain:Mistral:ApiKey` | Mistral AI key |
+| `LlmChain:Cerebras:ApiKeys` | Cerebras keys (comma-separated) |
+| `LlmChain:Groq:ApiKeys` | Groq keys (comma-separated) |
+
+**Setup (new installation):**
+```bash
+# 1. Install SecureStore CLI
+dotnet tool install --global SecureStore.Client
+
+# 2. Create directories
+mkdir -p ~/.config/virtual-assistant/secrets
+mkdir -p ~/.config/virtual-assistant/keys
+
+# 3. Create vault
+SecureStore create -s ~/.config/virtual-assistant/secrets/secrets.json \
+  -k ~/.config/virtual-assistant/keys/secrets.key
+
+# 4. Secure keyfile (CRITICAL!)
+chmod 600 ~/.config/virtual-assistant/keys/secrets.key
+
+# 5. Add secrets (see table above)
+SecureStore set -s $SECRETS_PATH -k $KEY_PATH "Database:Password=xxx"
+# ... repeat for all secrets
+```
+
+**Full documentation:** See `engineering-handbook/development-guidelines/secrets-management.md`
 
 ### TTS Provider Chain
 
@@ -568,14 +611,23 @@ This ensures fast, reliable CI builds without external dependencies.
 
 1. ✅ Binaries deployed to `/opt/olbrasoft/virtual-assistant/app/`
 2. ✅ Config in `/opt/olbrasoft/virtual-assistant/config/appsettings.json`
-3. ⚠️ **SECRETS in `~/.config/systemd/user/virtual-assistant.env`**
-4. ✅ systemd service has `EnvironmentFile=...` directive
+3. ⚠️ **SecureStore keyfile at `~/.config/virtual-assistant/keys/secrets.key`** (chmod 600)
+4. ⚠️ **All required secrets in SecureStore vault**
 5. ✅ Service restarted and running
 6. ✅ **LOGS checked - NO "not configured" errors**
 
 **Verify secrets:**
 ```bash
-journalctl --user -u virtual-assistant.service -n 100 | grep -i "not configured\|not available"
+# Check keyfile exists and has correct permissions
+ls -la ~/.config/virtual-assistant/keys/secrets.key
+# Should show: -rw------- (600)
+
+# Check all secrets are present
+SecureStore get -s ~/.config/virtual-assistant/secrets/secrets.json \
+  -k ~/.config/virtual-assistant/keys/secrets.key --all
+
+# Check logs for errors
+journalctl --user -u virtual-assistant.service -n 100 | grep -i "not configured\|not found"
 # Should return NOTHING!
 ```
 
@@ -587,8 +639,8 @@ journalctl --user -u virtual-assistant.service -n 100 | grep -i "not configured\
 | Service fail | `journalctl --user -u virtual-assistant.service -n 50` |
 | Port conflict | `ss -tulpn \| grep 5055` |
 | Embeddings fail | `curl localhost:11434/api/tags` then `ollama pull nomic-embed-text` |
-| Azure TTS fail | Check `~/.config/systemd/user/virtual-assistant.env` has `AzureTTS__SubscriptionKey` |
-| "not configured" | Missing secrets - see Secrets Management section |
+| Azure TTS fail | Check `TTS:AzureTTS:SubscriptionKey` exists in SecureStore |
+| "not configured" | Missing secrets in SecureStore - see Secrets Management section |
 
 ## Known Issues
 
