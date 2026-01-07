@@ -1,200 +1,206 @@
-using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Logging;
 using Moq;
+using Olbrasoft.Data.Cqrs;
 using Olbrasoft.VirtualAssistant.Core.Services;
+using Olbrasoft.VirtualAssistant.Data.Commands.NotificationCommands;
 using Olbrasoft.VirtualAssistant.Data.Entities;
+using Olbrasoft.VirtualAssistant.Data.Enums;
+using Olbrasoft.VirtualAssistant.Data.Queries.NotificationQueries;
 
 namespace Olbrasoft.VirtualAssistant.Data.EntityFrameworkCore.Tests;
 
+/// <summary>
+/// Unit tests for NotificationService using mocked CQRS infrastructure.
+/// For handler-level tests, see NotificationCommandHandlerTests and NotificationQueryHandlerTests.
+/// </summary>
 public class NotificationServiceTests
 {
-    private VirtualAssistantDbContext CreateInMemoryContext()
-    {
-        var options = new DbContextOptionsBuilder<VirtualAssistantDbContext>()
-            .UseInMemoryDatabase(databaseName: Guid.NewGuid().ToString())
-            .Options;
+    private readonly Mock<ICommandExecutor> _mockCommandExecutor;
+    private readonly Mock<IQueryProcessor> _mockQueryProcessor;
+    private readonly Mock<ILogger<NotificationService>> _mockLogger;
+    private readonly NotificationService _service;
 
-        return new VirtualAssistantDbContext(options);
+    public NotificationServiceTests()
+    {
+        _mockCommandExecutor = new Mock<ICommandExecutor>();
+        _mockQueryProcessor = new Mock<IQueryProcessor>();
+        _mockLogger = new Mock<ILogger<NotificationService>>();
+        _service = new NotificationService(_mockCommandExecutor.Object, _mockQueryProcessor.Object, _mockLogger.Object);
     }
 
-    private async Task SeedAgentAsync(VirtualAssistantDbContext context, string name = "claude-code")
+    [Fact]
+    public async Task CreateNotificationAsync_ExecutesCommand_ReturnsNotificationId()
     {
-        context.Agents.Add(new Agent
+        // Arrange
+        const int expectedId = 42;
+        _mockCommandExecutor
+            .Setup(x => x.ExecuteAsync(It.IsAny<CreateNotificationCommand>(), It.IsAny<CancellationToken>()))
+            .ReturnsAsync(expectedId);
+
+        // Act
+        var result = await _service.CreateNotificationAsync("Test", "claude-code", null, CancellationToken.None);
+
+        // Assert
+        Assert.Equal(expectedId, result);
+        _mockCommandExecutor.Verify(x => x.ExecuteAsync(
+            It.Is<CreateNotificationCommand>(c => c.Text == "Test" && c.AgentName == "claude-code"),
+            It.IsAny<CancellationToken>()), Times.Once);
+    }
+
+    [Fact]
+    public async Task CreateNotificationAsync_WithIssueIds_PassesIssueIdsToCommand()
+    {
+        // Arrange
+        var issueIds = new List<int> { 1, 2, 3 };
+        _mockCommandExecutor
+            .Setup(x => x.ExecuteAsync(It.IsAny<CreateNotificationCommand>(), It.IsAny<CancellationToken>()))
+            .ReturnsAsync(1);
+
+        // Act
+        await _service.CreateNotificationAsync("Test", "claude-code", issueIds, CancellationToken.None);
+
+        // Assert
+        _mockCommandExecutor.Verify(x => x.ExecuteAsync(
+            It.Is<CreateNotificationCommand>(c => c.IssueIds != null && c.IssueIds.SequenceEqual(issueIds)),
+            It.IsAny<CancellationToken>()), Times.Once);
+    }
+
+    [Fact]
+    public async Task CreateNotificationAsync_ThrowsOnNullText()
+    {
+        // Act & Assert
+        await Assert.ThrowsAsync<ArgumentNullException>(() =>
+            _service.CreateNotificationAsync(null!, "claude-code"));
+    }
+
+    [Fact]
+    public async Task CreateNotificationAsync_ThrowsOnNullAgentName()
+    {
+        // Act & Assert
+        await Assert.ThrowsAsync<ArgumentNullException>(() =>
+            _service.CreateNotificationAsync("Test", null!));
+    }
+
+    [Fact]
+    public async Task GetNewNotificationsAsync_ExecutesQuery_ReturnsNotifications()
+    {
+        // Arrange
+        var notifications = new List<Notification>
         {
-            Name = name,
-            Label = $"agent:{name}",
-            IsActive = true,
-            CreatedAt = DateTime.UtcNow
-        });
-        await context.SaveChangesAsync();
-    }
-
-    [Fact]
-    public async Task CreateNotificationAsync_WithoutIssueIds_CreatesNotificationOnly()
-    {
-        // Arrange
-        using var context = CreateInMemoryContext();
-        await SeedAgentAsync(context);
-        var mockLogger = new Mock<ILogger<NotificationService>>();
-        var service = new NotificationService(context, mockLogger.Object);
+            new() { Id = 1, Text = "Test1" },
+            new() { Id = 2, Text = "Test2" }
+        };
+        _mockQueryProcessor
+            .Setup(x => x.ProcessAsync(It.IsAny<GetNewNotificationsQuery>(), It.IsAny<CancellationToken>()))
+            .ReturnsAsync(notifications);
 
         // Act
-        var notificationId = await service.CreateNotificationAsync(
-            "Test notification",
-            "claude-code",
-            issueIds: null,
-            CancellationToken.None);
+        var result = await _service.GetNewNotificationsAsync(CancellationToken.None);
 
         // Assert
-        Assert.True(notificationId > 0);
-
-        var notification = await context.Notifications.FindAsync(notificationId);
-        Assert.NotNull(notification);
-        Assert.Equal("Test notification", notification.Text);
-
-        var junctionRecords = await context.NotificationGitHubIssues
-            .Where(x => x.NotificationId == notificationId)
-            .ToListAsync();
-        Assert.Empty(junctionRecords);
+        Assert.Equal(2, result.Count);
+        _mockQueryProcessor.Verify(x => x.ProcessAsync(
+            It.IsAny<GetNewNotificationsQuery>(),
+            It.IsAny<CancellationToken>()), Times.Once);
     }
 
     [Fact]
-    public async Task CreateNotificationAsync_WithSingleIssueId_CreatesJunctionRecord()
+    public async Task UpdateStatusAsync_SingleId_ExecutesCommand()
     {
         // Arrange
-        using var context = CreateInMemoryContext();
-        await SeedAgentAsync(context);
-        var mockLogger = new Mock<ILogger<NotificationService>>();
-        var service = new NotificationService(context, mockLogger.Object);
+        _mockCommandExecutor
+            .Setup(x => x.ExecuteAsync(It.IsAny<UpdateNotificationStatusCommand>(), It.IsAny<CancellationToken>()))
+            .ReturnsAsync(true);
 
         // Act
-        var notificationId = await service.CreateNotificationAsync(
-            "Working on issue",
-            "claude-code",
-            issueIds: [275],
-            CancellationToken.None);
+        await _service.UpdateStatusAsync(1, NotificationStatusEnum.Processing, CancellationToken.None);
 
         // Assert
-        Assert.True(notificationId > 0);
-
-        var junctionRecords = await context.NotificationGitHubIssues
-            .Where(x => x.NotificationId == notificationId)
-            .ToListAsync();
-
-        Assert.Single(junctionRecords);
-        Assert.Equal(275, junctionRecords[0].GitHubIssueId);
+        _mockCommandExecutor.Verify(x => x.ExecuteAsync(
+            It.Is<UpdateNotificationStatusCommand>(c => c.NotificationId == 1 && c.NewStatus == NotificationStatusEnum.Processing),
+            It.IsAny<CancellationToken>()), Times.Once);
     }
 
     [Fact]
-    public async Task CreateNotificationAsync_WithMultipleIssueIds_CreatesAllJunctionRecords()
+    public async Task UpdateStatusAsync_BatchIds_ExecutesBatchCommand()
     {
         // Arrange
-        using var context = CreateInMemoryContext();
-        await SeedAgentAsync(context);
-        var mockLogger = new Mock<ILogger<NotificationService>>();
-        var service = new NotificationService(context, mockLogger.Object);
+        var ids = new[] { 1, 2, 3 };
+        _mockCommandExecutor
+            .Setup(x => x.ExecuteAsync(It.IsAny<UpdateNotificationStatusBatchCommand>(), It.IsAny<CancellationToken>()))
+            .ReturnsAsync(3);
 
         // Act
-        var notificationId = await service.CreateNotificationAsync(
-            "Working on multiple issues",
-            "claude-code",
-            issueIds: [273, 274, 275],
-            CancellationToken.None);
+        await _service.UpdateStatusAsync(ids, NotificationStatusEnum.Processing, CancellationToken.None);
 
         // Assert
-        var junctionRecords = await context.NotificationGitHubIssues
-            .Where(x => x.NotificationId == notificationId)
-            .OrderBy(x => x.GitHubIssueId)
-            .ToListAsync();
-
-        Assert.Equal(3, junctionRecords.Count);
-        Assert.Equal(273, junctionRecords[0].GitHubIssueId);
-        Assert.Equal(274, junctionRecords[1].GitHubIssueId);
-        Assert.Equal(275, junctionRecords[2].GitHubIssueId);
+        _mockCommandExecutor.Verify(x => x.ExecuteAsync(
+            It.Is<UpdateNotificationStatusBatchCommand>(c => c.NotificationIds.Count == 3),
+            It.IsAny<CancellationToken>()), Times.Once);
     }
 
     [Fact]
-    public async Task CreateNotificationAsync_WithDuplicateIssueIds_CreatesSingleJunctionRecord()
+    public async Task UpdateStatusAsync_EmptyBatch_DoesNotExecuteCommand()
+    {
+        // Act
+        await _service.UpdateStatusAsync(Array.Empty<int>(), NotificationStatusEnum.Processing, CancellationToken.None);
+
+        // Assert
+        _mockCommandExecutor.Verify(x => x.ExecuteAsync(
+            It.IsAny<UpdateNotificationStatusBatchCommand>(),
+            It.IsAny<CancellationToken>()), Times.Never);
+    }
+
+    [Fact]
+    public async Task GetAssociatedIssueIdsAsync_ExecutesQuery_ReturnsIssueIds()
     {
         // Arrange
-        using var context = CreateInMemoryContext();
-        await SeedAgentAsync(context);
-        var mockLogger = new Mock<ILogger<NotificationService>>();
-        var service = new NotificationService(context, mockLogger.Object);
+        var issueIds = new List<int> { 100, 200, 300 };
+        _mockQueryProcessor
+            .Setup(x => x.ProcessAsync(It.IsAny<GetAssociatedIssueIdsQuery>(), It.IsAny<CancellationToken>()))
+            .ReturnsAsync(issueIds);
 
         // Act
-        var notificationId = await service.CreateNotificationAsync(
-            "Duplicate issue IDs",
-            "claude-code",
-            issueIds: [275, 275, 275],
-            CancellationToken.None);
+        var result = await _service.GetAssociatedIssueIdsAsync([1, 2], CancellationToken.None);
 
         // Assert
-        var junctionRecords = await context.NotificationGitHubIssues
-            .Where(x => x.NotificationId == notificationId)
-            .ToListAsync();
-
-        Assert.Single(junctionRecords);
-        Assert.Equal(275, junctionRecords[0].GitHubIssueId);
+        Assert.Equal(3, result.Count);
+        _mockQueryProcessor.Verify(x => x.ProcessAsync(
+            It.Is<GetAssociatedIssueIdsQuery>(q => q.NotificationIds.Count == 2),
+            It.IsAny<CancellationToken>()), Times.Once);
     }
 
     [Fact]
-    public async Task CreateNotificationAsync_WithEmptyIssueIdsList_CreatesNoJunctionRecords()
+    public async Task GetAssociatedIssueIdsAsync_EmptyInput_ReturnsEmpty()
+    {
+        // Act
+        var result = await _service.GetAssociatedIssueIdsAsync(Array.Empty<int>(), CancellationToken.None);
+
+        // Assert
+        Assert.Empty(result);
+        _mockQueryProcessor.Verify(x => x.ProcessAsync(
+            It.IsAny<GetAssociatedIssueIdsQuery>(),
+            It.IsAny<CancellationToken>()), Times.Never);
+    }
+
+    [Fact]
+    public async Task RecordTtsOutcomeAsync_ExecutesCommand()
     {
         // Arrange
-        using var context = CreateInMemoryContext();
-        await SeedAgentAsync(context);
-        var mockLogger = new Mock<ILogger<NotificationService>>();
-        var service = new NotificationService(context, mockLogger.Object);
+        _mockCommandExecutor
+            .Setup(x => x.ExecuteAsync(It.IsAny<RecordTtsOutcomeCommand>(), It.IsAny<CancellationToken>()))
+            .ReturnsAsync(true);
 
         // Act
-        var notificationId = await service.CreateNotificationAsync(
-            "Empty list",
-            "claude-code",
-            issueIds: [],
-            CancellationToken.None);
+        await _service.RecordTtsOutcomeAsync(1, "AzureTTS", "success", 500, CancellationToken.None);
 
         // Assert
-        var junctionRecords = await context.NotificationGitHubIssues
-            .Where(x => x.NotificationId == notificationId)
-            .ToListAsync();
-
-        Assert.Empty(junctionRecords);
-    }
-
-    [Fact]
-    public async Task CreateNotificationAsync_JunctionRecordsHaveCorrectNotificationId()
-    {
-        // Arrange
-        using var context = CreateInMemoryContext();
-        await SeedAgentAsync(context);
-        var mockLogger = new Mock<ILogger<NotificationService>>();
-        var service = new NotificationService(context, mockLogger.Object);
-
-        // Act - create two notifications
-        var notificationId1 = await service.CreateNotificationAsync(
-            "First notification",
-            "claude-code",
-            issueIds: [100],
-            CancellationToken.None);
-
-        var notificationId2 = await service.CreateNotificationAsync(
-            "Second notification",
-            "claude-code",
-            issueIds: [200],
-            CancellationToken.None);
-
-        // Assert - each notification has its own junction record
-        var records1 = await context.NotificationGitHubIssues
-            .Where(x => x.NotificationId == notificationId1)
-            .ToListAsync();
-        Assert.Single(records1);
-        Assert.Equal(100, records1[0].GitHubIssueId);
-
-        var records2 = await context.NotificationGitHubIssues
-            .Where(x => x.NotificationId == notificationId2)
-            .ToListAsync();
-        Assert.Single(records2);
-        Assert.Equal(200, records2[0].GitHubIssueId);
+        _mockCommandExecutor.Verify(x => x.ExecuteAsync(
+            It.Is<RecordTtsOutcomeCommand>(c =>
+                c.NotificationId == 1 &&
+                c.ProviderName == "AzureTTS" &&
+                c.Status == "success" &&
+                c.DurationMs == 500),
+            It.IsAny<CancellationToken>()), Times.Once);
     }
 }
