@@ -16,9 +16,19 @@ PROJECT_PATH="/home/jirka/Olbrasoft/VirtualAssistant"
 SERVICE_NAME="virtual-assistant.service"
 LOG_SERVICE_NAME="virtual-assistant-logs.service"
 
+# Determine the correct home directory for SecureStore paths
+if [ -n "$SUDO_USER" ] && [ "$SUDO_USER" != "root" ]; then
+    USER_HOME=$(getent passwd "$SUDO_USER" 2>/dev/null | cut -d: -f6)
+    if [ -z "$USER_HOME" ]; then
+        USER_HOME=$(eval echo "~$SUDO_USER")
+    fi
+else
+    USER_HOME="$HOME"
+fi
+
 # SecureStore paths
-KEYFILE="$HOME/.config/virtual-assistant/keys/secrets.key"
-SECRETS_FILE="$HOME/.config/virtual-assistant/secrets/secrets.json"
+KEYFILE="$USER_HOME/.config/virtual-assistant/keys/secrets.key"
+SECRETS_FILE="$USER_HOME/.config/virtual-assistant/secrets/secrets.json"
 
 echo "╔══════════════════════════════════════════════════════════════╗"
 echo "║             VirtualAssistant Deploy Script                    ║"
@@ -33,7 +43,12 @@ cd "$PROJECT_PATH"
 echo "🔐 Validating SecureStore configuration..."
 if [ ! -f "$KEYFILE" ]; then
     echo "❌ ERROR: SecureStore keyfile not found at $KEYFILE"
-    echo "   Run: SecureStore create -s $SECRETS_FILE -k $KEYFILE"
+    echo "   Setup instructions:"
+    echo "   1. mkdir -p ~/.config/virtual-assistant/secrets"
+    echo "   2. mkdir -p ~/.config/virtual-assistant/keys"
+    echo "   3. SecureStore create -s $SECRETS_FILE -k $KEYFILE"
+    echo "   4. chmod 600 $KEYFILE"
+    echo "   See CLAUDE.md for complete setup guide."
     exit 1
 fi
 
@@ -48,7 +63,12 @@ fi
 
 if [ ! -f "$SECRETS_FILE" ]; then
     echo "❌ ERROR: SecureStore vault not found at $SECRETS_FILE"
-    echo "   Run: SecureStore create -s $SECRETS_FILE -k $KEYFILE"
+    echo "   Setup instructions:"
+    echo "   1. mkdir -p ~/.config/virtual-assistant/secrets"
+    echo "   2. mkdir -p ~/.config/virtual-assistant/keys"
+    echo "   3. SecureStore create -s $SECRETS_FILE -k $KEYFILE"
+    echo "   4. chmod 600 $KEYFILE"
+    echo "   See CLAUDE.md for complete setup guide."
     exit 1
 fi
 

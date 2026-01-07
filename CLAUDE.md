@@ -475,7 +475,7 @@ systemctl --user restart virtual-assistant.service
 | `GitHub:Token` | GitHub API token |
 | `TTS:AzureTTS:SubscriptionKey` | Azure Speech Service key |
 | `TTS:VoiceRSS:ApiKey` | VoiceRSS API key |
-| `GoogleTTS:ApiKey1`, `ApiKey2`, `ApiKey3` | Google Cloud TTS keys |
+| `GoogleTTS:ApiKey1`, `GoogleTTS:ApiKey2`, `GoogleTTS:ApiKey3` | Google Cloud TTS keys |
 | `LlmChain:Mistral:ApiKey` | Mistral AI key |
 | `LlmChain:Cerebras:ApiKeys` | Cerebras keys (comma-separated) |
 | `LlmChain:Groq:ApiKeys` | Groq keys (comma-separated) |
