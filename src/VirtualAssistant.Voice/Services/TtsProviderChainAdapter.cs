@@ -39,13 +39,14 @@ public sealed class TtsProviderChainAdapter : ITtsProviderChain
         CancellationToken cancellationToken = default)
     {
         // Convert VoiceConfig to TtsRequest
+        // Use Provider from VoiceConfig (from TTS profile) if available, otherwise use sourceProfile
         var request = new TtsRequest
         {
             Text = text,
             Voice = config.Voice,
             Rate = ParseRate(config.Rate) ?? 0,
             Pitch = ParsePitch(config.Pitch) ?? 0,
-            PreferredProvider = sourceProfile // sourceProfile can indicate preferred provider
+            PreferredProvider = config.Provider ?? sourceProfile
         };
 
         // Call the library
