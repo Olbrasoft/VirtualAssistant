@@ -77,7 +77,7 @@ public sealed class TtsService : IDisposable
             _logger.LogDebug("Using default TTS profile: {Provider} - {Voice}", profile.Provider, profile.Voice);
         }
 
-        return new VoiceConfig(profile.Voice, profile.Rate, "100", profile.Pitch, profile.Provider);
+        return new VoiceConfig(profile.Voice, profile.Rate, profile.Volume, profile.Pitch, profile.Provider);
     }
 
     /// <summary>

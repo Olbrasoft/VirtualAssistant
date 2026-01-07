@@ -63,7 +63,7 @@ public sealed class TtsCacheService : ITtsCacheService
             .Trim('-')
             .ToLowerInvariant();
 
-        var parameters = $"{config.Voice}{config.Rate}{config.Volume}{config.Pitch}";
+        var parameters = $"{config.Provider ?? "default"}{config.Voice}{config.Rate}{config.Volume}{config.Pitch}";
         var hash = Convert.ToHexString(MD5.HashData(Encoding.UTF8.GetBytes(parameters)))[..8];
 
         return Path.Combine(_cacheDirectory, $"{safeName}-{hash}.mp3");

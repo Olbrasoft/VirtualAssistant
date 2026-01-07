@@ -225,10 +225,9 @@ public static class VoiceServicesExtensions
         // Composite filter orchestrates all strategies
         services.AddSingleton<ITextFilter, CompositeTextFilter>();
 
-        // TTS profile resolver for application-specific voice configuration (Issue #405)
+        // TTS profile configuration for application-specific voice settings (Issue #405)
         services.Configure<TtsProfilesOptions>(
             configuration.GetSection(TtsProfilesOptions.SectionName));
-        services.AddSingleton<ITtsProfileResolver, TtsProfileResolver>();
 
         return services;
     }

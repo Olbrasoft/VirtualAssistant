@@ -45,6 +45,7 @@ public class TtsServiceTests : IDisposable
                     Provider = "Piper",
                     Voice = "cs-CZ-AntoninNeural",
                     Rate = "+10%",
+                    Volume = "+0%",
                     Pitch = "+0Hz"
                 }
             },
@@ -53,6 +54,7 @@ public class TtsServiceTests : IDisposable
                 Provider = "Piper",
                 Voice = "cs-CZ-AntoninNeural",
                 Rate = "+10%",
+                Volume = "+0%",
                 Pitch = "+0Hz"
             }
         });
@@ -276,6 +278,172 @@ public class TtsServiceTests : IDisposable
         _cacheServiceMock.Verify(x => x.SaveAsync("Test message", It.IsAny<VoiceConfig>(), audioData, It.IsAny<CancellationToken>()), Times.Once);
     }
 
+    [Fact]
+    public async Task SpeakAsync_WithProfileSource_UsesProviderFromProfile()
+    {
+        // Arrange
+        _speechLockServiceMock.Setup(x => x.IsLocked).Returns(false);
+
+        // Setup profile with specific provider
+        var ttsOptions = new TtsProfilesOptions
+        {
+            Profiles = new Dictionary<string, TtsProfile>
+            {
+                ["test-agent"] = new TtsProfile
+                {
+                    Provider = "Azure",
+                    Voice = "cs-CZ-AntoninNeural",
+                    Rate = "+10%",
+                    Volume = "+0%",
+                    Pitch = "+0Hz"
+                }
+            },
+            DefaultProfile = new TtsProfile
+            {
+                Provider = "Piper",
+                Voice = "cs_CZ-jirka-medium",
+                Rate = "+0%",
+                Volume = "+0%",
+                Pitch = "+0Hz"
+            }
+        };
+
+        var optionsMock = new Mock<IOptions<TtsProfilesOptions>>();
+        optionsMock.Setup(x => x.Value).Returns(ttsOptions);
+
+        var service = new TtsService(
+            _loggerMock.Object,
+            optionsMock.Object,
+            _ttsProviderChainMock.Object,
+            _queueServiceMock.Object,
+            _cacheServiceMock.Object,
+            _playbackServiceMock.Object,
+            _speechLockServiceMock.Object);
+
+        var cachePath = "";
+        _cacheServiceMock
+            .Setup(x => x.TryGetCached(It.IsAny<string>(), It.IsAny<VoiceConfig>(), out cachePath))
+            .Returns(false);
+        _cacheServiceMock
+            .Setup(x => x.GetCachePath(It.IsAny<string>(), It.IsAny<VoiceConfig>()))
+            .Returns("/tmp/test.mp3");
+
+        var audioData = new byte[] { 1, 2, 3 };
+        _ttsProviderChainMock
+            .Setup(x => x.SynthesizeAsync(It.IsAny<string>(), It.IsAny<VoiceConfig>(), It.IsAny<string?>(), It.IsAny<CancellationToken>()))
+            .ReturnsAsync((audioData, "Azure"));
+
+        // Act
+        await service.SpeakAsync("Test message", "test-agent");
+
+        // Assert - Verify Provider was passed to TtsProviderChain
+        _ttsProviderChainMock.Verify(x => x.SynthesizeAsync(
+            "Test message",
+            It.Is<VoiceConfig>(vc => vc.Provider == "Azure" && vc.Voice == "cs-CZ-AntoninNeural"),
+            "test-agent",
+            It.IsAny<CancellationToken>()), Times.Once);
+    }
+
+    [Fact]
+    public async Task SpeakAsync_WithUnknownSource_UsesDefaultProvider()
+    {
+        // Arrange
+        _speechLockServiceMock.Setup(x => x.IsLocked).Returns(false);
+
+        var cachePath = "";
+        _cacheServiceMock
+            .Setup(x => x.TryGetCached(It.IsAny<string>(), It.IsAny<VoiceConfig>(), out cachePath))
+            .Returns(false);
+        _cacheServiceMock
+            .Setup(x => x.GetCachePath(It.IsAny<string>(), It.IsAny<VoiceConfig>()))
+            .Returns("/tmp/test.mp3");
+
+        var audioData = new byte[] { 1, 2, 3 };
+        _ttsProviderChainMock
+            .Setup(x => x.SynthesizeAsync(It.IsAny<string>(), It.IsAny<VoiceConfig>(), It.IsAny<string?>(), It.IsAny<CancellationToken>()))
+            .ReturnsAsync((audioData, "Piper"));
+
+        // Act
+        await _sut.SpeakAsync("Test message", "unknown-agent");
+
+        // Assert - Should use default profile (Piper)
+        _ttsProviderChainMock.Verify(x => x.SynthesizeAsync(
+            "Test message",
+            It.Is<VoiceConfig>(vc => vc.Provider == "Piper"),
+            "unknown-agent",
+            It.IsAny<CancellationToken>()), Times.Once);
+    }
+
+    [Theory]
+    [InlineData("claude-code")]
+    [InlineData("CLAUDE-CODE")]
+    [InlineData("Claude-Code")]
+    [InlineData("ClAuDe-CoDe")]
+    public async Task SpeakAsync_ProfileLookup_IsCaseInsensitive(string sourceVariant)
+    {
+        // Arrange
+        _speechLockServiceMock.Setup(x => x.IsLocked).Returns(false);
+
+        // Setup profile with lowercase name
+        var ttsOptions = new TtsProfilesOptions
+        {
+            Profiles = new Dictionary<string, TtsProfile>
+            {
+                ["claude-code"] = new TtsProfile
+                {
+                    Provider = "Azure",
+                    Voice = "cs-CZ-AntoninNeural",
+                    Rate = "+10%",
+                    Volume = "+0%",
+                    Pitch = "+0Hz"
+                }
+            },
+            DefaultProfile = new TtsProfile
+            {
+                Provider = "Piper",
+                Voice = "cs_CZ-jirka-medium",
+                Rate = "+0%",
+                Volume = "+0%",
+                Pitch = "+0Hz"
+            }
+        };
+
+        var optionsMock = new Mock<IOptions<TtsProfilesOptions>>();
+        optionsMock.Setup(x => x.Value).Returns(ttsOptions);
+
+        var service = new TtsService(
+            _loggerMock.Object,
+            optionsMock.Object,
+            _ttsProviderChainMock.Object,
+            _queueServiceMock.Object,
+            _cacheServiceMock.Object,
+            _playbackServiceMock.Object,
+            _speechLockServiceMock.Object);
+
+        var cachePath = "";
+        _cacheServiceMock
+            .Setup(x => x.TryGetCached(It.IsAny<string>(), It.IsAny<VoiceConfig>(), out cachePath))
+            .Returns(false);
+        _cacheServiceMock
+            .Setup(x => x.GetCachePath(It.IsAny<string>(), It.IsAny<VoiceConfig>()))
+            .Returns("/tmp/test.mp3");
+
+        var audioData = new byte[] { 1, 2, 3 };
+        _ttsProviderChainMock
+            .Setup(x => x.SynthesizeAsync(It.IsAny<string>(), It.IsAny<VoiceConfig>(), It.IsAny<string?>(), It.IsAny<CancellationToken>()))
+            .ReturnsAsync((audioData, "Azure"));
+
+        // Act
+        await service.SpeakAsync("Test message", sourceVariant);
+
+        // Assert - Should match profile regardless of case
+        _ttsProviderChainMock.Verify(x => x.SynthesizeAsync(
+            "Test message",
+            It.Is<VoiceConfig>(vc => vc.Provider == "Azure" && vc.Voice == "cs-CZ-AntoninNeural"),
+            sourceVariant,
+            It.IsAny<CancellationToken>()), Times.Once);
+    }
+
     /// <summary>
     /// Tests that Dispose properly cleans up the semaphore without throwing.
     /// </summary>
@@ -293,6 +461,7 @@ public class TtsServiceTests : IDisposable
                 Provider = "Piper",
                 Voice = "cs-CZ-AntoninNeural",
                 Rate = "+10%",
+                Volume = "+0%",
                 Pitch = "+0Hz"
             }
         });
