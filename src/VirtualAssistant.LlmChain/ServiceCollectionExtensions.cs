@@ -58,6 +58,10 @@ public static class ServiceCollectionExtensions
         });
 
         services.AddHttpClient();
+
+        // Register extracted SRP-compliant services
+        services.AddSingleton<IApiKeyRotator, ApiKeyRotator>();
+        services.AddSingleton<ILlmRequestBuilder, LlmRequestBuilder>();
         services.AddSingleton<ILlmChainClient, LlmChainClient>();
 
         return services;
@@ -75,6 +79,10 @@ public static class ServiceCollectionExtensions
     {
         services.Configure(configure);
         services.AddHttpClient();
+
+        // Register extracted SRP-compliant services
+        services.AddSingleton<IApiKeyRotator, ApiKeyRotator>();
+        services.AddSingleton<ILlmRequestBuilder, LlmRequestBuilder>();
         services.AddSingleton<ILlmChainClient, LlmChainClient>();
 
         return services;
