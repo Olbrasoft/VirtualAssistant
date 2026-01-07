@@ -1,119 +1,79 @@
-using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Logging;
-using Olbrasoft.VirtualAssistant.Data.EntityFrameworkCore;
+using Moq;
+using Olbrasoft.Data.Cqrs;
+using Olbrasoft.VirtualAssistant.Data.Commands.GitHubCommands;
 using Olbrasoft.VirtualAssistant.GitHub.Services;
 
 namespace Olbrasoft.VirtualAssistant.GitHub.Tests;
 
-public class GitHubReferenceServiceTests : IDisposable
+/// <summary>
+/// Unit tests for GitHubReferenceService using mocked CQRS infrastructure.
+/// </summary>
+public class GitHubReferenceServiceTests
 {
-    private readonly VirtualAssistantDbContext _dbContext;
-    private readonly Mock<ILogger<GitHubReferenceService>> _loggerMock;
+    private readonly Mock<ICommandExecutor> _mockCommandExecutor;
+    private readonly Mock<ILogger<GitHubReferenceService>> _mockLogger;
     private readonly GitHubReferenceService _service;
 
     public GitHubReferenceServiceTests()
     {
-        var options = new DbContextOptionsBuilder<VirtualAssistantDbContext>()
-            .UseInMemoryDatabase(Guid.NewGuid().ToString())
-            .Options;
-
-        _dbContext = new VirtualAssistantDbContext(options);
-        _loggerMock = new Mock<ILogger<GitHubReferenceService>>();
-        _service = new GitHubReferenceService(_dbContext, _loggerMock.Object);
-    }
-
-    public void Dispose()
-    {
-        _dbContext.Dispose();
+        _mockCommandExecutor = new Mock<ICommandExecutor>();
+        _mockLogger = new Mock<ILogger<GitHubReferenceService>>();
+        _service = new GitHubReferenceService(_mockCommandExecutor.Object, _mockLogger.Object);
     }
 
     [Fact]
-    public async Task EnsureRepositoryExistsAsync_CreatesNew_WhenNotExists()
-    {
-        // Act
-        var id = await _service.EnsureRepositoryExistsAsync("Olbrasoft", "VirtualAssistant");
-
-        // Assert
-        Assert.True(id > 0);
-        Assert.Single(_dbContext.GitHubRepositories);
-        var repo = await _dbContext.GitHubRepositories.FindAsync(id);
-        Assert.NotNull(repo);
-        Assert.Equal("Olbrasoft", repo.Owner);
-        Assert.Equal("VirtualAssistant", repo.Name);
-    }
-
-    [Fact]
-    public async Task EnsureRepositoryExistsAsync_ReturnsExisting_WhenExists()
+    public async Task EnsureRepositoryExistsAsync_ExecutesCommand_ReturnsRepoId()
     {
         // Arrange
-        var id1 = await _service.EnsureRepositoryExistsAsync("Olbrasoft", "VirtualAssistant");
+        const int expectedId = 42;
+        _mockCommandExecutor
+            .Setup(x => x.ExecuteAsync(It.IsAny<EnsureRepositoryExistsCommand>(), It.IsAny<CancellationToken>()))
+            .ReturnsAsync(expectedId);
 
         // Act
-        var id2 = await _service.EnsureRepositoryExistsAsync("Olbrasoft", "VirtualAssistant");
+        var result = await _service.EnsureRepositoryExistsAsync("Olbrasoft", "VirtualAssistant");
 
         // Assert
-        Assert.Equal(id1, id2);
-        Assert.Single(_dbContext.GitHubRepositories);
+        Assert.Equal(expectedId, result);
+        _mockCommandExecutor.Verify(x => x.ExecuteAsync(
+            It.Is<EnsureRepositoryExistsCommand>(c => c.Owner == "Olbrasoft" && c.Name == "VirtualAssistant"),
+            It.IsAny<CancellationToken>()), Times.Once);
     }
 
     [Fact]
-    public async Task EnsureRepositoryExistsAsync_CreatesDifferentRepos_ForDifferentNames()
-    {
-        // Act
-        var id1 = await _service.EnsureRepositoryExistsAsync("Olbrasoft", "VirtualAssistant");
-        var id2 = await _service.EnsureRepositoryExistsAsync("Olbrasoft", "SpeechToText");
-
-        // Assert
-        Assert.NotEqual(id1, id2);
-        Assert.Equal(2, await _dbContext.GitHubRepositories.CountAsync());
-    }
-
-    [Fact]
-    public async Task EnsureIssueExistsAsync_CreatesRepoAndIssue_WhenNeitherExists()
-    {
-        // Act
-        var issueId = await _service.EnsureIssueExistsAsync("Olbrasoft", "VirtualAssistant", 252);
-
-        // Assert
-        Assert.True(issueId > 0);
-        Assert.Single(_dbContext.GitHubRepositories);
-        Assert.Single(_dbContext.GitHubIssues);
-
-        var issue = await _dbContext.GitHubIssues.FindAsync(issueId);
-        Assert.NotNull(issue);
-        Assert.Equal(252, issue.IssueNumber);
-    }
-
-    [Fact]
-    public async Task EnsureIssueExistsAsync_ReturnsExisting_WhenIssueExists()
+    public async Task EnsureIssueExistsAsync_ExecutesCommand_ReturnsIssueId()
     {
         // Arrange
-        var id1 = await _service.EnsureIssueExistsAsync("Olbrasoft", "VirtualAssistant", 252);
+        const int expectedId = 100;
+        _mockCommandExecutor
+            .Setup(x => x.ExecuteAsync(It.IsAny<EnsureIssueExistsCommand>(), It.IsAny<CancellationToken>()))
+            .ReturnsAsync(expectedId);
 
         // Act
-        var id2 = await _service.EnsureIssueExistsAsync("Olbrasoft", "VirtualAssistant", 252);
+        var result = await _service.EnsureIssueExistsAsync("Olbrasoft", "VirtualAssistant", 252);
 
         // Assert
-        Assert.Equal(id1, id2);
-        Assert.Single(_dbContext.GitHubIssues);
+        Assert.Equal(expectedId, result);
+        _mockCommandExecutor.Verify(x => x.ExecuteAsync(
+            It.Is<EnsureIssueExistsCommand>(c =>
+                c.Owner == "Olbrasoft" &&
+                c.Name == "VirtualAssistant" &&
+                c.IssueNumber == 252),
+            It.IsAny<CancellationToken>()), Times.Once);
     }
 
     [Fact]
-    public async Task EnsureIssueExistsAsync_CreatesDifferentIssues_ForDifferentNumbers()
+    public async Task EnsureIssueFromUrlAsync_ParsesValidUrl_ReturnsReference()
     {
-        // Act
-        var id1 = await _service.EnsureIssueExistsAsync("Olbrasoft", "VirtualAssistant", 251);
-        var id2 = await _service.EnsureIssueExistsAsync("Olbrasoft", "VirtualAssistant", 252);
+        // Arrange
+        _mockCommandExecutor
+            .Setup(x => x.ExecuteAsync(It.IsAny<EnsureRepositoryExistsCommand>(), It.IsAny<CancellationToken>()))
+            .ReturnsAsync(1);
+        _mockCommandExecutor
+            .Setup(x => x.ExecuteAsync(It.IsAny<EnsureIssueExistsCommand>(), It.IsAny<CancellationToken>()))
+            .ReturnsAsync(100);
 
-        // Assert
-        Assert.NotEqual(id1, id2);
-        Assert.Equal(2, await _dbContext.GitHubIssues.CountAsync());
-        Assert.Single(_dbContext.GitHubRepositories); // Same repo
-    }
-
-    [Fact]
-    public async Task EnsureIssueFromUrlAsync_ParsesValidUrl()
-    {
         // Act
         var result = await _service.EnsureIssueFromUrlAsync(
             "https://github.com/Olbrasoft/VirtualAssistant/issues/252");
@@ -123,13 +83,21 @@ public class GitHubReferenceServiceTests : IDisposable
         Assert.Equal("Olbrasoft", result.Owner);
         Assert.Equal("VirtualAssistant", result.Name);
         Assert.Equal(252, result.IssueNumber);
-        Assert.True(result.IssueId > 0);
-        Assert.True(result.RepositoryId > 0);
+        Assert.Equal(100, result.IssueId);
+        Assert.Equal(1, result.RepositoryId);
     }
 
     [Fact]
     public async Task EnsureIssueFromUrlAsync_ParsesHttpUrl()
     {
+        // Arrange
+        _mockCommandExecutor
+            .Setup(x => x.ExecuteAsync(It.IsAny<EnsureRepositoryExistsCommand>(), It.IsAny<CancellationToken>()))
+            .ReturnsAsync(1);
+        _mockCommandExecutor
+            .Setup(x => x.ExecuteAsync(It.IsAny<EnsureIssueExistsCommand>(), It.IsAny<CancellationToken>()))
+            .ReturnsAsync(100);
+
         // Act
         var result = await _service.EnsureIssueFromUrlAsync(
             "http://github.com/Olbrasoft/VirtualAssistant/issues/123");
@@ -147,6 +115,9 @@ public class GitHubReferenceServiceTests : IDisposable
 
         // Assert
         Assert.Null(result);
+        _mockCommandExecutor.Verify(x => x.ExecuteAsync(
+            It.IsAny<EnsureRepositoryExistsCommand>(),
+            It.IsAny<CancellationToken>()), Times.Never);
     }
 
     [Fact]
@@ -203,6 +174,14 @@ public class GitHubReferenceServiceTests : IDisposable
     [Fact]
     public async Task GitHubIssueReference_Url_ReturnsCorrectUrl()
     {
+        // Arrange
+        _mockCommandExecutor
+            .Setup(x => x.ExecuteAsync(It.IsAny<EnsureRepositoryExistsCommand>(), It.IsAny<CancellationToken>()))
+            .ReturnsAsync(1);
+        _mockCommandExecutor
+            .Setup(x => x.ExecuteAsync(It.IsAny<EnsureIssueExistsCommand>(), It.IsAny<CancellationToken>()))
+            .ReturnsAsync(100);
+
         // Act
         var result = await _service.EnsureIssueFromUrlAsync(
             "https://github.com/Olbrasoft/VirtualAssistant/issues/252");
@@ -215,6 +194,14 @@ public class GitHubReferenceServiceTests : IDisposable
     [Fact]
     public async Task EnsureIssueFromUrlAsync_IsCaseInsensitive()
     {
+        // Arrange
+        _mockCommandExecutor
+            .Setup(x => x.ExecuteAsync(It.IsAny<EnsureRepositoryExistsCommand>(), It.IsAny<CancellationToken>()))
+            .ReturnsAsync(1);
+        _mockCommandExecutor
+            .Setup(x => x.ExecuteAsync(It.IsAny<EnsureIssueExistsCommand>(), It.IsAny<CancellationToken>()))
+            .ReturnsAsync(100);
+
         // Act
         var result = await _service.EnsureIssueFromUrlAsync(
             "HTTPS://GITHUB.COM/Olbrasoft/VirtualAssistant/issues/252");
@@ -226,20 +213,16 @@ public class GitHubReferenceServiceTests : IDisposable
     }
 
     [Fact]
-    public async Task EnsureIssueFromUrlAsync_HandlesUrlWithTrailingSlash()
-    {
-        // Act - URL without trailing content after issue number
-        var result = await _service.EnsureIssueFromUrlAsync(
-            "https://github.com/Olbrasoft/VirtualAssistant/issues/252");
-
-        // Assert
-        Assert.NotNull(result);
-        Assert.Equal(252, result.IssueNumber);
-    }
-
-    [Fact]
     public async Task EnsureIssueFromUrlAsync_HandlesUrlWithFragment()
     {
+        // Arrange
+        _mockCommandExecutor
+            .Setup(x => x.ExecuteAsync(It.IsAny<EnsureRepositoryExistsCommand>(), It.IsAny<CancellationToken>()))
+            .ReturnsAsync(1);
+        _mockCommandExecutor
+            .Setup(x => x.ExecuteAsync(It.IsAny<EnsureIssueExistsCommand>(), It.IsAny<CancellationToken>()))
+            .ReturnsAsync(100);
+
         // Act - URL with fragment (anchor)
         var result = await _service.EnsureIssueFromUrlAsync(
             "https://github.com/Olbrasoft/VirtualAssistant/issues/252#issuecomment-123");

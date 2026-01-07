@@ -1,17 +1,17 @@
 using System.Text.RegularExpressions;
-using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Logging;
-using Olbrasoft.VirtualAssistant.Data.Entities;
-using Olbrasoft.VirtualAssistant.Data.EntityFrameworkCore;
+using Olbrasoft.Data.Cqrs;
+using Olbrasoft.VirtualAssistant.Data.Commands.GitHubCommands;
 
 namespace Olbrasoft.VirtualAssistant.GitHub.Services;
 
 /// <summary>
 /// Service for ensuring GitHub repository and issue references exist in the database.
+/// Uses CQRS pattern for data access.
 /// </summary>
 public partial class GitHubReferenceService : IGitHubReferenceService
 {
-    private readonly VirtualAssistantDbContext _dbContext;
+    private readonly ICommandExecutor _commandExecutor;
     private readonly ILogger<GitHubReferenceService> _logger;
 
     /// <summary>
@@ -22,48 +22,32 @@ public partial class GitHubReferenceService : IGitHubReferenceService
     private static partial Regex GitHubIssueUrlRegex();
 
     public GitHubReferenceService(
-        VirtualAssistantDbContext dbContext,
+        ICommandExecutor commandExecutor,
         ILogger<GitHubReferenceService> logger)
     {
-        _dbContext = dbContext;
+        _commandExecutor = commandExecutor;
         _logger = logger;
     }
 
     /// <inheritdoc />
     public async Task<int> EnsureRepositoryExistsAsync(string owner, string name, CancellationToken ct = default)
     {
-        var repo = await _dbContext.GitHubRepositories
-            .FirstOrDefaultAsync(r => r.Owner == owner && r.Name == name, ct);
+        var command = new EnsureRepositoryExistsCommand(owner, name);
+        var repoId = await _commandExecutor.ExecuteAsync(command, ct);
 
-        if (repo != null)
-            return repo.Id;
-
-        repo = new GitHubRepository { Owner = owner, Name = name };
-        _dbContext.GitHubRepositories.Add(repo);
-        await _dbContext.SaveChangesAsync(ct);
-
-        _logger.LogInformation("Created GitHub repository reference: {Owner}/{Name} (ID: {Id})", owner, name, repo.Id);
-        return repo.Id;
+        _logger.LogDebug("Ensured GitHub repository reference: {Owner}/{Name} (ID: {Id})", owner, name, repoId);
+        return repoId;
     }
 
     /// <inheritdoc />
     public async Task<int> EnsureIssueExistsAsync(string owner, string name, int issueNumber, CancellationToken ct = default)
     {
-        var repoId = await EnsureRepositoryExistsAsync(owner, name, ct);
+        var command = new EnsureIssueExistsCommand(owner, name, issueNumber);
+        var issueId = await _commandExecutor.ExecuteAsync(command, ct);
 
-        var issue = await _dbContext.GitHubIssues
-            .FirstOrDefaultAsync(i => i.RepositoryId == repoId && i.IssueNumber == issueNumber, ct);
-
-        if (issue != null)
-            return issue.Id;
-
-        issue = new GitHubIssue { RepositoryId = repoId, IssueNumber = issueNumber };
-        _dbContext.GitHubIssues.Add(issue);
-        await _dbContext.SaveChangesAsync(ct);
-
-        _logger.LogInformation("Created GitHub issue reference: {Owner}/{Name}#{Number} (ID: {Id})",
-            owner, name, issueNumber, issue.Id);
-        return issue.Id;
+        _logger.LogDebug("Ensured GitHub issue reference: {Owner}/{Name}#{Number} (ID: {Id})",
+            owner, name, issueNumber, issueId);
+        return issueId;
     }
 
     /// <inheritdoc />
