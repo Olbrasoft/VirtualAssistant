@@ -10,13 +10,13 @@ namespace Olbrasoft.VirtualAssistant.Service.Extensions;
 
 /// <summary>
 /// Extension methods for configuring TTS providers.
-/// This is where the hosting application decides how to load configuration values
-/// (from appsettings.json, environment variables, database, Key Vault, etc.).
+/// All secrets are loaded from SecureStore via IConfiguration.
 /// </summary>
 public static class TtsConfigurationExtensions
 {
     /// <summary>
-    /// Configures all TTS providers with values from appsettings.json and environment variables.
+    /// Configures all TTS providers with values from IConfiguration (appsettings.json + SecureStore).
+    /// Secrets are loaded from SecureStore, not environment variables.
     /// </summary>
     public static IServiceCollection ConfigureTtsProviders(
         this IServiceCollection services,
@@ -31,38 +31,14 @@ public static class TtsConfigurationExtensions
             configuration.GetSection(EdgeTtsConfiguration.SectionName));
 
         // Azure Cognitive Services TTS configuration
-        services.Configure<AzureTtsConfiguration>(options =>
-        {
-            var section = configuration.GetSection(AzureTtsConfiguration.SectionName);
-            section.Bind(options);
-
-            // Load secrets from environment variables (hosting app responsibility)
-            var envKey = Environment.GetEnvironmentVariable("AZURE_SPEECH_KEY");
-            if (!string.IsNullOrEmpty(envKey))
-            {
-                options.SubscriptionKey = envKey;
-            }
-
-            var envRegion = Environment.GetEnvironmentVariable("AZURE_SPEECH_REGION");
-            if (!string.IsNullOrEmpty(envRegion))
-            {
-                options.Region = envRegion;
-            }
-        });
+        // SubscriptionKey loaded from SecureStore: TTS:AzureTTS:SubscriptionKey
+        services.Configure<AzureTtsConfiguration>(
+            configuration.GetSection(AzureTtsConfiguration.SectionName));
 
         // VoiceRSS TTS configuration
-        services.Configure<VoiceRssConfiguration>(options =>
-        {
-            var section = configuration.GetSection(VoiceRssConfiguration.SectionName);
-            section.Bind(options);
-
-            // Load API key from environment variables (hosting app responsibility)
-            var envKey = Environment.GetEnvironmentVariable("VOICERSS_API_KEY");
-            if (!string.IsNullOrEmpty(envKey))
-            {
-                options.ApiKey = envKey;
-            }
-        });
+        // ApiKey loaded from SecureStore: TTS:VoiceRSS:ApiKey
+        services.Configure<VoiceRssConfiguration>(
+            configuration.GetSection(VoiceRssConfiguration.SectionName));
 
         // Google TTS configuration
         services.Configure<GoogleTtsConfiguration>(
