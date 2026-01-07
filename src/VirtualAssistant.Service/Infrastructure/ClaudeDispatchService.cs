@@ -1,34 +1,35 @@
 using System.Diagnostics;
 using System.Text;
-using System.Text.Json;
 using Microsoft.Extensions.Options;
 using Olbrasoft.VirtualAssistant.Core.Processes;
-using Olbrasoft.VirtualAssistant.Service.Dtos;
 using Olbrasoft.VirtualAssistant.Core.Services;
 
 namespace Olbrasoft.VirtualAssistant.Service.Infrastructure;
 
 /// <summary>
 /// Service for dispatching tasks to Claude Code via headless mode.
-/// Executes claude -p command and parses JSON output.
+/// Orchestrates process execution, output parsing, and notifications.
 /// </summary>
 public class ClaudeDispatchService : IClaudeDispatchService
 {
     private readonly ILogger<ClaudeDispatchService> _logger;
-    private readonly IHttpClientFactory _httpClientFactory;
     private readonly ClaudeDispatchOptions _options;
     private readonly IProcessExecutor _processExecutor;
+    private readonly IClaudeOutputParser _outputParser;
+    private readonly IClaudeNotificationSender _notificationSender;
 
     public ClaudeDispatchService(
         ILogger<ClaudeDispatchService> logger,
-        IHttpClientFactory httpClientFactory,
         IOptions<ClaudeDispatchOptions> options,
-        IProcessExecutor processExecutor)
+        IProcessExecutor processExecutor,
+        IClaudeOutputParser outputParser,
+        IClaudeNotificationSender notificationSender)
     {
         _logger = logger;
-        _httpClientFactory = httpClientFactory;
         _options = options.Value;
         _processExecutor = processExecutor ?? throw new ArgumentNullException(nameof(processExecutor));
+        _outputParser = outputParser ?? throw new ArgumentNullException(nameof(outputParser));
+        _notificationSender = notificationSender ?? throw new ArgumentNullException(nameof(notificationSender));
     }
 
     public async Task<ClaudeExecutionResult> ExecuteAsync(string prompt, string? workingDirectory = null, CancellationToken ct = default)
@@ -101,16 +102,16 @@ public class ClaudeDispatchService : IClaudeDispatchService
                 _logger.LogError(
                     "Claude execution failed with exit code {Code}: {Error}",
                     process.ExitCode, error);
-                await NotifyErrorAsync($"Claude selhal s kódem {process.ExitCode}");
+                await _notificationSender.NotifyErrorAsync($"Claude selhal s kódem {process.ExitCode}");
                 return ClaudeExecutionResult.Failed(error, process.ExitCode);
             }
 
             // Parse JSON output
-            var result = ParseClaudeOutput(output);
+            var result = _outputParser.Parse(output);
 
             if (!result.Success)
             {
-                await NotifyErrorAsync($"Claude chyba: {result.Error}");
+                await _notificationSender.NotifyErrorAsync($"Claude chyba: {result.Error}");
             }
 
             return result;
@@ -122,7 +123,7 @@ public class ClaudeDispatchService : IClaudeDispatchService
             // Kill the process on timeout
             KillProcess(process);
 
-            await NotifyErrorAsync($"Claude timeout po {timeout.TotalMinutes} minutách");
+            await _notificationSender.NotifyErrorAsync($"Claude timeout po {timeout.TotalMinutes} minutách");
             return ClaudeExecutionResult.Failed($"Timeout after {timeout.TotalMinutes} minutes", -1);
         }
         catch (OperationCanceledException)
@@ -134,7 +135,7 @@ public class ClaudeDispatchService : IClaudeDispatchService
         catch (Exception ex)
         {
             _logger.LogError(ex, "Failed to execute Claude command");
-            await NotifyErrorAsync($"Claude selhání: {ex.Message}");
+            await _notificationSender.NotifyErrorAsync($"Claude selhání: {ex.Message}");
             return ClaudeExecutionResult.Failed(ex.Message);
         }
         finally
@@ -162,117 +163,13 @@ public class ClaudeDispatchService : IClaudeDispatchService
         }
     }
 
-    /// <summary>
-    /// Sends TTS notification for errors.
-    /// </summary>
-    private async Task NotifyErrorAsync(string message)
-    {
-        await NotifyAsync(message);
-    }
-
-    /// <summary>
-    /// Sends TTS notification for success.
-    /// </summary>
     public async Task NotifySuccessAsync(string message)
     {
-        if (_options.NotifyOnSuccess)
-        {
-            await NotifyAsync(message);
-        }
-    }
-
-    /// <summary>
-    /// Sends TTS notification.
-    /// </summary>
-    private async Task NotifyAsync(string message)
-    {
-        try
-        {
-            var client = _httpClientFactory.CreateClient();
-            var content = new StringContent(
-                JsonSerializer.Serialize(new { text = message, source = "claude" }),
-                Encoding.UTF8,
-                "application/json");
-
-            await client.PostAsync(_options.NotifyUrl, content);
-        }
-        catch (Exception ex)
-        {
-            _logger.LogWarning(ex, "Failed to send TTS notification");
-        }
+        await _notificationSender.NotifySuccessAsync(message);
     }
 
     public async Task<bool> IsClaudeAvailableAsync()
     {
         return await _processExecutor.IsCommandAvailableAsync("claude");
-    }
-
-    private ClaudeExecutionResult ParseClaudeOutput(string output)
-    {
-        if (string.IsNullOrWhiteSpace(output))
-        {
-            return ClaudeExecutionResult.Failed("Empty response from Claude");
-        }
-
-        try
-        {
-            // Claude outputs multiple JSON lines, we want the final result
-            var lines = output.Split('\n', StringSplitOptions.RemoveEmptyEntries);
-            ClaudeJsonResponse? response = null;
-
-            // Parse each line and look for the "result" type
-            foreach (var line in lines.Reverse())
-            {
-                var trimmed = line.Trim();
-                if (!trimmed.StartsWith('{'))
-                {
-                    continue;
-                }
-
-                try
-                {
-                    var parsed = JsonSerializer.Deserialize<ClaudeJsonResponse>(trimmed);
-                    if (parsed?.Type == "result")
-                    {
-                        response = parsed;
-                        break;
-                    }
-                }
-                catch (JsonException)
-                {
-                    // Continue to next line
-                }
-            }
-
-            if (response == null)
-            {
-                // Try parsing the whole output as a single JSON
-                response = JsonSerializer.Deserialize<ClaudeJsonResponse>(output);
-            }
-
-            if (response == null)
-            {
-                return ClaudeExecutionResult.Failed("Failed to parse Claude JSON output");
-            }
-
-            if (response.IsError == true)
-            {
-                return ClaudeExecutionResult.ClaudeError(response.SessionId, response.Result ?? "Unknown error");
-            }
-
-            _logger.LogInformation(
-                "Claude execution completed. Session: {Session}, Cost: ${Cost}",
-                response.SessionId, response.TotalCostUsd);
-
-            return ClaudeExecutionResult.Succeeded(
-                response.SessionId,
-                response.Result,
-                response.TotalCostUsd);
-        }
-        catch (JsonException ex)
-        {
-            _logger.LogError(ex, "Failed to parse Claude JSON response: {Output}", output);
-            return ClaudeExecutionResult.Failed($"JSON parse error: {ex.Message}");
-        }
     }
 }

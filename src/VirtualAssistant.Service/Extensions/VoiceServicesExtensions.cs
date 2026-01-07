@@ -34,7 +34,9 @@ public static class VoiceServicesExtensions
         this IServiceCollection services,
         IConfiguration configuration)
     {
-        // Claude dispatch service for headless mode execution
+        // Claude dispatch service components (SRP - extracted into focused classes)
+        services.AddSingleton<IClaudeOutputParser, ClaudeOutputParser>();
+        services.AddSingleton<IClaudeNotificationSender, ClaudeNotificationSender>();
         services.AddSingleton<IClaudeDispatchService, ClaudeDispatchService>();
 
         // String similarity for echo cancellation
