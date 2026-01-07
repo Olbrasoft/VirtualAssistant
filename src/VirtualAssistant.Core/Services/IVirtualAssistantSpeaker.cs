@@ -1,54 +1,19 @@
-using Olbrasoft.VirtualAssistant.Core.Models;
-
 namespace Olbrasoft.VirtualAssistant.Core.Services;
 
 /// <summary>
 /// Single entry point for all TTS operations in VirtualAssistant.
 /// All components must use this interface for speaking - nobody injects ITtsService directly.
 /// Supports speech cancellation for interruption scenarios.
+///
+/// This is a composite interface that inherits from focused interfaces for ISP compliance:
+/// - ISpeechPlaybackState: IsSpeaking, IsPlaying properties
+/// - ISpeechQueueInfo: QueueCount property
+/// - ISpeechController: SpeakAsync method
+/// - ISpeechCancellation: Cancel methods and FlushQueueAsync
+///
+/// New code should prefer injecting the specific interface they need.
 /// </summary>
-public interface IVirtualAssistantSpeaker
+public interface IVirtualAssistantSpeaker : ISpeechPlaybackState, ISpeechQueueInfo, ISpeechController, ISpeechCancellation
 {
-    /// <summary>
-    /// Whether speech is currently playing (includes both generation and playback).
-    /// </summary>
-    bool IsSpeaking { get; }
-
-    /// <summary>
-    /// Whether audio is currently playing (excludes generation phase).
-    /// Use this to check if user can actually hear the speech.
-    /// </summary>
-    bool IsPlaying { get; }
-
-    /// <summary>
-    /// Number of messages waiting in TTS queue.
-    /// </summary>
-    int QueueCount { get; }
-
-    /// <summary>
-    /// Speaks the text using TTS with agent-specific voice selection.
-    /// </summary>
-    /// <param name="text">Text to speak</param>
-    /// <param name="agentName">Optional agent name for voice selection (e.g., "gemini", "claude-code", "opencode"). Defaults to "assistant".</param>
-    /// <param name="skipCache">If true, bypasses TTS cache and always generates fresh audio (use for notifications with dynamic content)</param>
-    /// <param name="ct">Cancellation token</param>
-    /// <returns>Result of the TTS operation including provider used and duration.</returns>
-    Task<TtsResult> SpeakAsync(string text, string? agentName = null, bool skipCache = false, CancellationToken ct = default);
-
-    /// <summary>
-    /// Cancels currently playing speech.
-    /// Next item in queue will start playing.
-    /// </summary>
-    void CancelCurrentSpeech();
-
-    /// <summary>
-    /// Cancels all speech and clears the queue.
-    /// </summary>
-    void CancelAllSpeech();
-
-    /// <summary>
-    /// Plays all queued messages immediately.
-    /// Called when speech lock is released to flush pending messages.
-    /// </summary>
-    Task FlushQueueAsync(CancellationToken ct = default);
+    // Composite interface - all members inherited from base interfaces
 }
