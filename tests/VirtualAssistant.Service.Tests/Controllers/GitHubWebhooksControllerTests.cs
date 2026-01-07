@@ -62,9 +62,9 @@ public class GitHubWebhooksControllerTests
         // Assert
         var okResult = Assert.IsType<OkObjectResult>(result);
         Assert.NotNull(okResult.Value);
-        var value = okResult.Value;
-        // Should indicate not deployed due to non-main branch
-        Assert.Contains("Not main branch", value.ToString());
+        // Controller returns anonymous object, check JSON representation for expected content
+        var json = System.Text.Json.JsonSerializer.Serialize(okResult.Value);
+        Assert.Contains("Not main branch", json);
     }
 
     [Fact]
@@ -80,7 +80,9 @@ public class GitHubWebhooksControllerTests
         // Assert
         var okResult = Assert.IsType<OkObjectResult>(result);
         Assert.NotNull(okResult.Value);
-        Assert.Contains("acknowledged", okResult.Value.ToString()?.ToLower());
+        // Controller returns anonymous object, check JSON representation for expected content
+        var json = System.Text.Json.JsonSerializer.Serialize(okResult.Value);
+        Assert.Contains("acknowledged", json, StringComparison.OrdinalIgnoreCase);
     }
 
     [Fact]
@@ -141,7 +143,9 @@ public class GitHubWebhooksControllerTests
         // Assert
         var okResult = Assert.IsType<OkObjectResult>(result);
         Assert.NotNull(okResult.Value);
-        Assert.Contains("No deploy script", okResult.Value.ToString());
+        // Controller returns anonymous object, check JSON representation for expected content
+        var json = System.Text.Json.JsonSerializer.Serialize(okResult.Value);
+        Assert.Contains("No deploy script", json);
     }
 
     [Fact]

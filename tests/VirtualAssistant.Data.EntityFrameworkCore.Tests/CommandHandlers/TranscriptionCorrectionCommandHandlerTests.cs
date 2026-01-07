@@ -101,8 +101,9 @@ public class TranscriptionCorrectionCommandHandlerTests
         // Assert
         Assert.True(correction.CreatedAt >= beforeTime);
         Assert.True(correction.CreatedAt <= afterTime);
-        // CreatedAt and UpdatedAt are set sequentially, so allow small difference
-        Assert.True(Math.Abs((correction.UpdatedAt - correction.CreatedAt).TotalMilliseconds) < 100);
+        // UpdatedAt should be >= CreatedAt and within the test time window
+        Assert.True(correction.UpdatedAt >= correction.CreatedAt);
+        Assert.True(correction.UpdatedAt <= afterTime);
     }
 
     #endregion
