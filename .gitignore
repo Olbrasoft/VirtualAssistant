@@ -416,3 +416,9 @@ FodyWeavers.xsd
 *.msix
 *.msm
 *.msp
+
+# SecureStore keyfiles (NEVER commit!)
+*.key
+secrets/*.key
+keys/*.key
+.config/virtual-assistant/keys/*.key
