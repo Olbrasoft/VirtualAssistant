@@ -77,7 +77,7 @@ public class DictationWorker : BackgroundService, IDictationControl
 
     protected override async Task ExecuteAsync(CancellationToken stoppingToken)
     {
-        _logger.LogInformation("Dictation worker starting - CapsLock to record, Pause to cancel");
+        _logger.LogInformation("Dictation worker starting - CapsLock to record, Scroll Lock to cancel");
 
         try
         {
@@ -116,10 +116,10 @@ public class DictationWorker : BackgroundService, IDictationControl
             if (!_dictationEnabled)
                 return;
 
-            // Pause - cancel transcription
-            if (e.Key == KeyCode.Pause && _stateMachine.CurrentState == DictationState.Transcribing)
+            // Scroll Lock - cancel transcription
+            if (e.Key == KeyCode.ScrollLock && _stateMachine.CurrentState == DictationState.Transcribing)
             {
-                _logger.LogInformation("Pause pressed - canceling transcription");
+                _logger.LogInformation("Scroll Lock pressed - canceling transcription");
                 CancelTranscription();
                 return;
             }

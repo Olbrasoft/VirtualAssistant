@@ -75,6 +75,6 @@ public enum KeyCode
     /// <summary>Scroll Lock key (key code 70).</summary>
     ScrollLock = 70,
 
-    /// <summary>Pause/Break key (key code 119). Used for canceling dictation transcription.</summary>
+    /// <summary>Pause/Break key (key code 119).</summary>
     Pause = 119
 }
