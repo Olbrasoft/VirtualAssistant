@@ -16,6 +16,10 @@ PROJECT_PATH="/home/jirka/Olbrasoft/VirtualAssistant"
 SERVICE_NAME="virtual-assistant.service"
 LOG_SERVICE_NAME="virtual-assistant-logs.service"
 
+# SecureStore paths
+KEYFILE="$HOME/.config/virtual-assistant/keys/secrets.key"
+SECRETS_FILE="$HOME/.config/virtual-assistant/secrets/secrets.json"
+
 echo "╔══════════════════════════════════════════════════════════════╗"
 echo "║             VirtualAssistant Deploy Script                    ║"
 echo "╠══════════════════════════════════════════════════════════════╣"
@@ -24,6 +28,32 @@ echo "╚═══════════════════════�
 echo
 
 cd "$PROJECT_PATH"
+
+# Step 0: Validate SecureStore keyfile
+echo "🔐 Validating SecureStore configuration..."
+if [ ! -f "$KEYFILE" ]; then
+    echo "❌ ERROR: SecureStore keyfile not found at $KEYFILE"
+    echo "   Run: SecureStore create -s $SECRETS_FILE -k $KEYFILE"
+    exit 1
+fi
+
+# Check permissions (should be 600)
+PERMS=$(stat -c '%a' "$KEYFILE")
+if [ "$PERMS" != "600" ]; then
+    echo "⚠️  Warning: Keyfile permissions are $PERMS (should be 600)"
+    echo "   Fixing permissions..."
+    chmod 600 "$KEYFILE"
+    echo "   ✅ Permissions fixed"
+fi
+
+if [ ! -f "$SECRETS_FILE" ]; then
+    echo "❌ ERROR: SecureStore vault not found at $SECRETS_FILE"
+    echo "   Run: SecureStore create -s $SECRETS_FILE -k $KEYFILE"
+    exit 1
+fi
+
+echo "✅ SecureStore configuration valid"
+echo
 
 # Step 1: Run tests (skip integration tests - they call real APIs)
 echo "📋 Running tests..."
