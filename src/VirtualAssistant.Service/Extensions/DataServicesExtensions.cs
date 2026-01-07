@@ -17,9 +17,8 @@ public static class DataServicesExtensions
         this IServiceCollection services,
         IConfiguration configuration)
     {
-        // Database connection
-        var connectionString = configuration.GetConnectionString("VirtualAssistantDb")
-            ?? throw new InvalidOperationException("Connection string 'VirtualAssistantDb' not found.");
+        // Database connection - build from separate config values (password from SecureStore)
+        var connectionString = BuildConnectionString(configuration);
         services.AddVirtualAssistantData(connectionString);
 
         // CQRS - Register Query/Command handlers from VirtualAssistant.Data.EntityFrameworkCore assembly
@@ -32,5 +31,20 @@ public static class DataServicesExtensions
         services.AddCoreServices();
 
         return services;
+    }
+
+    /// <summary>
+    /// Builds PostgreSQL connection string from separate configuration values.
+    /// Password is loaded from SecureStore for security.
+    /// </summary>
+    private static string BuildConnectionString(IConfiguration configuration)
+    {
+        var host = configuration["Database:Host"] ?? "localhost";
+        var database = configuration["Database:Name"] ?? "virtual_assistant";
+        var username = configuration["Database:Username"] ?? "postgres";
+        var password = configuration["Database:Password"]
+            ?? throw new InvalidOperationException("Database:Password not found in configuration. Add it to SecureStore.");
+
+        return $"Host={host};Database={database};Username={username};Password={password}";
     }
 }
