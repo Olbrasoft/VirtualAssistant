@@ -476,6 +476,28 @@ Priority order (circuit breaker pattern):
 - **Sub-issues** for task steps (NOT markdown checkboxes)
 - **Push frequently** after every significant change
 - **Never close issues** without user approval
+
+### NuGet Package Versioning
+
+**CRITICAL:** All `Olbrasoft.*` packages MUST use wildcard versioning!
+
+```xml
+<!-- ✅ CORRECT - Always get latest version -->
+<PackageReference Include="Olbrasoft.TextToSpeech.Providers.GoogleCloud" Version="1.*" />
+<PackageReference Include="Olbrasoft.Data.Cqrs.Common" Version="1.*" />
+
+<!-- ❌ WRONG - Fixed version gets outdated -->
+<PackageReference Include="Olbrasoft.TextToSpeech.Orchestration" Version="1.1.14" />
+```
+
+**Why:**
+- Olbrasoft packages are published automatically via GitHub Actions on push to main
+- New features and fixes are immediately available
+- Fixed versions require manual updates across all dependent projects
+- Wildcard `1.*` ensures automatic updates within major version
+
+**Exception:** Only use fixed version if specific version compatibility is required (rare).
+
 - **Pull Request workflow:**
   1. Create feature branch from `main`
   2. Push changes and create PR

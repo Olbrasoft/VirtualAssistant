@@ -14,6 +14,7 @@ using Olbrasoft.TextToSpeech.Providers.Azure;
 using Olbrasoft.TextToSpeech.Providers.Google;
 using Olbrasoft.TextToSpeech.Providers.VoiceRss;
 using Olbrasoft.TextToSpeech.Providers.Piper;
+using Olbrasoft.TextToSpeech.Providers.GoogleCloud;
 using Olbrasoft.TextToSpeech.Core.Interfaces;
 using EdgeTtsConfiguration = EdgeTtsWebSocket::Olbrasoft.TextToSpeech.Providers.EdgeTTS.EdgeTtsConfiguration;
 
@@ -61,6 +62,12 @@ public static class TtsServicesExtensions
         // Register EdgeTTS-WebSocket provider (separate package, not included in AddTtsProviders)
         // This MUST be registered AFTER configuration binding
         services.AddSingleton<ITtsProvider, EdgeTtsWebSocket::Olbrasoft.TextToSpeech.Providers.EdgeTTS.EdgeTtsProvider>();
+
+        // Register GoogleCloudMultiKey provider (multi-key fallback support)
+        // API keys are loaded from SecureStore vault via IConfiguration
+        services.Configure<GoogleCloudMultiKeyConfiguration>(
+            configuration.GetSection(GoogleCloudMultiKeyConfiguration.SectionName));
+        services.AddSingleton<ITtsProvider, GoogleCloudMultiKeyTtsProvider>();
 
         // Register Piper provider (separate package)
         services.AddPiperTts(configuration);
