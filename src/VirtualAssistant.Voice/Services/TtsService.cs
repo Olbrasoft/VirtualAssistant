@@ -1,12 +1,14 @@
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.Logging;
+using Microsoft.Extensions.Options;
+using Olbrasoft.VirtualAssistant.Core.Configuration;
 
 namespace Olbrasoft.VirtualAssistant.Voice.Services;
 
 /// <summary>
 /// Voice configuration for different AI clients.
 /// </summary>
-public sealed record VoiceConfig(string Voice, string Rate, string Volume, string Pitch);
+public sealed record VoiceConfig(string Voice, string Rate, string Volume, string Pitch, string? Provider = null);
 
 /// <summary>
 /// Text-to-Speech service orchestrator.
@@ -22,11 +24,12 @@ public sealed class TtsService : IDisposable
     private readonly IAudioPlaybackService _playbackService;
     private readonly ISpeechLockService _speechLockService;
     private readonly SemaphoreSlim _playbackLock = new(1, 1);
-    private readonly VoiceConfig _voiceConfig;
+    private readonly Dictionary<string, TtsProfile> _ttsProfiles;
+    private readonly TtsProfile _defaultProfile;
 
     public TtsService(
         ILogger<TtsService> logger,
-        IConfiguration configuration,
+        IOptions<TtsProfilesOptions> ttsProfilesOptions,
         ITtsProviderChain ttsProviderChain,
         ITtsQueueService queueService,
         ITtsCacheService cacheService,
@@ -40,17 +43,42 @@ public sealed class TtsService : IDisposable
         _playbackService = playbackService;
         _speechLockService = speechLockService;
 
-        // Voice config is now provider-specific in TTS:EdgeTTS, TTS:AzureTTS, etc.
-        // Use empty config - each provider reads its own configuration
-        _voiceConfig = new VoiceConfig("", "", "", "");
+        // Load TTS profiles from options
+        var options = ttsProfilesOptions.Value;
+        _ttsProfiles = new Dictionary<string, TtsProfile>(options.Profiles, StringComparer.OrdinalIgnoreCase);
+        _defaultProfile = options.DefaultProfile;
 
-        _logger.LogInformation("TTS Service initialized - providers use their own voice configuration");
+        _logger.LogInformation("TTS Service initialized with {ProfileCount} profiles (default: {DefaultVoice})",
+            _ttsProfiles.Count, _defaultProfile.Voice);
+
+        // Log loaded profiles
+        foreach (var (name, profile) in _ttsProfiles)
+        {
+            _logger.LogDebug("TTS profile '{ProfileName}': {Provider} - {Voice}", name, profile.Provider, profile.Voice);
+        }
     }
 
     /// <summary>
-    /// Gets the voice configuration (single config for all sources).
+    /// Gets the voice configuration for the specified source (agent).
+    /// Maps source to TTS profile from appsettings.json.
     /// </summary>
-    private VoiceConfig GetVoiceConfig(string? source) => _voiceConfig;
+    private VoiceConfig GetVoiceConfig(string? source)
+    {
+        TtsProfile profile;
+
+        if (!string.IsNullOrEmpty(source) && _ttsProfiles.TryGetValue(source, out var foundProfile))
+        {
+            profile = foundProfile;
+            _logger.LogDebug("Using TTS profile '{Source}': {Provider} - {Voice}", source, profile.Provider, profile.Voice);
+        }
+        else
+        {
+            profile = _defaultProfile;
+            _logger.LogDebug("Using default TTS profile: {Provider} - {Voice}", profile.Provider, profile.Voice);
+        }
+
+        return new VoiceConfig(profile.Voice, profile.Rate, profile.Volume, profile.Pitch, profile.Provider);
+    }
 
     /// <summary>
     /// Speaks text via TTS provider.

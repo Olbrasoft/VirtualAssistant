@@ -52,6 +52,13 @@ public class TtsProfile
     public string Rate { get; set; } = "+0%";
 
     /// <summary>
+    /// Volume level adjustment with unit suffix.
+    /// Format: "+N%" or "-N%" where N is 0-100, or "N" for absolute value (0-100).
+    /// Examples: "+0%" (normal), "+10%" (10% louder), "100" (100% volume).
+    /// </summary>
+    public string Volume { get; set; } = "+0%";
+
+    /// <summary>
     /// Voice pitch adjustment with unit suffix.
     /// Format: "+NHz" or "-NHz" where N is 0-100.
     /// Examples: "+5Hz" (higher pitch), "+0Hz" (normal), "-10Hz" (lower pitch).
