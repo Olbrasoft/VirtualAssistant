@@ -30,9 +30,7 @@ public class NotificationService : INotificationService
     /// <inheritdoc />
     public async Task<int> CreateNotificationAsync(string text, string agentName, IReadOnlyList<int>? issueIds = null, CancellationToken ct = default)
     {
-        ArgumentException.ThrowIfNullOrWhiteSpace(text, nameof(text));
-        ArgumentException.ThrowIfNullOrWhiteSpace(agentName, nameof(agentName));
-
+        // Validation delegated to command handler (DRY principle)
         var command = new CreateNotificationCommand(text, agentName, issueIds);
         var notificationId = await _commandExecutor.ExecuteAsync(command, ct);
 

@@ -35,7 +35,7 @@ public partial class GitHubReferenceService : IGitHubReferenceService
         var command = new EnsureRepositoryExistsCommand(owner, name);
         var repoId = await _commandExecutor.ExecuteAsync(command, ct);
 
-        _logger.LogDebug("Ensured GitHub repository reference: {Owner}/{Name} (ID: {Id})", owner, name, repoId);
+        _logger.LogInformation("Ensured GitHub repository reference: {Owner}/{Name} (ID: {Id})", owner, name, repoId);
         return repoId;
     }
 
@@ -45,7 +45,7 @@ public partial class GitHubReferenceService : IGitHubReferenceService
         var command = new EnsureIssueExistsCommand(owner, name, issueNumber);
         var issueId = await _commandExecutor.ExecuteAsync(command, ct);
 
-        _logger.LogDebug("Ensured GitHub issue reference: {Owner}/{Name}#{Number} (ID: {Id})",
+        _logger.LogInformation("Ensured GitHub issue reference: {Owner}/{Name}#{Number} (ID: {Id})",
             owner, name, issueNumber, issueId);
         return issueId;
     }

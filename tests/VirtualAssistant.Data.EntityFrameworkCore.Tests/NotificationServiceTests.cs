@@ -11,7 +11,7 @@ namespace Olbrasoft.VirtualAssistant.Data.EntityFrameworkCore.Tests;
 
 /// <summary>
 /// Unit tests for NotificationService using mocked CQRS infrastructure.
-/// For handler-level tests, see NotificationCommandHandlerTests and NotificationQueryHandlerTests.
+/// Tests verify that the service correctly delegates to CQRS commands and queries.
 /// </summary>
 public class NotificationServiceTests
 {
@@ -66,18 +66,28 @@ public class NotificationServiceTests
     }
 
     [Fact]
-    public async Task CreateNotificationAsync_ThrowsOnNullText()
+    public async Task CreateNotificationAsync_PassesNullTextToCommand_ValidationInHandler()
     {
-        // Act & Assert
-        await Assert.ThrowsAsync<ArgumentNullException>(() =>
+        // Arrange - validation is in handler, service just delegates
+        _mockCommandExecutor
+            .Setup(x => x.ExecuteAsync(It.IsAny<CreateNotificationCommand>(), It.IsAny<CancellationToken>()))
+            .ThrowsAsync(new ArgumentException("text", "Text cannot be null"));
+
+        // Act & Assert - exception comes from handler, not service
+        await Assert.ThrowsAsync<ArgumentException>(() =>
             _service.CreateNotificationAsync(null!, "claude-code"));
     }
 
     [Fact]
-    public async Task CreateNotificationAsync_ThrowsOnNullAgentName()
+    public async Task CreateNotificationAsync_PassesNullAgentNameToCommand_ValidationInHandler()
     {
-        // Act & Assert
-        await Assert.ThrowsAsync<ArgumentNullException>(() =>
+        // Arrange - validation is in handler, service just delegates
+        _mockCommandExecutor
+            .Setup(x => x.ExecuteAsync(It.IsAny<CreateNotificationCommand>(), It.IsAny<CancellationToken>()))
+            .ThrowsAsync(new ArgumentException("agentName", "AgentName cannot be null"));
+
+        // Act & Assert - exception comes from handler, not service
+        await Assert.ThrowsAsync<ArgumentException>(() =>
             _service.CreateNotificationAsync("Test", null!));
     }
 

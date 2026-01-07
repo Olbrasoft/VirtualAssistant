@@ -26,20 +26,22 @@ public class CreateNotificationCommandHandler(VirtualAssistantDbContext context)
         };
 
         Context.Notifications.Add(notification);
-        await Context.SaveChangesAsync(token);
 
+        // Add issue links using navigation property - EF Core handles FK assignment
         if (command.IssueIds is { Count: > 0 })
         {
             foreach (var issueId in command.IssueIds.Distinct())
             {
                 Context.NotificationGitHubIssues.Add(new NotificationGitHubIssue
                 {
-                    NotificationId = notification.Id,
+                    Notification = notification,  // Use navigation property instead of ID
                     GitHubIssueId = issueId
                 });
             }
-            await Context.SaveChangesAsync(token);
         }
+
+        // Single SaveChanges - EF Core sets notification.Id and propagates to NotificationGitHubIssue.NotificationId
+        await Context.SaveChangesAsync(token);
 
         return notification.Id;
     }

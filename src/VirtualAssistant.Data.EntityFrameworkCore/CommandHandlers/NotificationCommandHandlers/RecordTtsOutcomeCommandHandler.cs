@@ -25,31 +25,19 @@ public class RecordTtsOutcomeCommandHandler(VirtualAssistantDbContext context)
 
             if (provider == null)
             {
-                try
+                provider = new Provider
                 {
-                    provider = new Provider
-                    {
-                        Name = command.ProviderName,
-                        Type = "tts",
-                        Enabled = true,
-                        Priority = 0
-                    };
-                    Context.Providers.Add(provider);
-                    await Context.SaveChangesAsync(token);
-                }
-                catch (DbUpdateException)
-                {
-                    Context.Entry(provider!).State = EntityState.Detached;
-                    provider = await Context.Providers
-                        .FirstOrDefaultAsync(p => p.Name == command.ProviderName && p.Type == "tts", token);
-
-                    if (provider == null)
-                        throw;
-                }
+                    Name = command.ProviderName,
+                    Type = "tts",
+                    Enabled = true,
+                    Priority = 0
+                };
+                Context.Providers.Add(provider);
             }
         }
 
-        notification.FinalProviderId = provider?.Id;
+        // Use navigation property - EF Core handles FK assignment
+        notification.FinalProvider = provider;
         notification.FinalTtsStatus = command.Status;
         notification.TtsCompletedAt = DateTime.UtcNow;
 
@@ -58,7 +46,7 @@ public class RecordTtsOutcomeCommandHandler(VirtualAssistantDbContext context)
             var attempt = new NotificationTtsAttempt
             {
                 NotificationId = command.NotificationId,
-                ProviderId = provider.Id,
+                Provider = provider,  // Use navigation property instead of ID
                 AttemptOrder = 1,
                 StatusCode = command.Status,
                 DurationMs = command.DurationMs,
@@ -67,7 +55,48 @@ public class RecordTtsOutcomeCommandHandler(VirtualAssistantDbContext context)
             Context.NotificationTtsAttempts.Add(attempt);
         }
 
-        await Context.SaveChangesAsync(token);
+        // Single SaveChanges - handles both provider creation and notification update
+        try
+        {
+            await Context.SaveChangesAsync(token);
+        }
+        catch (DbUpdateException) when (provider != null && Context.Entry(provider).State == EntityState.Added)
+        {
+            // Race condition: another request created the same provider
+            // Detach and retry with existing provider
+            Context.Entry(provider).State = EntityState.Detached;
+
+            provider = await Context.Providers
+                .FirstOrDefaultAsync(p => p.Name == command.ProviderName && p.Type == "tts", token);
+
+            if (provider == null)
+                throw;
+
+            notification.FinalProvider = provider;
+            notification.FinalProviderId = provider.Id;
+
+            // Recreate attempt with existing provider
+            var existingAttempt = Context.ChangeTracker.Entries<NotificationTtsAttempt>()
+                .FirstOrDefault(e => e.Entity.NotificationId == command.NotificationId);
+            if (existingAttempt != null)
+            {
+                existingAttempt.State = EntityState.Detached;
+            }
+
+            var retryAttempt = new NotificationTtsAttempt
+            {
+                NotificationId = command.NotificationId,
+                Provider = provider,
+                AttemptOrder = 1,
+                StatusCode = command.Status,
+                DurationMs = command.DurationMs,
+                CreatedAt = DateTime.UtcNow
+            };
+            Context.NotificationTtsAttempts.Add(retryAttempt);
+
+            await Context.SaveChangesAsync(token);
+        }
+
         return true;
     }
 }
