@@ -1,4 +1,3 @@
-using Microsoft.Extensions.Configuration;
 using NeoSmart.SecureStore;
 
 namespace Olbrasoft.VirtualAssistant.Service.Configuration;

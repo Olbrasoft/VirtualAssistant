@@ -1,5 +1,4 @@
 using Olbrasoft.VirtualAssistant.LlmChain.Configuration;
-using Olbrasoft.VirtualAssistant.LlmChain.Dtos;
 
 namespace Olbrasoft.VirtualAssistant.LlmChain;
 

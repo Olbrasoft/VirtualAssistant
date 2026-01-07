@@ -1,4 +1,3 @@
-using Olbrasoft.Data.Cqrs;
 using Olbrasoft.VirtualAssistant.Data.Enums;
 
 namespace Olbrasoft.VirtualAssistant.Data.Commands.NotificationCommands;

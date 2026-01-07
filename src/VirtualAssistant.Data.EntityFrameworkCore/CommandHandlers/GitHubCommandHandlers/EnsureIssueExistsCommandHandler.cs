@@ -1,4 +1,3 @@
-using Olbrasoft.Data.Cqrs;
 using Olbrasoft.VirtualAssistant.Data.Commands.GitHubCommands;
 
 namespace Olbrasoft.VirtualAssistant.Data.EntityFrameworkCore.CommandHandlers.GitHubCommandHandlers;

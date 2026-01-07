@@ -1,4 +1,3 @@
-using Olbrasoft.Data.Cqrs;
 using Olbrasoft.VirtualAssistant.Data.Entities;
 
 namespace Olbrasoft.VirtualAssistant.Data.Queries.TranscriptionCorrectionQueries;

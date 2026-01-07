@@ -1,4 +1,3 @@
-using Microsoft.Extensions.Logging;
 using Olbrasoft.Data.Cqrs;
 using Olbrasoft.VirtualAssistant.Data.Commands.TranscriptionCorrectionCommands;
 using Olbrasoft.VirtualAssistant.Data.Entities;

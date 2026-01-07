@@ -1,10 +1,8 @@
-using System.Net.Http.Headers;
 using System.Text.Json;
 using FluentAssertions;
 using Microsoft.Extensions.Logging;
 using Moq;
 using Olbrasoft.VirtualAssistant.LlmChain.Configuration;
-using Olbrasoft.VirtualAssistant.LlmChain.Dtos;
 
 namespace Olbrasoft.VirtualAssistant.LlmChain.Tests;
 

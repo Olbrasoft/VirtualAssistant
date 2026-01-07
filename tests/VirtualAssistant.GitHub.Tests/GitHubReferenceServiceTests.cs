@@ -1,5 +1,4 @@
 using Microsoft.Extensions.Logging;
-using Moq;
 using Olbrasoft.Data.Cqrs;
 using Olbrasoft.VirtualAssistant.Data.Commands.GitHubCommands;
 using Olbrasoft.VirtualAssistant.GitHub.Services;

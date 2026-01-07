@@ -1,5 +1,3 @@
-using Microsoft.EntityFrameworkCore;
-using Olbrasoft.VirtualAssistant.Data.Entities;
 using Olbrasoft.VirtualAssistant.Data.Queries.PromptQueries;
 
 namespace Olbrasoft.VirtualAssistant.Data.EntityFrameworkCore.QueryHandlers.PromptQueryHandlers;

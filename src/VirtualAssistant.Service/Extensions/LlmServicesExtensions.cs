@@ -1,4 +1,3 @@
-using Olbrasoft.VirtualAssistant.Core.Services;
 using Olbrasoft.VirtualAssistant.Voice.Services;
 
 namespace Olbrasoft.VirtualAssistant.Service.Extensions;

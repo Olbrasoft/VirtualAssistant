@@ -1,5 +1,3 @@
-using Olbrasoft.Data.Cqrs;
-
 namespace Olbrasoft.VirtualAssistant.Data.Queries.NotificationQueries;
 
 /// <summary>

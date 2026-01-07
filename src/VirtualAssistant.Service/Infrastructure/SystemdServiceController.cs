@@ -1,5 +1,4 @@
 using System.Diagnostics;
-using Microsoft.Extensions.Logging;
 using Olbrasoft.VirtualAssistant.Core.Services;
 
 namespace Olbrasoft.VirtualAssistant.Service.Infrastructure;

@@ -1,4 +1,3 @@
-using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
 using Olbrasoft.Data.Cqrs;
 using Olbrasoft.VirtualAssistant.Core.Models;
