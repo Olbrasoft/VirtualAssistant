@@ -1,3 +1,4 @@
+using Olbrasoft.VirtualAssistant.Service.Configuration;
 using Olbrasoft.VirtualAssistant.Service.Extensions;
 using Olbrasoft.VirtualAssistant.Service.Tray;
 
@@ -59,6 +60,14 @@ public class Program
         builder.Configuration
             .AddJsonFile(configPath, optional: true, reloadOnChange: true)
             .AddEnvironmentVariables();
+
+        // Add SecureStore for encrypted secrets (Google TTS API keys, etc.)
+        // Secrets are stored in ~/.config/virtual-assistant/secrets/secrets.json
+        // Key file is at ~/.config/virtual-assistant/keys/secrets.key
+        var secureStoreConfig = builder.Configuration.GetSection("SecureStore");
+        var secretsPath = secureStoreConfig["SecretsPath"] ?? "~/.config/virtual-assistant/secrets/secrets.json";
+        var keyPath = secureStoreConfig["KeyPath"] ?? "~/.config/virtual-assistant/keys/secrets.key";
+        builder.Configuration.AddSecureStore(secretsPath, keyPath);
 
         // Register all services
         builder.Services.AddVirtualAssistantServices(builder.Configuration);
