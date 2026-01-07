@@ -96,13 +96,15 @@ public class ApiKeyRotator : IApiKeyRotator
     public void CleanupExpiredRateLimits()
     {
         var now = DateTime.UtcNow;
-        foreach (var key in _rateLimitedUntil.Keys.ToList())
+        var expiredKeys = _rateLimitedUntil
+            .Where(kvp => kvp.Value <= now)
+            .Select(kvp => kvp.Key)
+            .ToList();
+
+        foreach (var key in expiredKeys)
         {
-            if (_rateLimitedUntil.TryGetValue(key, out var until) && until <= now)
-            {
-                _rateLimitedUntil.TryRemove(key, out _);
-                _logger.LogDebug("Rate limit expired for {Key}", key);
-            }
+            _rateLimitedUntil.TryRemove(key, out _);
+            _logger.LogDebug("Rate limit expired for {Key}", key);
         }
     }
 
