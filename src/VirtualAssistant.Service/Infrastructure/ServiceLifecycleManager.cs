@@ -14,15 +14,18 @@ public class ServiceLifecycleManager : IServiceLifecycleManager
 {
     private readonly ILogger<ServiceLifecycleManager> _logger;
     private readonly IServiceStatusUpdater? _statusUpdater;
+    private readonly ISystemdServiceController _serviceController;
     private readonly ServiceMonitoringOptions _options;
 
     public ServiceLifecycleManager(
         ILogger<ServiceLifecycleManager> logger,
         IOptions<ServiceMonitoringOptions> options,
+        ISystemdServiceController serviceController,
         IServiceStatusUpdater? statusUpdater = null)
     {
         _logger = logger ?? throw new ArgumentNullException(nameof(logger));
         ArgumentNullException.ThrowIfNull(options);
+        _serviceController = serviceController ?? throw new ArgumentNullException(nameof(serviceController));
         _options = options.Value;
         _statusUpdater = statusUpdater;
     }
@@ -37,7 +40,7 @@ public class ServiceLifecycleManager : IServiceLifecycleManager
         try
         {
             _logger.LogInformation("Starting log-viewer service via tray menu");
-            var success = await ExecuteSystemctlCommandAsync("start", "log-viewer.service");
+            var success = await _serviceController.StartServiceAsync("log-viewer.service");
 
             if (success)
             {
@@ -60,7 +63,7 @@ public class ServiceLifecycleManager : IServiceLifecycleManager
         try
         {
             _logger.LogInformation("Stopping log-viewer service via tray menu");
-            var success = await ExecuteSystemctlCommandAsync("stop", "log-viewer.service");
+            var success = await _serviceController.StopServiceAsync("log-viewer.service");
 
             if (success)
             {
@@ -85,7 +88,7 @@ public class ServiceLifecycleManager : IServiceLifecycleManager
 
         try
         {
-            var isRunning = await CheckServiceIsRunningAsync("log-viewer.service");
+            var isRunning = await _serviceController.IsRunningAsync("log-viewer.service");
             _statusUpdater.UpdateLogViewerStatus(isRunning);
             _logger.LogDebug("Log-viewer status updated: Running={IsRunning}", isRunning);
         }
@@ -93,56 +96,6 @@ public class ServiceLifecycleManager : IServiceLifecycleManager
         {
             _logger.LogError(ex, "Failed to refresh log-viewer status");
         }
-    }
-
-    /// <summary>
-    /// Executes a systemctl command and returns whether it succeeded.
-    /// </summary>
-    private async Task<bool> ExecuteSystemctlCommandAsync(string command, string serviceName)
-    {
-        var startInfo = new ProcessStartInfo
-        {
-            FileName = "systemctl",
-            Arguments = $"--user {command} {serviceName}",
-            UseShellExecute = false,
-            CreateNoWindow = true
-        };
-
-        using var process = Process.Start(startInfo);
-        if (process == null)
-        {
-            _logger.LogError("Failed to start systemctl process for command '{Command} {Service}'",
-                command, serviceName);
-            return false;
-        }
-
-        await process.WaitForExitAsync();
-        return process.ExitCode == 0;
-    }
-
-    /// <summary>
-    /// Checks if a systemd service is currently running.
-    /// </summary>
-    private async Task<bool> CheckServiceIsRunningAsync(string serviceName)
-    {
-        var startInfo = new ProcessStartInfo
-        {
-            FileName = "systemctl",
-            Arguments = $"--user is-active {serviceName}",
-            UseShellExecute = false,
-            RedirectStandardOutput = true,
-            CreateNoWindow = true
-        };
-
-        using var process = Process.Start(startInfo);
-        if (process == null)
-        {
-            _logger.LogWarning("Failed to start systemctl process to check status of {Service}", serviceName);
-            return false;
-        }
-
-        await process.WaitForExitAsync();
-        return process.ExitCode == 0;
     }
 
     /// <summary>
@@ -154,7 +107,7 @@ public class ServiceLifecycleManager : IServiceLifecycleManager
         var sw = Stopwatch.StartNew();
         while (sw.ElapsedMilliseconds < _options.StatusPollTimeoutMs)
         {
-            var isRunning = await CheckServiceIsRunningAsync(serviceName);
+            var isRunning = await _serviceController.IsRunningAsync(serviceName);
             if (isRunning == expectedRunning)
             {
                 _logger.LogDebug("Service {Service} reached expected state (running={Expected}) after {ElapsedMs}ms",

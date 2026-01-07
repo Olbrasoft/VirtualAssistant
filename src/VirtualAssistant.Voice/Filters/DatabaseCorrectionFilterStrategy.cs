@@ -1,8 +1,4 @@
-using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
-using Olbrasoft.Data.Cqrs;
-using Olbrasoft.VirtualAssistant.Data.Commands.TranscriptionCorrectionCommands;
-using Olbrasoft.VirtualAssistant.Data.Queries.TranscriptionCorrectionQueries;
 using Olbrasoft.VirtualAssistant.Data.Entities;
 
 namespace Olbrasoft.VirtualAssistant.Voice.Filters;
@@ -14,7 +10,7 @@ namespace Olbrasoft.VirtualAssistant.Voice.Filters;
 public class DatabaseCorrectionFilterStrategy : ITextFilterStrategy
 {
     private readonly ILogger<DatabaseCorrectionFilterStrategy> _logger;
-    private readonly IServiceScopeFactory? _serviceScopeFactory;
+    private readonly ITranscriptionCorrectionRepository? _repository;
 
     // Database corrections cache
     private IReadOnlyList<TranscriptionCorrection> _cachedCorrections = Array.Empty<TranscriptionCorrection>();
@@ -24,17 +20,17 @@ public class DatabaseCorrectionFilterStrategy : ITextFilterStrategy
 
     public DatabaseCorrectionFilterStrategy(
         ILogger<DatabaseCorrectionFilterStrategy> logger,
-        IServiceScopeFactory? serviceScopeFactory = null)
+        ITranscriptionCorrectionRepository? repository = null)
     {
         _logger = logger ?? throw new ArgumentNullException(nameof(logger));
-        _serviceScopeFactory = serviceScopeFactory;
+        _repository = repository;
     }
 
     /// <inheritdoc/>
     public string Name => "Database Corrections";
 
     /// <inheritdoc/>
-    public bool IsEnabled => _serviceScopeFactory != null;
+    public bool IsEnabled => _repository != null;
 
     /// <inheritdoc/>
     public string Apply(string text)
@@ -83,7 +79,7 @@ public class DatabaseCorrectionFilterStrategy : ITextFilterStrategy
     /// </summary>
     private void RefreshCorrectionsCache()
     {
-        if (_serviceScopeFactory == null)
+        if (_repository == null)
             return;
 
         if (DateTime.UtcNow < _cacheExpiry)
@@ -97,20 +93,8 @@ public class DatabaseCorrectionFilterStrategy : ITextFilterStrategy
 
             try
             {
-                // Create a new scope to get scoped query processor
-                using var scope = _serviceScopeFactory.CreateScope();
-                var queryProcessor = scope.ServiceProvider.GetService<IQueryProcessor>();
-
-                if (queryProcessor == null)
-                {
-                    _logger.LogWarning("IQueryProcessor not available");
-                    _cacheExpiry = DateTime.UtcNow.AddSeconds(30);
-                    return;
-                }
-
                 // Synchronous call is acceptable for cache refresh
-                var query = new GetActiveTranscriptionCorrectionsQuery();
-                _cachedCorrections = queryProcessor.ProcessAsync(query, CancellationToken.None).GetAwaiter().GetResult();
+                _cachedCorrections = _repository.GetActiveCorrectionsAsync(CancellationToken.None).GetAwaiter().GetResult();
 
                 _cacheExpiry = DateTime.UtcNow.Add(CacheDuration);
 
@@ -134,22 +118,12 @@ public class DatabaseCorrectionFilterStrategy : ITextFilterStrategy
     /// </summary>
     private async Task TrackCorrectionUsageAsync(int correctionId)
     {
-        if (_serviceScopeFactory == null)
+        if (_repository == null)
             return;
 
         try
         {
-            // Create a new scope to get scoped command executor
-            using var scope = _serviceScopeFactory.CreateScope();
-            var commandExecutor = scope.ServiceProvider.GetService<ICommandExecutor>();
-
-            if (commandExecutor != null)
-            {
-                var command = new TrackCorrectionUsageCommand(
-                    CorrectionId: correctionId
-                );
-                await commandExecutor.ExecuteAsync(command, CancellationToken.None);
-            }
+            await _repository.TrackUsageAsync(correctionId, CancellationToken.None);
         }
         catch (Exception ex)
         {
