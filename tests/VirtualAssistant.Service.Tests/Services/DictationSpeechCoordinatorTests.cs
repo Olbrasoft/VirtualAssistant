@@ -11,13 +11,16 @@ namespace Olbrasoft.VirtualAssistant.Service.Tests.Services;
 /// <summary>
 /// Unit tests for DictationSpeechCoordinator.
 /// Tests TTS coordination during dictation state changes.
+/// Uses segregated interfaces (ISP) for speech functionality.
 /// </summary>
 public class DictationSpeechCoordinatorTests : IDisposable
 {
     private readonly Mock<ILogger<DictationSpeechCoordinator>> _loggerMock;
     private readonly Mock<IDictationStateMachine> _stateMachineMock;
     private readonly Mock<ISpeechLockService> _lockServiceMock;
-    private readonly Mock<IVirtualAssistantSpeaker> _speakerMock;
+    private readonly Mock<ISpeechPlaybackState> _playbackStateMock;
+    private readonly Mock<ISpeechQueueInfo> _queueInfoMock;
+    private readonly Mock<ISpeechCancellation> _speechCancellationMock;
     private readonly DictationSpeechCoordinator _sut;
 
     public DictationSpeechCoordinatorTests()
@@ -25,13 +28,17 @@ public class DictationSpeechCoordinatorTests : IDisposable
         _loggerMock = new Mock<ILogger<DictationSpeechCoordinator>>();
         _stateMachineMock = new Mock<IDictationStateMachine>();
         _lockServiceMock = new Mock<ISpeechLockService>();
-        _speakerMock = new Mock<IVirtualAssistantSpeaker>();
+        _playbackStateMock = new Mock<ISpeechPlaybackState>();
+        _queueInfoMock = new Mock<ISpeechQueueInfo>();
+        _speechCancellationMock = new Mock<ISpeechCancellation>();
 
         _sut = new DictationSpeechCoordinator(
             _loggerMock.Object,
             _stateMachineMock.Object,
             _lockServiceMock.Object,
-            _speakerMock.Object);
+            _playbackStateMock.Object,
+            _queueInfoMock.Object,
+            _speechCancellationMock.Object);
     }
 
     public void Dispose()
@@ -76,14 +83,14 @@ public class DictationSpeechCoordinatorTests : IDisposable
     {
         // Arrange
         await _sut.StartAsync(CancellationToken.None);
-        _speakerMock.Setup(x => x.IsPlaying).Returns(true);  // Audio is playing (user can hear it)
-        _speakerMock.Setup(x => x.QueueCount).Returns(3);
+        _playbackStateMock.Setup(x => x.IsPlaying).Returns(true);  // Audio is playing (user can hear it)
+        _queueInfoMock.Setup(x => x.QueueCount).Returns(3);
 
         // Act
         _stateMachineMock.Raise(m => m.StateChanged += null, this, DictationState.Recording);
 
         // Assert
-        _speakerMock.Verify(x => x.CancelCurrentSpeech(), Times.Once);
+        _speechCancellationMock.Verify(x => x.CancelCurrentSpeech(), Times.Once);
     }
 
     [Fact]
@@ -91,14 +98,14 @@ public class DictationSpeechCoordinatorTests : IDisposable
     {
         // Arrange - TTS is generating audio but not playing yet
         await _sut.StartAsync(CancellationToken.None);
-        _speakerMock.Setup(x => x.IsSpeaking).Returns(true);   // Generation in progress
-        _speakerMock.Setup(x => x.IsPlaying).Returns(false);   // But not playing yet
+        _playbackStateMock.Setup(x => x.IsSpeaking).Returns(true);   // Generation in progress
+        _playbackStateMock.Setup(x => x.IsPlaying).Returns(false);   // But not playing yet
 
         // Act
         _stateMachineMock.Raise(m => m.StateChanged += null, this, DictationState.Recording);
 
         // Assert - Message should NOT be cancelled (will queue naturally due to lock)
-        _speakerMock.Verify(x => x.CancelCurrentSpeech(), Times.Never);
+        _speechCancellationMock.Verify(x => x.CancelCurrentSpeech(), Times.Never);
     }
 
     [Fact]
@@ -106,14 +113,14 @@ public class DictationSpeechCoordinatorTests : IDisposable
     {
         // Arrange
         await _sut.StartAsync(CancellationToken.None);
-        _speakerMock.Setup(x => x.IsSpeaking).Returns(false);
-        _speakerMock.Setup(x => x.IsPlaying).Returns(false);
+        _playbackStateMock.Setup(x => x.IsSpeaking).Returns(false);
+        _playbackStateMock.Setup(x => x.IsPlaying).Returns(false);
 
         // Act
         _stateMachineMock.Raise(m => m.StateChanged += null, this, DictationState.Recording);
 
         // Assert
-        _speakerMock.Verify(x => x.CancelCurrentSpeech(), Times.Never);
+        _speechCancellationMock.Verify(x => x.CancelCurrentSpeech(), Times.Never);
     }
 
     #endregion
@@ -138,13 +145,13 @@ public class DictationSpeechCoordinatorTests : IDisposable
     {
         // Arrange
         await _sut.StartAsync(CancellationToken.None);
-        _speakerMock.Setup(x => x.IsPlaying).Returns(true);  // Audio is playing
+        _playbackStateMock.Setup(x => x.IsPlaying).Returns(true);  // Audio is playing
 
         // Act
         _stateMachineMock.Raise(m => m.StateChanged += null, this, DictationState.Transcribing);
 
         // Assert
-        _speakerMock.Verify(x => x.CancelCurrentSpeech(), Times.Once);
+        _speechCancellationMock.Verify(x => x.CancelCurrentSpeech(), Times.Once);
     }
 
     [Fact]
@@ -152,14 +159,14 @@ public class DictationSpeechCoordinatorTests : IDisposable
     {
         // Arrange - TTS is generating but not playing yet
         await _sut.StartAsync(CancellationToken.None);
-        _speakerMock.Setup(x => x.IsSpeaking).Returns(true);   // Generation in progress
-        _speakerMock.Setup(x => x.IsPlaying).Returns(false);   // But not playing yet
+        _playbackStateMock.Setup(x => x.IsSpeaking).Returns(true);   // Generation in progress
+        _playbackStateMock.Setup(x => x.IsPlaying).Returns(false);   // But not playing yet
 
         // Act
         _stateMachineMock.Raise(m => m.StateChanged += null, this, DictationState.Transcribing);
 
         // Assert - Message should NOT be cancelled (will queue naturally)
-        _speakerMock.Verify(x => x.CancelCurrentSpeech(), Times.Never);
+        _speechCancellationMock.Verify(x => x.CancelCurrentSpeech(), Times.Never);
     }
 
     #endregion
@@ -171,7 +178,7 @@ public class DictationSpeechCoordinatorTests : IDisposable
     {
         // Arrange
         await _sut.StartAsync(CancellationToken.None);
-        _speakerMock.Setup(x => x.QueueCount).Returns(0);
+        _queueInfoMock.Setup(x => x.QueueCount).Returns(0);
 
         // Act
         _stateMachineMock.Raise(m => m.StateChanged += null, this, DictationState.Idle);
@@ -188,7 +195,7 @@ public class DictationSpeechCoordinatorTests : IDisposable
     {
         // Arrange
         await _sut.StartAsync(CancellationToken.None);
-        _speakerMock.Setup(x => x.QueueCount).Returns(5);
+        _queueInfoMock.Setup(x => x.QueueCount).Returns(5);
 
         // Act
         _stateMachineMock.Raise(m => m.StateChanged += null, this, DictationState.Idle);
@@ -197,7 +204,7 @@ public class DictationSpeechCoordinatorTests : IDisposable
         await Task.Delay(100);
 
         // Assert
-        _speakerMock.Verify(x => x.FlushQueueAsync(It.IsAny<CancellationToken>()), Times.Once);
+        _speechCancellationMock.Verify(x => x.FlushQueueAsync(It.IsAny<CancellationToken>()), Times.Once);
     }
 
     [Fact]
@@ -205,7 +212,7 @@ public class DictationSpeechCoordinatorTests : IDisposable
     {
         // Arrange
         await _sut.StartAsync(CancellationToken.None);
-        _speakerMock.Setup(x => x.QueueCount).Returns(0);
+        _queueInfoMock.Setup(x => x.QueueCount).Returns(0);
 
         // Act
         _stateMachineMock.Raise(m => m.StateChanged += null, this, DictationState.Idle);
@@ -214,7 +221,7 @@ public class DictationSpeechCoordinatorTests : IDisposable
         await Task.Delay(100);
 
         // Assert
-        _speakerMock.Verify(x => x.FlushQueueAsync(It.IsAny<CancellationToken>()), Times.Never);
+        _speechCancellationMock.Verify(x => x.FlushQueueAsync(It.IsAny<CancellationToken>()), Times.Never);
     }
 
     #endregion
@@ -226,15 +233,15 @@ public class DictationSpeechCoordinatorTests : IDisposable
     {
         // Arrange - TTS is actually playing (user can hear it)
         await _sut.StartAsync(CancellationToken.None);
-        _speakerMock.Setup(x => x.IsPlaying).Returns(true);    // Audio playing
-        _speakerMock.Setup(x => x.QueueCount).Returns(2);
+        _playbackStateMock.Setup(x => x.IsPlaying).Returns(true);    // Audio playing
+        _queueInfoMock.Setup(x => x.QueueCount).Returns(2);
 
         // Act - user starts dictating (CapsLock ON)
         _stateMachineMock.Raise(m => m.StateChanged += null, this, DictationState.Recording);
 
         // Assert - Should cancel the playing message
         _lockServiceMock.Verify(x => x.Lock(It.IsAny<TimeSpan?>()), Times.Once);
-        _speakerMock.Verify(x => x.CancelCurrentSpeech(), Times.Once);
+        _speechCancellationMock.Verify(x => x.CancelCurrentSpeech(), Times.Once);
     }
 
     [Fact]
@@ -242,16 +249,16 @@ public class DictationSpeechCoordinatorTests : IDisposable
     {
         // Arrange - TTS is generating audio but not playing yet (1-2 sec generation phase)
         await _sut.StartAsync(CancellationToken.None);
-        _speakerMock.Setup(x => x.IsSpeaking).Returns(true);   // Generation in progress
-        _speakerMock.Setup(x => x.IsPlaying).Returns(false);   // Not playing yet
-        _speakerMock.Setup(x => x.QueueCount).Returns(0);
+        _playbackStateMock.Setup(x => x.IsSpeaking).Returns(true);   // Generation in progress
+        _playbackStateMock.Setup(x => x.IsPlaying).Returns(false);   // Not playing yet
+        _queueInfoMock.Setup(x => x.QueueCount).Returns(0);
 
         // Act - user starts dictating (CapsLock ON) during generation
         _stateMachineMock.Raise(m => m.StateChanged += null, this, DictationState.Recording);
 
         // Assert - Should NOT cancel (message will queue naturally due to lock)
         _lockServiceMock.Verify(x => x.Lock(It.IsAny<TimeSpan?>()), Times.Once);
-        _speakerMock.Verify(x => x.CancelCurrentSpeech(), Times.Never);
+        _speechCancellationMock.Verify(x => x.CancelCurrentSpeech(), Times.Never);
     }
 
     [Fact]
@@ -264,7 +271,7 @@ public class DictationSpeechCoordinatorTests : IDisposable
         _stateMachineMock.Raise(m => m.StateChanged += null, this, DictationState.Recording);
 
         // During dictation, messages queue up
-        _speakerMock.Setup(x => x.QueueCount).Returns(3);
+        _queueInfoMock.Setup(x => x.QueueCount).Returns(3);
 
         // Act - user completes dictation (CapsLock OFF → Idle)
         _stateMachineMock.Raise(m => m.StateChanged += null, this, DictationState.Idle);
@@ -274,7 +281,7 @@ public class DictationSpeechCoordinatorTests : IDisposable
 
         // Assert
         _lockServiceMock.Verify(x => x.Unlock(), Times.Once);
-        _speakerMock.Verify(x => x.FlushQueueAsync(It.IsAny<CancellationToken>()), Times.Once);
+        _speechCancellationMock.Verify(x => x.FlushQueueAsync(It.IsAny<CancellationToken>()), Times.Once);
     }
 
     [Fact]
@@ -282,8 +289,8 @@ public class DictationSpeechCoordinatorTests : IDisposable
     {
         // Arrange
         await _sut.StartAsync(CancellationToken.None);
-        _speakerMock.Setup(x => x.IsSpeaking).Returns(false);
-        _speakerMock.Setup(x => x.QueueCount).Returns(0);
+        _playbackStateMock.Setup(x => x.IsSpeaking).Returns(false);
+        _queueInfoMock.Setup(x => x.QueueCount).Returns(0);
 
         // Act 1 - User starts recording (CapsLock ON)
         _stateMachineMock.Raise(m => m.StateChanged += null, this, DictationState.Recording);

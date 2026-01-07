@@ -110,7 +110,13 @@ public static class TtsServicesExtensions
         services.AddSingleton<IWorkspaceDetectionService, WorkspaceDetectionService>();
 
         // VirtualAssistantSpeaker - single entry point for all TTS operations
-        services.AddSingleton<IVirtualAssistantSpeaker, VirtualAssistantSpeaker>();
+        // ISP: Register specific interfaces for consumers that need only subset of functionality
+        services.AddSingleton<VirtualAssistantSpeaker>();
+        services.AddSingleton<IVirtualAssistantSpeaker>(sp => sp.GetRequiredService<VirtualAssistantSpeaker>());
+        services.AddSingleton<ISpeechPlaybackState>(sp => sp.GetRequiredService<VirtualAssistantSpeaker>());
+        services.AddSingleton<ISpeechQueueInfo>(sp => sp.GetRequiredService<VirtualAssistantSpeaker>());
+        services.AddSingleton<ISpeechController>(sp => sp.GetRequiredService<VirtualAssistantSpeaker>());
+        services.AddSingleton<ISpeechCancellation>(sp => sp.GetRequiredService<VirtualAssistantSpeaker>());
 
         // LLM Chain for multi-provider fallback
         services.AddLlmChain(configuration);

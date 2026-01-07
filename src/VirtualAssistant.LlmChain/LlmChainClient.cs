@@ -1,8 +1,5 @@
-using System.Collections.Concurrent;
 using System.Diagnostics;
 using System.Net.Http.Json;
-using System.Text;
-using System.Text.Json;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
 using Olbrasoft.VirtualAssistant.Core.Utilities;
@@ -14,57 +11,49 @@ namespace Olbrasoft.VirtualAssistant.LlmChain;
 
 /// <summary>
 /// LLM chain client with intelligent provider failover and key rotation.
-/// Cycles through providers and keys in round-robin fashion with rate limit handling.
+/// Orchestrates LLM chain execution using injected services for key rotation
+/// and request building (SRP compliant).
 /// </summary>
 public class LlmChainClient : ILlmChainClient
 {
     private readonly ILogger<LlmChainClient> _logger;
     private readonly IHttpClientFactory _httpClientFactory;
+    private readonly IApiKeyRotator _keyRotator;
+    private readonly ILlmRequestBuilder _requestBuilder;
     private readonly LlmChainOptions _options;
-
-    // Cache effective keys per provider (loaded from files at startup)
-    private readonly Dictionary<string, List<string>> _effectiveKeys = new();
-
-    // Track rate-limited provider+key combinations
-    private readonly ConcurrentDictionary<string, DateTime> _rateLimitedUntil = new();
 
     // Round-robin state for provider rotation
     private int _lastProviderIndex = -1;
     private readonly object _providerLock = new();
 
-    // Round-robin state for key rotation (per provider)
-    private readonly ConcurrentDictionary<string, int> _lastKeyIndex = new();
-
     public LlmChainClient(
         ILogger<LlmChainClient> logger,
         IHttpClientFactory httpClientFactory,
+        IApiKeyRotator keyRotator,
+        ILlmRequestBuilder requestBuilder,
         IOptions<LlmChainOptions> options)
     {
-        _logger = logger;
-        _httpClientFactory = httpClientFactory;
+        _logger = logger ?? throw new ArgumentNullException(nameof(logger));
+        _httpClientFactory = httpClientFactory ?? throw new ArgumentNullException(nameof(httpClientFactory));
+        _keyRotator = keyRotator ?? throw new ArgumentNullException(nameof(keyRotator));
+        _requestBuilder = requestBuilder ?? throw new ArgumentNullException(nameof(requestBuilder));
+        ArgumentNullException.ThrowIfNull(options);
         _options = options.Value;
-
-        // Load effective keys for each provider (from files or inline config)
-        foreach (var provider in _options.Providers.Where(p => p.Enabled))
-        {
-            _effectiveKeys[provider.Name] = provider.GetEffectiveApiKeys();
-        }
 
         var enabledProviders = _options.Providers.Where(p => p.Enabled).ToList();
         _logger.LogInformation(
             "LlmChainClient initialized with {Count} providers: {Providers}",
             enabledProviders.Count,
-            string.Join(", ", enabledProviders.Select(p => $"{p.Name}({GetKeyCount(p.Name)} keys)")));
+            string.Join(", ", enabledProviders.Select(p => $"{p.Name}({_keyRotator.GetKeyCount(p.Name)} keys)")));
     }
-
-    private int GetKeyCount(string providerName) =>
-        _effectiveKeys.TryGetValue(providerName, out var keys) ? keys.Count : 0;
 
     public async Task<LlmChainResult> CompleteAsync(LlmChainRequest request, CancellationToken ct = default)
     {
         var stopwatch = Stopwatch.StartNew();
         var attempts = new List<ProviderAttempt>();
-        var enabledProviders = _options.Providers.Where(p => p.Enabled && GetKeyCount(p.Name) > 0).ToList();
+        var enabledProviders = _options.Providers
+            .Where(p => p.Enabled && _keyRotator.GetKeyCount(p.Name) > 0)
+            .ToList();
 
         if (enabledProviders.Count == 0)
         {
@@ -72,10 +61,10 @@ public class LlmChainClient : ILlmChainClient
         }
 
         // Clean up expired rate limits
-        CleanupExpiredRateLimits();
+        _keyRotator.CleanupExpiredRateLimits();
 
         // Try each provider with each key (worst case: all providers * all keys)
-        var maxAttempts = enabledProviders.Sum(p => GetKeyCount(p.Name));
+        var maxAttempts = enabledProviders.Sum(p => _keyRotator.GetKeyCount(p.Name));
         var attemptCount = 0;
 
         while (attemptCount < maxAttempts)
@@ -89,22 +78,14 @@ public class LlmChainClient : ILlmChainClient
             }
 
             // Get next key for this provider in round-robin
-            var (apiKey, keyIndex) = GetNextAvailableKey(provider);
+            var (apiKey, keyIndex) = _keyRotator.GetNextAvailableKey(provider.Name);
             if (apiKey == null)
             {
                 attemptCount++;
                 continue;
             }
 
-            var keyId = MaskKey(apiKey);
-            var providerKeyId = $"{provider.Name}:{keyIndex}";
-
-            // Skip if this provider+key is rate limited
-            if (_rateLimitedUntil.ContainsKey(providerKeyId))
-            {
-                attemptCount++;
-                continue;
-            }
+            var keyId = _keyRotator.MaskKey(apiKey);
 
             try
             {
@@ -144,7 +125,7 @@ public class LlmChainClient : ILlmChainClient
             {
                 // Mark this provider+key as rate limited
                 var resetAt = rle.ResetAt ?? DateTime.UtcNow.Add(_options.RateLimitCooldown);
-                _rateLimitedUntil[providerKeyId] = resetAt;
+                _keyRotator.MarkRateLimited(provider.Name, keyIndex, resetAt);
 
                 attempts.Add(new ProviderAttempt
                 {
@@ -186,27 +167,12 @@ public class LlmChainClient : ILlmChainClient
         CancellationToken ct)
     {
         var httpClient = _httpClientFactory.CreateClient($"LlmChain_{provider.Name}");
-        httpClient.BaseAddress = new Uri(provider.BaseUrl);
-        httpClient.DefaultRequestHeaders.Clear();
-        httpClient.DefaultRequestHeaders.Add("Authorization", $"Bearer {apiKey}");
         httpClient.Timeout = _options.RequestTimeout;
 
-        var llmRequest = new LlmApiRequest
-        {
-            Model = provider.Model,
-            Messages =
-            [
-                new LlmApiMessage { Role = "system", Content = request.SystemPrompt },
-                new LlmApiMessage { Role = "user", Content = request.UserMessage }
-            ],
-            Temperature = request.Temperature,
-            MaxTokens = request.MaxTokens
-        };
+        // Build complete request message (avoids modifying shared HttpClient)
+        using var httpRequest = _requestBuilder.BuildRequest(request, provider, apiKey);
 
-        var requestJson = JsonSerializer.Serialize(llmRequest);
-        using var content = new StringContent(requestJson, Encoding.UTF8, "application/json");
-
-        var response = await httpClient.PostAsync("chat/completions", content, ct);
+        var response = await httpClient.SendAsync(httpRequest, ct);
 
         if (response.StatusCode == System.Net.HttpStatusCode.TooManyRequests)
         {
@@ -240,61 +206,15 @@ public class LlmChainClient : ILlmChainClient
             {
                 _lastProviderIndex = (_lastProviderIndex + 1) % providers.Count;
                 var provider = providers[_lastProviderIndex];
-                var keyCount = GetKeyCount(provider.Name);
 
                 // Check if at least one key is not rate limited
-                for (int k = 0; k < keyCount; k++)
+                if (_keyRotator.HasAvailableKey(provider.Name))
                 {
-                    var providerKeyId = $"{provider.Name}:{k}";
-                    if (!_rateLimitedUntil.ContainsKey(providerKeyId))
-                    {
-                        return provider;
-                    }
+                    return provider;
                 }
             }
 
             return null;
         }
-    }
-
-    private (string? Key, int Index) GetNextAvailableKey(LlmProviderConfig provider)
-    {
-        if (!_effectiveKeys.TryGetValue(provider.Name, out var keys) || keys.Count == 0)
-            return (null, -1);
-
-        var lastIndex = _lastKeyIndex.GetOrAdd(provider.Name, -1);
-
-        for (int i = 0; i < keys.Count; i++)
-        {
-            var keyIndex = (lastIndex + 1 + i) % keys.Count;
-            var providerKeyId = $"{provider.Name}:{keyIndex}";
-
-            if (!_rateLimitedUntil.ContainsKey(providerKeyId))
-            {
-                _lastKeyIndex[provider.Name] = keyIndex;
-                return (keys[keyIndex], keyIndex);
-            }
-        }
-
-        return (null, -1);
-    }
-
-    private void CleanupExpiredRateLimits()
-    {
-        var now = DateTime.UtcNow;
-        foreach (var key in _rateLimitedUntil.Keys.ToList())
-        {
-            if (_rateLimitedUntil.TryGetValue(key, out var until) && until <= now)
-            {
-                _rateLimitedUntil.TryRemove(key, out _);
-                _logger.LogDebug("Rate limit expired for {Key}", key);
-            }
-        }
-    }
-
-    private static string MaskKey(string key)
-    {
-        if (key.Length <= 8) return "****";
-        return $"{key[..4]}...{key[^4..]}";
     }
 }

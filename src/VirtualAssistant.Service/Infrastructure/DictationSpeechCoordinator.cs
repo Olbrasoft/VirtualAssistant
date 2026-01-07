@@ -8,25 +8,32 @@ namespace Olbrasoft.VirtualAssistant.Service.Infrastructure;
 /// <summary>
 /// Coordinates TTS speech with dictation state to prevent audio interference.
 /// Ensures TTS is paused during dictation and resumes after completion.
+/// Uses segregated interfaces (ISP) - only depends on the specific functionality needed.
 /// </summary>
 public class DictationSpeechCoordinator : IHostedService, IDisposable
 {
     private readonly ILogger<DictationSpeechCoordinator> _logger;
     private readonly IDictationStateMachine _stateMachine;
     private readonly ISpeechLockService _lockService;
-    private readonly IVirtualAssistantSpeaker _speaker;
+    private readonly ISpeechPlaybackState _playbackState;
+    private readonly ISpeechQueueInfo _queueInfo;
+    private readonly ISpeechCancellation _speechCancellation;
     private bool _disposed;
 
     public DictationSpeechCoordinator(
         ILogger<DictationSpeechCoordinator> logger,
         IDictationStateMachine stateMachine,
         ISpeechLockService lockService,
-        IVirtualAssistantSpeaker speaker)
+        ISpeechPlaybackState playbackState,
+        ISpeechQueueInfo queueInfo,
+        ISpeechCancellation speechCancellation)
     {
         _logger = logger ?? throw new ArgumentNullException(nameof(logger));
         _stateMachine = stateMachine ?? throw new ArgumentNullException(nameof(stateMachine));
         _lockService = lockService ?? throw new ArgumentNullException(nameof(lockService));
-        _speaker = speaker ?? throw new ArgumentNullException(nameof(speaker));
+        _playbackState = playbackState ?? throw new ArgumentNullException(nameof(playbackState));
+        _queueInfo = queueInfo ?? throw new ArgumentNullException(nameof(queueInfo));
+        _speechCancellation = speechCancellation ?? throw new ArgumentNullException(nameof(speechCancellation));
     }
 
     /// <summary>
@@ -44,9 +51,18 @@ public class DictationSpeechCoordinator : IHostedService, IDisposable
     }
 
     /// <summary>
+    /// Event handler for dictation state changes. Uses fire-and-forget pattern
+    /// to delegate to async handler with proper exception handling.
+    /// </summary>
+    private void OnDictationStateChanged(object? sender, DictationState newState)
+    {
+        _ = HandleDictationStateChangedAsync(newState);
+    }
+
+    /// <summary>
     /// Handles dictation state changes and coordinates TTS accordingly.
     /// </summary>
-    private async void OnDictationStateChanged(object? sender, DictationState newState)
+    private async Task HandleDictationStateChangedAsync(DictationState newState)
     {
         try
         {
@@ -91,14 +107,14 @@ public class DictationSpeechCoordinator : IHostedService, IDisposable
 
         // Cancel ONLY if audio is actually playing (user can hear it)
         // During generation phase, IsPlaying=false, so message gets queued naturally
-        if (_speaker.IsPlaying)
+        if (_playbackState.IsPlaying)
         {
-            _logger.LogInformation("Canceling current TTS playback (queue count: {QueueCount})", _speaker.QueueCount);
-            _speaker.CancelCurrentSpeech();
+            _logger.LogInformation("Canceling current TTS playback (queue count: {QueueCount})", _queueInfo.QueueCount);
+            _speechCancellation.CancelCurrentSpeech();
         }
-        else if (_speaker.IsSpeaking)
+        else if (_playbackState.IsSpeaking)
         {
-            _logger.LogInformation("TTS is generating audio (not playing yet) - will queue naturally (queue count: {QueueCount})", _speaker.QueueCount);
+            _logger.LogInformation("TTS is generating audio (not playing yet) - will queue naturally (queue count: {QueueCount})", _queueInfo.QueueCount);
         }
     }
 
@@ -109,16 +125,16 @@ public class DictationSpeechCoordinator : IHostedService, IDisposable
     private async Task HandleDictationCompleteAsync()
     {
         _logger.LogInformation("Dictation complete - unlocking TTS and flushing queue (queue count: {QueueCount})",
-            _speaker.QueueCount);
+            _queueInfo.QueueCount);
 
         // Unlock TTS to allow playback
         _lockService.Unlock();
 
         // Flush queued messages (FIFO order)
-        if (_speaker.QueueCount > 0)
+        if (_queueInfo.QueueCount > 0)
         {
-            _logger.LogInformation("Flushing {Count} queued TTS messages", _speaker.QueueCount);
-            await _speaker.FlushQueueAsync();
+            _logger.LogInformation("Flushing {Count} queued TTS messages", _queueInfo.QueueCount);
+            await _speechCancellation.FlushQueueAsync();
         }
     }
 
