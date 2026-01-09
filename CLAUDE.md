@@ -46,6 +46,7 @@ cd ~/Olbrasoft/VirtualAssistant && ./deploy/deploy.sh /opt/olbrasoft/virtual-ass
 - Reviews appear as PR comments within minutes of PR creation
 - **MUST address ALL review comments before merging**
 - Common issues flagged: threading, performance, null checks, documentation
+- **NOTE:** Copilot performs only ONE review per PR. No second review after fixes - just verify your fixes address all comments and merge.
 
 **PR Review Process (MANDATORY):**
 1. ✅ Create PR and push feature branch
