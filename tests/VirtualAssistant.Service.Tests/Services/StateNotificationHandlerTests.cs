@@ -2,6 +2,7 @@ using Microsoft.Extensions.Logging;
 using Moq;
 using Olbrasoft.VirtualAssistant.Core.Services;
 using Olbrasoft.VirtualAssistant.Core.StateMachine;
+using Olbrasoft.VirtualAssistant.Desktop.Services;
 using Olbrasoft.VirtualAssistant.Service.Infrastructure;
 using Olbrasoft.VirtualAssistant.Voice.StateMachine;
 
@@ -21,6 +22,7 @@ public class StateNotificationHandlerTests
     private readonly Mock<IIconAnimationService> _iconAnimationServiceMock;
     private readonly Mock<IServiceLifecycleManager> _lifecycleManagerMock;
     private readonly Mock<IDictationStateMachine> _dictationStateMachineMock;
+    private readonly Mock<IRecordingNotificationService> _recordingNotificationServiceMock;
 
     public StateNotificationHandlerTests()
     {
@@ -32,6 +34,7 @@ public class StateNotificationHandlerTests
         _iconAnimationServiceMock = new Mock<IIconAnimationService>();
         _lifecycleManagerMock = new Mock<IServiceLifecycleManager>();
         _dictationStateMachineMock = new Mock<IDictationStateMachine>();
+        _recordingNotificationServiceMock = new Mock<IRecordingNotificationService>();
     }
 
     #region Constructor Tests
@@ -432,6 +435,104 @@ public class StateNotificationHandlerTests
 
         // Assert
         _iconAnimationServiceMock.Verify(x => x.HandleDictationStateChange(DictationState.Idle), Times.Once);
+    }
+
+    [Fact]
+    public void OnDictationStateChanged_WithRecordingState_CallsShowRecordingAsync()
+    {
+        // Arrange
+        var handler = new StateNotificationHandler(
+            _loggerMock.Object,
+            _muteServiceMock.Object,
+            _settingsServiceMock.Object,
+            _statusUpdaterMock.Object,
+            _iconCoordinatorMock.Object,
+            _iconAnimationServiceMock.Object,
+            null,
+            _dictationStateMachineMock.Object,
+            null,
+            _recordingNotificationServiceMock.Object);
+        handler.SubscribeToEvents();
+
+        // Act - simulate dictation state changed event
+        _dictationStateMachineMock.Raise(m => m.StateChanged += null, this, DictationState.Recording);
+
+        // Assert - give async void time to complete
+        Thread.Sleep(50);
+        _recordingNotificationServiceMock.Verify(x => x.ShowRecordingAsync(It.IsAny<CancellationToken>()), Times.Once);
+    }
+
+    [Fact]
+    public void OnDictationStateChanged_WithTranscribingState_CallsShowTranscribingAsync()
+    {
+        // Arrange
+        var handler = new StateNotificationHandler(
+            _loggerMock.Object,
+            _muteServiceMock.Object,
+            _settingsServiceMock.Object,
+            _statusUpdaterMock.Object,
+            _iconCoordinatorMock.Object,
+            _iconAnimationServiceMock.Object,
+            null,
+            _dictationStateMachineMock.Object,
+            null,
+            _recordingNotificationServiceMock.Object);
+        handler.SubscribeToEvents();
+
+        // Act - simulate dictation state changed event
+        _dictationStateMachineMock.Raise(m => m.StateChanged += null, this, DictationState.Transcribing);
+
+        // Assert - give async void time to complete
+        Thread.Sleep(50);
+        _recordingNotificationServiceMock.Verify(x => x.ShowTranscribingAsync(It.IsAny<CancellationToken>()), Times.Once);
+    }
+
+    [Fact]
+    public void OnDictationStateChanged_WithIdleState_CallsHideAsync()
+    {
+        // Arrange
+        var handler = new StateNotificationHandler(
+            _loggerMock.Object,
+            _muteServiceMock.Object,
+            _settingsServiceMock.Object,
+            _statusUpdaterMock.Object,
+            _iconCoordinatorMock.Object,
+            _iconAnimationServiceMock.Object,
+            null,
+            _dictationStateMachineMock.Object,
+            null,
+            _recordingNotificationServiceMock.Object);
+        handler.SubscribeToEvents();
+
+        // Act - simulate dictation state changed event
+        _dictationStateMachineMock.Raise(m => m.StateChanged += null, this, DictationState.Idle);
+
+        // Assert - give async void time to complete
+        Thread.Sleep(50);
+        _recordingNotificationServiceMock.Verify(x => x.HideAsync(It.IsAny<CancellationToken>()), Times.Once);
+    }
+
+    [Fact]
+    public void OnDictationStateChanged_WithoutRecordingNotificationService_DoesNotThrow()
+    {
+        // Arrange
+        var handler = new StateNotificationHandler(
+            _loggerMock.Object,
+            _muteServiceMock.Object,
+            _settingsServiceMock.Object,
+            _statusUpdaterMock.Object,
+            _iconCoordinatorMock.Object,
+            _iconAnimationServiceMock.Object,
+            null,
+            _dictationStateMachineMock.Object,
+            null,
+            null); // No recording notification service
+        handler.SubscribeToEvents();
+
+        // Act & Assert - should not throw
+        _dictationStateMachineMock.Raise(m => m.StateChanged += null, this, DictationState.Recording);
+        _dictationStateMachineMock.Raise(m => m.StateChanged += null, this, DictationState.Transcribing);
+        _dictationStateMachineMock.Raise(m => m.StateChanged += null, this, DictationState.Idle);
     }
 
     #endregion

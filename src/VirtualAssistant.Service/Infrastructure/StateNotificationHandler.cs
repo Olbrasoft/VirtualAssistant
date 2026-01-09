@@ -1,5 +1,6 @@
 using Olbrasoft.VirtualAssistant.Core.Services;
 using Olbrasoft.VirtualAssistant.Core.StateMachine;
+using Olbrasoft.VirtualAssistant.Desktop.Services;
 using Olbrasoft.VirtualAssistant.Service.Workers;
 using Olbrasoft.VirtualAssistant.Voice.StateMachine;
 
@@ -21,6 +22,7 @@ public class StateNotificationHandler : IStateNotificationHandler
     private readonly IServiceLifecycleManager? _lifecycleManager;
     private readonly IDictationStateMachine? _dictationStateMachine;
     private readonly DictationWorker? _dictationWorker;
+    private readonly IRecordingNotificationService? _recordingNotificationService;
 
     public StateNotificationHandler(
         ILogger<StateNotificationHandler> logger,
@@ -31,7 +33,8 @@ public class StateNotificationHandler : IStateNotificationHandler
         IIconAnimationService iconAnimationService,
         IServiceLifecycleManager? lifecycleManager = null,
         IDictationStateMachine? dictationStateMachine = null,
-        DictationWorker? dictationWorker = null)
+        DictationWorker? dictationWorker = null,
+        IRecordingNotificationService? recordingNotificationService = null)
     {
         _logger = logger ?? throw new ArgumentNullException(nameof(logger));
         _muteService = muteService ?? throw new ArgumentNullException(nameof(muteService));
@@ -42,6 +45,7 @@ public class StateNotificationHandler : IStateNotificationHandler
         _lifecycleManager = lifecycleManager;
         _dictationStateMachine = dictationStateMachine;
         _dictationWorker = dictationWorker;
+        _recordingNotificationService = recordingNotificationService;
     }
 
     /// <summary>
@@ -136,9 +140,9 @@ public class StateNotificationHandler : IStateNotificationHandler
     }
 
     /// <summary>
-    /// Handles dictation state changes - delegates to icon animation service.
+    /// Handles dictation state changes - delegates to icon animation service and shows notifications.
     /// </summary>
-    private void OnDictationStateChanged(object? sender, DictationState newState)
+    private async void OnDictationStateChanged(object? sender, DictationState newState)
     {
         try
         {
@@ -146,6 +150,23 @@ public class StateNotificationHandler : IStateNotificationHandler
 
             // Delegate icon animation to specialized service
             _iconAnimationService.HandleDictationStateChange(newState);
+
+            // Show recording/transcribing notifications (Phase 1 - issue #670)
+            if (_recordingNotificationService != null)
+            {
+                switch (newState)
+                {
+                    case DictationState.Recording:
+                        await _recordingNotificationService.ShowRecordingAsync();
+                        break;
+                    case DictationState.Transcribing:
+                        await _recordingNotificationService.ShowTranscribingAsync();
+                        break;
+                    case DictationState.Idle:
+                        await _recordingNotificationService.HideAsync();
+                        break;
+                }
+            }
         }
         catch (Exception ex)
         {

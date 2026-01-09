@@ -1,6 +1,7 @@
 using Microsoft.Extensions.Options;
 using Olbrasoft.VirtualAssistant.Core.Configuration;
 using Olbrasoft.VirtualAssistant.Core.Services;
+using Olbrasoft.VirtualAssistant.Desktop.Services;
 using Olbrasoft.VirtualAssistant.Service.Configuration;
 using Olbrasoft.VirtualAssistant.Service.Infrastructure;
 using Olbrasoft.VirtualAssistant.Service.Services;
@@ -131,6 +132,9 @@ public static class TrayServicesExtensions
                 menuStateManager);
         });
 
+        // Recording notification service for dictation status (Phase 1 - issue #670)
+        services.AddSingleton<IRecordingNotificationService, RecordingNotificationService>();
+
         // State notification handler for state synchronization
         services.AddSingleton<IStateNotificationHandler>(sp =>
         {
@@ -143,6 +147,7 @@ public static class TrayServicesExtensions
             var lifecycleManager = sp.GetService<IServiceLifecycleManager>();
             var dictationStateMachine = sp.GetService<Voice.StateMachine.IDictationStateMachine>();
             var dictationWorker = sp.GetService<DictationWorker>();
+            var recordingNotificationService = sp.GetService<IRecordingNotificationService>();
 
             return new StateNotificationHandler(
                 logger,
@@ -153,7 +158,8 @@ public static class TrayServicesExtensions
                 iconAnimationService,
                 lifecycleManager,
                 dictationStateMachine,
-                dictationWorker);
+                dictationWorker,
+                recordingNotificationService);
         });
 
         // Tray coordinator service (orchestrates 5 specialized tray services)
