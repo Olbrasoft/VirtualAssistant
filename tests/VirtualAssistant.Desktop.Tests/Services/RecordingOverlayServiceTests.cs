@@ -117,6 +117,7 @@ public class RecordingOverlayServiceTests
 
         // Assert
         _cursorPositionServiceMock.Verify(x => x.GetCursorPositionAsync(It.IsAny<CancellationToken>()), Times.Once);
+        _overlayWindowMock.Verify(x => x.Initialize(), Times.Once);
         _overlayWindowMock.Verify(x => x.UpdatePosition(300, 400), Times.Once);
     }
 

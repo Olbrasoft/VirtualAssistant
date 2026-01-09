@@ -15,14 +15,22 @@ public class RecordingOverlayWindow : IRecordingOverlayWindow
     private Window? _window;
     private Label? _statusLabel;
     private Box? _container;
+    private DrawingArea? _indicator;
     private bool _isVisible;
     private bool _disposed;
+    private bool _initializationFailed;
     private Thread? _gtkThread;
     private readonly ManualResetEventSlim _initialized = new(false);
+    private readonly ManualResetEventSlim _disposeCompleted = new(false);
     private readonly object _lock = new();
 
-    // GNOME privacy indicator orange: #ff7800
-    private const string OrangeColor = "#ff7800";
+    // Overlay dimensions (pixels)
+    private const int OverlayWidth = 180;
+    private const int OverlayHeight = 40;
+    private const int CursorOffset = 20;
+
+    // GTK style provider priority (equivalent to GTK_STYLE_PROVIDER_PRIORITY_APPLICATION)
+    private const uint GtkStyleProviderPriorityApplication = 800;
 
     public RecordingOverlayWindow(ILogger logger)
     {
@@ -35,7 +43,11 @@ public class RecordingOverlayWindow : IRecordingOverlayWindow
     /// </summary>
     public void Initialize()
     {
-        if (_disposed) return;
+        lock (_lock)
+        {
+            if (_disposed || _initializationFailed) return;
+            if (_initialized.IsSet) return;
+        }
 
         _gtkThread = new Thread(GtkMain)
         {
@@ -47,6 +59,10 @@ public class RecordingOverlayWindow : IRecordingOverlayWindow
         // Wait for GTK initialization
         if (!_initialized.Wait(TimeSpan.FromSeconds(5)))
         {
+            lock (_lock)
+            {
+                _initializationFailed = true;
+            }
             _logger.LogWarning("GTK initialization timeout - overlay may not work");
         }
     }
@@ -67,8 +83,16 @@ public class RecordingOverlayWindow : IRecordingOverlayWindow
         }
         catch (Exception ex)
         {
+            lock (_lock)
+            {
+                _initializationFailed = true;
+            }
             _logger.LogError(ex, "GTK main loop failed");
             _initialized.Set(); // Unblock waiting thread
+        }
+        finally
+        {
+            _disposeCompleted.Set();
         }
     }
 
@@ -101,7 +125,7 @@ public class RecordingOverlayWindow : IRecordingOverlayWindow
 
         // Window properties
         _window.SetDecorated(false);
-        _window.SetDefaultSize(180, 40);
+        _window.SetDefaultSize(OverlayWidth, OverlayHeight);
 
         // Create UI
         _container = Box.New(Orientation.Horizontal, 8);
@@ -110,16 +134,16 @@ public class RecordingOverlayWindow : IRecordingOverlayWindow
         _container.SetMarginTop(8);
         _container.SetMarginBottom(8);
 
-        // Orange indicator dot
-        var indicator = new DrawingArea();
-        indicator.SetSizeRequest(12, 12);
-        indicator.SetDrawFunc(DrawIndicator);
+        // Orange indicator dot (stored for proper disposal)
+        _indicator = new DrawingArea();
+        _indicator.SetSizeRequest(12, 12);
+        _indicator.SetDrawFunc(DrawIndicator);
 
         // Status label
         _statusLabel = Label.New("Recording...");
         _statusLabel.AddCssClass("status-label");
 
-        _container.Append(indicator);
+        _container.Append(_indicator);
         _container.Append(_statusLabel);
 
         _window.SetChild(_container);
@@ -160,7 +184,7 @@ public class RecordingOverlayWindow : IRecordingOverlayWindow
         if (_window != null)
         {
             var display = _window.GetDisplay();
-            StyleContext.AddProviderForDisplay(display, cssProvider, 800);
+            StyleContext.AddProviderForDisplay(display, cssProvider, GtkStyleProviderPriorityApplication);
         }
     }
 
@@ -171,15 +195,23 @@ public class RecordingOverlayWindow : IRecordingOverlayWindow
     {
         lock (_lock)
         {
-            if (_disposed || _window == null) return;
+            if (_disposed || _initializationFailed || _window == null) return;
+
+            var marginX = CalculateMarginX(x);
+            var marginY = CalculateMarginY(y);
 
             GLib.Functions.IdleAdd(0, () =>
             {
-                UpdatePosition(x, y);
-                _statusLabel?.SetText("Recording...");
-                _window?.SetVisible(true);
-                _isVisible = true;
-                return false; // Don't repeat
+                lock (_lock)
+                {
+                    if (_disposed || _window == null) return false;
+
+                    UpdatePositionInternal(marginX, marginY);
+                    _statusLabel?.SetText("Recording...");
+                    _window.SetVisible(true);
+                    _isVisible = true;
+                    return false; // Don't repeat
+                }
             });
 
             _logger.LogDebug("Showing recording overlay at ({X}, {Y})", x, y);
@@ -193,15 +225,23 @@ public class RecordingOverlayWindow : IRecordingOverlayWindow
     {
         lock (_lock)
         {
-            if (_disposed || _window == null) return;
+            if (_disposed || _initializationFailed || _window == null) return;
+
+            var marginX = CalculateMarginX(x);
+            var marginY = CalculateMarginY(y);
 
             GLib.Functions.IdleAdd(0, () =>
             {
-                UpdatePosition(x, y);
-                _statusLabel?.SetText("Transcribing...");
-                _window?.SetVisible(true);
-                _isVisible = true;
-                return false;
+                lock (_lock)
+                {
+                    if (_disposed || _window == null) return false;
+
+                    UpdatePositionInternal(marginX, marginY);
+                    _statusLabel?.SetText("Transcribing...");
+                    _window.SetVisible(true);
+                    _isVisible = true;
+                    return false;
+                }
             });
 
             _logger.LogDebug("Showing transcribing overlay at ({X}, {Y})", x, y);
@@ -219,9 +259,14 @@ public class RecordingOverlayWindow : IRecordingOverlayWindow
 
             GLib.Functions.IdleAdd(0, () =>
             {
-                _window?.SetVisible(false);
-                _isVisible = false;
-                return false;
+                lock (_lock)
+                {
+                    if (_disposed || _window == null) return false;
+
+                    _window.SetVisible(false);
+                    _isVisible = false;
+                    return false;
+                }
             });
 
             _logger.LogDebug("Hiding recording overlay");
@@ -233,35 +278,70 @@ public class RecordingOverlayWindow : IRecordingOverlayWindow
     /// </summary>
     public void UpdatePosition(int cursorX, int cursorY)
     {
+        lock (_lock)
+        {
+            if (_disposed || _initializationFailed || _window == null || !_isVisible) return;
+            if (!LayerShell.IsSupported()) return;
+
+            var marginX = CalculateMarginX(cursorX);
+            var marginY = CalculateMarginY(cursorY);
+
+            GLib.Functions.IdleAdd(0, () =>
+            {
+                lock (_lock)
+                {
+                    if (_disposed || _window == null || !_isVisible) return false;
+
+                    UpdatePositionInternal(marginX, marginY);
+                    return false;
+                }
+            });
+        }
+    }
+
+    private int CalculateMarginX(int cursorX)
+    {
+        var x = cursorX - OverlayWidth / 2;
+        return x < 0 ? 0 : x;
+    }
+
+    private int CalculateMarginY(int cursorY)
+    {
+        var y = cursorY - OverlayHeight - CursorOffset;
+        return y < 0 ? 100 : y; // Fallback to top area
+    }
+
+    private void UpdatePositionInternal(int marginX, int marginY)
+    {
         if (_window == null || !LayerShell.IsSupported()) return;
 
-        // Position overlay 20px above cursor, centered horizontally
-        var overlayWidth = 180;
-        var overlayHeight = 40;
-        var x = cursorX - overlayWidth / 2;
-        var y = cursorY - overlayHeight - 20;
-
-        // Ensure within screen bounds (basic check)
-        if (x < 0) x = 0;
-        if (y < 0) y = 100; // Fallback to top area
-
-        LayerShell.SetMargin(_window, Edge.Left, x);
-        LayerShell.SetMargin(_window, Edge.Top, y);
+        LayerShell.SetMargin(_window, Edge.Left, marginX);
+        LayerShell.SetMargin(_window, Edge.Top, marginY);
     }
 
     public void Dispose()
     {
-        if (_disposed) return;
-        _disposed = true;
+        lock (_lock)
+        {
+            if (_disposed) return;
+            _disposed = true;
+        }
 
         GLib.Functions.IdleAdd(0, () =>
         {
+            _indicator?.Dispose();
+            _statusLabel?.Dispose();
+            _container?.Dispose();
             _window?.Close();
             _application?.Quit();
             return false;
         });
 
+        // Wait for GTK thread to complete (with timeout to avoid deadlock)
+        _disposeCompleted.Wait(TimeSpan.FromSeconds(2));
+
         _initialized.Dispose();
+        _disposeCompleted.Dispose();
         _logger.LogDebug("RecordingOverlayWindow disposed");
     }
 }

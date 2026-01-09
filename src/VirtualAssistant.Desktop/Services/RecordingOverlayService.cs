@@ -13,8 +13,10 @@ public class RecordingOverlayService : IRecordingOverlayService
     private readonly ILogger<RecordingOverlayService> _logger;
     private readonly ICursorPositionService _cursorPositionService;
     private readonly IRecordingOverlayWindow _overlayWindow;
+    private readonly object _initLock = new();
     private bool _disposed;
     private bool _initialized;
+    private bool _initializationFailed;
 
     // Fallback position when cursor position unavailable
     private const int FallbackX = 100;
@@ -32,17 +34,21 @@ public class RecordingOverlayService : IRecordingOverlayService
 
     private void EnsureInitialized()
     {
-        if (_initialized) return;
+        lock (_initLock)
+        {
+            if (_initialized || _initializationFailed) return;
 
-        try
-        {
-            _overlayWindow.Initialize();
-            _initialized = true;
-            _logger.LogInformation("RecordingOverlayService initialized with GTK4 LayerShell");
-        }
-        catch (Exception ex)
-        {
-            _logger.LogError(ex, "Failed to initialize GTK4 overlay window");
+            try
+            {
+                _overlayWindow.Initialize();
+                _initialized = true;
+                _logger.LogInformation("RecordingOverlayService initialized with GTK4 LayerShell");
+            }
+            catch (Exception ex)
+            {
+                _initializationFailed = true;
+                _logger.LogError(ex, "Failed to initialize GTK4 overlay window");
+            }
         }
     }
 
@@ -87,6 +93,8 @@ public class RecordingOverlayService : IRecordingOverlayService
     public async Task UpdatePositionAsync(CancellationToken cancellationToken = default)
     {
         if (_disposed) return;
+
+        EnsureInitialized();
 
         var (x, y) = await GetCursorPositionOrFallbackAsync(cancellationToken);
 
