@@ -2,6 +2,7 @@ using Microsoft.Extensions.Options;
 using Olbrasoft.VirtualAssistant.Core.Configuration;
 using Olbrasoft.VirtualAssistant.Core.Services;
 using Olbrasoft.VirtualAssistant.Desktop.Services;
+using Olbrasoft.VirtualAssistant.Desktop.UI;
 using Olbrasoft.VirtualAssistant.Service.Configuration;
 using Olbrasoft.VirtualAssistant.Service.Infrastructure;
 using Olbrasoft.VirtualAssistant.Service.Services;
@@ -138,14 +139,21 @@ public static class TrayServicesExtensions
         // Cursor position service for overlay positioning (Phase 2 - issue #671)
         services.AddSingleton<ICursorPositionService, CursorPositionService>();
 
-        // Recording overlay service (Phase 2 - issue #672)
-        // Currently delegates to notification service; GTK4 LayerShell can be added later
+        // Recording overlay window (GTK4 LayerShell implementation)
+        services.AddSingleton<IRecordingOverlayWindow>(sp =>
+        {
+            var logger = sp.GetRequiredService<ILogger<RecordingOverlayWindow>>();
+            return new RecordingOverlayWindow(logger);
+        });
+
+        // Recording overlay service (Phase 2 - issue #672, #677)
+        // Uses GTK4 LayerShell for overlay window near cursor
         services.AddSingleton<IRecordingOverlayService>(sp =>
         {
             var logger = sp.GetRequiredService<ILogger<RecordingOverlayService>>();
-            var notificationService = sp.GetRequiredService<IRecordingNotificationService>();
             var cursorPositionService = sp.GetRequiredService<ICursorPositionService>();
-            return new RecordingOverlayService(logger, notificationService, cursorPositionService);
+            var overlayWindow = sp.GetRequiredService<IRecordingOverlayWindow>();
+            return new RecordingOverlayService(logger, cursorPositionService, overlayWindow);
         });
 
         // State notification handler for state synchronization

@@ -521,6 +521,14 @@ Priority order (circuit breaker pattern):
 - **Push frequently** after every significant change
 - **Never close issues** without user approval
 
+### Technology Constraints
+
+**PROHIBITED Technologies:**
+- ❌ **Python** - NEVER use Python scripts, wrappers, or helpers
+- All functionality MUST be implemented in **C#/.NET**
+- D-Bus communication via **LinuxDesktop** library (GNOME Shell extension returns cursor position)
+- UI overlays via **GirCore** (C# GTK4 bindings) or other .NET solutions
+
 ### NuGet Package Versioning
 
 **CRITICAL:** All `Olbrasoft.*` packages MUST use wildcard versioning!

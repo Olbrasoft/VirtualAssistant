@@ -1,34 +1,55 @@
 using Microsoft.Extensions.Logging;
 using Olbrasoft.VirtualAssistant.Core.Services;
+using Olbrasoft.VirtualAssistant.Desktop.UI;
 
 namespace Olbrasoft.VirtualAssistant.Desktop.Services;
 
 /// <summary>
-/// Recording overlay service implementation.
-/// Currently delegates to IRecordingNotificationService (Phase 1).
-/// GTK4 LayerShell overlay can be added in a future iteration.
+/// Recording overlay service implementation using GTK4 LayerShell.
+/// Shows overlay window near cursor position during recording/transcribing.
 /// </summary>
-/// <remarks>
-/// Future implementation could use GTK4 Layer Shell for positioned overlay:
-/// - libgtk4-layer-shell for Wayland overlay
-/// - Position near cursor using ICursorPositionService
-/// - Blinking animation for recording state
-/// </remarks>
 public class RecordingOverlayService : IRecordingOverlayService
 {
     private readonly ILogger<RecordingOverlayService> _logger;
-    private readonly IRecordingNotificationService _notificationService;
     private readonly ICursorPositionService _cursorPositionService;
+    private readonly IRecordingOverlayWindow _overlayWindow;
+    private readonly object _initLock = new();
     private bool _disposed;
+    private bool _initialized;
+    private bool _initializationFailed;
+
+    // Fallback position when cursor position unavailable
+    private const int FallbackX = 100;
+    private const int FallbackY = 100;
 
     public RecordingOverlayService(
         ILogger<RecordingOverlayService> logger,
-        IRecordingNotificationService notificationService,
-        ICursorPositionService cursorPositionService)
+        ICursorPositionService cursorPositionService,
+        IRecordingOverlayWindow overlayWindow)
     {
         _logger = logger ?? throw new ArgumentNullException(nameof(logger));
-        _notificationService = notificationService ?? throw new ArgumentNullException(nameof(notificationService));
         _cursorPositionService = cursorPositionService ?? throw new ArgumentNullException(nameof(cursorPositionService));
+        _overlayWindow = overlayWindow ?? throw new ArgumentNullException(nameof(overlayWindow));
+    }
+
+    private void EnsureInitialized()
+    {
+        lock (_initLock)
+        {
+            if (_initialized || _initializationFailed) return;
+
+            try
+            {
+                _overlayWindow.Initialize();
+                _initialized = true;
+                _logger.LogInformation("RecordingOverlayService initialized with GTK4 LayerShell");
+            }
+            catch (Exception ex)
+            {
+                _initializationFailed = true;
+                _logger.LogError(ex, "Failed to initialize GTK4 overlay window");
+            }
+        }
     }
 
     /// <inheritdoc/>
@@ -36,18 +57,12 @@ public class RecordingOverlayService : IRecordingOverlayService
     {
         if (_disposed) return;
 
-        _logger.LogDebug("Showing recording overlay");
+        EnsureInitialized();
 
-        // Log cursor position for future positioning
-        var position = await _cursorPositionService.GetCursorPositionAsync(cancellationToken);
-        if (position.HasValue)
-        {
-            _logger.LogDebug("Cursor at ({X}, {Y}) - overlay would be positioned here",
-                position.Value.X, position.Value.Y);
-        }
+        var (x, y) = await GetCursorPositionOrFallbackAsync(cancellationToken);
 
-        // Delegate to notification service (Phase 1 fallback)
-        await _notificationService.ShowRecordingAsync(cancellationToken);
+        _logger.LogDebug("Showing recording overlay at ({X}, {Y})", x, y);
+        _overlayWindow.ShowRecording(x, y);
     }
 
     /// <inheritdoc/>
@@ -55,21 +70,23 @@ public class RecordingOverlayService : IRecordingOverlayService
     {
         if (_disposed) return;
 
-        _logger.LogDebug("Showing transcribing overlay");
+        EnsureInitialized();
 
-        // Delegate to notification service (Phase 1 fallback)
-        await _notificationService.ShowTranscribingAsync(cancellationToken);
+        var (x, y) = await GetCursorPositionOrFallbackAsync(cancellationToken);
+
+        _logger.LogDebug("Showing transcribing overlay at ({X}, {Y})", x, y);
+        _overlayWindow.ShowTranscribing(x, y);
     }
 
     /// <inheritdoc/>
-    public async Task HideAsync(CancellationToken cancellationToken = default)
+    public Task HideAsync(CancellationToken cancellationToken = default)
     {
-        if (_disposed) return;
+        if (_disposed) return Task.CompletedTask;
 
         _logger.LogDebug("Hiding overlay");
+        _overlayWindow.Hide();
 
-        // Delegate to notification service (Phase 1 fallback)
-        await _notificationService.HideAsync(cancellationToken);
+        return Task.CompletedTask;
     }
 
     /// <inheritdoc/>
@@ -77,22 +94,40 @@ public class RecordingOverlayService : IRecordingOverlayService
     {
         if (_disposed) return;
 
-        // Position tracking for future GTK4 overlay implementation
-        var position = await _cursorPositionService.GetCursorPositionAsync(cancellationToken);
-        if (position.HasValue)
+        EnsureInitialized();
+
+        var (x, y) = await GetCursorPositionOrFallbackAsync(cancellationToken);
+
+        _logger.LogDebug("Updating overlay position to ({X}, {Y})", x, y);
+        _overlayWindow.UpdatePosition(x, y);
+    }
+
+    private async Task<(int X, int Y)> GetCursorPositionOrFallbackAsync(CancellationToken cancellationToken)
+    {
+        try
         {
-            _logger.LogDebug("Would update overlay position to ({X}, {Y})",
-                position.Value.X, position.Value.Y);
+            var position = await _cursorPositionService.GetCursorPositionAsync(cancellationToken);
+            if (position.HasValue)
+            {
+                return (position.Value.X, position.Value.Y);
+            }
+        }
+        catch (Exception ex)
+        {
+            _logger.LogWarning(ex, "Failed to get cursor position, using fallback");
         }
 
-        // Current notification-based implementation doesn't support positioning
-        // GTK4 LayerShell implementation would move the window here
+        return (FallbackX, FallbackY);
     }
 
     public ValueTask DisposeAsync()
     {
+        if (_disposed) return ValueTask.CompletedTask;
+
         _disposed = true;
+        _overlayWindow.Dispose();
         _logger.LogDebug("RecordingOverlayService disposed");
+
         return ValueTask.CompletedTask;
     }
 }
