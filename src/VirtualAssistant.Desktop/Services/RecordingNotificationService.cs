@@ -15,9 +15,9 @@ public class RecordingNotificationService : IRecordingNotificationService
     private INotifications? _notifications;
     private uint _currentNotificationId;
     private readonly SemaphoreSlim _lock = new(1, 1);
-    private bool _initialized;
-    private bool _initializationFailed;
-    private bool _disposed;
+    private volatile bool _initialized;
+    private volatile bool _initializationFailed;
+    private volatile bool _disposed;
 
     private const string ServiceName = "org.freedesktop.Notifications";
     private const string ObjectPath = "/org/freedesktop/Notifications";
@@ -66,7 +66,7 @@ public class RecordingNotificationService : IRecordingNotificationService
     public async Task ShowRecordingAsync(CancellationToken ct = default)
     {
         await ShowNotificationAsync(
-            summary: "\ud83d\udfe0 Nahravani",
+            summary: "🟠 Nahrávání",
             body: "Diktujte text...",
             ct);
     }
@@ -74,18 +74,18 @@ public class RecordingNotificationService : IRecordingNotificationService
     public async Task ShowTranscribingAsync(CancellationToken ct = default)
     {
         await ShowNotificationAsync(
-            summary: "\u23f3 Prepis",
-            body: "Probiha transkripce...",
+            summary: "⏳ Přepis",
+            body: "Probíhá transkripce...",
             ct);
     }
 
     public async Task HideAsync(CancellationToken ct = default)
     {
-        if (!_initialized || _notifications == null) return;
-
         await _lock.WaitAsync(ct);
         try
         {
+            if (!_initialized || _notifications == null) return;
+
             if (_currentNotificationId != 0)
             {
                 try
@@ -113,15 +113,14 @@ public class RecordingNotificationService : IRecordingNotificationService
     {
         await EnsureInitializedAsync(ct);
 
-        if (!_initialized || _notifications == null)
-        {
-            _logger.LogDebug("Notifications not available, skipping: {Summary}", summary);
-            return;
-        }
-
         await _lock.WaitAsync(ct);
         try
         {
+            if (!_initialized || _notifications == null)
+            {
+                _logger.LogDebug("Notifications not available, skipping: {Summary}", summary);
+                return;
+            }
             var hints = new Dictionary<string, object>
             {
                 // Use "urgency" hint for notification priority (0=low, 1=normal, 2=critical)
@@ -155,12 +154,12 @@ public class RecordingNotificationService : IRecordingNotificationService
 
     public async ValueTask DisposeAsync()
     {
-        if (_disposed) return;
-        _disposed = true;
-
         await _lock.WaitAsync();
         try
         {
+            if (_disposed) return;
+            _disposed = true;
+
             // Try to close any active notification
             if (_initialized && _notifications != null && _currentNotificationId != 0)
             {
