@@ -154,7 +154,7 @@ public class MenuEventDispatcher : IMenuEventDispatcher
             else
             {
                 // Fallback: just clear cache (old behavior)
-                _logger.LogWarning("PromptSyncService not available, only clearing cache");
+                _logger.LogWarning("PromptSyncService not available - ensure PromptSync:SourcePath is configured in appsettings.json. Only clearing LLM prompt cache.");
                 _llmProvider.ReloadPrompt();
                 _menuStateManager?.UpdatePromptSyncStatus(PromptSyncStatus.Unknown);
             }

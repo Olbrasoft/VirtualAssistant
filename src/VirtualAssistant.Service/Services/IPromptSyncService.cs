@@ -20,9 +20,11 @@ public record PromptSyncResult(
 public interface IPromptSyncService
 {
     /// <summary>
-    /// Checks if source prompts are newer than deployed prompts.
+    /// Checks if prompts need synchronization.
+    /// Returns true if any source prompt is newer than deployed, if source has new files,
+    /// or if target has obsolete files that were deleted from source.
     /// </summary>
-    /// <returns>True if prompts need synchronization.</returns>
+    /// <returns>True if prompts need synchronization, false otherwise.</returns>
     bool ArePromptsOutOfSync();
 
     /// <summary>

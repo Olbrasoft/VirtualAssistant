@@ -15,6 +15,7 @@ public class PromptSyncCheckWorker : BackgroundService
     private readonly IPromptSyncService _promptSyncService;
     private readonly IMenuStateManager _menuStateManager;
     private readonly TimeSpan _checkInterval;
+    private readonly object _checkLock = new();
 
     public PromptSyncCheckWorker(
         ILogger<PromptSyncCheckWorker> logger,
@@ -63,37 +64,41 @@ public class PromptSyncCheckWorker : BackgroundService
 
     private void CheckPromptSync()
     {
-        try
+        // Use lock to prevent concurrent checks (thread safety)
+        lock (_checkLock)
         {
-            // Skip if currently syncing or already failed
-            var currentStatus = _menuStateManager.PromptSyncStatus;
-            if (currentStatus == PromptSyncStatus.Syncing)
+            try
             {
-                return;
-            }
+                // Skip if currently syncing (user-initiated sync in progress)
+                var currentStatus = _menuStateManager.PromptSyncStatus;
+                if (currentStatus == PromptSyncStatus.Syncing)
+                {
+                    return;
+                }
 
-            var isOutOfSync = _promptSyncService.ArePromptsOutOfSync();
+                var isOutOfSync = _promptSyncService.ArePromptsOutOfSync();
 
-            if (isOutOfSync && currentStatus != PromptSyncStatus.OutOfSync)
-            {
-                _logger.LogInformation("Prompts are out of sync - source files have changed");
-                _menuStateManager.UpdatePromptSyncStatus(PromptSyncStatus.OutOfSync);
+                if (isOutOfSync && currentStatus != PromptSyncStatus.OutOfSync)
+                {
+                    _logger.LogInformation("Prompts are out of sync - source files have changed");
+                    _menuStateManager.UpdatePromptSyncStatus(PromptSyncStatus.OutOfSync);
+                }
+                else if (!isOutOfSync && currentStatus == PromptSyncStatus.OutOfSync)
+                {
+                    // Can happen if user manually copies files outside of this service
+                    _logger.LogDebug("Prompts are now in sync");
+                    _menuStateManager.UpdatePromptSyncStatus(PromptSyncStatus.InSync);
+                }
+                else if (currentStatus == PromptSyncStatus.Unknown && !isOutOfSync)
+                {
+                    // Initial state - prompts are in sync
+                    _menuStateManager.UpdatePromptSyncStatus(PromptSyncStatus.InSync);
+                }
             }
-            else if (!isOutOfSync && currentStatus == PromptSyncStatus.OutOfSync)
+            catch (Exception ex)
             {
-                // This shouldn't happen normally, but handle it gracefully
-                _logger.LogDebug("Prompts are now in sync");
-                _menuStateManager.UpdatePromptSyncStatus(PromptSyncStatus.InSync);
+                _logger.LogError(ex, "Error checking prompt sync status");
             }
-            else if (currentStatus == PromptSyncStatus.Unknown && !isOutOfSync)
-            {
-                // Initial state - prompts are in sync
-                _menuStateManager.UpdatePromptSyncStatus(PromptSyncStatus.InSync);
-            }
-        }
-        catch (Exception ex)
-        {
-            _logger.LogError(ex, "Error checking prompt sync status");
         }
     }
 }

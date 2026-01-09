@@ -13,8 +13,9 @@ public class PromptSyncOptions
     /// <summary>
     /// Path to the source directory containing prompt files.
     /// Supports ~ for home directory.
+    /// Must be configured in appsettings.json.
     /// </summary>
-    public string SourcePath { get; set; } = "~/Olbrasoft/VirtualAssistant/src/VirtualAssistant.Voice/Prompts";
+    public string SourcePath { get; set; } = string.Empty;
 
     /// <summary>
     /// Interval in seconds for checking if prompts are out of sync.

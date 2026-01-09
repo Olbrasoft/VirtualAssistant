@@ -21,7 +21,13 @@ public class PromptSyncService : IPromptSyncService
 
         var opts = options?.Value ?? throw new ArgumentNullException(nameof(options));
 
-        // Expand ~ to home directory
+        // Validate SourcePath is configured
+        if (string.IsNullOrWhiteSpace(opts.SourcePath))
+        {
+            throw new ArgumentException("PromptSync:SourcePath must be configured", nameof(options));
+        }
+
+        // Expand ~ to home directory and validate
         _sourcePath = ExpandPath(opts.SourcePath);
         _targetPath = Path.Combine(AppContext.BaseDirectory, "Prompts");
 
@@ -53,7 +59,9 @@ public class PromptSyncService : IPromptSyncService
             }
 
             var sourceFiles = Directory.GetFiles(_sourcePath, "*.md");
+            var sourceFileNames = sourceFiles.Select(Path.GetFileName).ToHashSet();
 
+            // Check for new or modified files in source
             foreach (var sourceFile in sourceFiles)
             {
                 var fileName = Path.GetFileName(sourceFile);
@@ -78,6 +86,18 @@ public class PromptSyncService : IPromptSyncService
                 }
             }
 
+            // Check for deleted files (exist in target but not in source)
+            var targetFiles = Directory.GetFiles(_targetPath, "*.md");
+            foreach (var targetFile in targetFiles)
+            {
+                var fileName = Path.GetFileName(targetFile);
+                if (!sourceFileNames.Contains(fileName))
+                {
+                    _logger.LogDebug("Obsolete prompt file in target (deleted from source): {File}", fileName);
+                    return true;
+                }
+            }
+
             return false;
         }
         catch (Exception ex)
@@ -93,6 +113,7 @@ public class PromptSyncService : IPromptSyncService
         var errors = new List<string>();
         var copied = 0;
         var failed = 0;
+        var removed = 0;
 
         try
         {
@@ -106,6 +127,7 @@ public class PromptSyncService : IPromptSyncService
 
             // Get source files
             var sourceFiles = Directory.GetFiles(_sourcePath, "*.md");
+            var sourceFileNames = sourceFiles.Select(Path.GetFileName).ToHashSet();
 
             if (sourceFiles.Length == 0)
             {
@@ -130,7 +152,7 @@ public class PromptSyncService : IPromptSyncService
                 }
             }
 
-            // Copy each file
+            // Copy each file from source
             foreach (var sourceFile in sourceFiles)
             {
                 var fileName = Path.GetFileName(sourceFile);
@@ -151,15 +173,38 @@ public class PromptSyncService : IPromptSyncService
                 }
             }
 
+            // Remove obsolete files from target (files that no longer exist in source)
+            var targetFiles = Directory.GetFiles(_targetPath, "*.md");
+            foreach (var targetFile in targetFiles)
+            {
+                var fileName = Path.GetFileName(targetFile);
+                if (!sourceFileNames.Contains(fileName))
+                {
+                    try
+                    {
+                        File.Delete(targetFile);
+                        removed++;
+                        _logger.LogInformation("Removed obsolete prompt: {File}", fileName);
+                    }
+                    catch (Exception ex)
+                    {
+                        var error = $"Failed to remove obsolete {fileName}: {ex.Message}";
+                        errors.Add(error);
+                        _logger.LogWarning(ex, "Failed to remove obsolete prompt file: {File}", fileName);
+                    }
+                }
+            }
+
             // Validate copy
             if (failed > 0)
             {
-                _logger.LogWarning("Prompt sync completed with errors. Copied: {Copied}, Failed: {Failed}",
-                    copied, failed);
+                _logger.LogWarning("Prompt sync completed with errors. Copied: {Copied}, Failed: {Failed}, Removed: {Removed}",
+                    copied, failed, removed);
                 return new PromptSyncResult(false, copied, failed, errors);
             }
 
-            _logger.LogInformation("Prompt sync completed successfully. Copied {Count} files.", copied);
+            _logger.LogInformation("Prompt sync completed successfully. Copied {Copied} files, removed {Removed} obsolete files.",
+                copied, removed);
             return new PromptSyncResult(true, copied, 0, []);
         }
         catch (Exception ex)
@@ -176,12 +221,26 @@ public class PromptSyncService : IPromptSyncService
         if (string.IsNullOrEmpty(path))
             return path;
 
+        string expandedPath;
         if (path.StartsWith("~/"))
         {
             var home = Environment.GetFolderPath(Environment.SpecialFolder.UserProfile);
-            return Path.Combine(home, path[2..]);
+            expandedPath = Path.Combine(home, path[2..]);
+        }
+        else
+        {
+            expandedPath = path;
         }
 
-        return path;
+        // Get full path to normalize and prevent path traversal
+        var fullPath = Path.GetFullPath(expandedPath);
+
+        // Validate no path traversal outside expected directories
+        if (fullPath.Contains(".."))
+        {
+            throw new ArgumentException($"Invalid path - path traversal detected: {path}");
+        }
+
+        return fullPath;
     }
 }
