@@ -39,9 +39,8 @@ public class CursorPositionServiceTests
         // Act - Will fail to connect to D-Bus in test environment
         var position = await service.GetCursorPositionAsync();
 
-        // Assert - Should return null gracefully, not throw
-        // (actual result depends on D-Bus availability in test environment)
-        // If D-Bus is not available, should return null
+        // Assert - Should return null gracefully when D-Bus is not available
+        Assert.Null(position);
     }
 
     [Fact]
@@ -53,8 +52,8 @@ public class CursorPositionServiceTests
         // Act - Will fail to connect to D-Bus in test environment
         var geometry = await service.GetActiveWindowGeometryAsync();
 
-        // Assert - Should return null gracefully, not throw
-        // (actual result depends on D-Bus availability in test environment)
+        // Assert - Should return null gracefully when D-Bus is not available
+        Assert.Null(geometry);
     }
 
     [Fact]
@@ -78,7 +77,7 @@ public class CursorPositionServiceTests
         // Act
         var position = await service.GetCursorPositionAsync();
 
-        // Assert - disposed service should handle gracefully
-        // The service may return null or previous cached value
+        // Assert - disposed service should return null gracefully
+        Assert.Null(position);
     }
 }

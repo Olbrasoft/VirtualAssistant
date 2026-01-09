@@ -14,10 +14,10 @@ public class CursorPositionService : ICursorPositionService, IAsyncDisposable
 {
     private readonly ILogger<CursorPositionService> _logger;
     private IPointerService? _pointerService;
-    private bool _initialized;
-    private bool _initializationFailed;
+    private volatile bool _initialized;
+    private volatile bool _initializationFailed;
     private readonly SemaphoreSlim _lock = new(1, 1);
-    private bool _disposed;
+    private volatile bool _disposed;
 
     public CursorPositionService(ILogger<CursorPositionService> logger)
     {
@@ -31,7 +31,7 @@ public class CursorPositionService : ICursorPositionService, IAsyncDisposable
         await _lock.WaitAsync(cancellationToken);
         try
         {
-            if (_initialized || _initializationFailed) return;
+            if (_disposed || _initialized || _initializationFailed) return;
 
             try
             {
@@ -135,7 +135,9 @@ public class CursorPositionService : ICursorPositionService, IAsyncDisposable
         finally
         {
             _lock.Release();
-            _lock.Dispose();
         }
+
+        // Dispose semaphore outside the lock to avoid ObjectDisposedException
+        _lock.Dispose();
     }
 }
