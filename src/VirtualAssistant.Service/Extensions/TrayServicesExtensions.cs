@@ -135,6 +135,19 @@ public static class TrayServicesExtensions
         // Recording notification service for dictation status (Phase 1 - issue #670)
         services.AddSingleton<IRecordingNotificationService, RecordingNotificationService>();
 
+        // Cursor position service for overlay positioning (Phase 2 - issue #671)
+        services.AddSingleton<ICursorPositionService, CursorPositionService>();
+
+        // Recording overlay service (Phase 2 - issue #672)
+        // Currently delegates to notification service; GTK4 LayerShell can be added later
+        services.AddSingleton<IRecordingOverlayService>(sp =>
+        {
+            var logger = sp.GetRequiredService<ILogger<RecordingOverlayService>>();
+            var notificationService = sp.GetRequiredService<IRecordingNotificationService>();
+            var cursorPositionService = sp.GetRequiredService<ICursorPositionService>();
+            return new RecordingOverlayService(logger, notificationService, cursorPositionService);
+        });
+
         // State notification handler for state synchronization
         services.AddSingleton<IStateNotificationHandler>(sp =>
         {
