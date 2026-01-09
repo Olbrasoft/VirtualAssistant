@@ -1,5 +1,7 @@
 using System.Diagnostics;
 using Olbrasoft.VirtualAssistant.Core.Services;
+using Olbrasoft.VirtualAssistant.Service.Services;
+using Olbrasoft.VirtualAssistant.Service.Tray.Menu;
 using Olbrasoft.VirtualAssistant.Voice.Services;
 
 namespace Olbrasoft.VirtualAssistant.Service.Tray;
@@ -16,6 +18,8 @@ public class MenuEventDispatcher : IMenuEventDispatcher
     private readonly int _logViewerPort;
     private readonly ILlmProvider? _llmProvider;
     private readonly IDictationControl? _dictationControl;
+    private readonly IPromptSyncService? _promptSyncService;
+    private readonly IMenuStateManager? _menuStateManager;
 
     public MenuEventDispatcher(
         ILogger<MenuEventDispatcher> logger,
@@ -23,7 +27,9 @@ public class MenuEventDispatcher : IMenuEventDispatcher
         ISettingsService settingsService,
         int logViewerPort,
         ILlmProvider? llmProvider = null,
-        IDictationControl? dictationControl = null)
+        IDictationControl? dictationControl = null,
+        IPromptSyncService? promptSyncService = null,
+        IMenuStateManager? menuStateManager = null)
     {
         _logger = logger ?? throw new ArgumentNullException(nameof(logger));
         _muteService = muteService ?? throw new ArgumentNullException(nameof(muteService));
@@ -31,6 +37,8 @@ public class MenuEventDispatcher : IMenuEventDispatcher
         _logViewerPort = logViewerPort;
         _llmProvider = llmProvider;
         _dictationControl = dictationControl;
+        _promptSyncService = promptSyncService;
+        _menuStateManager = menuStateManager;
     }
 
     /// <inheritdoc/>
@@ -116,16 +124,45 @@ public class MenuEventDispatcher : IMenuEventDispatcher
 
         try
         {
-            _logger.LogInformation("Reloading LLM prompts...");
+            _logger.LogInformation("Syncing LLM prompts...");
 
-            // Prompts are deployed via deploy.sh script, no manual copy needed
-            // Just clear the cache and reload prompts from deployment location
-            _llmProvider.ReloadPrompt();
-            _logger.LogInformation("LLM prompts reloaded successfully from deployment location");
+            // Update menu to show syncing state
+            _menuStateManager?.UpdatePromptSyncStatus(PromptSyncStatus.Syncing);
+
+            // Sync prompts from source to deployment directory
+            if (_promptSyncService != null)
+            {
+                var result = _promptSyncService.SyncPrompts();
+
+                if (result.Success)
+                {
+                    _logger.LogInformation("Prompt sync completed. Copied {Count} files.", result.FilesCopied);
+
+                    // Clear cache so prompts are reloaded from newly copied files
+                    _llmProvider.ReloadPrompt();
+
+                    _menuStateManager?.UpdatePromptSyncStatus(PromptSyncStatus.InSync);
+                    _logger.LogInformation("LLM prompts synced and reloaded successfully");
+                }
+                else
+                {
+                    var errorMsg = string.Join("; ", result.Errors);
+                    _logger.LogError("Prompt sync failed: {Errors}", errorMsg);
+                    _menuStateManager?.UpdatePromptSyncStatus(PromptSyncStatus.SyncFailed, errorMsg);
+                }
+            }
+            else
+            {
+                // Fallback: just clear cache (old behavior)
+                _logger.LogWarning("PromptSyncService not available - ensure PromptSync:SourcePath is configured in appsettings.json. Only clearing LLM prompt cache.");
+                _llmProvider.ReloadPrompt();
+                _menuStateManager?.UpdatePromptSyncStatus(PromptSyncStatus.Unknown);
+            }
         }
         catch (Exception ex)
         {
-            _logger.LogError(ex, "Failed to reload LLM prompt");
+            _logger.LogError(ex, "Failed to sync LLM prompts");
+            _menuStateManager?.UpdatePromptSyncStatus(PromptSyncStatus.SyncFailed, ex.Message);
         }
     }
 

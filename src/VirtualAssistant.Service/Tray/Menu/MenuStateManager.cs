@@ -12,6 +12,8 @@ public class MenuStateManager : IMenuStateManager
     private string _logViewerStatus = "Checking...";
     private bool _llmCorrectionEnabled = true;
     private bool _dictationEnabled = true;
+    private PromptSyncStatus _promptSyncStatus = PromptSyncStatus.Unknown;
+    private string? _lastSyncError;
     private uint _revision;
 
     /// <summary>
@@ -58,6 +60,16 @@ public class MenuStateManager : IMenuStateManager
     public bool IsDictationEnabled => _dictationEnabled;
 
     /// <summary>
+    /// Gets the current prompt synchronization status.
+    /// </summary>
+    public PromptSyncStatus PromptSyncStatus => _promptSyncStatus;
+
+    /// <summary>
+    /// Gets the error message from the last failed sync, if any.
+    /// </summary>
+    public string? LastSyncError => _lastSyncError;
+
+    /// <summary>
     /// Updates the mute state.
     /// </summary>
     public void UpdateMuteState(bool isMuted)
@@ -99,6 +111,18 @@ public class MenuStateManager : IMenuStateManager
     public void UpdateDictationStatus(bool enabled)
     {
         _dictationEnabled = enabled;
+        IncrementRevisionAndNotify();
+    }
+
+    /// <summary>
+    /// Updates the prompt synchronization status.
+    /// </summary>
+    /// <param name="status">The new sync status.</param>
+    /// <param name="errorMessage">Optional error message if sync failed.</param>
+    public void UpdatePromptSyncStatus(PromptSyncStatus status, string? errorMessage = null)
+    {
+        _promptSyncStatus = status;
+        _lastSyncError = status == PromptSyncStatus.SyncFailed ? errorMessage : null;
         IncrementRevisionAndNotify();
     }
 
