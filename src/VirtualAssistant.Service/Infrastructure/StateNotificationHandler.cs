@@ -198,17 +198,25 @@ public class StateNotificationHandler : IStateNotificationHandler
         // Fallback to notification service (Phase 1 - issue #670)
         if (_recordingNotificationService != null)
         {
-            switch (newState)
+            try
             {
-                case DictationState.Recording:
-                    await _recordingNotificationService.ShowRecordingAsync();
-                    break;
-                case DictationState.Transcribing:
-                    await _recordingNotificationService.ShowTranscribingAsync();
-                    break;
-                case DictationState.Idle:
-                    await _recordingNotificationService.HideAsync();
-                    break;
+                switch (newState)
+                {
+                    case DictationState.Recording:
+                        await _recordingNotificationService.ShowRecordingAsync();
+                        break;
+                    case DictationState.Transcribing:
+                        await _recordingNotificationService.ShowTranscribingAsync();
+                        break;
+                    case DictationState.Idle:
+                        await _recordingNotificationService.HideAsync();
+                        break;
+                }
+            }
+            catch (Exception ex)
+            {
+                _logger.LogWarning(ex, "Recording notification service failed while handling dictation state {DictationState}", newState);
+                // Swallow exception to ensure graceful degradation
             }
         }
     }
