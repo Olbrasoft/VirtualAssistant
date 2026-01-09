@@ -73,6 +73,7 @@ Příklady:
 - **Data** - Datové abstrakce a CQRS
 - **engineering-handbook** - Engineering dokumentace (s pomlčkami!)
 - **GestureEvolution** - Gesture recognition
+- **HandbookSearch** - Engineering handbook search API
 - **GitHub.Issues** - GitHub issues synchronizace
 - **GitHub.Issues.wiki** - Wiki pro GitHub.Issues
 - **LinuxDesktop** - Linux desktop utilities
