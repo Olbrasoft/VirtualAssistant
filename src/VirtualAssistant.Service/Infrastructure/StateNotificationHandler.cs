@@ -23,6 +23,7 @@ public class StateNotificationHandler : IStateNotificationHandler
     private readonly IDictationStateMachine? _dictationStateMachine;
     private readonly DictationWorker? _dictationWorker;
     private readonly IRecordingNotificationService? _recordingNotificationService;
+    private readonly IRecordingOverlayService? _recordingOverlayService;
 
     public StateNotificationHandler(
         ILogger<StateNotificationHandler> logger,
@@ -34,7 +35,8 @@ public class StateNotificationHandler : IStateNotificationHandler
         IServiceLifecycleManager? lifecycleManager = null,
         IDictationStateMachine? dictationStateMachine = null,
         DictationWorker? dictationWorker = null,
-        IRecordingNotificationService? recordingNotificationService = null)
+        IRecordingNotificationService? recordingNotificationService = null,
+        IRecordingOverlayService? recordingOverlayService = null)
     {
         _logger = logger ?? throw new ArgumentNullException(nameof(logger));
         _muteService = muteService ?? throw new ArgumentNullException(nameof(muteService));
@@ -46,6 +48,7 @@ public class StateNotificationHandler : IStateNotificationHandler
         _dictationStateMachine = dictationStateMachine;
         _dictationWorker = dictationWorker;
         _recordingNotificationService = recordingNotificationService;
+        _recordingOverlayService = recordingOverlayService;
     }
 
     /// <summary>
@@ -140,7 +143,7 @@ public class StateNotificationHandler : IStateNotificationHandler
     }
 
     /// <summary>
-    /// Handles dictation state changes - delegates to icon animation service and shows notifications.
+    /// Handles dictation state changes - delegates to icon animation service and shows overlay/notifications.
     /// </summary>
     private async void OnDictationStateChanged(object? sender, DictationState newState)
     {
@@ -151,8 +154,51 @@ public class StateNotificationHandler : IStateNotificationHandler
             // Delegate icon animation to specialized service
             _iconAnimationService.HandleDictationStateChange(newState);
 
-            // Show recording/transcribing notifications (Phase 1 - issue #670)
-            if (_recordingNotificationService != null)
+            // Show recording/transcribing overlay or notifications
+            // Prefer overlay service (Phase 2 - issue #672), fallback to notifications (Phase 1 - issue #670)
+            await HandleRecordingFeedbackAsync(newState);
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Failed to handle dictation state change: {State}", newState);
+        }
+    }
+
+    /// <summary>
+    /// Handles visual feedback for recording state changes.
+    /// Uses overlay service if available, falls back to notifications.
+    /// </summary>
+    private async Task HandleRecordingFeedbackAsync(DictationState newState)
+    {
+        // Try overlay service first (Phase 2 - issue #673)
+        if (_recordingOverlayService != null)
+        {
+            try
+            {
+                switch (newState)
+                {
+                    case DictationState.Recording:
+                        await _recordingOverlayService.ShowRecordingAsync();
+                        return; // Success, don't fall through to notifications
+                    case DictationState.Transcribing:
+                        await _recordingOverlayService.ShowTranscribingAsync();
+                        return;
+                    case DictationState.Idle:
+                        await _recordingOverlayService.HideAsync();
+                        return;
+                }
+            }
+            catch (Exception ex)
+            {
+                _logger.LogWarning(ex, "Overlay service failed, falling back to notifications");
+                // Fall through to notification service
+            }
+        }
+
+        // Fallback to notification service (Phase 1 - issue #670)
+        if (_recordingNotificationService != null)
+        {
+            try
             {
                 switch (newState)
                 {
@@ -167,10 +213,11 @@ public class StateNotificationHandler : IStateNotificationHandler
                         break;
                 }
             }
-        }
-        catch (Exception ex)
-        {
-            _logger.LogError(ex, "Failed to handle dictation state change: {State}", newState);
+            catch (Exception ex)
+            {
+                _logger.LogWarning(ex, "Recording notification service failed while handling dictation state {DictationState}", newState);
+                // Swallow exception to ensure graceful degradation
+            }
         }
     }
 }

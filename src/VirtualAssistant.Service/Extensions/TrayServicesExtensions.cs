@@ -161,6 +161,7 @@ public static class TrayServicesExtensions
             var dictationStateMachine = sp.GetService<Voice.StateMachine.IDictationStateMachine>();
             var dictationWorker = sp.GetService<DictationWorker>();
             var recordingNotificationService = sp.GetService<IRecordingNotificationService>();
+            var recordingOverlayService = sp.GetService<IRecordingOverlayService>();
 
             return new StateNotificationHandler(
                 logger,
@@ -172,7 +173,8 @@ public static class TrayServicesExtensions
                 lifecycleManager,
                 dictationStateMachine,
                 dictationWorker,
-                recordingNotificationService);
+                recordingNotificationService,
+                recordingOverlayService);
         });
 
         // Tray coordinator service (orchestrates 5 specialized tray services)
