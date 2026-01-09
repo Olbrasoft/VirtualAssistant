@@ -3,6 +3,7 @@ using Olbrasoft.VirtualAssistant.Core.Configuration;
 using Olbrasoft.VirtualAssistant.Core.Services;
 using Olbrasoft.VirtualAssistant.Service.Configuration;
 using Olbrasoft.VirtualAssistant.Service.Infrastructure;
+using Olbrasoft.VirtualAssistant.Service.Services;
 using Olbrasoft.VirtualAssistant.Service.Tray;
 using Olbrasoft.VirtualAssistant.Service.Tray.Menu;
 using Olbrasoft.VirtualAssistant.Service.Workers;
@@ -25,6 +26,16 @@ public static class TrayServicesExtensions
         // Service monitoring configuration
         services.Configure<ServiceMonitoringOptions>(
             configuration.GetSection(ServiceMonitoringOptions.SectionName));
+
+        // Prompt sync configuration
+        services.Configure<PromptSyncOptions>(
+            configuration.GetSection(PromptSyncOptions.SectionName));
+
+        // Prompt sync service for copying prompts from source to deployment
+        services.AddSingleton<IPromptSyncService, PromptSyncService>();
+
+        // Background worker for checking prompt sync status
+        services.AddHostedService<PromptSyncCheckWorker>();
 
         // Icon renderer for SVG rendering
         services.AddSingleton(sp =>
@@ -106,6 +117,8 @@ public static class TrayServicesExtensions
             var options = sp.GetRequiredService<IOptions<ContinuousListenerOptions>>();
             var llmProvider = sp.GetService<ILlmProvider>();
             var dictationControl = sp.GetService<IDictationControl>();
+            var promptSyncService = sp.GetService<IPromptSyncService>();
+            var menuStateManager = sp.GetService<IMenuStateManager>();
 
             return new MenuEventDispatcher(
                 logger,
@@ -113,7 +126,9 @@ public static class TrayServicesExtensions
                 settingsService,
                 options.Value.LogViewerPort,
                 llmProvider,
-                dictationControl);
+                dictationControl,
+                promptSyncService,
+                menuStateManager);
         });
 
         // State notification handler for state synchronization

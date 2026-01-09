@@ -42,6 +42,16 @@ public interface IMenuStateManager
     bool IsDictationEnabled { get; }
 
     /// <summary>
+    /// Gets the current prompt synchronization status.
+    /// </summary>
+    PromptSyncStatus PromptSyncStatus { get; }
+
+    /// <summary>
+    /// Gets the error message from the last failed sync, if any.
+    /// </summary>
+    string? LastSyncError { get; }
+
+    /// <summary>
     /// Updates the mute state.
     /// </summary>
     void UpdateMuteState(bool isMuted);
@@ -65,6 +75,13 @@ public interface IMenuStateManager
     /// Updates the dictation enabled status.
     /// </summary>
     void UpdateDictationStatus(bool enabled);
+
+    /// <summary>
+    /// Updates the prompt synchronization status.
+    /// </summary>
+    /// <param name="status">The new sync status.</param>
+    /// <param name="errorMessage">Optional error message if sync failed.</param>
+    void UpdatePromptSyncStatus(PromptSyncStatus status, string? errorMessage = null);
 }
 
 /// <summary>

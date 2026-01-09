@@ -71,7 +71,7 @@ public class MenuLayoutBuilder : IMenuLayoutBuilder
             }),
             MenuItemIds.ReloadPromptId => (id, new Dictionary<string, VariantValue>
             {
-                ["label"] = VariantValue.String("🔄 Reload LLM Prompt"),
+                ["label"] = VariantValue.String(GetPromptSyncLabel()),
                 ["enabled"] = VariantValue.Bool(true),
                 ["visible"] = VariantValue.Bool(true)
             }),
@@ -132,7 +132,7 @@ public class MenuLayoutBuilder : IMenuLayoutBuilder
                 CreateChildVariant(MenuItemIds.DictationToggleId, dictationLabel, false),
                 CreateChildVariant(MenuItemIds.Separator2Id, "", true),
                 CreateChildVariant(MenuItemIds.LlmCorrectionId, llmCorrectionLabel, false),
-                CreateChildVariant(MenuItemIds.ReloadPromptId, "🔄 Reload LLM Prompt", false),
+                CreateChildVariant(MenuItemIds.ReloadPromptId, GetPromptSyncLabel(), false),
                 CreateChildVariant(MenuItemIds.Separator3Id, "", true),
                 CreateChildVariant(MenuItemIds.MuteToggleId, muteLabel, false),
                 CreateChildVariant(MenuItemIds.TtsMuteToggleId, ttsMuteLabel, false),
@@ -216,5 +216,17 @@ public class MenuLayoutBuilder : IMenuLayoutBuilder
         return _stateManager.IsLlmCorrectionEnabled
             ? "✅ Posílání do LLM - Vypnout"
             : "❌ Posílání do LLM - Zapnout";
+    }
+
+    private string GetPromptSyncLabel()
+    {
+        return _stateManager.PromptSyncStatus switch
+        {
+            PromptSyncStatus.InSync => "✅ LLM Prompts (synced)",
+            PromptSyncStatus.OutOfSync => "⚠️ LLM Prompts (out of sync)",
+            PromptSyncStatus.SyncFailed => "❌ LLM Prompts (sync failed)",
+            PromptSyncStatus.Syncing => "⏳ Syncing LLM Prompts...",
+            _ => "🔄 Reload LLM Prompts"
+        };
     }
 }
