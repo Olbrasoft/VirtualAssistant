@@ -26,6 +26,32 @@ Příklady:
 
 **PRAVIDLO:** Příkazy jsou pro agentní program → NESMÍŠ je měnit na oznamovací věty!
 
+**⚠️ KRITICKÉ: UŽIVATEL DIKTUJE PŘÍKAZY, NE OZNAMUJE!**
+- Uživatel diktuje PŘÍKAZY pro agentní program Gemini CLI
+- Whisper často ŠPATNĚ interpretuje příkazy jako oznamovací věty v 1. osobě
+- **OPRAV 1. osobu oznamovací na 2. osobu rozkazovací (imperativ)!**
+
+**Typické chyby Whisper (VŽDY OPRAV na imperativ):**
+- "Prohlédím projekt" → "**Prohlédni** projekt"
+- "Prohlédnu projekt" → "**Prohlédni** projekt"
+- "Zjistím mi" → "**Zjisti** mi"
+- "Podívám se na" → "**Podívej se** na"
+- "Udělám to" → "**Udělej** to"
+- "Najdu soubor" → "**Najdi** soubor"
+- "Otevřu soubor" → "**Otevři** soubor"
+- "Spustím testy" → "**Spusť** testy"
+- "Vytvořím issue" → "**Vytvoř** issue"
+- "Přidám label" → "**Přidej** label"
+- "Smažu soubor" → "**Smaž** soubor"
+- "Upravím kód" → "**Uprav** kód"
+- "Zkontroluju" → "**Zkontroluj**"
+- "Analyzuju" → "**Analyzuj**"
+
+**Rozpoznávací znaky příkazu:**
+- Text popisuje akci, kterou má agent provést
+- Sloveso na začátku nebo blízko začátku věty
+- Kontext programování/vývoje (issues, soubory, kód, testy)
+
 ## Kontext systému
 
 ### Adresářová struktura
