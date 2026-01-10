@@ -1,5 +1,6 @@
 using Microsoft.Extensions.Logging;
 using Moq;
+using Olbrasoft.VirtualAssistant.Core.Audio;
 using Olbrasoft.VirtualAssistant.Core.Services;
 using Olbrasoft.VirtualAssistant.Core.StateMachine;
 using Olbrasoft.VirtualAssistant.Desktop.Services;
@@ -24,6 +25,7 @@ public class StateNotificationHandlerTests
     private readonly Mock<IDictationStateMachine> _dictationStateMachineMock;
     private readonly Mock<IRecordingNotificationService> _recordingNotificationServiceMock;
     private readonly Mock<IRecordingOverlayService> _recordingOverlayServiceMock;
+    private readonly Mock<ISoundEffectPlayer> _recordingStartSoundPlayerMock;
 
     public StateNotificationHandlerTests()
     {
@@ -37,6 +39,7 @@ public class StateNotificationHandlerTests
         _dictationStateMachineMock = new Mock<IDictationStateMachine>();
         _recordingNotificationServiceMock = new Mock<IRecordingNotificationService>();
         _recordingOverlayServiceMock = new Mock<IRecordingOverlayService>();
+        _recordingStartSoundPlayerMock = new Mock<ISoundEffectPlayer>();
     }
 
     #region Constructor Tests
@@ -734,6 +737,84 @@ public class StateNotificationHandlerTests
         // Assert
         Thread.Sleep(50);
         _recordingOverlayServiceMock.Verify(x => x.ShowRecordingAsync(It.IsAny<CancellationToken>()), Times.Once);
+    }
+
+    [Fact]
+    public void OnDictationStateChanged_WithRecordingState_PlaysRecordingStartSound()
+    {
+        // Arrange
+        var handler = new StateNotificationHandler(
+            _loggerMock.Object,
+            _muteServiceMock.Object,
+            _settingsServiceMock.Object,
+            _statusUpdaterMock.Object,
+            _iconCoordinatorMock.Object,
+            _iconAnimationServiceMock.Object,
+            null,
+            _dictationStateMachineMock.Object,
+            null,
+            null,
+            null,
+            _recordingStartSoundPlayerMock.Object);
+        handler.SubscribeToEvents();
+
+        // Act - simulate dictation state changed to Recording
+        _dictationStateMachineMock.Raise(m => m.StateChanged += null, this, DictationState.Recording);
+
+        // Assert
+        _recordingStartSoundPlayerMock.Verify(x => x.Play(), Times.Once);
+    }
+
+    [Fact]
+    public void OnDictationStateChanged_WithTranscribingState_DoesNotPlayRecordingStartSound()
+    {
+        // Arrange
+        var handler = new StateNotificationHandler(
+            _loggerMock.Object,
+            _muteServiceMock.Object,
+            _settingsServiceMock.Object,
+            _statusUpdaterMock.Object,
+            _iconCoordinatorMock.Object,
+            _iconAnimationServiceMock.Object,
+            null,
+            _dictationStateMachineMock.Object,
+            null,
+            null,
+            null,
+            _recordingStartSoundPlayerMock.Object);
+        handler.SubscribeToEvents();
+
+        // Act - simulate dictation state changed to Transcribing
+        _dictationStateMachineMock.Raise(m => m.StateChanged += null, this, DictationState.Transcribing);
+
+        // Assert - sound should NOT play for Transcribing state
+        _recordingStartSoundPlayerMock.Verify(x => x.Play(), Times.Never);
+    }
+
+    [Fact]
+    public void OnDictationStateChanged_WithIdleState_DoesNotPlayRecordingStartSound()
+    {
+        // Arrange
+        var handler = new StateNotificationHandler(
+            _loggerMock.Object,
+            _muteServiceMock.Object,
+            _settingsServiceMock.Object,
+            _statusUpdaterMock.Object,
+            _iconCoordinatorMock.Object,
+            _iconAnimationServiceMock.Object,
+            null,
+            _dictationStateMachineMock.Object,
+            null,
+            null,
+            null,
+            _recordingStartSoundPlayerMock.Object);
+        handler.SubscribeToEvents();
+
+        // Act - simulate dictation state changed to Idle
+        _dictationStateMachineMock.Raise(m => m.StateChanged += null, this, DictationState.Idle);
+
+        // Assert - sound should NOT play for Idle state
+        _recordingStartSoundPlayerMock.Verify(x => x.Play(), Times.Never);
     }
 
     #endregion

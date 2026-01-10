@@ -1,3 +1,5 @@
+using Microsoft.Extensions.DependencyInjection;
+using Olbrasoft.VirtualAssistant.Core.Audio;
 using Olbrasoft.VirtualAssistant.Core.Services;
 using Olbrasoft.VirtualAssistant.Core.StateMachine;
 using Olbrasoft.VirtualAssistant.Desktop.Services;
@@ -24,6 +26,7 @@ public class StateNotificationHandler : IStateNotificationHandler
     private readonly DictationWorker? _dictationWorker;
     private readonly IRecordingNotificationService? _recordingNotificationService;
     private readonly IRecordingOverlayService? _recordingOverlayService;
+    private readonly ISoundEffectPlayer? _recordingStartSoundPlayer;
 
     public StateNotificationHandler(
         ILogger<StateNotificationHandler> logger,
@@ -36,7 +39,8 @@ public class StateNotificationHandler : IStateNotificationHandler
         IDictationStateMachine? dictationStateMachine = null,
         DictationWorker? dictationWorker = null,
         IRecordingNotificationService? recordingNotificationService = null,
-        IRecordingOverlayService? recordingOverlayService = null)
+        IRecordingOverlayService? recordingOverlayService = null,
+        [FromKeyedServices("recording-start")] ISoundEffectPlayer? recordingStartSoundPlayer = null)
     {
         _logger = logger ?? throw new ArgumentNullException(nameof(logger));
         _muteService = muteService ?? throw new ArgumentNullException(nameof(muteService));
@@ -49,6 +53,7 @@ public class StateNotificationHandler : IStateNotificationHandler
         _dictationWorker = dictationWorker;
         _recordingNotificationService = recordingNotificationService;
         _recordingOverlayService = recordingOverlayService;
+        _recordingStartSoundPlayer = recordingStartSoundPlayer;
     }
 
     /// <summary>
@@ -150,6 +155,12 @@ public class StateNotificationHandler : IStateNotificationHandler
         try
         {
             _logger.LogInformation("Dictation state changed to: {State}", newState);
+
+            // Play recording start sound when entering Recording state
+            if (newState == DictationState.Recording)
+            {
+                _recordingStartSoundPlayer?.Play();
+            }
 
             // Delegate icon animation to specialized service
             _iconAnimationService.HandleDictationStateChange(newState);

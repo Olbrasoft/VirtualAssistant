@@ -126,6 +126,16 @@ public static class VoiceServicesExtensions
             return CancelSoundPlayer.CreateFromDirectory(logger, soundsPath, "paper-rip.mp3", audioSink);
         });
 
+        // Recording start sound player for dictation start feedback (keyed service)
+        services.AddKeyedSingleton<ISoundEffectPlayer, RecordingStartSoundPlayer>("recording-start", (sp, key) =>
+        {
+            var logger = sp.GetRequiredService<ILogger<RecordingStartSoundPlayer>>();
+            var configuration = sp.GetRequiredService<IConfiguration>();
+            var soundsPath = Path.Combine(AppContext.BaseDirectory, "..", "sounds");
+            var audioSink = configuration["NotificationAudio:AudioSink"];
+            return RecordingStartSoundPlayer.CreateFromDirectory(logger, soundsPath, "recording-start.mp3", audioSink);
+        });
+
         // Mute service (shared between tray, keyboard monitor, and continuous listener)
         services.AddSingleton<IManualMuteService, ManualMuteService>();
 
