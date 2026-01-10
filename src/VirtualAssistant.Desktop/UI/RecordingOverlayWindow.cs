@@ -113,10 +113,11 @@ public class RecordingOverlayWindow : IRecordingOverlayWindow
             LayerShell.SetLayer(_window, Layer.Overlay); // Always on top
             LayerShell.SetKeyboardMode(_window, KeyboardMode.None); // Don't grab keyboard
 
-            // Don't anchor - we'll position manually
-            LayerShell.SetAnchor(_window, Edge.Top, false);
+            // Anchor to top-left - margins work relative to anchor edges
+            // Without anchors, window is centered; with Top+Left anchors, margins position from top-left corner
+            LayerShell.SetAnchor(_window, Edge.Top, true);
+            LayerShell.SetAnchor(_window, Edge.Left, true);
             LayerShell.SetAnchor(_window, Edge.Bottom, false);
-            LayerShell.SetAnchor(_window, Edge.Left, false);
             LayerShell.SetAnchor(_window, Edge.Right, false);
 
             // Set exclusive zone to -1 to not reserve space
@@ -126,6 +127,8 @@ public class RecordingOverlayWindow : IRecordingOverlayWindow
         // Window properties
         _window.SetDecorated(false);
         _window.SetDefaultSize(OverlayWidth, OverlayHeight);
+        _window.SetFocusOnClick(false); // Don't steal focus when clicked
+        _window.SetCanFocus(false); // Window cannot receive keyboard focus
 
         // Create UI
         _container = Box.New(Orientation.Horizontal, 8);
