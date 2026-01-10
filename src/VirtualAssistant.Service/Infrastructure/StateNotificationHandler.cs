@@ -177,58 +177,13 @@ public class StateNotificationHandler : IStateNotificationHandler
 
     /// <summary>
     /// Handles visual feedback for recording state changes.
-    /// Uses overlay service if available, falls back to notifications.
+    /// DISABLED: AT-SPI caret tracking causes UI lag on Wayland, and overlay positioning
+    /// without caret tracking is not useful. Tray icon animation is sufficient feedback.
     /// </summary>
-    private async Task HandleRecordingFeedbackAsync(DictationState newState)
+    private Task HandleRecordingFeedbackAsync(DictationState newState)
     {
-        // Try overlay service first (Phase 2 - issue #673)
-        if (_recordingOverlayService != null)
-        {
-            try
-            {
-                switch (newState)
-                {
-                    case DictationState.Recording:
-                        await _recordingOverlayService.ShowRecordingAsync();
-                        return; // Success, don't fall through to notifications
-                    case DictationState.Transcribing:
-                        await _recordingOverlayService.ShowTranscribingAsync();
-                        return;
-                    case DictationState.Idle:
-                        await _recordingOverlayService.HideAsync();
-                        return;
-                }
-            }
-            catch (Exception ex)
-            {
-                _logger.LogWarning(ex, "Overlay service failed, falling back to notifications");
-                // Fall through to notification service
-            }
-        }
-
-        // Fallback to notification service (Phase 1 - issue #670)
-        if (_recordingNotificationService != null)
-        {
-            try
-            {
-                switch (newState)
-                {
-                    case DictationState.Recording:
-                        await _recordingNotificationService.ShowRecordingAsync();
-                        break;
-                    case DictationState.Transcribing:
-                        await _recordingNotificationService.ShowTranscribingAsync();
-                        break;
-                    case DictationState.Idle:
-                        await _recordingNotificationService.HideAsync();
-                        break;
-                }
-            }
-            catch (Exception ex)
-            {
-                _logger.LogWarning(ex, "Recording notification service failed while handling dictation state {DictationState}", newState);
-                // Swallow exception to ensure graceful degradation
-            }
-        }
+        // Recording overlay/notification disabled - tray icon animation provides sufficient feedback
+        _logger.LogDebug("Recording feedback disabled, state: {State}", newState);
+        return Task.CompletedTask;
     }
 }
