@@ -22,6 +22,9 @@ public class RecordingOverlayService : IRecordingOverlayService
     private const int FallbackX = 100;
     private const int FallbackY = 100;
 
+    // Timeout for D-Bus cursor position call (500ms)
+    private static readonly TimeSpan CursorPositionTimeout = TimeSpan.FromMilliseconds(500);
+
     public RecordingOverlayService(
         ILogger<RecordingOverlayService> logger,
         ICursorPositionService cursorPositionService,
@@ -106,17 +109,27 @@ public class RecordingOverlayService : IRecordingOverlayService
     {
         try
         {
-            var position = await _cursorPositionService.GetCursorPositionAsync(cancellationToken);
+            // Create a timeout token to prevent D-Bus call from hanging forever
+            using var timeoutCts = new CancellationTokenSource(CursorPositionTimeout);
+            using var linkedCts = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken, timeoutCts.Token);
+
+            var position = await _cursorPositionService.GetCursorPositionAsync(linkedCts.Token);
             if (position.HasValue)
             {
                 return (position.Value.X, position.Value.Y);
             }
+        }
+        catch (OperationCanceledException) when (!cancellationToken.IsCancellationRequested)
+        {
+            _logger.LogWarning("Cursor position request timed out after {Timeout}ms, using fallback",
+                CursorPositionTimeout.TotalMilliseconds);
         }
         catch (Exception ex)
         {
             _logger.LogWarning(ex, "Failed to get cursor position, using fallback");
         }
 
+        _logger.LogDebug("Using fallback cursor position: ({X}, {Y})", FallbackX, FallbackY);
         return (FallbackX, FallbackY);
     }
 
