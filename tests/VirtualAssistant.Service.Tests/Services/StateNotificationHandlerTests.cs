@@ -443,9 +443,9 @@ public class StateNotificationHandlerTests
     }
 
     [Fact]
-    public void OnDictationStateChanged_WithRecordingState_CallsShowRecordingAsync()
+    public void OnDictationStateChanged_WithRecordingState_DoesNotCallRecordingNotification_BecauseOverlayDisabled()
     {
-        // Arrange
+        // Arrange - Recording overlay/notification is DISABLED (tray icon animation is sufficient feedback)
         var handler = new StateNotificationHandler(
             _loggerMock.Object,
             _muteServiceMock.Object,
@@ -462,15 +462,15 @@ public class StateNotificationHandlerTests
         // Act - simulate dictation state changed event
         _dictationStateMachineMock.Raise(m => m.StateChanged += null, this, DictationState.Recording);
 
-        // Assert - give async void time to complete
+        // Assert - notification should NOT be called (feature disabled)
         Thread.Sleep(50);
-        _recordingNotificationServiceMock.Verify(x => x.ShowRecordingAsync(It.IsAny<CancellationToken>()), Times.Once);
+        _recordingNotificationServiceMock.Verify(x => x.ShowRecordingAsync(It.IsAny<CancellationToken>()), Times.Never);
     }
 
     [Fact]
-    public void OnDictationStateChanged_WithTranscribingState_CallsShowTranscribingAsync()
+    public void OnDictationStateChanged_WithTranscribingState_DoesNotCallTranscribingNotification_BecauseOverlayDisabled()
     {
-        // Arrange
+        // Arrange - Recording overlay/notification is DISABLED (tray icon animation is sufficient feedback)
         var handler = new StateNotificationHandler(
             _loggerMock.Object,
             _muteServiceMock.Object,
@@ -487,15 +487,15 @@ public class StateNotificationHandlerTests
         // Act - simulate dictation state changed event
         _dictationStateMachineMock.Raise(m => m.StateChanged += null, this, DictationState.Transcribing);
 
-        // Assert - give async void time to complete
+        // Assert - notification should NOT be called (feature disabled)
         Thread.Sleep(50);
-        _recordingNotificationServiceMock.Verify(x => x.ShowTranscribingAsync(It.IsAny<CancellationToken>()), Times.Once);
+        _recordingNotificationServiceMock.Verify(x => x.ShowTranscribingAsync(It.IsAny<CancellationToken>()), Times.Never);
     }
 
     [Fact]
-    public void OnDictationStateChanged_WithIdleState_CallsHideAsync()
+    public void OnDictationStateChanged_WithIdleState_DoesNotCallHideNotification_BecauseOverlayDisabled()
     {
-        // Arrange
+        // Arrange - Recording overlay/notification is DISABLED (tray icon animation is sufficient feedback)
         var handler = new StateNotificationHandler(
             _loggerMock.Object,
             _muteServiceMock.Object,
@@ -512,9 +512,9 @@ public class StateNotificationHandlerTests
         // Act - simulate dictation state changed event
         _dictationStateMachineMock.Raise(m => m.StateChanged += null, this, DictationState.Idle);
 
-        // Assert - give async void time to complete
+        // Assert - notification should NOT be called (feature disabled)
         Thread.Sleep(50);
-        _recordingNotificationServiceMock.Verify(x => x.HideAsync(It.IsAny<CancellationToken>()), Times.Once);
+        _recordingNotificationServiceMock.Verify(x => x.HideAsync(It.IsAny<CancellationToken>()), Times.Never);
     }
 
     [Fact]
@@ -541,9 +541,9 @@ public class StateNotificationHandlerTests
     }
 
     [Fact]
-    public void OnDictationStateChanged_WithOverlayService_CallsOverlayInsteadOfNotification()
+    public void OnDictationStateChanged_WithOverlayService_DoesNotCallOverlay_BecauseOverlayDisabled()
     {
-        // Arrange
+        // Arrange - Recording overlay is DISABLED (tray icon animation is sufficient feedback)
         var handler = new StateNotificationHandler(
             _loggerMock.Object,
             _muteServiceMock.Object,
@@ -561,47 +561,16 @@ public class StateNotificationHandlerTests
         // Act - simulate dictation state changed event
         _dictationStateMachineMock.Raise(m => m.StateChanged += null, this, DictationState.Recording);
 
-        // Assert - give async void time to complete
+        // Assert - overlay should NOT be called (feature disabled)
         Thread.Sleep(50);
-        _recordingOverlayServiceMock.Verify(x => x.ShowRecordingAsync(It.IsAny<CancellationToken>()), Times.Once);
+        _recordingOverlayServiceMock.Verify(x => x.ShowRecordingAsync(It.IsAny<CancellationToken>()), Times.Never);
         _recordingNotificationServiceMock.Verify(x => x.ShowRecordingAsync(It.IsAny<CancellationToken>()), Times.Never);
     }
 
     [Fact]
-    public void OnDictationStateChanged_WhenOverlayFails_FallsBackToNotification()
+    public void OnDictationStateChanged_TranscribingState_DoesNotCallOverlay_BecauseOverlayDisabled()
     {
-        // Arrange
-        _recordingOverlayServiceMock
-            .Setup(x => x.ShowRecordingAsync(It.IsAny<CancellationToken>()))
-            .ThrowsAsync(new InvalidOperationException("Overlay failed"));
-
-        var handler = new StateNotificationHandler(
-            _loggerMock.Object,
-            _muteServiceMock.Object,
-            _settingsServiceMock.Object,
-            _statusUpdaterMock.Object,
-            _iconCoordinatorMock.Object,
-            _iconAnimationServiceMock.Object,
-            null,
-            _dictationStateMachineMock.Object,
-            null,
-            _recordingNotificationServiceMock.Object,
-            _recordingOverlayServiceMock.Object);
-        handler.SubscribeToEvents();
-
-        // Act - simulate dictation state changed event
-        _dictationStateMachineMock.Raise(m => m.StateChanged += null, this, DictationState.Recording);
-
-        // Assert - give async void time to complete
-        Thread.Sleep(100);
-        _recordingOverlayServiceMock.Verify(x => x.ShowRecordingAsync(It.IsAny<CancellationToken>()), Times.Once);
-        _recordingNotificationServiceMock.Verify(x => x.ShowRecordingAsync(It.IsAny<CancellationToken>()), Times.Once);
-    }
-
-    [Fact]
-    public void OnDictationStateChanged_TranscribingState_CallsOverlayShowTranscribing()
-    {
-        // Arrange
+        // Arrange - Recording overlay is DISABLED (tray icon animation is sufficient feedback)
         var handler = new StateNotificationHandler(
             _loggerMock.Object,
             _muteServiceMock.Object,
@@ -619,16 +588,16 @@ public class StateNotificationHandlerTests
         // Act
         _dictationStateMachineMock.Raise(m => m.StateChanged += null, this, DictationState.Transcribing);
 
-        // Assert
+        // Assert - overlay should NOT be called (feature disabled)
         Thread.Sleep(50);
-        _recordingOverlayServiceMock.Verify(x => x.ShowTranscribingAsync(It.IsAny<CancellationToken>()), Times.Once);
+        _recordingOverlayServiceMock.Verify(x => x.ShowTranscribingAsync(It.IsAny<CancellationToken>()), Times.Never);
         _recordingNotificationServiceMock.Verify(x => x.ShowTranscribingAsync(It.IsAny<CancellationToken>()), Times.Never);
     }
 
     [Fact]
-    public void OnDictationStateChanged_IdleState_CallsOverlayHide()
+    public void OnDictationStateChanged_IdleState_DoesNotCallOverlay_BecauseOverlayDisabled()
     {
-        // Arrange
+        // Arrange - Recording overlay is DISABLED (tray icon animation is sufficient feedback)
         var handler = new StateNotificationHandler(
             _loggerMock.Object,
             _muteServiceMock.Object,
@@ -646,97 +615,10 @@ public class StateNotificationHandlerTests
         // Act
         _dictationStateMachineMock.Raise(m => m.StateChanged += null, this, DictationState.Idle);
 
-        // Assert
+        // Assert - overlay should NOT be called (feature disabled)
         Thread.Sleep(50);
-        _recordingOverlayServiceMock.Verify(x => x.HideAsync(It.IsAny<CancellationToken>()), Times.Once);
+        _recordingOverlayServiceMock.Verify(x => x.HideAsync(It.IsAny<CancellationToken>()), Times.Never);
         _recordingNotificationServiceMock.Verify(x => x.HideAsync(It.IsAny<CancellationToken>()), Times.Never);
-    }
-
-    [Fact]
-    public void OnDictationStateChanged_WhenOverlayFailsOnTranscribing_FallsBackToNotification()
-    {
-        // Arrange
-        _recordingOverlayServiceMock
-            .Setup(x => x.ShowTranscribingAsync(It.IsAny<CancellationToken>()))
-            .ThrowsAsync(new InvalidOperationException("Overlay failed"));
-
-        var handler = new StateNotificationHandler(
-            _loggerMock.Object,
-            _muteServiceMock.Object,
-            _settingsServiceMock.Object,
-            _statusUpdaterMock.Object,
-            _iconCoordinatorMock.Object,
-            _iconAnimationServiceMock.Object,
-            null,
-            _dictationStateMachineMock.Object,
-            null,
-            _recordingNotificationServiceMock.Object,
-            _recordingOverlayServiceMock.Object);
-        handler.SubscribeToEvents();
-
-        // Act
-        _dictationStateMachineMock.Raise(m => m.StateChanged += null, this, DictationState.Transcribing);
-
-        // Assert
-        Thread.Sleep(100);
-        _recordingOverlayServiceMock.Verify(x => x.ShowTranscribingAsync(It.IsAny<CancellationToken>()), Times.Once);
-        _recordingNotificationServiceMock.Verify(x => x.ShowTranscribingAsync(It.IsAny<CancellationToken>()), Times.Once);
-    }
-
-    [Fact]
-    public void OnDictationStateChanged_WhenOverlayFailsAndNoNotificationService_HandlesGracefully()
-    {
-        // Arrange
-        _recordingOverlayServiceMock
-            .Setup(x => x.ShowRecordingAsync(It.IsAny<CancellationToken>()))
-            .ThrowsAsync(new InvalidOperationException("Overlay failed"));
-
-        var handler = new StateNotificationHandler(
-            _loggerMock.Object,
-            _muteServiceMock.Object,
-            _settingsServiceMock.Object,
-            _statusUpdaterMock.Object,
-            _iconCoordinatorMock.Object,
-            _iconAnimationServiceMock.Object,
-            null,
-            _dictationStateMachineMock.Object,
-            null,
-            null, // No notification service
-            _recordingOverlayServiceMock.Object);
-        handler.SubscribeToEvents();
-
-        // Act - should not throw
-        _dictationStateMachineMock.Raise(m => m.StateChanged += null, this, DictationState.Recording);
-
-        // Assert - give async void time to complete
-        Thread.Sleep(100);
-        _recordingOverlayServiceMock.Verify(x => x.ShowRecordingAsync(It.IsAny<CancellationToken>()), Times.Once);
-    }
-
-    [Fact]
-    public void OnDictationStateChanged_WithOnlyOverlayService_WorksWithoutNotificationService()
-    {
-        // Arrange
-        var handler = new StateNotificationHandler(
-            _loggerMock.Object,
-            _muteServiceMock.Object,
-            _settingsServiceMock.Object,
-            _statusUpdaterMock.Object,
-            _iconCoordinatorMock.Object,
-            _iconAnimationServiceMock.Object,
-            null,
-            _dictationStateMachineMock.Object,
-            null,
-            null, // No notification service
-            _recordingOverlayServiceMock.Object);
-        handler.SubscribeToEvents();
-
-        // Act
-        _dictationStateMachineMock.Raise(m => m.StateChanged += null, this, DictationState.Recording);
-
-        // Assert
-        Thread.Sleep(50);
-        _recordingOverlayServiceMock.Verify(x => x.ShowRecordingAsync(It.IsAny<CancellationToken>()), Times.Once);
     }
 
     [Fact]

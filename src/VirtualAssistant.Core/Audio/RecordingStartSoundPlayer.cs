@@ -72,9 +72,12 @@ public class RecordingStartSoundPlayer : ISoundEffectPlayer, IDisposable
     public void Play()
     {
         if (_disposed || !IsEnabled)
+        {
+            _logger.LogDebug("Recording start sound skipped (disposed={Disposed}, enabled={Enabled})", _disposed, IsEnabled);
             return;
+        }
 
-        _logger.LogDebug("Playing recording start sound");
+        _logger.LogInformation("Playing recording start sound: {Path}", _soundFilePath);
 
         // Fire and forget - don't wait for completion
         _ = Task.Run(async () =>
@@ -85,7 +88,7 @@ public class RecordingStartSoundPlayer : ISoundEffectPlayer, IDisposable
             }
             catch (Exception ex)
             {
-                _logger.LogDebug(ex, "Error playing recording start sound");
+                _logger.LogWarning(ex, "Error playing recording start sound");
             }
         });
     }
@@ -118,37 +121,59 @@ public class RecordingStartSoundPlayer : ISoundEffectPlayer, IDisposable
             return;
         }
 
+        var arguments = GetPlayerArguments(_soundFilePath!);
+        _logger.LogDebug("Starting audio player: {Player} {Arguments}", player, arguments);
+
         var startInfo = new ProcessStartInfo
         {
             FileName = player,
-            Arguments = GetPlayerArguments(_soundFilePath!),
+            Arguments = arguments,
             UseShellExecute = false,
             RedirectStandardOutput = true,
             RedirectStandardError = true,
             CreateNoWindow = true
         };
 
+        Process? process;
         lock (_lock)
         {
             if (_disposed)
+            {
+                _logger.LogDebug("Sound player disposed, skipping playback");
                 return;
+            }
 
-            _playProcess = Process.Start(startInfo);
+            process = Process.Start(startInfo);
+            _playProcess = process;
         }
 
-        if (_playProcess != null)
+        if (process == null)
         {
-            try
+            _logger.LogWarning("Failed to start audio player process: {Player}", player);
+            return;
+        }
+
+        try
+        {
+            await process.WaitForExitAsync(cancellationToken);
+            var exitCode = process.ExitCode;
+            if (exitCode != 0)
             {
-                await _playProcess.WaitForExitAsync(cancellationToken);
+                var stderr = await process.StandardError.ReadToEndAsync(cancellationToken);
+                _logger.LogWarning("Audio player exited with code {ExitCode}: {Stderr}", exitCode, stderr);
             }
-            finally
+            else
             {
-                lock (_lock)
-                {
-                    _playProcess?.Dispose();
+                _logger.LogDebug("Recording start sound played successfully");
+            }
+        }
+        finally
+        {
+            lock (_lock)
+            {
+                process.Dispose();
+                if (_playProcess == process)
                     _playProcess = null;
-                }
             }
         }
     }
