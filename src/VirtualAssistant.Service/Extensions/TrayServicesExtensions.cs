@@ -1,4 +1,5 @@
 using Microsoft.Extensions.Options;
+using Olbrasoft.VirtualAssistant.Core.Audio;
 using Olbrasoft.VirtualAssistant.Core.Configuration;
 using Olbrasoft.VirtualAssistant.Core.Services;
 using Olbrasoft.VirtualAssistant.Desktop.Services;
@@ -170,6 +171,7 @@ public static class TrayServicesExtensions
             var dictationWorker = sp.GetService<DictationWorker>();
             var recordingNotificationService = sp.GetService<IRecordingNotificationService>();
             var recordingOverlayService = sp.GetService<IRecordingOverlayService>();
+            var recordingStartSoundPlayer = sp.GetKeyedService<ISoundEffectPlayer>("recording-start");
 
             return new StateNotificationHandler(
                 logger,
@@ -182,7 +184,8 @@ public static class TrayServicesExtensions
                 dictationStateMachine,
                 dictationWorker,
                 recordingNotificationService,
-                recordingOverlayService);
+                recordingOverlayService,
+                recordingStartSoundPlayer);
         });
 
         // Tray coordinator service (orchestrates 5 specialized tray services)
