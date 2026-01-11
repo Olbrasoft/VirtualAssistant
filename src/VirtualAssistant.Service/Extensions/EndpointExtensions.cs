@@ -61,25 +61,27 @@ public static class EndpointExtensions
 
     /// <summary>
     /// Maps assistant speech tracking endpoints (for echo cancellation).
+    /// Dependencies are injected directly into handlers (issue #691 - explicit dependencies).
     /// </summary>
     public static WebApplication MapAssistantSpeechEndpoints(this WebApplication app)
     {
-        var speechTracker = app.Services.GetRequiredService<IAssistantSpeechTrackerService>();
-
-        app.MapPost("/api/assistant-speech/start", (AssistantSpeechStartRequest request, ILogger<Program> logger) =>
+        app.MapPost("/api/assistant-speech/start", (
+            AssistantSpeechStartRequest request,
+            IAssistantSpeechTrackerService speechTracker,
+            ILogger<Program> logger) =>
         {
             logger.LogInformation("TTS Start: \"{Text}\"", request.Text);
             speechTracker.StartSpeaking(request.Text);
             return Results.Ok(new { status = "started", text = request.Text });
         });
 
-        app.MapPost("/api/assistant-speech/end", () =>
+        app.MapPost("/api/assistant-speech/end", (IAssistantSpeechTrackerService speechTracker) =>
         {
             speechTracker.StopSpeaking();
             return Results.Ok(new { status = "ended" });
         });
 
-        app.MapGet("/api/assistant-speech/status", () =>
+        app.MapGet("/api/assistant-speech/status", (IAssistantSpeechTrackerService speechTracker) =>
         {
             return Results.Ok(new { historyCount = speechTracker.GetHistoryCount() });
         });
@@ -91,13 +93,15 @@ public static class EndpointExtensions
     /// Maps TTS endpoints (speak, queue management, provider status).
     /// All TTS operations delegate to TtsService (single source of truth).
     /// Note: Notifications are handled by NotificationsController at /api/notifications
+    /// Dependencies are injected directly into handlers (issue #691 - explicit dependencies).
     /// </summary>
     public static WebApplication MapTtsEndpoints(this WebApplication app)
     {
-        var ttsProviderChain = app.Services.GetRequiredService<ITtsProviderChain>();
-
         // Speak endpoint - directly speaks text via TTS
-        app.MapPost("/api/tts/speak", async (TtsNotifyRequest request, TtsService ttsService, ILogger<Program> logger) =>
+        app.MapPost("/api/tts/speak", async (
+            TtsNotifyRequest request,
+            TtsService ttsService,
+            ILogger<Program> logger) =>
         {
             logger.LogInformation("TTS Speak received from {Source}: {Text}", request.Source ?? "default", request.Text);
 
@@ -119,14 +123,14 @@ public static class EndpointExtensions
         });
 
         // Provider status
-        app.MapGet("/api/tts/providers", () =>
+        app.MapGet("/api/tts/providers", (ITtsProviderChain ttsProviderChain) =>
         {
             var statuses = ttsProviderChain.GetProvidersStatus();
             return Results.Ok(new { providers = statuses });
         });
 
         // Circuit breaker reset
-        app.MapPost("/api/tts/reset-circuit-breaker", (string? provider) =>
+        app.MapPost("/api/tts/reset-circuit-breaker", (string? provider, ITtsProviderChain ttsProviderChain) =>
         {
             ttsProviderChain.ResetCircuitBreaker(provider);
             return Results.Ok(new
@@ -176,12 +180,14 @@ public static class EndpointExtensions
 
     /// <summary>
     /// Maps mute control endpoints.
+    /// Dependencies are injected directly into handlers (issue #691 - explicit dependencies).
     /// </summary>
     public static WebApplication MapMuteEndpoints(this WebApplication app)
     {
-        var muteService = app.Services.GetRequiredService<IManualMuteService>();
-
-        app.MapPost("/api/mute", (MuteRequest request, ILogger<Program> logger) =>
+        app.MapPost("/api/mute", (
+            MuteRequest request,
+            IManualMuteService muteService,
+            ILogger<Program> logger) =>
         {
             var previousState = muteService.IsMuted;
             muteService.SetMuted(request.Muted);
@@ -191,7 +197,7 @@ public static class EndpointExtensions
             return Results.Ok(new { success = true, muted = muteService.IsMuted, previousState });
         });
 
-        app.MapGet("/api/mute", () =>
+        app.MapGet("/api/mute", (IManualMuteService muteService) =>
         {
             return Results.Ok(new { muted = muteService.IsMuted });
         });
