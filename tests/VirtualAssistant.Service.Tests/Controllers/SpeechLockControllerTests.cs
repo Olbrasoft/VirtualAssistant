@@ -10,7 +10,8 @@ namespace Olbrasoft.VirtualAssistant.Service.Tests.Controllers;
 public class SpeechLockControllerTests
 {
     private readonly Mock<ISpeechLockService> _speechLockServiceMock;
-    private readonly Mock<IVirtualAssistantSpeaker> _speakerMock;
+    private readonly Mock<ISpeechCancellation> _speechCancellationMock;
+    private readonly Mock<ISpeechQueueInfo> _speechQueueInfoMock;
     private readonly Mock<INotificationBatchingService> _batchingServiceMock;
     private readonly Mock<ILogger<SpeechLockController>> _loggerMock;
     private readonly SpeechLockController _controller;
@@ -18,13 +19,15 @@ public class SpeechLockControllerTests
     public SpeechLockControllerTests()
     {
         _speechLockServiceMock = new Mock<ISpeechLockService>();
-        _speakerMock = new Mock<IVirtualAssistantSpeaker>();
+        _speechCancellationMock = new Mock<ISpeechCancellation>();
+        _speechQueueInfoMock = new Mock<ISpeechQueueInfo>();
         _batchingServiceMock = new Mock<INotificationBatchingService>();
         _loggerMock = new Mock<ILogger<SpeechLockController>>();
 
         _controller = new SpeechLockController(
             _speechLockServiceMock.Object,
-            _speakerMock.Object,
+            _speechCancellationMock.Object,
+            _speechQueueInfoMock.Object,
             _batchingServiceMock.Object,
             _loggerMock.Object);
     }
@@ -34,7 +37,7 @@ public class SpeechLockControllerTests
     {
         // Arrange
         _batchingServiceMock.Setup(x => x.PendingCount).Returns(0);
-        _speakerMock.Setup(x => x.QueueCount).Returns(0);
+        _speechQueueInfoMock.Setup(x => x.QueueCount).Returns(0);
 
         // Act
         var result = _controller.Start(null);
@@ -46,7 +49,7 @@ public class SpeechLockControllerTests
         Assert.True(response.IsLocked);
         Assert.Equal("Speech lock activated", response.Message);
 
-        _speakerMock.Verify(x => x.CancelCurrentSpeech(), Times.Once);
+        _speechCancellationMock.Verify(x => x.CancelCurrentSpeech(), Times.Once);
         _speechLockServiceMock.Verify(x => x.Lock(null), Times.Once);
     }
 
@@ -56,7 +59,7 @@ public class SpeechLockControllerTests
         // Arrange
         var request = new SpeechLockStartRequest { TimeoutSeconds = 60 };
         _batchingServiceMock.Setup(x => x.PendingCount).Returns(0);
-        _speakerMock.Setup(x => x.QueueCount).Returns(0);
+        _speechQueueInfoMock.Setup(x => x.QueueCount).Returns(0);
 
         // Act
         var result = _controller.Start(request);
@@ -77,7 +80,7 @@ public class SpeechLockControllerTests
         // Arrange
         var request = new SpeechLockStartRequest { TimeoutSeconds = 0 };
         _batchingServiceMock.Setup(x => x.PendingCount).Returns(0);
-        _speakerMock.Setup(x => x.QueueCount).Returns(0);
+        _speechQueueInfoMock.Setup(x => x.QueueCount).Returns(0);
 
         // Act
         var result = _controller.Start(request);
@@ -91,7 +94,7 @@ public class SpeechLockControllerTests
     {
         // Arrange
         _batchingServiceMock.Setup(x => x.PendingCount).Returns(3);
-        _speakerMock.Setup(x => x.QueueCount).Returns(2);
+        _speechQueueInfoMock.Setup(x => x.QueueCount).Returns(2);
 
         // Act
         var result = _controller.Start(null);
@@ -107,7 +110,7 @@ public class SpeechLockControllerTests
     {
         // Arrange
         _batchingServiceMock.Setup(x => x.PendingCount).Returns(2);
-        _speakerMock.Setup(x => x.QueueCount).Returns(3);
+        _speechQueueInfoMock.Setup(x => x.QueueCount).Returns(3);
 
         // Act
         var result = await _controller.Stop();
@@ -121,7 +124,7 @@ public class SpeechLockControllerTests
 
         _speechLockServiceMock.Verify(x => x.Unlock(), Times.Once);
         _batchingServiceMock.Verify(x => x.FlushAsync(), Times.Once);
-        _speakerMock.Verify(x => x.FlushQueueAsync(It.IsAny<CancellationToken>()), Times.Once);
+        _speechCancellationMock.Verify(x => x.FlushQueueAsync(It.IsAny<CancellationToken>()), Times.Once);
     }
 
     [Fact]
@@ -129,7 +132,7 @@ public class SpeechLockControllerTests
     {
         // Arrange
         _batchingServiceMock.Setup(x => x.PendingCount).Returns(0);
-        _speakerMock.Setup(x => x.QueueCount).Returns(0);
+        _speechQueueInfoMock.Setup(x => x.QueueCount).Returns(0);
 
         // Act
         var result = await _controller.Stop();
@@ -141,7 +144,7 @@ public class SpeechLockControllerTests
 
         _speechLockServiceMock.Verify(x => x.Unlock(), Times.Once);
         _batchingServiceMock.Verify(x => x.FlushAsync(), Times.Never);
-        _speakerMock.Verify(x => x.FlushQueueAsync(It.IsAny<CancellationToken>()), Times.Never);
+        _speechCancellationMock.Verify(x => x.FlushQueueAsync(It.IsAny<CancellationToken>()), Times.Never);
     }
 
     [Fact]
@@ -149,7 +152,7 @@ public class SpeechLockControllerTests
     {
         // Arrange
         _batchingServiceMock.Setup(x => x.PendingCount).Returns(0);
-        _speakerMock.Setup(x => x.QueueCount).Returns(2);
+        _speechQueueInfoMock.Setup(x => x.QueueCount).Returns(2);
 
         // Act
         var result = await _controller.Stop();
@@ -160,7 +163,7 @@ public class SpeechLockControllerTests
         Assert.Contains("2", response.Message);
 
         _batchingServiceMock.Verify(x => x.FlushAsync(), Times.Never);
-        _speakerMock.Verify(x => x.FlushQueueAsync(It.IsAny<CancellationToken>()), Times.Once);
+        _speechCancellationMock.Verify(x => x.FlushQueueAsync(It.IsAny<CancellationToken>()), Times.Once);
     }
 
     [Fact]
@@ -170,7 +173,7 @@ public class SpeechLockControllerTests
         _speechLockServiceMock.Setup(x => x.IsLocked).Returns(true);
         _batchingServiceMock.Setup(x => x.PendingCount).Returns(5);
         _batchingServiceMock.Setup(x => x.IsProcessing).Returns(false);
-        _speakerMock.Setup(x => x.QueueCount).Returns(3);
+        _speechQueueInfoMock.Setup(x => x.QueueCount).Returns(3);
 
         // Act
         var result = _controller.GetStatus();
@@ -194,7 +197,7 @@ public class SpeechLockControllerTests
         _speechLockServiceMock.Setup(x => x.IsLocked).Returns(false);
         _batchingServiceMock.Setup(x => x.PendingCount).Returns(0);
         _batchingServiceMock.Setup(x => x.IsProcessing).Returns(true);
-        _speakerMock.Setup(x => x.QueueCount).Returns(0);
+        _speechQueueInfoMock.Setup(x => x.QueueCount).Returns(0);
 
         // Act
         var result = _controller.GetStatus();

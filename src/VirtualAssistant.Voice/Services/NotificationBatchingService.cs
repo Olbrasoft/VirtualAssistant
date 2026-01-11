@@ -16,7 +16,7 @@ namespace Olbrasoft.VirtualAssistant.Voice.Services;
 public class NotificationBatchingService : INotificationBatchingService, IDisposable
 {
     private readonly ILogger<NotificationBatchingService> _logger;
-    private readonly IVirtualAssistantSpeaker _speaker;
+    private readonly ISpeechController _speechController;
     private readonly INotificationTracker _notificationTracker;
     private readonly ISpeechLockService _speechLockService;
     private readonly SpeechToTextSettings _speechToTextSettings;
@@ -27,13 +27,13 @@ public class NotificationBatchingService : INotificationBatchingService, IDispos
 
     public NotificationBatchingService(
         ILogger<NotificationBatchingService> logger,
-        IVirtualAssistantSpeaker speaker,
+        ISpeechController speechController,
         INotificationTracker notificationTracker,
         ISpeechLockService speechLockService,
         IOptions<SpeechToTextSettings> speechToTextSettings)
     {
         _logger = logger;
-        _speaker = speaker;
+        _speechController = speechController;
         _notificationTracker = notificationTracker;
         _speechLockService = speechLockService;
         _speechToTextSettings = speechToTextSettings.Value;
@@ -123,7 +123,7 @@ public class NotificationBatchingService : INotificationBatchingService, IDispos
             await WaitForSpeechUnlockAsync();
 
             // Speak the text directly - skip cache for notifications (each is unique with timestamps/dynamic content)
-            var ttsResult = await _speaker.SpeakAsync(text, notification.Agent, skipCache: true);
+            var ttsResult = await _speechController.SpeakAsync(text, notification.Agent, skipCache: true);
 
             // Record TTS tracking if we have a notification ID
             if (notification.NotificationId.HasValue)

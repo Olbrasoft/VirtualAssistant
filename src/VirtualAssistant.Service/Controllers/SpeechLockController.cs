@@ -15,18 +15,21 @@ namespace Olbrasoft.VirtualAssistant.Service.Controllers;
 public class SpeechLockController : ControllerBase
 {
     private readonly ISpeechLockService _speechLockService;
-    private readonly IVirtualAssistantSpeaker _speaker;
+    private readonly ISpeechCancellation _speechCancellation;
+    private readonly ISpeechQueueInfo _speechQueueInfo;
     private readonly INotificationBatchingService _batchingService;
     private readonly ILogger<SpeechLockController> _logger;
 
     public SpeechLockController(
         ISpeechLockService speechLockService,
-        IVirtualAssistantSpeaker speaker,
+        ISpeechCancellation speechCancellation,
+        ISpeechQueueInfo speechQueueInfo,
         INotificationBatchingService batchingService,
         ILogger<SpeechLockController> logger)
     {
         _speechLockService = speechLockService;
-        _speaker = speaker;
+        _speechCancellation = speechCancellation;
+        _speechQueueInfo = speechQueueInfo;
         _batchingService = batchingService;
         _logger = logger;
     }
@@ -45,7 +48,7 @@ public class SpeechLockController : ControllerBase
             request?.TimeoutSeconds ?? 30);
 
         // Stop current TTS immediately
-        _speaker.CancelCurrentSpeech();
+        _speechCancellation.CancelCurrentSpeech();
 
         // Activate lock with optional custom timeout
         TimeSpan? timeout = request?.TimeoutSeconds > 0
@@ -59,9 +62,9 @@ public class SpeechLockController : ControllerBase
             Success = true,
             IsLocked = true,
             Message = "Speech lock activated",
-            QueueCount = _batchingService.PendingCount + _speaker.QueueCount,
+            QueueCount = _batchingService.PendingCount + _speechQueueInfo.QueueCount,
             BatchingQueueCount = _batchingService.PendingCount,
-            TtsQueueCount = _speaker.QueueCount
+            TtsQueueCount = _speechQueueInfo.QueueCount
         });
     }
 
@@ -87,11 +90,11 @@ public class SpeechLockController : ControllerBase
         }
 
         // Flush queued messages from TtsService (messages that arrived during lock)
-        var ttsQueueCount = _speaker.QueueCount;
+        var ttsQueueCount = _speechQueueInfo.QueueCount;
         if (ttsQueueCount > 0)
         {
             _logger.LogInformation("Flushing {Count} queued messages from TTS service", ttsQueueCount);
-            await _speaker.FlushQueueAsync();
+            await _speechCancellation.FlushQueueAsync();
         }
 
         var totalFlushed = batchPendingCount + ttsQueueCount;
@@ -102,7 +105,7 @@ public class SpeechLockController : ControllerBase
             Message = totalFlushed > 0
                 ? $"Speech lock released, playing {totalFlushed} queued message(s)"
                 : "Speech lock released",
-            QueueCount = _batchingService.PendingCount + _speaker.QueueCount
+            QueueCount = _batchingService.PendingCount + _speechQueueInfo.QueueCount
         });
     }
 
@@ -113,7 +116,7 @@ public class SpeechLockController : ControllerBase
     [ProducesResponseType(StatusCodes.Status200OK)]
     public ActionResult GetStatus()
     {
-        var totalQueueCount = _batchingService.PendingCount + _speaker.QueueCount;
+        var totalQueueCount = _batchingService.PendingCount + _speechQueueInfo.QueueCount;
         return Ok(new SpeechLockResponse
         {
             Success = true,
@@ -122,7 +125,7 @@ public class SpeechLockController : ControllerBase
             QueueCount = totalQueueCount,
             IsProcessing = _batchingService.IsProcessing,
             BatchingQueueCount = _batchingService.PendingCount,
-            TtsQueueCount = _speaker.QueueCount
+            TtsQueueCount = _speechQueueInfo.QueueCount
         });
     }
 }
