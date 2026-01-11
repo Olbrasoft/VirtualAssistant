@@ -141,6 +141,102 @@ public class DictationWorkerTests : IDisposable
             null!));
     }
 
+    [Fact]
+    public void Constructor_NullRecordingCoordinator_ThrowsArgumentNullException()
+    {
+        Assert.Throws<ArgumentNullException>(() => new DictationWorker(
+            _loggerMock.Object,
+            _keyboardMonitorMock.Object,
+            _stateMachineMock.Object,
+            null!,
+            _transcriptionServiceMock.Object,
+            _keyboardSimulationMock.Object,
+            _typingSoundMock.Object,
+            _cancelSoundMock.Object,
+            _scopeFactoryMock.Object,
+            Options.Create(_options)));
+    }
+
+    [Fact]
+    public void Constructor_NullTranscriptionService_ThrowsArgumentNullException()
+    {
+        Assert.Throws<ArgumentNullException>(() => new DictationWorker(
+            _loggerMock.Object,
+            _keyboardMonitorMock.Object,
+            _stateMachineMock.Object,
+            _recordingCoordinatorMock.Object,
+            null!,
+            _keyboardSimulationMock.Object,
+            _typingSoundMock.Object,
+            _cancelSoundMock.Object,
+            _scopeFactoryMock.Object,
+            Options.Create(_options)));
+    }
+
+    [Fact]
+    public void Constructor_NullKeyboardSimulation_ThrowsArgumentNullException()
+    {
+        Assert.Throws<ArgumentNullException>(() => new DictationWorker(
+            _loggerMock.Object,
+            _keyboardMonitorMock.Object,
+            _stateMachineMock.Object,
+            _recordingCoordinatorMock.Object,
+            _transcriptionServiceMock.Object,
+            null!,
+            _typingSoundMock.Object,
+            _cancelSoundMock.Object,
+            _scopeFactoryMock.Object,
+            Options.Create(_options)));
+    }
+
+    [Fact]
+    public void Constructor_NullTypingSound_ThrowsArgumentNullException()
+    {
+        Assert.Throws<ArgumentNullException>(() => new DictationWorker(
+            _loggerMock.Object,
+            _keyboardMonitorMock.Object,
+            _stateMachineMock.Object,
+            _recordingCoordinatorMock.Object,
+            _transcriptionServiceMock.Object,
+            _keyboardSimulationMock.Object,
+            null!,
+            _cancelSoundMock.Object,
+            _scopeFactoryMock.Object,
+            Options.Create(_options)));
+    }
+
+    [Fact]
+    public void Constructor_NullCancelSound_ThrowsArgumentNullException()
+    {
+        Assert.Throws<ArgumentNullException>(() => new DictationWorker(
+            _loggerMock.Object,
+            _keyboardMonitorMock.Object,
+            _stateMachineMock.Object,
+            _recordingCoordinatorMock.Object,
+            _transcriptionServiceMock.Object,
+            _keyboardSimulationMock.Object,
+            _typingSoundMock.Object,
+            null!,
+            _scopeFactoryMock.Object,
+            Options.Create(_options)));
+    }
+
+    [Fact]
+    public void Constructor_NullScopeFactory_ThrowsArgumentNullException()
+    {
+        Assert.Throws<ArgumentNullException>(() => new DictationWorker(
+            _loggerMock.Object,
+            _keyboardMonitorMock.Object,
+            _stateMachineMock.Object,
+            _recordingCoordinatorMock.Object,
+            _transcriptionServiceMock.Object,
+            _keyboardSimulationMock.Object,
+            _typingSoundMock.Object,
+            _cancelSoundMock.Object,
+            null!,
+            Options.Create(_options)));
+    }
+
     #endregion
 
     #region ExecuteAsync Tests

@@ -101,55 +101,87 @@ public class PromptSyncCheckWorkerTests : IDisposable
     public async Task ExecuteAsync_PerformsInitialCheckAfterStartupDelay()
     {
         using var cts = new CancellationTokenSource();
-        _promptSyncServiceMock.Setup(x => x.ArePromptsOutOfSync()).Returns(false);
+        var completionSource = new TaskCompletionSource<bool>(TaskCreationOptions.RunContinuationsAsynchronously);
+
+        _promptSyncServiceMock
+            .Setup(x => x.ArePromptsOutOfSync())
+            .Returns(false)
+            .Callback(() => completionSource.TrySetResult(true));
 
         _ = _sut.StartAsync(cts.Token);
-        await Task.Delay(6000);
-        await cts.CancelAsync();
 
-        _promptSyncServiceMock.Verify(x => x.ArePromptsOutOfSync(), Times.AtLeastOnce);
+        var completedTask = await Task.WhenAny(
+            completionSource.Task,
+            Task.Delay(TimeSpan.FromSeconds(10), cts.Token));
+
+        Assert.Equal(completionSource.Task, completedTask);
+        await cts.CancelAsync();
     }
 
     [Fact]
     public async Task ExecuteAsync_PromptsInSync_UpdatesStatusToInSync()
     {
         using var cts = new CancellationTokenSource();
+        var completionSource = new TaskCompletionSource<bool>(TaskCreationOptions.RunContinuationsAsynchronously);
+
         _promptSyncServiceMock.Setup(x => x.ArePromptsOutOfSync()).Returns(false);
         _menuStateManagerMock.SetupGet(x => x.PromptSyncStatus).Returns(PromptSyncStatus.Unknown);
+        _menuStateManagerMock.Setup(x => x.UpdatePromptSyncStatus(PromptSyncStatus.InSync, It.IsAny<string?>()))
+            .Callback(() => completionSource.TrySetResult(true));
 
         _ = _sut.StartAsync(cts.Token);
-        await Task.Delay(6000);
-        await cts.CancelAsync();
 
-        _menuStateManagerMock.Verify(x => x.UpdatePromptSyncStatus(PromptSyncStatus.InSync, null), Times.AtLeastOnce);
+        var completedTask = await Task.WhenAny(
+            completionSource.Task,
+            Task.Delay(TimeSpan.FromSeconds(10), cts.Token));
+
+        Assert.Equal(completionSource.Task, completedTask);
+        _menuStateManagerMock.Verify(x => x.UpdatePromptSyncStatus(PromptSyncStatus.InSync, It.IsAny<string?>()), Times.AtLeastOnce);
+        await cts.CancelAsync();
     }
 
     [Fact]
     public async Task ExecuteAsync_PromptsOutOfSync_UpdatesStatusToOutOfSync()
     {
         using var cts = new CancellationTokenSource();
+        var completionSource = new TaskCompletionSource<bool>(TaskCreationOptions.RunContinuationsAsynchronously);
+
         _promptSyncServiceMock.Setup(x => x.ArePromptsOutOfSync()).Returns(true);
         _menuStateManagerMock.SetupGet(x => x.PromptSyncStatus).Returns(PromptSyncStatus.InSync);
+        _menuStateManagerMock.Setup(x => x.UpdatePromptSyncStatus(PromptSyncStatus.OutOfSync, It.IsAny<string?>()))
+            .Callback(() => completionSource.TrySetResult(true));
 
         _ = _sut.StartAsync(cts.Token);
-        await Task.Delay(6000);
-        await cts.CancelAsync();
 
-        _menuStateManagerMock.Verify(x => x.UpdatePromptSyncStatus(PromptSyncStatus.OutOfSync, null), Times.AtLeastOnce);
+        var completedTask = await Task.WhenAny(
+            completionSource.Task,
+            Task.Delay(TimeSpan.FromSeconds(10), cts.Token));
+
+        Assert.Equal(completionSource.Task, completedTask);
+        _menuStateManagerMock.Verify(x => x.UpdatePromptSyncStatus(PromptSyncStatus.OutOfSync, It.IsAny<string?>()), Times.AtLeastOnce);
+        await cts.CancelAsync();
     }
 
     [Fact]
     public async Task ExecuteAsync_AlreadyOutOfSync_DoesNotUpdateAgain()
     {
         using var cts = new CancellationTokenSource();
-        _promptSyncServiceMock.Setup(x => x.ArePromptsOutOfSync()).Returns(true);
+        var checkCalled = new TaskCompletionSource<bool>(TaskCreationOptions.RunContinuationsAsynchronously);
+
+        _promptSyncServiceMock.Setup(x => x.ArePromptsOutOfSync())
+            .Callback(() => checkCalled.TrySetResult(true))
+            .Returns(true);
         _menuStateManagerMock.SetupGet(x => x.PromptSyncStatus).Returns(PromptSyncStatus.OutOfSync);
 
         _ = _sut.StartAsync(cts.Token);
-        await Task.Delay(6000);
-        await cts.CancelAsync();
 
-        _menuStateManagerMock.Verify(x => x.UpdatePromptSyncStatus(PromptSyncStatus.OutOfSync, null), Times.Never);
+        var completedTask = await Task.WhenAny(
+            checkCalled.Task,
+            Task.Delay(TimeSpan.FromSeconds(10), cts.Token));
+
+        Assert.Equal(checkCalled.Task, completedTask);
+        _menuStateManagerMock.Verify(x => x.UpdatePromptSyncStatus(PromptSyncStatus.OutOfSync, It.IsAny<string?>()), Times.Never);
+        await cts.CancelAsync();
     }
 
     [Fact]
@@ -159,7 +191,7 @@ public class PromptSyncCheckWorkerTests : IDisposable
         _menuStateManagerMock.SetupGet(x => x.PromptSyncStatus).Returns(PromptSyncStatus.Syncing);
 
         _ = _sut.StartAsync(cts.Token);
-        await Task.Delay(6000);
+        await Task.Delay(TimeSpan.FromSeconds(7));
         await cts.CancelAsync();
 
         _promptSyncServiceMock.Verify(x => x.ArePromptsOutOfSync(), Times.Never);
@@ -171,7 +203,7 @@ public class PromptSyncCheckWorkerTests : IDisposable
         using var cts = new CancellationTokenSource();
         _promptSyncServiceMock.Setup(x => x.ArePromptsOutOfSync()).Returns(false);
 
-        var executeTask = _sut.StartAsync(cts.Token);
+        _ = _sut.StartAsync(cts.Token);
         await Task.Delay(100);
         await cts.CancelAsync();
 
@@ -183,16 +215,22 @@ public class PromptSyncCheckWorkerTests : IDisposable
     {
         using var cts = new CancellationTokenSource();
         var callCount = 0;
+        var tcs = new TaskCompletionSource();
+
         _promptSyncServiceMock.Setup(x => x.ArePromptsOutOfSync())
             .Callback(() =>
             {
                 callCount++;
                 if (callCount == 1) throw new InvalidOperationException("Test exception");
+                if (callCount >= 2 && !tcs.Task.IsCompleted)
+                {
+                    tcs.TrySetResult();
+                }
             })
             .Returns(false);
 
         _ = _sut.StartAsync(cts.Token);
-        await Task.Delay(8000);
+        await tcs.Task;
         await cts.CancelAsync();
 
         Assert.True(callCount >= 2);
@@ -202,14 +240,22 @@ public class PromptSyncCheckWorkerTests : IDisposable
     public async Task ExecuteAsync_OutOfSyncBecomesSynced_UpdatesToInSync()
     {
         using var cts = new CancellationTokenSource();
+        var completionSource = new TaskCompletionSource<bool>(TaskCreationOptions.RunContinuationsAsynchronously);
+
         _promptSyncServiceMock.Setup(x => x.ArePromptsOutOfSync()).Returns(false);
         _menuStateManagerMock.SetupGet(x => x.PromptSyncStatus).Returns(PromptSyncStatus.OutOfSync);
+        _menuStateManagerMock.Setup(x => x.UpdatePromptSyncStatus(PromptSyncStatus.InSync, It.IsAny<string?>()))
+            .Callback(() => completionSource.TrySetResult(true));
 
         _ = _sut.StartAsync(cts.Token);
-        await Task.Delay(6000);
-        await cts.CancelAsync();
 
-        _menuStateManagerMock.Verify(x => x.UpdatePromptSyncStatus(PromptSyncStatus.InSync, null), Times.AtLeastOnce);
+        var completedTask = await Task.WhenAny(
+            completionSource.Task,
+            Task.Delay(TimeSpan.FromSeconds(10), cts.Token));
+
+        Assert.Equal(completionSource.Task, completedTask);
+        _menuStateManagerMock.Verify(x => x.UpdatePromptSyncStatus(PromptSyncStatus.InSync, It.IsAny<string?>()), Times.AtLeastOnce);
+        await cts.CancelAsync();
     }
 
     #endregion
