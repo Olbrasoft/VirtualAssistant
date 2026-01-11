@@ -217,58 +217,30 @@ public class TrayIconCoordinator : ITrayIconCoordinator, IDisposable
         if (_disposed)
             return;
 
-        // Remove left hand icon
-        if (_leftHandIcon != null)
-        {
-            try
-            {
-                _manager.RemoveIcon("virtual-assistant-left-hand");
-            }
-            catch (Exception ex)
-            {
-                _logger.LogError(ex, "Failed to remove left hand tray icon during disposal");
-            }
-            finally
-            {
-                _leftHandIcon = null;
-            }
-        }
-
-        // Remove right hand icon
-        if (_rightHandIcon != null)
-        {
-            try
-            {
-                _manager.RemoveIcon("virtual-assistant-right-hand");
-            }
-            catch (Exception ex)
-            {
-                _logger.LogError(ex, "Failed to remove right hand tray icon during disposal");
-            }
-            finally
-            {
-                _rightHandIcon = null;
-            }
-        }
-
-        // Remove center icon
-        if (_centerIcon != null)
-        {
-            try
-            {
-                _manager.RemoveIcon("virtual-assistant-service");
-            }
-            catch (Exception ex)
-            {
-                _logger.LogError(ex, "Failed to remove center tray icon during disposal");
-            }
-            finally
-            {
-                _centerIcon = null;
-            }
-        }
+        SafeRemoveIcon(ref _leftHandIcon, "virtual-assistant-left-hand", "left hand");
+        SafeRemoveIcon(ref _rightHandIcon, "virtual-assistant-right-hand", "right hand");
+        SafeRemoveIcon(ref _centerIcon, "virtual-assistant-service", "center");
 
         _disposed = true;
         _logger.LogInformation("TrayIconCoordinator disposed");
+    }
+
+    private void SafeRemoveIcon(ref ITrayIcon? icon, string iconId, string iconName)
+    {
+        if (icon == null)
+            return;
+
+        try
+        {
+            _manager.RemoveIcon(iconId);
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Failed to remove {IconName} tray icon during disposal", iconName);
+        }
+        finally
+        {
+            icon = null;
+        }
     }
 }
