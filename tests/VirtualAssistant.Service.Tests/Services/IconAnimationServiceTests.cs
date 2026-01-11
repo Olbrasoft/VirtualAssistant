@@ -141,6 +141,32 @@ public class IconAnimationServiceTests
             Times.Once);
     }
 
+    [Fact]
+    public void HandleDictationStateChange_WithUnknownState_LogsWarningAndDoesNotSetIcons()
+    {
+        // Arrange
+        var unknownState = (DictationState)999;
+
+        // Act
+        _service.HandleDictationStateChange(unknownState);
+
+        // Assert
+        _iconCoordinatorMock.Verify(
+            x => x.SetRightHandIcon(It.IsAny<string>()),
+            Times.Never);
+        _iconCoordinatorMock.Verify(
+            x => x.SetCenterIcon(It.IsAny<string>()),
+            Times.Never);
+        _loggerMock.Verify(
+            x => x.Log(
+                LogLevel.Warning,
+                It.IsAny<EventId>(),
+                It.Is<It.IsAnyType>((v, t) => v.ToString()!.Contains("Unknown dictation state")),
+                It.IsAny<Exception?>(),
+                It.IsAny<Func<It.IsAnyType, Exception?, string>>()),
+            Times.Once);
+    }
+
     #endregion
 
     #region HandleDictationStateChange - State Transitions

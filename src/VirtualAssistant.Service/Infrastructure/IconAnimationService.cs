@@ -3,14 +3,11 @@ using Olbrasoft.VirtualAssistant.Core.StateMachine;
 
 namespace Olbrasoft.VirtualAssistant.Service.Infrastructure;
 
-/// <summary>
-/// Manages hand icon animations based on dictation state.
-/// Implements Single Responsibility Principle - only handles icon animations.
-/// </summary>
 public class IconAnimationService : IIconAnimationService
 {
     private readonly ITrayIconCoordinator _iconCoordinator;
     private readonly ILogger<IconAnimationService> _logger;
+    private readonly Dictionary<DictationState, (string RightHand, string Center)> _stateToIconMap;
 
     public IconAnimationService(
         ITrayIconCoordinator iconCoordinator,
@@ -18,41 +15,23 @@ public class IconAnimationService : IIconAnimationService
     {
         _iconCoordinator = iconCoordinator ?? throw new ArgumentNullException(nameof(iconCoordinator));
         _logger = logger ?? throw new ArgumentNullException(nameof(logger));
+        _stateToIconMap = CreateStateToIconMap();
     }
 
-    /// <summary>
-    /// Updates hand icons based on dictation state change.
-    /// </summary>
-    /// <param name="newState">New dictation state</param>
     public void HandleDictationStateChange(DictationState newState)
     {
         try
         {
             _logger.LogInformation("Dictation state changed to: {State}", newState);
 
-            switch (newState)
+            if (_stateToIconMap.TryGetValue(newState, out var icons))
             {
-                case DictationState.Idle:
-                    // Return to default state
-                    _iconCoordinator.SetRightHandIcon("default-right-hand.svg");
-                    _iconCoordinator.SetCenterIcon("default-head.svg");
-                    break;
-
-                case DictationState.Recording:
-                    // Show active dictation state
-                    _iconCoordinator.SetRightHandIcon("holding-up-a-microphone-right-hand.svg");
-                    _iconCoordinator.SetCenterIcon("listening-dictation-head.svg");
-                    break;
-
-                case DictationState.Transcribing:
-                    // Show transcription in progress
-                    _iconCoordinator.SetRightHandIcon("writing-right-hand.svg");
-                    _iconCoordinator.SetCenterIcon("busy-head.svg");
-                    break;
-
-                default:
-                    _logger.LogWarning("Unknown dictation state: {State}", newState);
-                    break;
+                _iconCoordinator.SetRightHandIcon(icons.RightHand);
+                _iconCoordinator.SetCenterIcon(icons.Center);
+            }
+            else
+            {
+                _logger.LogWarning("Unknown dictation state: {State}", newState);
             }
         }
         catch (Exception ex)
@@ -60,4 +39,11 @@ public class IconAnimationService : IIconAnimationService
             _logger.LogError(ex, "Failed to update icon for dictation state: {State}", newState);
         }
     }
+
+    private static Dictionary<DictationState, (string RightHand, string Center)> CreateStateToIconMap() => new()
+    {
+        [DictationState.Idle] = ("default-right-hand.svg", "default-head.svg"),
+        [DictationState.Recording] = ("holding-up-a-microphone-right-hand.svg", "listening-dictation-head.svg"),
+        [DictationState.Transcribing] = ("writing-right-hand.svg", "busy-head.svg")
+    };
 }
