@@ -1,5 +1,3 @@
-using Olbrasoft.VirtualAssistant.Core.Services;
-
 namespace Olbrasoft.VirtualAssistant.Service.Infrastructure;
 
 /// <summary>
@@ -8,12 +6,10 @@ namespace Olbrasoft.VirtualAssistant.Service.Infrastructure;
 /// </summary>
 public sealed class StartupNotificationService : IHostedService
 {
-    private readonly IVirtualAssistantSpeaker _speaker;
     private readonly ILogger<StartupNotificationService> _logger;
 
-    public StartupNotificationService(IVirtualAssistantSpeaker speaker, ILogger<StartupNotificationService> logger)
+    public StartupNotificationService(ILogger<StartupNotificationService> logger)
     {
-        _speaker = speaker;
         _logger = logger;
     }
 
