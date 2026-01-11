@@ -195,5 +195,28 @@ public class SingleInstanceLockManagerTests : IDisposable
         Assert.Null(exception);
     }
 
+    [Fact]
+    public void TryAcquire_AfterDispose_ThrowsObjectDisposedException()
+    {
+        var lockPath = Path.Combine(Path.GetTempPath(), $"dispose-tryacquire-test-{Guid.NewGuid()}.lock");
+        var manager = new SingleInstanceLockManager(lockPath);
+        manager.Dispose();
+
+        Assert.Throws<ObjectDisposedException>(() => manager.TryAcquire());
+    }
+
+    [Fact]
+    public void Release_AfterDispose_DoesNotThrow()
+    {
+        var lockPath = Path.Combine(Path.GetTempPath(), $"dispose-release-test-{Guid.NewGuid()}.lock");
+        var manager = new SingleInstanceLockManager(lockPath);
+        manager.TryAcquire();
+        manager.Dispose();
+
+        var exception = Record.Exception(() => manager.Release());
+
+        Assert.Null(exception);
+    }
+
     #endregion
 }

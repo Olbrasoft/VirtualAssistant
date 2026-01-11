@@ -4,6 +4,7 @@ namespace Olbrasoft.VirtualAssistant.Service.Services;
 
 public class SingleInstanceLockManager : ISingleInstanceLockManager
 {
+    private readonly object _lock = new();
     private FileStream? _lockFile;
     private bool _disposed;
 
@@ -17,56 +18,87 @@ public class SingleInstanceLockManager : ISingleInstanceLockManager
 
     public bool TryAcquire()
     {
-        if (_lockFile != null)
-            return true;
-
-        try
+        lock (_lock)
         {
-            _lockFile = new FileStream(
-                LockFilePath,
-                FileMode.OpenOrCreate,
-                FileAccess.ReadWrite,
-                FileShare.None);
+            ObjectDisposedException.ThrowIf(_disposed, this);
 
-            var pid = Environment.ProcessId.ToString();
-            _lockFile.SetLength(0);
-            var bytes = Encoding.UTF8.GetBytes(pid);
-            _lockFile.Write(bytes, 0, bytes.Length);
-            _lockFile.Flush();
+            if (_lockFile != null)
+                return true;
 
-            return true;
-        }
-        catch (IOException)
-        {
-            return false;
+            FileStream? stream = null;
+            try
+            {
+                stream = new FileStream(
+                    LockFilePath,
+                    FileMode.OpenOrCreate,
+                    FileAccess.ReadWrite,
+                    FileShare.None);
+
+                var pid = Environment.ProcessId.ToString();
+                stream.SetLength(0);
+                var bytes = Encoding.UTF8.GetBytes(pid);
+                stream.Write(bytes, 0, bytes.Length);
+                stream.Flush();
+
+                _lockFile = stream;
+                return true;
+            }
+            catch (IOException)
+            {
+                stream?.Dispose();
+                return false;
+            }
+            catch
+            {
+                stream?.Dispose();
+                throw;
+            }
         }
     }
 
     public void Release()
     {
-        try
+        lock (_lock)
         {
-            _lockFile?.Dispose();
-            _lockFile = null;
+            if (_lockFile == null)
+                return;
 
-            if (File.Exists(LockFilePath))
+            try
             {
-                File.Delete(LockFilePath);
+                _lockFile.Dispose();
+                _lockFile = null;
+
+                if (File.Exists(LockFilePath))
+                {
+                    File.Delete(LockFilePath);
+                }
             }
-        }
-        catch
-        {
-            // Ignore cleanup errors - best effort
+            catch
+            {
+                _lockFile = null;
+            }
         }
     }
 
     public void Dispose()
     {
-        if (_disposed)
-            return;
-
-        Release();
-        _disposed = true;
+        Dispose(true);
         GC.SuppressFinalize(this);
+    }
+
+    protected virtual void Dispose(bool disposing)
+    {
+        lock (_lock)
+        {
+            if (_disposed)
+                return;
+
+            if (disposing)
+            {
+                Release();
+            }
+
+            _disposed = true;
+        }
     }
 }
