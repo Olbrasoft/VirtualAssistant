@@ -1,36 +1,31 @@
 using Olbrasoft.VirtualAssistant.Service.Configuration;
 using Olbrasoft.VirtualAssistant.Service.Extensions;
+using Olbrasoft.VirtualAssistant.Service.Services;
 using Olbrasoft.VirtualAssistant.Service.Tray;
 
 namespace Olbrasoft.VirtualAssistant.Service;
 
-/// <summary>
-/// VirtualAssistant Service entry point.
-/// Manages service lifecycle, tray icon, and single instance locking.
-/// </summary>
 public class Program
 {
     private static WebApplication? _app;
     private static TrayCoordinatorService? _trayService;
     private static CancellationTokenSource? _cts;
-    private static FileStream? _lockFile;
-    private static string _lockFilePath = "/tmp/virtual-assistant.lock"; // Default, overridden from config
+    private static ISingleInstanceLockManager? _lockManager;
 
     public static async Task Main(string[] args)
     {
-        // Load configuration early to get lock file path
-        // In production: /opt/olbrasoft/virtual-assistant/app/../config/appsettings.json
         var configPath = Path.Combine(AppContext.BaseDirectory, "../config/appsettings.json");
         var earlyConfig = new ConfigurationBuilder()
             .AddJsonFile(configPath, optional: true)
             .AddEnvironmentVariables()
             .Build();
 
-        _lockFilePath = earlyConfig["SystemPaths:VirtualAssistantLockFile"]
+        var lockFilePath = earlyConfig["SystemPaths:VirtualAssistantLockFile"]
             ?? "/tmp/virtual-assistant.lock";
 
-        // Single instance check
-        if (!TryAcquireSingleInstanceLock())
+        _lockManager = new SingleInstanceLockManager(lockFilePath);
+
+        if (!_lockManager.TryAcquire())
         {
             Console.WriteLine("ERROR: VirtualAssistant is already running!");
             Console.WriteLine("Only one instance is allowed.");
@@ -161,54 +156,6 @@ public class Program
         _trayService?.Dispose();
         _app?.DisposeAsync().AsTask().Wait();
         _cts?.Dispose();
-        ReleaseSingleInstanceLock();
+        _lockManager?.Dispose();
     }
-
-    #region Single Instance Lock
-
-    private static bool TryAcquireSingleInstanceLock()
-    {
-        try
-        {
-            _lockFile = new FileStream(
-                _lockFilePath,
-                FileMode.OpenOrCreate,
-                FileAccess.ReadWrite,
-                FileShare.None);
-
-            // Write PID to lock file for debugging
-            var pid = Environment.ProcessId.ToString();
-            _lockFile.SetLength(0);
-            var bytes = System.Text.Encoding.UTF8.GetBytes(pid);
-            _lockFile.Write(bytes, 0, bytes.Length);
-            _lockFile.Flush();
-
-            return true;
-        }
-        catch (IOException)
-        {
-            // Lock file is held by another process
-            return false;
-        }
-    }
-
-    private static void ReleaseSingleInstanceLock()
-    {
-        try
-        {
-            _lockFile?.Dispose();
-            _lockFile = null;
-
-            if (File.Exists(_lockFilePath))
-            {
-                File.Delete(_lockFilePath);
-            }
-        }
-        catch
-        {
-            // Ignore cleanup errors
-        }
-    }
-
-    #endregion
 }
