@@ -3,6 +3,11 @@ using Microsoft.Extensions.Logging;
 
 namespace Olbrasoft.VirtualAssistant.Core.Audio;
 
+/// <summary>
+/// Abstract base class for sound effect players providing common audio playback functionality.
+/// Supports PipeWire (pw-cat) and PulseAudio (paplay) backends with automatic detection.
+/// Derived classes implement specific sound behaviors (one-shot, looping).
+/// </summary>
 public abstract class SoundPlayerBase : ISoundEffectPlayer, IDisposable
 {
     protected readonly ILogger Logger;
@@ -166,8 +171,9 @@ public abstract class SoundPlayerBase : ISoundEffectPlayer, IDisposable
                 return process.ExitCode == 0;
             }
         }
-        catch
+        catch (Exception ex)
         {
+            Debug.WriteLine($"Error checking command availability '{command}': {ex.Message}");
         }
 
         return false;

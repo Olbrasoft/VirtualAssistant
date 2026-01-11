@@ -1,11 +1,14 @@
 using Microsoft.Extensions.Logging;
-using Olbrasoft.VirtualAssistant.Core.Processes;
 
 namespace Olbrasoft.VirtualAssistant.Core.Audio;
 
+/// <summary>
+/// Sound player for typing/keystroke feedback sounds with loop support.
+/// Unlike one-shot sound players, this player can continuously loop the sound
+/// (e.g., during dictation or typing simulation).
+/// </summary>
 public class TypingSoundPlayer : SoundPlayerBase
 {
-    private readonly IProcessExecutor _processExecutor;
     private CancellationTokenSource? _loopCts;
     private Task? _loopTask;
     private readonly object _loopLock = new();
@@ -15,23 +18,20 @@ public class TypingSoundPlayer : SoundPlayerBase
 
     public TypingSoundPlayer(
         ILogger<TypingSoundPlayer> logger,
-        IProcessExecutor processExecutor,
         string? soundFilePath = null,
         string? audioSink = null)
         : base(logger, soundFilePath, audioSink)
     {
-        _processExecutor = processExecutor ?? throw new ArgumentNullException(nameof(processExecutor));
     }
 
     public static TypingSoundPlayer CreateFromDirectory(
         ILogger<TypingSoundPlayer> logger,
-        IProcessExecutor processExecutor,
         string soundsDirectory,
         string typingSoundFileName = "write.mp3",
         string? audioSink = null)
     {
         var typingPath = Path.Combine(soundsDirectory, typingSoundFileName);
-        return new TypingSoundPlayer(logger, processExecutor, typingPath, audioSink);
+        return new TypingSoundPlayer(logger, typingPath, audioSink);
     }
 
     public override void Play()

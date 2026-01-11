@@ -136,11 +136,10 @@ public static class VoiceServicesExtensions
         services.AddKeyedSingleton<ISoundEffectPlayer, TypingSoundPlayer>("typing", (sp, _) =>
         {
             var logger = sp.GetRequiredService<ILogger<TypingSoundPlayer>>();
-            var processExecutor = sp.GetRequiredService<IProcessExecutor>();
             var configuration = sp.GetRequiredService<IConfiguration>();
             var soundsPath = Path.Combine(AppContext.BaseDirectory, "..", "sounds");
             var audioSink = configuration["NotificationAudio:AudioSink"];
-            return TypingSoundPlayer.CreateFromDirectory(logger, processExecutor, soundsPath, "write.mp3", audioSink);
+            return TypingSoundPlayer.CreateFromDirectory(logger, soundsPath, "write.mp3", audioSink);
         });
 
         services.AddKeyedSingleton<ISoundEffectPlayer, CancelSoundPlayer>("cancel", (sp, _) =>
