@@ -1,87 +1,42 @@
-using System.Diagnostics;
 using Microsoft.Extensions.Logging;
-using Olbrasoft.VirtualAssistant.Core.Processes;
 
 namespace Olbrasoft.VirtualAssistant.Core.Audio;
 
 /// <summary>
-/// Service for playing typing sound during transcription.
-/// Uses pw-cat (PipeWire) or paplay (PulseAudio) to play audio.
+/// Sound player for typing/keystroke feedback sounds with loop support.
+/// Unlike one-shot sound players, this player can continuously loop the sound
+/// (e.g., during dictation or typing simulation).
 /// </summary>
-public class TypingSoundPlayer : ISoundEffectPlayer, IDisposable
+public class TypingSoundPlayer : SoundPlayerBase
 {
-    private readonly ILogger<TypingSoundPlayer> _logger;
-    private readonly IProcessExecutor _processExecutor;
-    private readonly string? _soundFilePath;
-    private readonly string? _audioSink;
-    private Process? _playProcess;
     private CancellationTokenSource? _loopCts;
     private Task? _loopTask;
-    private readonly object _lock = new();
+    private readonly object _loopLock = new();
     private bool _isPlaying;
-    private bool _disposed;
-    private string? _cachedPlayer;
+
+    protected override string SoundDescription => "Typing sound";
 
     public TypingSoundPlayer(
         ILogger<TypingSoundPlayer> logger,
-        IProcessExecutor processExecutor,
         string? soundFilePath = null,
         string? audioSink = null)
+        : base(logger, soundFilePath, audioSink)
     {
-        _logger = logger ?? throw new ArgumentNullException(nameof(logger));
-        _processExecutor = processExecutor ?? throw new ArgumentNullException(nameof(processExecutor));
-        _soundFilePath = soundFilePath;
-        _audioSink = audioSink;
-
-        ValidateSoundFile(_soundFilePath, "Typing sound");
-
-        if (!string.IsNullOrWhiteSpace(_audioSink))
-        {
-            _logger.LogInformation("Audio sink configured: {AudioSink}", _audioSink);
-        }
     }
 
-    /// <summary>
-    /// Initializes a new instance using sounds directory relative to application base.
-    /// </summary>
     public static TypingSoundPlayer CreateFromDirectory(
         ILogger<TypingSoundPlayer> logger,
-        IProcessExecutor processExecutor,
         string soundsDirectory,
         string typingSoundFileName = "write.mp3",
         string? audioSink = null)
     {
         var typingPath = Path.Combine(soundsDirectory, typingSoundFileName);
-        return new TypingSoundPlayer(logger, processExecutor, typingPath, audioSink);
+        return new TypingSoundPlayer(logger, typingPath, audioSink);
     }
 
-    private void ValidateSoundFile(string? path, string description)
+    public override void Play()
     {
-        if (string.IsNullOrWhiteSpace(path))
-        {
-            _logger.LogDebug("{Description} disabled (no path configured)", description);
-        }
-        else if (!File.Exists(path))
-        {
-            _logger.LogWarning("{Description} file not found: {Path}", description, path);
-        }
-        else
-        {
-            _logger.LogInformation("{Description} file: {Path}", description, path);
-        }
-    }
-
-    /// <summary>
-    /// Gets whether sound playback is enabled.
-    /// </summary>
-    public bool IsEnabled => !string.IsNullOrWhiteSpace(_soundFilePath) && File.Exists(_soundFilePath);
-
-    /// <summary>
-    /// Plays the typing sound once.
-    /// </summary>
-    public void Play()
-    {
-        if (_disposed || !IsEnabled)
+        if (Disposed || !IsEnabled)
             return;
 
         _ = Task.Run(async () =>
@@ -93,35 +48,29 @@ public class TypingSoundPlayer : ISoundEffectPlayer, IDisposable
             }
             catch (Exception ex)
             {
-                _logger.LogDebug(ex, "Error playing typing sound");
+                Logger.LogDebug(ex, "Error playing typing sound");
             }
         });
     }
 
-    /// <summary>
-    /// Starts playing the typing sound in a loop.
-    /// </summary>
-    public void StartLoop()
+    public override void StartLoop()
     {
-        lock (_lock)
+        lock (_loopLock)
         {
-            if (_isPlaying || _disposed || !IsEnabled)
+            if (_isPlaying || Disposed || !IsEnabled)
                 return;
 
             _isPlaying = true;
             _loopCts = new CancellationTokenSource();
             _loopTask = PlayLoopAsync(_loopCts.Token);
 
-            _logger.LogDebug("Typing sound loop started");
+            Logger.LogDebug("Typing sound loop started");
         }
     }
 
-    /// <summary>
-    /// Stops the typing sound loop.
-    /// </summary>
-    public void StopLoop()
+    public override void StopLoop()
     {
-        lock (_lock)
+        lock (_loopLock)
         {
             if (!_isPlaying)
                 return;
@@ -129,22 +78,9 @@ public class TypingSoundPlayer : ISoundEffectPlayer, IDisposable
             _isPlaying = false;
             _loopCts?.Cancel();
 
-            // Kill any running play process
-            try
-            {
-                if (_playProcess != null && !_playProcess.HasExited)
-                {
-                    _playProcess.Kill();
-                    _playProcess.Dispose();
-                    _playProcess = null;
-                }
-            }
-            catch (Exception ex)
-            {
-                _logger.LogDebug(ex, "Error stopping play process");
-            }
+            StopPlayProcess();
 
-            _logger.LogDebug("Typing sound loop stopped");
+            Logger.LogDebug("Typing sound loop stopped");
         }
     }
 
@@ -162,8 +98,7 @@ public class TypingSoundPlayer : ISoundEffectPlayer, IDisposable
             }
             catch (Exception ex)
             {
-                _logger.LogDebug(ex, "Error in play loop");
-                // Small delay before retry
+                Logger.LogDebug(ex, "Error in play loop");
                 try
                 {
                     await Task.Delay(100, cancellationToken);
@@ -176,109 +111,12 @@ public class TypingSoundPlayer : ISoundEffectPlayer, IDisposable
         }
     }
 
-    private async Task PlayOnceAsync(CancellationToken cancellationToken)
+    public override void Dispose()
     {
-        var player = await GetAvailablePlayerAsync();
-
-        if (string.IsNullOrEmpty(player))
-        {
-            _logger.LogWarning("No audio player available (tried pw-cat, paplay)");
-            return;
-        }
-
-        var startInfo = new ProcessStartInfo
-        {
-            FileName = player,
-            Arguments = GetPlayerArguments(_soundFilePath!),
-            UseShellExecute = false,
-            RedirectStandardOutput = true,
-            RedirectStandardError = true,
-            CreateNoWindow = true
-        };
-
-        lock (_lock)
-        {
-            if (!_isPlaying)
-                return;
-
-            _playProcess = _processExecutor.Start(startInfo);
-        }
-
-        if (_playProcess != null)
-        {
-            try
-            {
-                await _playProcess.WaitForExitAsync(cancellationToken);
-            }
-            finally
-            {
-                lock (_lock)
-                {
-                    _playProcess?.Dispose();
-                    _playProcess = null;
-                }
-            }
-        }
-    }
-
-    private async Task<string?> GetAvailablePlayerAsync()
-    {
-        // Return cached player if already found
-        if (_cachedPlayer != null)
-            return _cachedPlayer;
-
-        // Check for pw-cat (PipeWire) - requires -p flag for playback mode
-        if (await _processExecutor.IsCommandAvailableAsync("pw-cat"))
-        {
-            _cachedPlayer = "pw-cat";
-            return _cachedPlayer;
-        }
-
-        // Fallback to paplay (PulseAudio) for systems without PipeWire
-        if (await _processExecutor.IsCommandAvailableAsync("paplay"))
-        {
-            _cachedPlayer = "paplay";
-            return _cachedPlayer;
-        }
-
-        return null;
-    }
-
-    /// <summary>
-    /// Gets the command line arguments for playing a sound file.
-    /// </summary>
-    private string GetPlayerArguments(string soundPath)
-    {
-        if (_cachedPlayer == "pw-cat")
-        {
-            // pw-cat -p --target <sink> <file>
-            if (!string.IsNullOrWhiteSpace(_audioSink))
-            {
-                return $"-p --target \"{_audioSink}\" \"{soundPath}\"";
-            }
-            return $"-p \"{soundPath}\"";
-        }
-        else // paplay
-        {
-            // paplay --device=<sink> <file>
-            if (!string.IsNullOrWhiteSpace(_audioSink))
-            {
-                return $"--device=\"{_audioSink}\" \"{soundPath}\"";
-            }
-            return $"\"{soundPath}\"";
-        }
-    }
-
-
-    /// <summary>
-    /// Releases resources used by the typing sound player, including stopping any active playback.
-    /// </summary>
-    public void Dispose()
-    {
-        if (_disposed)
+        if (Disposed)
             return;
 
-        _disposed = true;
+        Disposed = true;
         StopLoop();
         _loopCts?.Dispose();
 
