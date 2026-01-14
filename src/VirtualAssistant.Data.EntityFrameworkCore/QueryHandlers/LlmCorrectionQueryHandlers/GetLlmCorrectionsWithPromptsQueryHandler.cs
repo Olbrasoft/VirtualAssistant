@@ -4,6 +4,10 @@ using Olbrasoft.VirtualAssistant.Data.Queries.LlmCorrectionQueries;
 
 namespace Olbrasoft.VirtualAssistant.Data.EntityFrameworkCore.QueryHandlers.LlmCorrectionQueryHandlers;
 
+/// <summary>
+/// Handler for <see cref="GetLlmCorrectionsWithPromptsQuery"/>.
+/// Retrieves LlmCorrections from database with filtering and pagination.
+/// </summary>
 public class GetLlmCorrectionsWithPromptsQueryHandler(VirtualAssistantDbContext context)
     : VirtualAssistantDbQueryHandler<LlmCorrection, GetLlmCorrectionsWithPromptsQuery, IPagedEnumerable<LlmCorrection>>(context)
 {
@@ -16,11 +20,12 @@ public class GetLlmCorrectionsWithPromptsQueryHandler(VirtualAssistantDbContext 
 
         IQueryable<LlmCorrection> q = dbSet;
 
-        if (!string.IsNullOrEmpty(query.SearchString))
+        if (!string.IsNullOrWhiteSpace(query.SearchString))
         {
+            var search = query.SearchString.Trim();
             q = q.Where(c => 
-                c.CorrectedText.Contains(query.SearchString) || 
-                c.WhisperTranscription.TranscribedText.Contains(query.SearchString));
+                c.CorrectedText.Contains(search) || 
+                c.WhisperTranscription.TranscribedText.Contains(search));
         }
 
         if (query.StartDate.HasValue)

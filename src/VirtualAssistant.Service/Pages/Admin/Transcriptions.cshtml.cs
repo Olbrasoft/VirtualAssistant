@@ -5,13 +5,16 @@ using Olbrasoft.VirtualAssistant.Data.Queries.LlmCorrectionQueries;
 
 namespace Olbrasoft.VirtualAssistant.Service.Pages.Admin;
 
+/// <summary>
+/// Admin page for viewing and filtering Whisper transcriptions and their LLM corrections.
+/// </summary>
 public class TranscriptionsModel : PageModel
 {
     private readonly IQueryProcessor _queryProcessor;
 
     public TranscriptionsModel(IQueryProcessor queryProcessor)
     {
-        _queryProcessor = queryProcessor;
+        _queryProcessor = queryProcessor ?? throw new ArgumentNullException(nameof(queryProcessor));
     }
 
     public class TranscriptionViewModel
@@ -57,7 +60,7 @@ public class TranscriptionsModel : PageModel
             PageIndex, 
             20);
 
-        var result = await _queryProcessor.ProcessAsync(query, CancellationToken.None);
+        var result = await _queryProcessor.ProcessAsync(query, HttpContext.RequestAborted);
 
         TotalPages = (int)Math.Ceiling(result.TotalCount / (double)20);
         if (TotalPages > 0 && PageIndex > TotalPages) PageIndex = TotalPages;
