@@ -1,0 +1,167 @@
+@page "/Admin/Transcriptions"
+@model Olbrasoft.VirtualAssistant.Service.Pages.Admin.TranscriptionsModel
+@{
+    ViewData["Title"] = "Transcriptions & Corrections";
+}
+
+@section Styles {
+    <style>
+        .search-bar {
+            margin-bottom: 20px;
+            display: flex;
+            gap: 10px;
+        }
+        .search-input {
+            padding: 8px 12px;
+            border-radius: 4px;
+            border: 1px solid var(--border-color);
+            background: var(--bg-primary);
+            color: var(--text-primary);
+            width: 300px;
+        }
+        .btn {
+            padding: 8px 16px;
+            border-radius: 4px;
+            border: none;
+            cursor: pointer;
+            font-size: 13px;
+            text-decoration: none;
+            color: white;
+            background: var(--accent-blue);
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+        }
+        .btn:hover { opacity: 0.9; }
+        
+        .transcriptions-table {
+            width: 100%;
+            border-collapse: collapse;
+            font-size: 13px;
+        }
+        .transcriptions-table th, .transcriptions-table td {
+            text-align: left;
+            padding: 12px;
+            border-bottom: 1px solid var(--border-color);
+            vertical-align: top;
+        }
+        .transcriptions-table th {
+            color: var(--text-secondary);
+            font-weight: 600;
+        }
+        .meta-col { width: 140px; color: var(--text-secondary); font-size: 12px; }
+        .text-content { 
+            white-space: pre-wrap; 
+            font-family: Consolas, monospace; 
+            line-height: 1.5;
+            width: 40%;
+        }
+        .original-text { color: var(--text-secondary); }
+        .corrected-text { color: var(--text-primary); }
+        
+        .pagination {
+            margin-top: 20px;
+            display: flex;
+            gap: 10px;
+            align-items: center;
+            justify-content: center;
+        }
+        
+        .badge {
+            display: inline-block;
+            padding: 2px 6px;
+            border-radius: 4px;
+            background: var(--bg-tertiary);
+            color: var(--text-secondary);
+            font-size: 11px;
+        }
+    </style>
+}
+
+<div class="search-bar">
+    <form method="get" style="display:flex; gap:10px; align-items:center; flex-wrap:wrap;">
+        <input type="text" name="SearchString" value="@Model.SearchString" class="search-input" placeholder="Search text..." />
+        
+        <input type="date" name="StartDate" value="@Model.StartDate?.ToString("yyyy-MM-dd")" class="search-input" style="width:140px;" aria-label="Start Date" />
+        <span style="color:var(--text-secondary);">-</span>
+        <input type="date" name="EndDate" value="@Model.EndDate?.ToString("yyyy-MM-dd")" class="search-input" style="width:140px;" aria-label="End Date" />
+
+        <button type="submit" class="btn">Search</button>
+        @if (!string.IsNullOrEmpty(Model.SearchString) || Model.StartDate.HasValue || Model.EndDate.HasValue)
+        {
+            <a href="/Admin/Transcriptions" class="btn" style="background: var(--bg-tertiary);">Clear</a>
+        }
+    </form>
+</div>
+
+<table class="transcriptions-table">
+    <thead>
+        <tr>
+            <th>Meta</th>
+            <th>Original Whisper</th>
+            <th>LLM Correction</th>
+        </tr>
+    </thead>
+    <tbody>
+        @foreach (var item in Model.Items)
+        {
+            <tr>
+                <td class="meta-col">
+                    <div style="font-weight:500; margin-bottom:4px;">@item.CreatedAt.ToString("yyyy-MM-dd")</div>
+                    <div style="margin-bottom:8px;">@item.CreatedAt.ToString("HH:mm:ss")</div>
+                    
+                    <div class="badge" title="Prompt Name">@item.PromptName</div>
+                    
+                    <div style="margin-top:8px; opacity:0.8;">
+                       <div title="Processing Time">⚡ @(item.ProcessDurationMs)ms</div>
+                       @if(item.AudioDurationMs.HasValue) {
+                           <div title="Audio Duration">🎤 @(item.AudioDurationMs)ms</div>
+                       }
+                    </div>
+                </td>
+                <td class="text-content original-text">@item.OriginalText</td>
+                <td class="text-content corrected-text">@item.CorrectedText</td>
+            </tr>
+        }
+        @if (Model.Items.Count == 0)
+        {
+            <tr>
+                <td colspan="3" style="text-align:center; padding: 30px; color: var(--text-secondary);">
+                    No transcriptions found.
+                </td>
+            </tr>
+        }
+    </tbody>
+</table>
+
+<div class="pagination">
+    @if (Model.HasPreviousPage)
+    {
+        <a asp-page="./Transcriptions" 
+           asp-route-pageIndex="@(Model.PageIndex - 1)" 
+           asp-route-searchString="@Model.SearchString"
+           asp-route-startDate="@(Model.StartDate?.ToString("yyyy-MM-dd"))"
+           asp-route-endDate="@(Model.EndDate?.ToString("yyyy-MM-dd"))"
+           class="btn">Previous</a>
+    }
+    else
+    {
+        <button class="btn" style="background: var(--bg-tertiary); cursor: not-allowed; opacity: 0.5;" disabled>Previous</button>
+    }
+    
+    <span style="color: var(--text-secondary); margin: 0 10px;">Page @Model.PageIndex of @Math.Max(1, Model.TotalPages)</span>
+    
+    @if (Model.HasNextPage)
+    {
+        <a asp-page="./Transcriptions" 
+           asp-route-pageIndex="@(Model.PageIndex + 1)" 
+           asp-route-searchString="@Model.SearchString"
+           asp-route-startDate="@(Model.StartDate?.ToString("yyyy-MM-dd"))"
+           asp-route-endDate="@(Model.EndDate?.ToString("yyyy-MM-dd"))"
+           class="btn">Next</a>
+    }
+    else
+    {
+         <button class="btn" style="background: var(--bg-tertiary); cursor: not-allowed; opacity: 0.5;" disabled>Next</button>
+    }
+</div>
