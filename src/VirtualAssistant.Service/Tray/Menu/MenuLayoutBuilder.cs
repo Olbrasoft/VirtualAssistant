@@ -57,7 +57,6 @@ public class MenuLayoutBuilder : IMenuLayoutBuilder
                 ["enabled"] = VariantValue.Bool(true),
                 ["visible"] = VariantValue.Bool(true)
             }),
-
             MenuItemIds.LlmCorrectionId => (id, new Dictionary<string, VariantValue>
             {
                 ["label"] = VariantValue.String(GetLlmCorrectionLabel()),

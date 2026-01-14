@@ -73,38 +73,23 @@ public class MenuEventDispatcher : IMenuEventDispatcher
     /// <inheritdoc/>
     public void HandleDashboard()
     {
-        try
-        {
-            var dashboardUrl = $"{_dashboardBaseUrl}/Admin";
-            var process = new Process
-            {
-                StartInfo = new ProcessStartInfo
-                {
-                    FileName = "xdg-open",
-                    Arguments = dashboardUrl,
-                    UseShellExecute = false,
-                    CreateNoWindow = true
-                }
-            };
-            process.Start();
-            _logger.LogInformation("Opened dashboard at {Url}", dashboardUrl);
-        }
-        catch (Exception ex)
-        {
-            _logger.LogError(ex, "Failed to open dashboard");
-        }
+        OpenDashboardInBrowser("Opened dashboard at {Url}");
     }
 
     /// <inheritdoc/>
     public void HandleAbout()
     {
+        var version = Assembly.GetExecutingAssembly().GetName().Version?.ToString() ?? "unknown";
+        _logger.LogInformation("About requested - Version: {Version}", version);
+        OpenDashboardInBrowser("Opened About (Dashboard) at {Url}");
+    }
+
+    private void OpenDashboardInBrowser(string logMessage)
+    {
         try
         {
-            var version = Assembly.GetExecutingAssembly().GetName().Version?.ToString() ?? "unknown";
-            _logger.LogInformation("About requested - Version: {Version}", version);
-
             var dashboardUrl = $"{_dashboardBaseUrl}/Admin";
-            var process = new Process
+            using var process = new Process
             {
                 StartInfo = new ProcessStartInfo
                 {
@@ -115,11 +100,11 @@ public class MenuEventDispatcher : IMenuEventDispatcher
                 }
             };
             process.Start();
-            _logger.LogInformation("Opened About (Dashboard) at {Url} - Version: {Version}", dashboardUrl, version);
+            _logger.LogInformation(logMessage, dashboardUrl);
         }
         catch (Exception ex)
         {
-            _logger.LogError(ex, "Failed to show about dialog");
+            _logger.LogError(ex, "Failed to open dashboard");
         }
     }
 
