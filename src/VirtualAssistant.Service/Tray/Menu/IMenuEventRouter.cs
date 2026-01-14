@@ -17,19 +17,14 @@ public interface IMenuEventRouter
     event Action? OnMuteToggleRequested;
 
     /// <summary>
-    /// Event fired when user selects Show Logs.
+    /// Event fired when user selects Dashboard menu item.
     /// </summary>
-    event Action? OnShowLogsRequested;
+    event Action? OnDashboardRequested;
 
     /// <summary>
-    /// Event fired when user wants to stop log-viewer service.
+    /// Event fired when user selects About menu item.
     /// </summary>
-    event Action? OnStopLogViewerRequested;
-
-    /// <summary>
-    /// Event fired when user wants to start log-viewer service.
-    /// </summary>
-    event Action? OnStartLogViewerRequested;
+    event Action? OnAboutRequested;
 
     /// <summary>
     /// Event fired when user toggles LLM correction.

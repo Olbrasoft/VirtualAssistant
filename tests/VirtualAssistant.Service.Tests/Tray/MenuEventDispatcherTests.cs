@@ -17,7 +17,7 @@ public class MenuEventDispatcherTests
     private readonly Mock<ISettingsService> _settingsServiceMock;
     private readonly Mock<ILlmProvider> _llmProviderMock;
     private readonly Mock<IDictationControl> _dictationControlMock;
-    private const int LogViewerPort = 5053;
+    private const string DashboardBaseUrl = "http://localhost:5055";
 
     public MenuEventDispatcherTests()
     {
@@ -38,7 +38,7 @@ public class MenuEventDispatcherTests
             _loggerMock.Object,
             _muteServiceMock.Object,
             _settingsServiceMock.Object,
-            LogViewerPort);
+            DashboardBaseUrl);
 
         // Assert
         Assert.NotNull(sut);
@@ -53,7 +53,7 @@ public class MenuEventDispatcherTests
                 null!,
                 _muteServiceMock.Object,
                 _settingsServiceMock.Object,
-                LogViewerPort));
+                DashboardBaseUrl));
     }
 
     [Fact]
@@ -65,7 +65,7 @@ public class MenuEventDispatcherTests
                 _loggerMock.Object,
                 null!,
                 _settingsServiceMock.Object,
-                LogViewerPort));
+                DashboardBaseUrl));
     }
 
     [Fact]
@@ -77,7 +77,7 @@ public class MenuEventDispatcherTests
                 _loggerMock.Object,
                 _muteServiceMock.Object,
                 null!,
-                LogViewerPort));
+                DashboardBaseUrl));
     }
 
     [Fact]
@@ -88,7 +88,7 @@ public class MenuEventDispatcherTests
             _loggerMock.Object,
             _muteServiceMock.Object,
             _settingsServiceMock.Object,
-            LogViewerPort,
+            DashboardBaseUrl,
             llmProvider: null,
             dictationControl: null);
 
@@ -108,7 +108,7 @@ public class MenuEventDispatcherTests
             _loggerMock.Object,
             _muteServiceMock.Object,
             _settingsServiceMock.Object,
-            LogViewerPort);
+            DashboardBaseUrl);
 
         _muteServiceMock.Setup(x => x.Toggle());
         _muteServiceMock.Setup(x => x.IsMuted).Returns(true);
@@ -128,7 +128,7 @@ public class MenuEventDispatcherTests
             _loggerMock.Object,
             _muteServiceMock.Object,
             _settingsServiceMock.Object,
-            LogViewerPort);
+            DashboardBaseUrl);
 
         var exception = new InvalidOperationException("Toggle failed");
         _muteServiceMock.Setup(x => x.Toggle()).Throws(exception);
@@ -152,7 +152,7 @@ public class MenuEventDispatcherTests
             _loggerMock.Object,
             _muteServiceMock.Object,
             _settingsServiceMock.Object,
-            LogViewerPort);
+            DashboardBaseUrl);
 
         // Act
         await sut.HandleTtsMuteToggleAsync(true);
@@ -169,7 +169,7 @@ public class MenuEventDispatcherTests
             _loggerMock.Object,
             _muteServiceMock.Object,
             _settingsServiceMock.Object,
-            LogViewerPort);
+            DashboardBaseUrl);
 
         // Act
         await sut.HandleTtsMuteToggleAsync(false);
@@ -186,7 +186,7 @@ public class MenuEventDispatcherTests
             _loggerMock.Object,
             _muteServiceMock.Object,
             _settingsServiceMock.Object,
-            LogViewerPort);
+            DashboardBaseUrl);
 
         var exception = new InvalidOperationException("Settings error");
         _settingsServiceMock.Setup(x => x.SetAsync("tts.muted", It.IsAny<bool>()))
@@ -216,7 +216,7 @@ public class MenuEventDispatcherTests
     //        _loggerMock.Object,
     //        _muteServiceMock.Object,
     //        _settingsServiceMock.Object,
-    //        LogViewerPort);
+    //        DashboardBaseUrl);
     //
     //    // Act & Assert
     //    // Note: We can't easily test Process.Start without integration tests
@@ -236,7 +236,7 @@ public class MenuEventDispatcherTests
             _loggerMock.Object,
             _muteServiceMock.Object,
             _settingsServiceMock.Object,
-            LogViewerPort,
+            DashboardBaseUrl,
             llmProvider: null);
 
         // Act
@@ -253,7 +253,7 @@ public class MenuEventDispatcherTests
             _loggerMock.Object,
             _muteServiceMock.Object,
             _settingsServiceMock.Object,
-            LogViewerPort,
+            DashboardBaseUrl,
             _llmProviderMock.Object);
 
         _llmProviderMock.Setup(x => x.SetEnabled(true));
@@ -273,7 +273,7 @@ public class MenuEventDispatcherTests
             _loggerMock.Object,
             _muteServiceMock.Object,
             _settingsServiceMock.Object,
-            LogViewerPort,
+            DashboardBaseUrl,
             _llmProviderMock.Object);
 
         _llmProviderMock.Setup(x => x.SetEnabled(false));
@@ -293,7 +293,7 @@ public class MenuEventDispatcherTests
             _loggerMock.Object,
             _muteServiceMock.Object,
             _settingsServiceMock.Object,
-            LogViewerPort,
+            DashboardBaseUrl,
             _llmProviderMock.Object);
 
         var exception = new InvalidOperationException("Provider error");
@@ -323,7 +323,7 @@ public class MenuEventDispatcherTests
     //        _loggerMock.Object,
     //        _muteServiceMock.Object,
     //        _settingsServiceMock.Object,
-    //        LogViewerPort,
+    //        DashboardBaseUrl,
     //        llmProvider: null);
     //
     //    // Act
@@ -340,7 +340,7 @@ public class MenuEventDispatcherTests
     //        _loggerMock.Object,
     //        _muteServiceMock.Object,
     //        _settingsServiceMock.Object,
-    //        LogViewerPort,
+    //        DashboardBaseUrl,
     //        _llmProviderMock.Object);
     //
     //    _llmProviderMock.Setup(x => x.ReloadPrompt());
@@ -360,7 +360,7 @@ public class MenuEventDispatcherTests
     //        _loggerMock.Object,
     //        _muteServiceMock.Object,
     //        _settingsServiceMock.Object,
-    //        LogViewerPort,
+    //        DashboardBaseUrl,
     //        _llmProviderMock.Object);
     //
     //    var exception = new InvalidOperationException("Reload failed");
@@ -386,7 +386,7 @@ public class MenuEventDispatcherTests
             _loggerMock.Object,
             _muteServiceMock.Object,
             _settingsServiceMock.Object,
-            LogViewerPort,
+            DashboardBaseUrl,
             dictationControl: null);
 
         // Act
@@ -403,7 +403,7 @@ public class MenuEventDispatcherTests
             _loggerMock.Object,
             _muteServiceMock.Object,
             _settingsServiceMock.Object,
-            LogViewerPort,
+            DashboardBaseUrl,
             dictationControl: _dictationControlMock.Object);
 
         _dictationControlMock.Setup(x => x.SetDictationEnabled(true));
@@ -423,7 +423,7 @@ public class MenuEventDispatcherTests
             _loggerMock.Object,
             _muteServiceMock.Object,
             _settingsServiceMock.Object,
-            LogViewerPort,
+            DashboardBaseUrl,
             dictationControl: _dictationControlMock.Object);
 
         _dictationControlMock.Setup(x => x.SetDictationEnabled(false));
@@ -443,7 +443,7 @@ public class MenuEventDispatcherTests
             _loggerMock.Object,
             _muteServiceMock.Object,
             _settingsServiceMock.Object,
-            LogViewerPort,
+            DashboardBaseUrl,
             dictationControl: _dictationControlMock.Object);
 
         var exception = new InvalidOperationException("Control error");

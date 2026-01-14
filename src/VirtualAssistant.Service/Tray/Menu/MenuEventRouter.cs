@@ -29,19 +29,14 @@ public class MenuEventRouter : IMenuEventRouter
     public event Action? OnMuteToggleRequested;
 
     /// <summary>
-    /// Event fired when user selects Show Logs.
+    /// Event fired when user selects Dashboard menu item.
     /// </summary>
-    public event Action? OnShowLogsRequested;
+    public event Action? OnDashboardRequested;
 
     /// <summary>
-    /// Event fired when user wants to stop log-viewer service.
+    /// Event fired when user selects About menu item.
     /// </summary>
-    public event Action? OnStopLogViewerRequested;
-
-    /// <summary>
-    /// Event fired when user wants to start log-viewer service.
-    /// </summary>
-    public event Action? OnStartLogViewerRequested;
+    public event Action? OnAboutRequested;
 
     /// <summary>
     /// Event fired when user toggles LLM correction.
@@ -91,8 +86,8 @@ public class MenuEventRouter : IMenuEventRouter
         [MenuItemIds.QuitId] = HandleQuit,
         [MenuItemIds.MuteToggleId] = HandleMuteToggle,
         [MenuItemIds.TtsMuteToggleId] = HandleTtsMuteToggle,
-        [MenuItemIds.ShowLogsId] = HandleShowLogs,
-        [MenuItemIds.LogViewerId] = HandleLogViewer,
+        [MenuItemIds.DashboardId] = HandleDashboard,
+        [MenuItemIds.AboutId] = HandleAbout,
         [MenuItemIds.LlmCorrectionId] = HandleLlmCorrection,
         [MenuItemIds.ReloadPromptId] = HandleReloadPrompt,
         [MenuItemIds.DictationToggleId] = HandleDictationToggle
@@ -118,23 +113,16 @@ public class MenuEventRouter : IMenuEventRouter
         OnTtsMuteToggleRequested?.Invoke(newState);
     }
 
-    private void HandleShowLogs()
+    private void HandleDashboard()
     {
-        _logger.LogInformation("Show logs menu item clicked");
-        OnShowLogsRequested?.Invoke();
+        _logger.LogInformation("Dashboard menu item clicked");
+        OnDashboardRequested?.Invoke();
     }
 
-    private void HandleLogViewer()
+    private void HandleAbout()
     {
-        _logger.LogInformation("Log Viewer service menu item clicked");
-        if (_stateManager.LogViewerStatus == "Running")
-        {
-            OnStopLogViewerRequested?.Invoke();
-        }
-        else
-        {
-            OnStartLogViewerRequested?.Invoke();
-        }
+        _logger.LogInformation("About menu item clicked");
+        OnAboutRequested?.Invoke();
     }
 
     private void HandleLlmCorrection()

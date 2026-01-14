@@ -1,4 +1,5 @@
 using System.Diagnostics;
+using System.Reflection;
 using Olbrasoft.VirtualAssistant.Core.Services;
 using Olbrasoft.VirtualAssistant.Service.Services;
 using Olbrasoft.VirtualAssistant.Service.Tray.Menu;
@@ -15,7 +16,7 @@ public class MenuEventDispatcher : IMenuEventDispatcher
     private readonly ILogger<MenuEventDispatcher> _logger;
     private readonly IManualMuteService _muteService;
     private readonly ISettingsService _settingsService;
-    private readonly int _logViewerPort;
+    private readonly string _dashboardBaseUrl;
     private readonly ILlmProvider? _llmProvider;
     private readonly IDictationControl? _dictationControl;
     private readonly IPromptSyncService? _promptSyncService;
@@ -25,7 +26,7 @@ public class MenuEventDispatcher : IMenuEventDispatcher
         ILogger<MenuEventDispatcher> logger,
         IManualMuteService muteService,
         ISettingsService settingsService,
-        int logViewerPort,
+        string dashboardBaseUrl,
         ILlmProvider? llmProvider = null,
         IDictationControl? dictationControl = null,
         IPromptSyncService? promptSyncService = null,
@@ -34,7 +35,7 @@ public class MenuEventDispatcher : IMenuEventDispatcher
         _logger = logger ?? throw new ArgumentNullException(nameof(logger));
         _muteService = muteService ?? throw new ArgumentNullException(nameof(muteService));
         _settingsService = settingsService ?? throw new ArgumentNullException(nameof(settingsService));
-        _logViewerPort = logViewerPort;
+        _dashboardBaseUrl = dashboardBaseUrl ?? "http://localhost:5055";
         _llmProvider = llmProvider;
         _dictationControl = dictationControl;
         _promptSyncService = promptSyncService;
@@ -70,25 +71,55 @@ public class MenuEventDispatcher : IMenuEventDispatcher
     }
 
     /// <inheritdoc/>
-    public void HandleShowLogs()
+    public void HandleDashboard()
     {
         try
         {
-            var logsUrl = $"http://localhost:{_logViewerPort}";
+            var dashboardUrl = $"{_dashboardBaseUrl}/Admin";
             var process = new Process
             {
                 StartInfo = new ProcessStartInfo
                 {
-                    FileName = logsUrl,
-                    UseShellExecute = true
+                    FileName = "xdg-open",
+                    Arguments = dashboardUrl,
+                    UseShellExecute = false,
+                    CreateNoWindow = true
                 }
             };
             process.Start();
-            _logger.LogInformation("Opened logs viewer at {Url}", logsUrl);
+            _logger.LogInformation("Opened dashboard at {Url}", dashboardUrl);
         }
         catch (Exception ex)
         {
-            _logger.LogError(ex, "Failed to open logs viewer");
+            _logger.LogError(ex, "Failed to open dashboard");
+        }
+    }
+
+    /// <inheritdoc/>
+    public void HandleAbout()
+    {
+        try
+        {
+            var version = Assembly.GetExecutingAssembly().GetName().Version?.ToString() ?? "unknown";
+            _logger.LogInformation("About requested - Version: {Version}", version);
+
+            var dashboardUrl = $"{_dashboardBaseUrl}/Admin";
+            var process = new Process
+            {
+                StartInfo = new ProcessStartInfo
+                {
+                    FileName = "xdg-open",
+                    Arguments = dashboardUrl,
+                    UseShellExecute = false,
+                    CreateNoWindow = true
+                }
+            };
+            process.Start();
+            _logger.LogInformation("Opened About (Dashboard) at {Url} - Version: {Version}", dashboardUrl, version);
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Failed to show about dialog");
         }
     }
 

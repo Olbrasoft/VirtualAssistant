@@ -23,9 +23,8 @@ internal class VirtualAssistantDBusMenuHandler : ComCanonicalDbusmenuHandler, Sy
     // Event handler delegates stored for proper unsubscription
     private readonly Action _quitHandler;
     private readonly Action _muteToggleHandler;
-    private readonly Action _showLogsHandler;
-    private readonly Action _stopLogViewerHandler;
-    private readonly Action _startLogViewerHandler;
+    private readonly Action _dashboardHandler;
+    private readonly Action _aboutHandler;
     private readonly Action<bool> _llmCorrectionHandler;
     private readonly Action _reloadPromptHandler;
     private readonly Action<bool> _dictationToggleHandler;
@@ -42,19 +41,14 @@ internal class VirtualAssistantDBusMenuHandler : ComCanonicalDbusmenuHandler, Sy
     public event Action? OnMuteToggleRequested;
 
     /// <summary>
-    /// Event fired when user selects Show Logs.
+    /// Event fired when user selects Dashboard menu item.
     /// </summary>
-    public event Action? OnShowLogsRequested;
+    public event Action? OnDashboardRequested;
 
     /// <summary>
-    /// Event fired when user wants to stop log-viewer service.
+    /// Event fired when user selects About menu item.
     /// </summary>
-    public event Action? OnStopLogViewerRequested;
-
-    /// <summary>
-    /// Event fired when user wants to start log-viewer service.
-    /// </summary>
-    public event Action? OnStartLogViewerRequested;
+    public event Action? OnAboutRequested;
 
     /// <summary>
     /// Event fired when user toggles LLM correction.
@@ -96,9 +90,8 @@ internal class VirtualAssistantDBusMenuHandler : ComCanonicalDbusmenuHandler, Sy
         // Initialize event handler delegates
         _quitHandler = () => OnQuitRequested?.Invoke();
         _muteToggleHandler = () => OnMuteToggleRequested?.Invoke();
-        _showLogsHandler = () => OnShowLogsRequested?.Invoke();
-        _stopLogViewerHandler = () => OnStopLogViewerRequested?.Invoke();
-        _startLogViewerHandler = () => OnStartLogViewerRequested?.Invoke();
+        _dashboardHandler = () => OnDashboardRequested?.Invoke();
+        _aboutHandler = () => OnAboutRequested?.Invoke();
         _llmCorrectionHandler = (enabled) => OnLlmCorrectionToggled?.Invoke(enabled);
         _reloadPromptHandler = () => OnReloadPromptRequested?.Invoke();
         _dictationToggleHandler = (enabled) => OnDictationToggleRequested?.Invoke(enabled);
@@ -110,9 +103,8 @@ internal class VirtualAssistantDBusMenuHandler : ComCanonicalDbusmenuHandler, Sy
         // Forward events from event router using stored delegates
         _eventRouter.OnQuitRequested += _quitHandler;
         _eventRouter.OnMuteToggleRequested += _muteToggleHandler;
-        _eventRouter.OnShowLogsRequested += _showLogsHandler;
-        _eventRouter.OnStopLogViewerRequested += _stopLogViewerHandler;
-        _eventRouter.OnStartLogViewerRequested += _startLogViewerHandler;
+        _eventRouter.OnDashboardRequested += _dashboardHandler;
+        _eventRouter.OnAboutRequested += _aboutHandler;
         _eventRouter.OnLlmCorrectionToggled += _llmCorrectionHandler;
         _eventRouter.OnReloadPromptRequested += _reloadPromptHandler;
         _eventRouter.OnDictationToggleRequested += _dictationToggleHandler;
@@ -319,9 +311,8 @@ internal class VirtualAssistantDBusMenuHandler : ComCanonicalDbusmenuHandler, Sy
         // Unsubscribe from event router events using stored delegates
         _eventRouter.OnQuitRequested -= _quitHandler;
         _eventRouter.OnMuteToggleRequested -= _muteToggleHandler;
-        _eventRouter.OnShowLogsRequested -= _showLogsHandler;
-        _eventRouter.OnStopLogViewerRequested -= _stopLogViewerHandler;
-        _eventRouter.OnStartLogViewerRequested -= _startLogViewerHandler;
+        _eventRouter.OnDashboardRequested -= _dashboardHandler;
+        _eventRouter.OnAboutRequested -= _aboutHandler;
         _eventRouter.OnLlmCorrectionToggled -= _llmCorrectionHandler;
         _eventRouter.OnReloadPromptRequested -= _reloadPromptHandler;
         _eventRouter.OnDictationToggleRequested -= _dictationToggleHandler;
