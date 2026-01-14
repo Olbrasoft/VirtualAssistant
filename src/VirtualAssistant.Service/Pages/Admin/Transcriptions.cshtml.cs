@@ -1,18 +1,17 @@
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.AspNetCore.Mvc.RazorPages;
-using Microsoft.EntityFrameworkCore;
-using Olbrasoft.VirtualAssistant.Data.Entities;
-using Olbrasoft.VirtualAssistant.Data.EntityFrameworkCore;
+using Olbrasoft.Data.Cqrs;
+using Olbrasoft.VirtualAssistant.Data.Queries.LlmCorrectionQueries;
 
 namespace Olbrasoft.VirtualAssistant.Service.Pages.Admin;
 
 public class TranscriptionsModel : PageModel
 {
-    private readonly VirtualAssistantDbContext _context;
+    private readonly IQueryProcessor _queryProcessor;
 
-    public TranscriptionsModel(VirtualAssistantDbContext context)
+    public TranscriptionsModel(IQueryProcessor queryProcessor)
     {
-        _context = context;
+        _queryProcessor = queryProcessor;
     }
 
     public class TranscriptionViewModel
@@ -48,54 +47,31 @@ public class TranscriptionsModel : PageModel
 
     public async Task OnGetAsync()
     {
-        IQueryable<LlmCorrection> query = _context.LlmCorrections
-            .Include(c => c.WhisperTranscription)
-            .Include(c => c.Prompt);
-
-        if (!string.IsNullOrEmpty(SearchString))
-        {
-            query = query.Where(c => 
-                c.CorrectedText.Contains(SearchString) || 
-                c.WhisperTranscription.TranscribedText.Contains(SearchString));
-        }
-
-        if (StartDate.HasValue)
-        {
-            // Input is likely local date (00:00), convert to UTC
-            var utcStart = StartDate.Value.ToUniversalTime();
-            query = query.Where(c => c.CreatedAt >= utcStart);
-        }
-
-        if (EndDate.HasValue)
-        {
-            // End of the day in UTC effectively
-            var utcEnd = EndDate.Value.ToUniversalTime().AddDays(1);
-            query = query.Where(c => c.CreatedAt < utcEnd);
-        }
-
-        var totalItems = await query.CountAsync();
-        int pageSize = 20;
-        TotalPages = (int)Math.Ceiling(totalItems / (double)pageSize);
-
-        // Ensure PageIndex is valid
+        // Default to first page
         if (PageIndex < 1) PageIndex = 1;
+
+        var query = new GetLlmCorrectionsWithPromptsQuery(
+            SearchString, 
+            StartDate, 
+            EndDate, 
+            PageIndex, 
+            20);
+
+        var result = await _queryProcessor.ProcessAsync(query, CancellationToken.None);
+
+        TotalPages = (int)Math.Ceiling(result.TotalCount / (double)20);
         if (TotalPages > 0 && PageIndex > TotalPages) PageIndex = TotalPages;
 
-        Items = await query
-            .OrderByDescending(c => c.CreatedAt)
-            .Skip((PageIndex - 1) * pageSize)
-            .Take(pageSize)
-            .Select(c => new TranscriptionViewModel
-            {
-                Id = c.Id,
-                OriginalText = c.WhisperTranscription.TranscribedText,
-                CorrectedText = c.CorrectedText,
-                CreatedAt = c.CreatedAt,
-                PromptName = c.Prompt != null ? c.Prompt.Name : "N/A",
-                ProcessDurationMs = c.DurationMs,
-                AudioDurationMs = c.WhisperTranscription.AudioDurationMs,
-                WhisperId = c.WhisperTranscriptionId
-            })
-            .ToListAsync();
+        Items = result.Select(c => new TranscriptionViewModel
+        {
+            Id = c.Id,
+            OriginalText = c.WhisperTranscription.TranscribedText,
+            CorrectedText = c.CorrectedText,
+            CreatedAt = c.CreatedAt,
+            PromptName = c.Prompt != null ? c.Prompt.Name : "N/A",
+            ProcessDurationMs = c.DurationMs,
+            AudioDurationMs = c.WhisperTranscription.AudioDurationMs,
+            WhisperId = c.WhisperTranscriptionId
+        }).ToList();
     }
 }
