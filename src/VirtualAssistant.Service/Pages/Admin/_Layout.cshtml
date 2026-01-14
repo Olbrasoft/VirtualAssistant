@@ -1,3 +1,5 @@
+@using System.Reflection
+@using Microsoft.AspNetCore.Mvc.Rendering
 <!DOCTYPE html>
 <html lang="en">
 <head>
@@ -30,6 +32,21 @@
             color: var(--text-primary);
             min-height: 100vh;
             display: flex;
+        }
+
+        .skip-link {
+            position: absolute;
+            top: -40px;
+            left: 0;
+            background: var(--accent-blue);
+            color: white;
+            padding: 8px;
+            z-index: 1000;
+            text-decoration: none;
+        }
+
+        .skip-link:focus {
+            top: 0;
         }
 
         .sidebar {
@@ -154,6 +171,17 @@
             background: var(--accent-green);
         }
 
+        .mobile-menu-toggle {
+            display: none;
+            background: var(--bg-tertiary);
+            border: 1px solid var(--border-color);
+            color: var(--text-primary);
+            padding: 8px 12px;
+            border-radius: 4px;
+            cursor: pointer;
+            font-size: 16px;
+        }
+
         @@media (max-width: 768px) {
             .sidebar {
                 transform: translateX(-100%);
@@ -171,50 +199,66 @@
             .mobile-menu-toggle {
                 display: block;
             }
+
+            .page-header {
+                flex-wrap: wrap;
+                gap: 10px;
+            }
         }
     </style>
     @RenderSection("Styles", required: false)
 </head>
 <body>
-    <aside class="sidebar">
+    <a href="#main-content" class="skip-link">Skip to main content</a>
+
+    @{
+        var currentPage = ViewContext.RouteData.Values["page"]?.ToString();
+        var isIndexActive = currentPage == "/Admin/Index";
+        var isDesktopMonitorActive = currentPage == "/Admin/DesktopMonitor";
+        var isLogsActive = currentPage == "/Admin/Logs";
+        var version = Assembly.GetExecutingAssembly().GetName().Version?.ToString(3) ?? "1.0.0";
+    }
+
+    <aside class="sidebar" id="sidebar">
         <div class="sidebar-header">
             <h1>VirtualAssistant</h1>
             <div class="subtitle">Admin Dashboard</div>
         </div>
-        <nav class="sidebar-nav">
+        <nav class="sidebar-nav" role="navigation" aria-label="Admin navigation">
             <div class="nav-section">Monitoring</div>
-            <a asp-page="/Admin/Index" class="nav-link @(ViewContext.RouteData.Values["page"]?.ToString() == "/Admin/Index" ? "active" : "")">
-                <span class="icon">📊</span>
+            <a href="/Admin" class="nav-link @(isIndexActive ? "active" : "")" aria-current="@(isIndexActive ? "page" : "false")">
+                <span class="icon" role="img" aria-hidden="true">📊</span>
                 Overview
             </a>
-            <a asp-page="/Admin/DesktopMonitor" class="nav-link @(ViewContext.RouteData.Values["page"]?.ToString() == "/Admin/DesktopMonitor" ? "active" : "")">
-                <span class="icon">🖥️</span>
+            <a href="/Admin/DesktopMonitor" class="nav-link @(isDesktopMonitorActive ? "active" : "")" aria-current="@(isDesktopMonitorActive ? "page" : "false")">
+                <span class="icon" role="img" aria-hidden="true">🖥️</span>
                 Desktop Monitor
             </a>
-            <a asp-page="/Admin/Logs" class="nav-link @(ViewContext.RouteData.Values["page"]?.ToString() == "/Admin/Logs" ? "active" : "")">
-                <span class="icon">📋</span>
+            <a href="/Admin/Logs" class="nav-link @(isLogsActive ? "active" : "")" aria-current="@(isLogsActive ? "page" : "false")">
+                <span class="icon" role="img" aria-hidden="true">📋</span>
                 Logs
             </a>
             <div class="nav-section">System</div>
             <a href="/health" target="_blank" class="nav-link">
-                <span class="icon">💚</span>
+                <span class="icon" role="img" aria-hidden="true">💚</span>
                 Health Check
             </a>
             <a href="/api/tts/providers" target="_blank" class="nav-link">
-                <span class="icon">🔊</span>
+                <span class="icon" role="img" aria-hidden="true">🔊</span>
                 TTS Providers
             </a>
         </nav>
         <div class="sidebar-footer">
-            VirtualAssistant v1.0
+            VirtualAssistant v@version
         </div>
     </aside>
 
-    <main class="main-content">
+    <main class="main-content" id="main-content">
         <header class="page-header">
+            <button class="mobile-menu-toggle" id="menu-toggle" aria-label="Toggle navigation menu">☰</button>
             <h2>@ViewData["Title"]</h2>
             <div class="status-badge">
-                <span class="status-dot"></span>
+                <span class="status-dot" aria-hidden="true"></span>
                 Running
             </div>
         </header>
@@ -223,6 +267,22 @@
         </div>
     </main>
 
+    <script>
+        const menuToggle = document.getElementById('menu-toggle');
+        const sidebar = document.getElementById('sidebar');
+
+        if (menuToggle && sidebar) {
+            menuToggle.addEventListener('click', () => {
+                sidebar.classList.toggle('open');
+            });
+
+            document.addEventListener('click', (e) => {
+                if (!sidebar.contains(e.target) && !menuToggle.contains(e.target)) {
+                    sidebar.classList.remove('open');
+                }
+            });
+        }
+    </script>
     @RenderSection("Scripts", required: false)
 </body>
 </html>

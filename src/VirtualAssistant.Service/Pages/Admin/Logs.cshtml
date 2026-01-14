@@ -1,15 +1,20 @@
 @page
 @model Olbrasoft.VirtualAssistant.Service.Pages.Admin.LogsModel
+@inject Microsoft.Extensions.Configuration.IConfiguration Configuration
 @{
     ViewData["Title"] = "Logs";
+    var logPort = Configuration["ContinuousListener:LogViewerPort"] ?? "5053";
+    var scheme = ViewContext.HttpContext.Request.Scheme;
+    var host = ViewContext.HttpContext.Request.Host.Host;
+    var logUrl = $"{scheme}://{host}:{logPort}";
 }
 
 <div class="logs-wrapper">
     <div class="logs-info">
         <p>Live log streaming from VirtualAssistant service via Logdy.</p>
-        <p class="info-note">Port 5053 must be accessible. <a href="http://localhost:5053" target="_blank">Open in new tab</a></p>
+        <p class="info-note">Port @logPort must be accessible. <a href="@logUrl" target="_blank">Open in new tab</a></p>
     </div>
-    <iframe src="http://localhost:5053" class="logs-frame" id="logs-frame"></iframe>
+    <iframe src="@logUrl" class="logs-frame" id="logs-frame" title="Logdy log viewer"></iframe>
 </div>
 
 @section Styles {
