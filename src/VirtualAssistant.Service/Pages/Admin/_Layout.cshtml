@@ -216,6 +216,7 @@
         var isIndexActive = currentPage == "/Admin/Index";
         var isDesktopMonitorActive = currentPage == "/Admin/DesktopMonitor";
         var isLogsActive = currentPage == "/Admin/Logs";
+        var isTranscriptionsActive = currentPage == "/Admin/Transcriptions";
         var version = Assembly.GetExecutingAssembly().GetName().Version?.ToString(3) ?? "1.0.0";
     }
 
@@ -237,6 +238,10 @@
             <a href="/Admin/Logs" class="nav-link @(isLogsActive ? "active" : "")" aria-current="@(isLogsActive ? "page" : "false")">
                 <span class="icon" role="img" aria-hidden="true">📋</span>
                 Logs
+            </a>
+            <a href="/Admin/Transcriptions" class="nav-link @(isTranscriptionsActive ? "active" : "")" aria-current="@(isTranscriptionsActive ? "page" : "false")">
+                <span class="icon" role="img" aria-hidden="true">📝</span>
+                Transcriptions
             </a>
             <div class="nav-section">System</div>
             <a href="/health" target="_blank" class="nav-link">

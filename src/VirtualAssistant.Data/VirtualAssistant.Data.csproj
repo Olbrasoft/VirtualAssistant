@@ -18,6 +18,7 @@
   <ItemGroup>
     <PackageReference Include="Olbrasoft.Data.Cqrs.Common" Version="1.*" />
     <PackageReference Include="Olbrasoft.Data.Entities.Abstractions" Version="1.*" />
+    <PackageReference Include="Olbrasoft.Data.Paging" Version="1.*" />
   </ItemGroup>
 
   <ItemGroup>
