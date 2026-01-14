@@ -1,0 +1,288 @@
+@using System.Reflection
+@using Microsoft.AspNetCore.Mvc.Rendering
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>@ViewData["Title"] - VirtualAssistant Admin</title>
+    <style>
+        :root {
+            --bg-primary: #1e1e1e;
+            --bg-secondary: #252526;
+            --bg-tertiary: #2d2d30;
+            --border-color: #3e3e42;
+            --text-primary: #d4d4d4;
+            --text-secondary: #858585;
+            --accent-blue: #569cd6;
+            --accent-green: #6a9955;
+            --accent-orange: #ce9178;
+            --sidebar-width: 220px;
+        }
+
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            background: var(--bg-primary);
+            color: var(--text-primary);
+            min-height: 100vh;
+            display: flex;
+        }
+
+        .skip-link {
+            position: absolute;
+            top: -40px;
+            left: 0;
+            background: var(--accent-blue);
+            color: white;
+            padding: 8px;
+            z-index: 1000;
+            text-decoration: none;
+        }
+
+        .skip-link:focus {
+            top: 0;
+        }
+
+        .sidebar {
+            width: var(--sidebar-width);
+            background: var(--bg-secondary);
+            border-right: 1px solid var(--border-color);
+            position: fixed;
+            top: 0;
+            left: 0;
+            height: 100vh;
+            display: flex;
+            flex-direction: column;
+            z-index: 100;
+        }
+
+        .sidebar-header {
+            padding: 20px 15px;
+            border-bottom: 1px solid var(--border-color);
+        }
+
+        .sidebar-header h1 {
+            font-size: 16px;
+            color: var(--accent-blue);
+            font-weight: 600;
+        }
+
+        .sidebar-header .subtitle {
+            font-size: 11px;
+            color: var(--text-secondary);
+            margin-top: 4px;
+        }
+
+        .sidebar-nav {
+            flex: 1;
+            padding: 10px 0;
+            overflow-y: auto;
+        }
+
+        .nav-section {
+            padding: 8px 15px 4px;
+            font-size: 11px;
+            color: var(--text-secondary);
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+        }
+
+        .nav-link {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            padding: 10px 15px;
+            color: var(--text-primary);
+            text-decoration: none;
+            font-size: 13px;
+            transition: background 0.15s;
+        }
+
+        .nav-link:hover {
+            background: var(--bg-tertiary);
+        }
+
+        .nav-link.active {
+            background: var(--bg-tertiary);
+            border-left: 2px solid var(--accent-blue);
+        }
+
+        .nav-link .icon {
+            width: 18px;
+            text-align: center;
+            opacity: 0.8;
+        }
+
+        .sidebar-footer {
+            padding: 15px;
+            border-top: 1px solid var(--border-color);
+            font-size: 11px;
+            color: var(--text-secondary);
+        }
+
+        .main-content {
+            margin-left: var(--sidebar-width);
+            flex: 1;
+            min-height: 100vh;
+            display: flex;
+            flex-direction: column;
+        }
+
+        .page-header {
+            background: var(--bg-secondary);
+            border-bottom: 1px solid var(--border-color);
+            padding: 15px 25px;
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+        }
+
+        .page-header h2 {
+            font-size: 18px;
+            font-weight: 500;
+            color: var(--text-primary);
+        }
+
+        .page-content {
+            flex: 1;
+            padding: 25px;
+        }
+
+        .status-badge {
+            display: inline-flex;
+            align-items: center;
+            gap: 6px;
+            padding: 4px 10px;
+            background: var(--bg-tertiary);
+            border-radius: 12px;
+            font-size: 12px;
+        }
+
+        .status-dot {
+            width: 8px;
+            height: 8px;
+            border-radius: 50%;
+            background: var(--accent-green);
+        }
+
+        .mobile-menu-toggle {
+            display: none;
+            background: var(--bg-tertiary);
+            border: 1px solid var(--border-color);
+            color: var(--text-primary);
+            padding: 8px 12px;
+            border-radius: 4px;
+            cursor: pointer;
+            font-size: 16px;
+        }
+
+        @@media (max-width: 768px) {
+            .sidebar {
+                transform: translateX(-100%);
+                transition: transform 0.3s;
+            }
+
+            .sidebar.open {
+                transform: translateX(0);
+            }
+
+            .main-content {
+                margin-left: 0;
+            }
+
+            .mobile-menu-toggle {
+                display: block;
+            }
+
+            .page-header {
+                flex-wrap: wrap;
+                gap: 10px;
+            }
+        }
+    </style>
+    @RenderSection("Styles", required: false)
+</head>
+<body>
+    <a href="#main-content" class="skip-link">Skip to main content</a>
+
+    @{
+        var currentPage = ViewContext.RouteData.Values["page"]?.ToString();
+        var isIndexActive = currentPage == "/Admin/Index";
+        var isDesktopMonitorActive = currentPage == "/Admin/DesktopMonitor";
+        var isLogsActive = currentPage == "/Admin/Logs";
+        var version = Assembly.GetExecutingAssembly().GetName().Version?.ToString(3) ?? "1.0.0";
+    }
+
+    <aside class="sidebar" id="sidebar">
+        <div class="sidebar-header">
+            <h1>VirtualAssistant</h1>
+            <div class="subtitle">Admin Dashboard</div>
+        </div>
+        <nav class="sidebar-nav" role="navigation" aria-label="Admin navigation">
+            <div class="nav-section">Monitoring</div>
+            <a href="/Admin" class="nav-link @(isIndexActive ? "active" : "")" aria-current="@(isIndexActive ? "page" : "false")">
+                <span class="icon" role="img" aria-hidden="true">📊</span>
+                Overview
+            </a>
+            <a href="/Admin/DesktopMonitor" class="nav-link @(isDesktopMonitorActive ? "active" : "")" aria-current="@(isDesktopMonitorActive ? "page" : "false")">
+                <span class="icon" role="img" aria-hidden="true">🖥️</span>
+                Desktop Monitor
+            </a>
+            <a href="/Admin/Logs" class="nav-link @(isLogsActive ? "active" : "")" aria-current="@(isLogsActive ? "page" : "false")">
+                <span class="icon" role="img" aria-hidden="true">📋</span>
+                Logs
+            </a>
+            <div class="nav-section">System</div>
+            <a href="/health" target="_blank" class="nav-link">
+                <span class="icon" role="img" aria-hidden="true">💚</span>
+                Health Check
+            </a>
+            <a href="/api/tts/providers" target="_blank" class="nav-link">
+                <span class="icon" role="img" aria-hidden="true">🔊</span>
+                TTS Providers
+            </a>
+        </nav>
+        <div class="sidebar-footer">
+            VirtualAssistant v@version
+        </div>
+    </aside>
+
+    <main class="main-content" id="main-content">
+        <header class="page-header">
+            <button class="mobile-menu-toggle" id="menu-toggle" aria-label="Toggle navigation menu">☰</button>
+            <h2>@ViewData["Title"]</h2>
+            <div class="status-badge">
+                <span class="status-dot" aria-hidden="true"></span>
+                Running
+            </div>
+        </header>
+        <div class="page-content">
+            @RenderBody()
+        </div>
+    </main>
+
+    <script>
+        const menuToggle = document.getElementById('menu-toggle');
+        const sidebar = document.getElementById('sidebar');
+
+        if (menuToggle && sidebar) {
+            menuToggle.addEventListener('click', () => {
+                sidebar.classList.toggle('open');
+            });
+
+            document.addEventListener('click', (e) => {
+                if (!sidebar.contains(e.target) && !menuToggle.contains(e.target)) {
+                    sidebar.classList.remove('open');
+                }
+            });
+        }
+    </script>
+    @RenderSection("Scripts", required: false)
+</body>
+</html>

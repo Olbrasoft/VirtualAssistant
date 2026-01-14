@@ -1,0 +1,252 @@
+@page
+@model Olbrasoft.VirtualAssistant.Service.Pages.Admin.IndexModel
+@inject Microsoft.Extensions.Configuration.IConfiguration Configuration
+@{
+    ViewData["Title"] = "Overview";
+    var logPort = Configuration["ContinuousListener:LogViewerPort"] ?? "5053";
+    var scheme = ViewContext.HttpContext.Request.Scheme;
+    var host = ViewContext.HttpContext.Request.Host.Host;
+    var logUrl = $"{scheme}://{host}:{logPort}";
+}
+
+<div class="dashboard-grid">
+    <div class="card">
+        <div class="card-header">
+            <span class="card-icon" role="img" aria-label="Voice">🎤</span>
+            <h3>Voice Status</h3>
+        </div>
+        <div class="card-body">
+            <div class="stat-row">
+                <span class="stat-label">Mute State</span>
+                <span class="stat-value" id="mute-status">Loading...</span>
+            </div>
+        </div>
+    </div>
+
+    <div class="card">
+        <div class="card-header">
+            <span class="card-icon" role="img" aria-label="Speaker">🔊</span>
+            <h3>TTS Queue</h3>
+        </div>
+        <div class="card-body">
+            <div class="stat-row">
+                <span class="stat-label">Queue Count</span>
+                <span class="stat-value" id="tts-queue">Loading...</span>
+            </div>
+        </div>
+    </div>
+
+    <div class="card">
+        <div class="card-header">
+            <span class="card-icon" role="img" aria-label="Speech">💬</span>
+            <h3>Speech Tracker</h3>
+        </div>
+        <div class="card-body">
+            <div class="stat-row">
+                <span class="stat-label">History Count</span>
+                <span class="stat-value" id="speech-history">Loading...</span>
+            </div>
+        </div>
+    </div>
+
+    <div class="card">
+        <div class="card-header">
+            <span class="card-icon" role="img" aria-label="Links">🌐</span>
+            <h3>Quick Links</h3>
+        </div>
+        <div class="card-body">
+            <div class="link-list">
+                <a href="/desktop-monitor/" target="_blank" class="quick-link">Desktop Monitor (Standalone)</a>
+                <a href="@logUrl" target="_blank" class="quick-link">Logs Viewer (Logdy)</a>
+                <a href="/api/tts/providers" target="_blank" class="quick-link">TTS Providers API</a>
+            </div>
+        </div>
+    </div>
+</div>
+
+@section Styles {
+<style>
+    .dashboard-grid {
+        display: grid;
+        grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
+        gap: 20px;
+    }
+
+    .card {
+        background: var(--bg-secondary);
+        border: 1px solid var(--border-color);
+        border-radius: 8px;
+        overflow: hidden;
+    }
+
+    .card-header {
+        display: flex;
+        align-items: center;
+        gap: 10px;
+        padding: 15px;
+        background: var(--bg-tertiary);
+        border-bottom: 1px solid var(--border-color);
+    }
+
+    .card-header h3 {
+        font-size: 14px;
+        font-weight: 500;
+    }
+
+    .card-icon {
+        font-size: 18px;
+    }
+
+    .card-body {
+        padding: 15px;
+    }
+
+    .stat-row {
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        padding: 8px 0;
+    }
+
+    .stat-row:not(:last-child) {
+        border-bottom: 1px solid var(--border-color);
+    }
+
+    .stat-label {
+        color: var(--text-secondary);
+        font-size: 13px;
+    }
+
+    .stat-value {
+        font-size: 14px;
+        font-weight: 500;
+    }
+
+    .stat-value.muted {
+        color: #f48771;
+    }
+
+    .stat-value.active {
+        color: var(--accent-green);
+    }
+
+    .stat-value.error {
+        color: #f48771;
+    }
+
+    .link-list {
+        display: flex;
+        flex-direction: column;
+        gap: 8px;
+    }
+
+    .quick-link {
+        display: block;
+        padding: 10px 12px;
+        background: var(--bg-tertiary);
+        border-radius: 4px;
+        color: var(--accent-blue);
+        text-decoration: none;
+        font-size: 13px;
+        transition: background 0.15s;
+    }
+
+    .quick-link:hover {
+        background: var(--bg-primary);
+    }
+</style>
+}
+
+@section Scripts {
+<script>
+    let pollingInterval = null;
+    let isPageVisible = true;
+
+    function setError(elementId) {
+        const el = document.getElementById(elementId);
+        if (el) {
+            el.textContent = 'Error';
+            el.className = 'stat-value error';
+        }
+    }
+
+    async function refreshStats() {
+        if (!isPageVisible) return;
+
+        const muteEl = document.getElementById('mute-status');
+        const queueEl = document.getElementById('tts-queue');
+        const speechEl = document.getElementById('speech-history');
+
+        try {
+            const [muteRes, queueRes, speechRes] = await Promise.all([
+                fetch('/api/mute'),
+                fetch('/api/tts/queue'),
+                fetch('/api/assistant-speech/status')
+            ]);
+
+            if (muteRes.ok) {
+                const mute = await muteRes.json();
+                if (muteEl) {
+                    muteEl.textContent = mute.muted ? 'Muted' : 'Active';
+                    muteEl.className = 'stat-value ' + (mute.muted ? 'muted' : 'active');
+                }
+            } else if (muteEl) {
+                muteEl.textContent = 'Error';
+                muteEl.className = 'stat-value error';
+            }
+
+            if (queueRes.ok) {
+                const queue = await queueRes.json();
+                if (queueEl) {
+                    queueEl.textContent = queue.queueCount;
+                    queueEl.className = 'stat-value';
+                }
+            } else if (queueEl) {
+                queueEl.textContent = 'Error';
+                queueEl.className = 'stat-value error';
+            }
+
+            if (speechRes.ok) {
+                const speech = await speechRes.json();
+                if (speechEl) {
+                    speechEl.textContent = speech.historyCount;
+                    speechEl.className = 'stat-value';
+                }
+            } else if (speechEl) {
+                speechEl.textContent = 'Error';
+                speechEl.className = 'stat-value error';
+            }
+        } catch (err) {
+            console.error('Failed to refresh stats:', err);
+            if (muteEl) { muteEl.textContent = 'Error'; muteEl.className = 'stat-value error'; }
+            if (queueEl) { queueEl.textContent = 'Error'; queueEl.className = 'stat-value error'; }
+            if (speechEl) { speechEl.textContent = 'Error'; speechEl.className = 'stat-value error'; }
+        }
+    }
+
+    function startPolling() {
+        if (!pollingInterval) {
+            refreshStats();
+            pollingInterval = setInterval(refreshStats, 5000);
+        }
+    }
+
+    function stopPolling() {
+        if (pollingInterval) {
+            clearInterval(pollingInterval);
+            pollingInterval = null;
+        }
+    }
+
+    document.addEventListener('visibilitychange', () => {
+        isPageVisible = !document.hidden;
+        if (isPageVisible) {
+            startPolling();
+        } else {
+            stopPolling();
+        }
+    });
+
+    startPolling();
+</script>
+}

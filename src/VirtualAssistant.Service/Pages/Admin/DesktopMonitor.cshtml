@@ -1,0 +1,311 @@
+@page
+@model Olbrasoft.VirtualAssistant.Service.Pages.Admin.DesktopMonitorModel
+@{
+    ViewData["Title"] = "Desktop Monitor";
+}
+
+<div class="monitor-container">
+    <div class="stats-grid">
+        <div class="stat-card">
+            <div class="stat-label">Connection</div>
+            <div class="stat-value">
+                <span class="status-indicator" id="connection-status"></span>
+                <span id="connection-text">Connecting...</span>
+                <button class="btn-retry" id="retry-btn" style="display: none;">Retry</button>
+            </div>
+        </div>
+        <div class="stat-card">
+            <div class="stat-label">Current Workspace</div>
+            <div class="stat-value" id="current-workspace">-</div>
+        </div>
+        <div class="stat-card">
+            <div class="stat-label">Total Workspaces</div>
+            <div class="stat-value" id="total-workspaces">-</div>
+        </div>
+        <div class="stat-card">
+            <div class="stat-label">Active Window</div>
+            <div class="stat-value" id="active-window">-</div>
+        </div>
+        <div class="stat-card">
+            <div class="stat-label">Active Application</div>
+            <div class="stat-value" id="active-app">-</div>
+        </div>
+        <div class="stat-card">
+            <div class="stat-label">App Name</div>
+            <div class="stat-value" id="app-name">-</div>
+        </div>
+        <div class="stat-card">
+            <div class="stat-label">App ID</div>
+            <div class="stat-value" id="app-id">-</div>
+        </div>
+        <div class="stat-card">
+            <div class="stat-label">Correction Prompt</div>
+            <div class="stat-value" id="correction-prompt">-</div>
+        </div>
+    </div>
+
+    <div class="log-section">
+        <div class="log-header">
+            <h3>Event Log</h3>
+            <button class="btn-clear" id="clear-logs-btn">Clear</button>
+        </div>
+        <div class="log-container" id="log-container" role="log" aria-live="polite"></div>
+    </div>
+</div>
+
+@section Styles {
+<style>
+    .monitor-container {
+        display: flex;
+        flex-direction: column;
+        gap: 20px;
+        height: calc(100vh - 130px);
+    }
+
+    .stats-grid {
+        display: grid;
+        grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+        gap: 12px;
+    }
+
+    .stat-card {
+        background: var(--bg-secondary);
+        border: 1px solid var(--border-color);
+        border-radius: 6px;
+        padding: 12px 15px;
+    }
+
+    .stat-label {
+        font-size: 11px;
+        color: var(--text-secondary);
+        text-transform: uppercase;
+        margin-bottom: 4px;
+    }
+
+    .stat-value {
+        font-size: 14px;
+        color: var(--text-primary);
+        font-weight: 500;
+        display: flex;
+        align-items: center;
+        gap: 8px;
+    }
+
+    .status-indicator {
+        width: 10px;
+        height: 10px;
+        border-radius: 50%;
+        background: #f48771;
+    }
+
+    .status-indicator.connected {
+        background: var(--accent-green);
+    }
+
+    .btn-retry {
+        background: var(--accent-blue);
+        border: none;
+        color: white;
+        padding: 4px 8px;
+        border-radius: 4px;
+        font-size: 11px;
+        cursor: pointer;
+        margin-left: 8px;
+    }
+
+    .btn-retry:hover {
+        opacity: 0.9;
+    }
+
+    .log-section {
+        flex: 1;
+        display: flex;
+        flex-direction: column;
+        min-height: 0;
+    }
+
+    .log-header {
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        margin-bottom: 10px;
+    }
+
+    .log-header h3 {
+        font-size: 14px;
+        font-weight: 500;
+    }
+
+    .btn-clear {
+        background: var(--bg-tertiary);
+        border: 1px solid var(--border-color);
+        color: var(--text-primary);
+        padding: 6px 12px;
+        border-radius: 4px;
+        font-size: 12px;
+        cursor: pointer;
+    }
+
+    .btn-clear:hover {
+        background: var(--bg-secondary);
+    }
+
+    .log-container {
+        flex: 1;
+        background: var(--bg-secondary);
+        border: 1px solid var(--border-color);
+        border-radius: 6px;
+        padding: 12px;
+        overflow-y: auto;
+        font-family: 'Consolas', 'Courier New', monospace;
+        font-size: 12px;
+    }
+
+    .log-entry {
+        padding: 3px 0;
+        border-bottom: 1px solid var(--border-color);
+    }
+
+    .log-entry:last-child {
+        border-bottom: none;
+    }
+
+    .log-time {
+        color: var(--text-secondary);
+        margin-right: 10px;
+    }
+
+    .log-success { color: var(--accent-green); }
+    .log-error { color: #f48771; }
+    .log-info { color: var(--accent-blue); }
+    .log-workspace { color: #dcdcaa; }
+    .log-focus { color: #4ec9b0; }
+    .log-prompt { color: var(--accent-orange); }
+
+    .app-code, .app-cursor { color: #9B59B6 !important; }
+    .app-opencode { color: #007ACC !important; }
+    .app-ferdium { color: #27AE60 !important; }
+</style>
+}
+
+@section Scripts {
+<script src="https://cdn.jsdelivr.net/npm/@@microsoft/signalr@latest/dist/browser/signalr.min.js"></script>
+<script>
+    const logContainer = document.getElementById('log-container');
+    const connectionStatus = document.getElementById('connection-status');
+    const connectionText = document.getElementById('connection-text');
+    const clearLogsButton = document.getElementById('clear-logs-btn');
+    const retryButton = document.getElementById('retry-btn');
+    let logCount = 0;
+    const maxLogs = 500;
+
+    const connection = new signalR.HubConnectionBuilder()
+        .withUrl("/hub/desktop-monitor")
+        .withAutomaticReconnect()
+        .build();
+
+    function addLog(message, cssClass = '') {
+        if (logCount >= maxLogs && logContainer.firstChild) {
+            logContainer.removeChild(logContainer.firstChild);
+            logCount--;
+        }
+
+        const now = new Date();
+        const time = now.toLocaleTimeString('cs-CZ');
+        const entry = document.createElement('div');
+        entry.className = 'log-entry';
+
+        const timeSpan = document.createElement('span');
+        timeSpan.className = 'log-time';
+        timeSpan.textContent = time;
+
+        const msgSpan = document.createElement('span');
+        msgSpan.className = cssClass;
+        msgSpan.textContent = message;
+
+        entry.appendChild(timeSpan);
+        entry.appendChild(msgSpan);
+        logContainer.appendChild(entry);
+        logContainer.scrollTop = logContainer.scrollHeight;
+        logCount++;
+    }
+
+    function clearLogs() {
+        logContainer.innerHTML = '';
+        logCount = 0;
+    }
+
+    function startConnection() {
+        retryButton.style.display = 'none';
+        connectionText.textContent = 'Connecting...';
+
+        connection.start()
+            .then(() => {
+                connectionStatus.classList.add('connected');
+                connectionText.textContent = 'Connected';
+                retryButton.style.display = 'none';
+                addLog('✓ Connected to Desktop Context Monitor', 'log-success');
+            })
+            .catch(err => {
+                console.error('SignalR connection error:', err);
+                connectionText.textContent = 'Failed';
+                retryButton.style.display = 'inline-block';
+                addLog(`✗ Connection failed: ${err.message || err}`, 'log-error');
+            });
+    }
+
+    connection.on("WorkspaceChanged", (newIndex, totalWorkspaces) => {
+        document.getElementById('current-workspace').textContent = newIndex;
+        document.getElementById('total-workspaces').textContent = totalWorkspaces;
+    });
+
+    connection.on("FocusChanged", (windowTitle, appId, wmClass) => {
+        document.getElementById('active-window').textContent = windowTitle || '-';
+        document.getElementById('active-app').textContent = appId || '-';
+    });
+
+    connection.on("PromptChanged", (appName, appId, promptFile) => {
+        document.getElementById('app-name').textContent = appName;
+        document.getElementById('app-id').textContent = appId;
+        document.getElementById('correction-prompt').textContent = promptFile;
+        const appNameElement = document.getElementById('app-name');
+        appNameElement.className = `stat-value app-${appId.toLowerCase()}`;
+        addLog(`📝 Prompt: ${appName} → ${promptFile}`, 'log-prompt');
+    });
+
+    connection.on("LogMessage", (message) => {
+        let cssClass = '';
+        if (message.startsWith('✓')) cssClass = 'log-success';
+        else if (message.startsWith('✗')) cssClass = 'log-error';
+        else if (message.startsWith('WorkspaceChanged')) cssClass = 'log-workspace';
+        else if (message.startsWith('ApplicationChanged')) cssClass = 'log-focus';
+        else if (message.startsWith('WindowFocusChanged')) cssClass = 'log-focus';
+        else if (message.startsWith('📡')) cssClass = 'log-info';
+        addLog(message, cssClass);
+    });
+
+    connection.onreconnecting(() => {
+        connectionStatus.classList.remove('connected');
+        connectionText.textContent = 'Reconnecting...';
+        addLog('⚠ Reconnecting to server...', 'log-error');
+    });
+
+    connection.onreconnected(() => {
+        connectionStatus.classList.add('connected');
+        connectionText.textContent = 'Connected';
+        addLog('✓ Reconnected to server', 'log-success');
+    });
+
+    connection.onclose(() => {
+        connectionStatus.classList.remove('connected');
+        connectionText.textContent = 'Disconnected';
+        retryButton.style.display = 'inline-block';
+        addLog('✗ Connection closed', 'log-error');
+    });
+
+    clearLogsButton.addEventListener('click', clearLogs);
+    retryButton.addEventListener('click', startConnection);
+
+    startConnection();
+</script>
+}

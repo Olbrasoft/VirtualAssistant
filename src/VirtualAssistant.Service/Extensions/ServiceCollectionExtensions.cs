@@ -28,6 +28,9 @@ public static class ServiceCollectionExtensions
         // MVC Controllers
         services.AddControllers();
 
+        // Razor Pages for Admin Dashboard
+        services.AddRazorPages();
+
         // SignalR for Desktop Monitor real-time communication
         services.AddSignalR();
 

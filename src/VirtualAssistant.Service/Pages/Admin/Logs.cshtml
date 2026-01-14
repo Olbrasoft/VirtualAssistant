@@ -1,0 +1,58 @@
+@page
+@model Olbrasoft.VirtualAssistant.Service.Pages.Admin.LogsModel
+@inject Microsoft.Extensions.Configuration.IConfiguration Configuration
+@{
+    ViewData["Title"] = "Logs";
+    var logPort = Configuration["ContinuousListener:LogViewerPort"] ?? "5053";
+    var scheme = ViewContext.HttpContext.Request.Scheme;
+    var host = ViewContext.HttpContext.Request.Host.Host;
+    var logUrl = $"{scheme}://{host}:{logPort}";
+}
+
+<div class="logs-wrapper">
+    <div class="logs-info">
+        <p>Live log streaming from VirtualAssistant service via Logdy.</p>
+        <p class="info-note">Port @logPort must be accessible. <a href="@logUrl" target="_blank">Open in new tab</a></p>
+    </div>
+    <iframe src="@logUrl" class="logs-frame" id="logs-frame" title="Logdy log viewer"></iframe>
+</div>
+
+@section Styles {
+<style>
+    .logs-wrapper {
+        display: flex;
+        flex-direction: column;
+        height: calc(100vh - 130px);
+        gap: 15px;
+    }
+
+    .logs-info {
+        background: var(--bg-secondary);
+        border: 1px solid var(--border-color);
+        border-radius: 6px;
+        padding: 12px 15px;
+    }
+
+    .logs-info p {
+        font-size: 13px;
+        margin: 0;
+    }
+
+    .logs-info .info-note {
+        color: var(--text-secondary);
+        font-size: 12px;
+        margin-top: 6px;
+    }
+
+    .logs-info a {
+        color: var(--accent-blue);
+    }
+
+    .logs-frame {
+        flex: 1;
+        border: 1px solid var(--border-color);
+        border-radius: 6px;
+        background: #000;
+    }
+</style>
+}
