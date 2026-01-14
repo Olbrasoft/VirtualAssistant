@@ -81,7 +81,28 @@ public class MenuEventDispatcher : IMenuEventDispatcher
     {
         var version = Assembly.GetExecutingAssembly().GetName().Version?.ToString() ?? "unknown";
         _logger.LogInformation("About requested - Version: {Version}", version);
-        OpenDashboardInBrowser("Opened About (Dashboard) at {Url}");
+
+        try
+        {
+            var text = $"<b>VirtualAssistant</b>\\n\\nVerze: {version}\\n\\nLinux virtuální asistent pro ovládání desktopu a integraci s AI coding agenty.\\n\\nhttps://github.com/Olbrasoft/VirtualAssistant";
+
+            using var process = new Process
+            {
+                StartInfo = new ProcessStartInfo
+                {
+                    FileName = "zenity",
+                    Arguments = $"--info --title=\"O aplikaci\" --text=\"{text}\" --no-wrap --ok-label=\"Zavřít\"",
+                    UseShellExecute = false,
+                    CreateNoWindow = true
+                }
+            };
+            process.Start();
+            _logger.LogInformation("Showed About dialog (zenity) - Version: {Version}", version);
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Failed to show about dialog using zenity");
+        }
     }
 
     private void OpenDashboardInBrowser(string logMessage)
