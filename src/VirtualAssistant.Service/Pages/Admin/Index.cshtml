@@ -1,0 +1,185 @@
+@page
+@model Olbrasoft.VirtualAssistant.Service.Pages.Admin.IndexModel
+@{
+    ViewData["Title"] = "Overview";
+}
+
+<div class="dashboard-grid">
+    <div class="card">
+        <div class="card-header">
+            <span class="card-icon">🎤</span>
+            <h3>Voice Status</h3>
+        </div>
+        <div class="card-body">
+            <div class="stat-row">
+                <span class="stat-label">Mute State</span>
+                <span class="stat-value" id="mute-status">Loading...</span>
+            </div>
+        </div>
+    </div>
+
+    <div class="card">
+        <div class="card-header">
+            <span class="card-icon">🔊</span>
+            <h3>TTS Queue</h3>
+        </div>
+        <div class="card-body">
+            <div class="stat-row">
+                <span class="stat-label">Queue Count</span>
+                <span class="stat-value" id="tts-queue">Loading...</span>
+            </div>
+        </div>
+    </div>
+
+    <div class="card">
+        <div class="card-header">
+            <span class="card-icon">💬</span>
+            <h3>Speech Tracker</h3>
+        </div>
+        <div class="card-body">
+            <div class="stat-row">
+                <span class="stat-label">History Count</span>
+                <span class="stat-value" id="speech-history">Loading...</span>
+            </div>
+        </div>
+    </div>
+
+    <div class="card">
+        <div class="card-header">
+            <span class="card-icon">🌐</span>
+            <h3>Quick Links</h3>
+        </div>
+        <div class="card-body">
+            <div class="link-list">
+                <a href="/desktop-monitor/" target="_blank" class="quick-link">Desktop Monitor (Standalone)</a>
+                <a href="http://localhost:5053/" target="_blank" class="quick-link">Logs Viewer (Logdy)</a>
+                <a href="/api/tts/providers" target="_blank" class="quick-link">TTS Providers API</a>
+            </div>
+        </div>
+    </div>
+</div>
+
+@section Styles {
+<style>
+    .dashboard-grid {
+        display: grid;
+        grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
+        gap: 20px;
+    }
+
+    .card {
+        background: var(--bg-secondary);
+        border: 1px solid var(--border-color);
+        border-radius: 8px;
+        overflow: hidden;
+    }
+
+    .card-header {
+        display: flex;
+        align-items: center;
+        gap: 10px;
+        padding: 15px;
+        background: var(--bg-tertiary);
+        border-bottom: 1px solid var(--border-color);
+    }
+
+    .card-header h3 {
+        font-size: 14px;
+        font-weight: 500;
+    }
+
+    .card-icon {
+        font-size: 18px;
+    }
+
+    .card-body {
+        padding: 15px;
+    }
+
+    .stat-row {
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        padding: 8px 0;
+    }
+
+    .stat-row:not(:last-child) {
+        border-bottom: 1px solid var(--border-color);
+    }
+
+    .stat-label {
+        color: var(--text-secondary);
+        font-size: 13px;
+    }
+
+    .stat-value {
+        font-size: 14px;
+        font-weight: 500;
+    }
+
+    .stat-value.muted {
+        color: #f48771;
+    }
+
+    .stat-value.active {
+        color: var(--accent-green);
+    }
+
+    .link-list {
+        display: flex;
+        flex-direction: column;
+        gap: 8px;
+    }
+
+    .quick-link {
+        display: block;
+        padding: 10px 12px;
+        background: var(--bg-tertiary);
+        border-radius: 4px;
+        color: var(--accent-blue);
+        text-decoration: none;
+        font-size: 13px;
+        transition: background 0.15s;
+    }
+
+    .quick-link:hover {
+        background: var(--bg-primary);
+    }
+</style>
+}
+
+@section Scripts {
+<script>
+    async function refreshStats() {
+        try {
+            const [muteRes, queueRes, speechRes] = await Promise.all([
+                fetch('/api/mute'),
+                fetch('/api/tts/queue'),
+                fetch('/api/assistant-speech/status')
+            ]);
+
+            if (muteRes.ok) {
+                const mute = await muteRes.json();
+                const el = document.getElementById('mute-status');
+                el.textContent = mute.muted ? 'Muted' : 'Active';
+                el.className = 'stat-value ' + (mute.muted ? 'muted' : 'active');
+            }
+
+            if (queueRes.ok) {
+                const queue = await queueRes.json();
+                document.getElementById('tts-queue').textContent = queue.queueCount;
+            }
+
+            if (speechRes.ok) {
+                const speech = await speechRes.json();
+                document.getElementById('speech-history').textContent = speech.historyCount;
+            }
+        } catch (err) {
+            console.error('Failed to refresh stats:', err);
+        }
+    }
+
+    refreshStats();
+    setInterval(refreshStats, 5000);
+</script>
+}

@@ -1,0 +1,53 @@
+@page
+@model Olbrasoft.VirtualAssistant.Service.Pages.Admin.LogsModel
+@{
+    ViewData["Title"] = "Logs";
+}
+
+<div class="logs-wrapper">
+    <div class="logs-info">
+        <p>Live log streaming from VirtualAssistant service via Logdy.</p>
+        <p class="info-note">Port 5053 must be accessible. <a href="http://localhost:5053" target="_blank">Open in new tab</a></p>
+    </div>
+    <iframe src="http://localhost:5053" class="logs-frame" id="logs-frame"></iframe>
+</div>
+
+@section Styles {
+<style>
+    .logs-wrapper {
+        display: flex;
+        flex-direction: column;
+        height: calc(100vh - 130px);
+        gap: 15px;
+    }
+
+    .logs-info {
+        background: var(--bg-secondary);
+        border: 1px solid var(--border-color);
+        border-radius: 6px;
+        padding: 12px 15px;
+    }
+
+    .logs-info p {
+        font-size: 13px;
+        margin: 0;
+    }
+
+    .logs-info .info-note {
+        color: var(--text-secondary);
+        font-size: 12px;
+        margin-top: 6px;
+    }
+
+    .logs-info a {
+        color: var(--accent-blue);
+    }
+
+    .logs-frame {
+        flex: 1;
+        border: 1px solid var(--border-color);
+        border-radius: 6px;
+        background: #000;
+    }
+</style>
+}

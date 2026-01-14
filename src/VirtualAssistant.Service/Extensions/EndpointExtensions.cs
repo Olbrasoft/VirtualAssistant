@@ -50,6 +50,7 @@ public static class EndpointExtensions
         app.UseStaticFiles();
 
         app.MapControllers();
+        app.MapRazorPages();
         app.MapAssistantSpeechEndpoints();
         app.MapTtsEndpoints();
         app.MapMuteEndpoints();
