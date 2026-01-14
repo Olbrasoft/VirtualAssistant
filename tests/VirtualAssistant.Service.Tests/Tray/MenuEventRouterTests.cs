@@ -126,51 +126,32 @@ public class MenuEventRouterTests
 
     #endregion
 
-    #region HandleMenuEvent - ShowLogs
+    #region HandleMenuEvent - Dashboard
 
     [Fact]
-    public void HandleMenuEvent_ShowLogsClicked_FiresOnShowLogsRequested()
+    public void HandleMenuEvent_DashboardClicked_FiresOnDashboardRequested()
     {
         var eventFired = false;
-        _router.OnShowLogsRequested += () => eventFired = true;
+        _router.OnDashboardRequested += () => eventFired = true;
 
-        _router.HandleMenuEvent(MenuItemIds.ShowLogsId, "clicked");
+        _router.HandleMenuEvent(MenuItemIds.DashboardId, "clicked");
 
         Assert.True(eventFired);
     }
 
     #endregion
 
-    #region HandleMenuEvent - LogViewer
+    #region HandleMenuEvent - About
 
     [Fact]
-    public void HandleMenuEvent_LogViewerClicked_WhenRunning_FiresOnStopLogViewerRequested()
+    public void HandleMenuEvent_AboutClicked_FiresOnAboutRequested()
     {
-        _stateManagerMock.Setup(s => s.LogViewerStatus).Returns("Running");
-        var stopFired = false;
-        var startFired = false;
-        _router.OnStopLogViewerRequested += () => stopFired = true;
-        _router.OnStartLogViewerRequested += () => startFired = true;
+        var eventFired = false;
+        _router.OnAboutRequested += () => eventFired = true;
 
-        _router.HandleMenuEvent(MenuItemIds.LogViewerId, "clicked");
+        _router.HandleMenuEvent(MenuItemIds.AboutId, "clicked");
 
-        Assert.True(stopFired);
-        Assert.False(startFired);
-    }
-
-    [Fact]
-    public void HandleMenuEvent_LogViewerClicked_WhenStopped_FiresOnStartLogViewerRequested()
-    {
-        _stateManagerMock.Setup(s => s.LogViewerStatus).Returns("Stopped");
-        var stopFired = false;
-        var startFired = false;
-        _router.OnStopLogViewerRequested += () => stopFired = true;
-        _router.OnStartLogViewerRequested += () => startFired = true;
-
-        _router.HandleMenuEvent(MenuItemIds.LogViewerId, "clicked");
-
-        Assert.False(stopFired);
-        Assert.True(startFired);
+        Assert.True(eventFired);
     }
 
     #endregion
@@ -279,19 +260,17 @@ public class MenuEventRouterTests
         _router.OnQuitRequested += () => handledIds.Add(MenuItemIds.QuitId);
         _router.OnMuteToggleRequested += () => handledIds.Add(MenuItemIds.MuteToggleId);
         _router.OnTtsMuteToggleRequested += _ => handledIds.Add(MenuItemIds.TtsMuteToggleId);
-        _router.OnShowLogsRequested += () => handledIds.Add(MenuItemIds.ShowLogsId);
-        _router.OnStopLogViewerRequested += () => handledIds.Add(MenuItemIds.LogViewerId);
+        _router.OnDashboardRequested += () => handledIds.Add(MenuItemIds.DashboardId);
+        _router.OnAboutRequested += () => handledIds.Add(MenuItemIds.AboutId);
         _router.OnLlmCorrectionToggled += _ => handledIds.Add(MenuItemIds.LlmCorrectionId);
         _router.OnReloadPromptRequested += () => handledIds.Add(MenuItemIds.ReloadPromptId);
         _router.OnDictationToggleRequested += _ => handledIds.Add(MenuItemIds.DictationToggleId);
 
-        _stateManagerMock.Setup(s => s.LogViewerStatus).Returns("Running");
-
         _router.HandleMenuEvent(MenuItemIds.QuitId, "clicked");
         _router.HandleMenuEvent(MenuItemIds.MuteToggleId, "clicked");
         _router.HandleMenuEvent(MenuItemIds.TtsMuteToggleId, "clicked");
-        _router.HandleMenuEvent(MenuItemIds.ShowLogsId, "clicked");
-        _router.HandleMenuEvent(MenuItemIds.LogViewerId, "clicked");
+        _router.HandleMenuEvent(MenuItemIds.DashboardId, "clicked");
+        _router.HandleMenuEvent(MenuItemIds.AboutId, "clicked");
         _router.HandleMenuEvent(MenuItemIds.LlmCorrectionId, "clicked");
         _router.HandleMenuEvent(MenuItemIds.ReloadPromptId, "clicked");
         _router.HandleMenuEvent(MenuItemIds.DictationToggleId, "clicked");
@@ -300,8 +279,8 @@ public class MenuEventRouterTests
         Assert.Contains(MenuItemIds.QuitId, handledIds);
         Assert.Contains(MenuItemIds.MuteToggleId, handledIds);
         Assert.Contains(MenuItemIds.TtsMuteToggleId, handledIds);
-        Assert.Contains(MenuItemIds.ShowLogsId, handledIds);
-        Assert.Contains(MenuItemIds.LogViewerId, handledIds);
+        Assert.Contains(MenuItemIds.DashboardId, handledIds);
+        Assert.Contains(MenuItemIds.AboutId, handledIds);
         Assert.Contains(MenuItemIds.LlmCorrectionId, handledIds);
         Assert.Contains(MenuItemIds.ReloadPromptId, handledIds);
         Assert.Contains(MenuItemIds.DictationToggleId, handledIds);

@@ -20,10 +20,16 @@ public interface IMenuEventDispatcher
     Task HandleTtsMuteToggleAsync(bool muted);
 
     /// <summary>
-    /// Handles show logs request from menu.
-    /// Opens browser to logs viewer.
+    /// Handles dashboard request from menu.
+    /// Opens browser to admin dashboard.
     /// </summary>
-    void HandleShowLogs();
+    void HandleDashboard();
+
+    /// <summary>
+    /// Handles about dialog request from menu.
+    /// Shows application version and information.
+    /// </summary>
+    void HandleAbout();
 
     /// <summary>
     /// Handles LLM correction toggle request from menu.

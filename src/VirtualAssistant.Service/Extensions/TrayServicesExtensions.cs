@@ -117,17 +117,19 @@ public static class TrayServicesExtensions
             var logger = sp.GetRequiredService<ILogger<MenuEventDispatcher>>();
             var muteService = sp.GetRequiredService<IManualMuteService>();
             var settingsService = sp.GetRequiredService<ISettingsService>();
-            var options = sp.GetRequiredService<IOptions<ContinuousListenerOptions>>();
+            var configuration = sp.GetRequiredService<IConfiguration>();
             var llmProvider = sp.GetService<ILlmProvider>();
             var dictationControl = sp.GetService<IDictationControl>();
             var promptSyncService = sp.GetService<IPromptSyncService>();
             var menuStateManager = sp.GetService<IMenuStateManager>();
 
+            var dashboardBaseUrl = configuration["Dashboard:BaseUrl"] ?? "http://localhost:5055";
+
             return new MenuEventDispatcher(
                 logger,
                 muteService,
                 settingsService,
-                options.Value.LogViewerPort,
+                dashboardBaseUrl,
                 llmProvider,
                 dictationControl,
                 promptSyncService,

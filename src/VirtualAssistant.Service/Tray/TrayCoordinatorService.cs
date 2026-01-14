@@ -82,15 +82,11 @@ public class TrayCoordinatorService : IDisposable
             // Menu events -> MenuEventDispatcher
             handler.OnMuteToggleRequested += _menuDispatcher.HandleMuteToggle;
             handler.OnTtsMuteToggleRequested += async (muted) => await _menuDispatcher.HandleTtsMuteToggleAsync(muted);
-            handler.OnShowLogsRequested += _menuDispatcher.HandleShowLogs;
+            handler.OnDashboardRequested += _menuDispatcher.HandleDashboard;
+            handler.OnAboutRequested += _menuDispatcher.HandleAbout;
             handler.OnLlmCorrectionToggled += _menuDispatcher.HandleLlmCorrectionToggle;
             handler.OnReloadPromptRequested += _menuDispatcher.HandleReloadPrompt;
             handler.OnDictationToggleRequested += _menuDispatcher.HandleDictationToggle;
-
-            // Service lifecycle events -> ServiceLifecycleManager
-            // NOTE: STT service events removed (issue #466) - STT runs inline now
-            handler.OnStartLogViewerRequested += async () => await _lifecycleManager.HandleStartLogViewerAsync();
-            handler.OnStopLogViewerRequested += async () => await _lifecycleManager.HandleStopLogViewerAsync();
 
             _logger.LogDebug("Menu handler events wired up successfully");
         }

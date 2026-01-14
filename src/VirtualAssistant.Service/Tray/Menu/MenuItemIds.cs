@@ -14,9 +14,9 @@ public static class MenuItemIds
     public const int Separator3Id = 8;
     public const int MuteToggleId = 9;
     public const int TtsMuteToggleId = 15;
-    public const int ShowLogsId = 10;
     public const int Separator4Id = 11;
     public const int QuitId = 12;
-    public const int LogViewerId = 13;
     public const int DictationToggleId = 14;
+    public const int DashboardId = 16;
+    public const int AboutId = 17;
 }

@@ -57,12 +57,6 @@ public class MenuLayoutBuilder : IMenuLayoutBuilder
                 ["enabled"] = VariantValue.Bool(true),
                 ["visible"] = VariantValue.Bool(true)
             }),
-            MenuItemIds.LogViewerId => (id, new Dictionary<string, VariantValue>
-            {
-                ["label"] = VariantValue.String(GetLogViewerLabel()),
-                ["enabled"] = VariantValue.Bool(true),
-                ["visible"] = VariantValue.Bool(true)
-            }),
             MenuItemIds.LlmCorrectionId => (id, new Dictionary<string, VariantValue>
             {
                 ["label"] = VariantValue.String(GetLlmCorrectionLabel()),
@@ -87,9 +81,15 @@ public class MenuLayoutBuilder : IMenuLayoutBuilder
                 ["enabled"] = VariantValue.Bool(true),
                 ["visible"] = VariantValue.Bool(true)
             }),
-            MenuItemIds.ShowLogsId => (id, new Dictionary<string, VariantValue>
+            MenuItemIds.DashboardId => (id, new Dictionary<string, VariantValue>
             {
-                ["label"] = VariantValue.String("Zobrazit logy"),
+                ["label"] = VariantValue.String("📊 Dashboard"),
+                ["enabled"] = VariantValue.Bool(true),
+                ["visible"] = VariantValue.Bool(true)
+            }),
+            MenuItemIds.AboutId => (id, new Dictionary<string, VariantValue>
+            {
+                ["label"] = VariantValue.String("ℹ️ O aplikaci"),
                 ["enabled"] = VariantValue.Bool(true),
                 ["visible"] = VariantValue.Bool(true)
             }),
@@ -122,7 +122,6 @@ public class MenuLayoutBuilder : IMenuLayoutBuilder
             var muteLabel = GetMuteLabel();
             var ttsMuteLabel = GetTtsMuteLabel();
             var dictationLabel = GetDictationLabel();
-            var logViewerLabel = GetLogViewerLabel();
             var llmCorrectionLabel = GetLlmCorrectionLabel();
 
             children =
@@ -136,8 +135,8 @@ public class MenuLayoutBuilder : IMenuLayoutBuilder
                 CreateChildVariant(MenuItemIds.Separator3Id, "", true),
                 CreateChildVariant(MenuItemIds.MuteToggleId, muteLabel, false),
                 CreateChildVariant(MenuItemIds.TtsMuteToggleId, ttsMuteLabel, false),
-                CreateChildVariant(MenuItemIds.ShowLogsId, "Zobrazit logy", false),
-                CreateChildVariant(MenuItemIds.LogViewerId, logViewerLabel, false),
+                CreateChildVariant(MenuItemIds.DashboardId, "📊 Dashboard", false),
+                CreateChildVariant(MenuItemIds.AboutId, "ℹ️ O aplikaci", false),
                 CreateChildVariant(MenuItemIds.Separator4Id, "", true),
                 CreateChildVariant(MenuItemIds.QuitId, "Ukončit", false)
             ];
@@ -202,13 +201,6 @@ public class MenuLayoutBuilder : IMenuLayoutBuilder
         return _stateManager.IsDictationEnabled
             ? "✅ Diktace - Vypnout"
             : "❌ Diktace - Zapnout";
-    }
-
-    private string GetLogViewerLabel()
-    {
-        return _stateManager.LogViewerStatus == "Running"
-            ? "✅ Log Viewer - Vypnout"
-            : "❌ Log Viewer - Zapnout";
     }
 
     private string GetLlmCorrectionLabel()
