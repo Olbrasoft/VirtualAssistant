@@ -17,7 +17,12 @@ public enum AgentType
     ClaudeCode = 4,
 
     /// <summary>
-    /// Gemini agent (ID: 11) - will be added to database
+    /// Gemini agent (ID: 11)
     /// </summary>
-    Gemini = 11
+    Gemini = 11,
+
+    /// <summary>
+    /// Antigravity IDE agent (ID: 20)
+    /// </summary>
+    Antigravity = 20
 }
