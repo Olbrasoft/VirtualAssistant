@@ -12,7 +12,7 @@ using Olbrasoft.VirtualAssistant.Data.EntityFrameworkCore;
 namespace Olbrasoft.VirtualAssistant.Data.EntityFrameworkCore.Migrations
 {
     [DbContext(typeof(VirtualAssistantDbContext))]
-    [Migration("20260115124000_SeedAntigravityAgent")]
+    [Migration("20260115124825_SeedAntigravityAgent")]
     partial class SeedAntigravityAgent
     {
         /// <inheritdoc />
@@ -93,6 +93,14 @@ namespace Olbrasoft.VirtualAssistant.Data.EntityFrameworkCore.Migrations
                             IsActive = true,
                             Label = "agent:gemini",
                             Name = "gemini"
+                        },
+                        new
+                        {
+                            Id = 20,
+                            CreatedAt = new DateTime(2026, 1, 15, 12, 40, 0, 0, DateTimeKind.Utc),
+                            IsActive = true,
+                            Label = "agent:antigravity",
+                            Name = "antigravity"
                         });
                 });
 

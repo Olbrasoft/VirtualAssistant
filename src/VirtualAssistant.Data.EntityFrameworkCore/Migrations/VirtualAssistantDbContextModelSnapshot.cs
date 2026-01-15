@@ -90,6 +90,14 @@ namespace Olbrasoft.VirtualAssistant.Data.EntityFrameworkCore.Migrations
                             IsActive = true,
                             Label = "agent:gemini",
                             Name = "gemini"
+                        },
+                        new
+                        {
+                            Id = 20,
+                            CreatedAt = new DateTime(2026, 1, 15, 12, 40, 0, 0, DateTimeKind.Utc),
+                            IsActive = true,
+                            Label = "agent:antigravity",
+                            Name = "antigravity"
                         });
                 });
 
