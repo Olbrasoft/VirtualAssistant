@@ -140,31 +140,26 @@ public class DictationWorker : BackgroundService, IDictationControl
             if (e.Key != KeyCode.ScrollLock)
                 return;
 
-            // Small delay to ensure LED state is updated by kernel
-            await Task.Delay(_options.KeyboardLedSettleTimeMs);
-
-            var scrollLockOn = _keyboardMonitor.IsScrollLockOn();
             var currentState = _stateMachine.CurrentState;
+            _logger.LogDebug("ScrollLock released - State: {State}", currentState);
 
-            _logger.LogDebug("ScrollLock released - LED: {ScrollLockOn}, State: {State}", scrollLockOn, currentState);
-
-            // ScrollLock ON + Idle → Start recording
-            if (scrollLockOn && currentState == DictationState.Idle)
+            // Toggle logic: ScrollLock toggles between Idle and Recording
+            // Idle → Start recording
+            if (currentState == DictationState.Idle)
             {
-                _logger.LogInformation("ScrollLock ON - starting dictation");
+                _logger.LogInformation("ScrollLock pressed - starting dictation");
                 _ = Task.Run(async () => await StartRecordingAsync());
             }
-            // ScrollLock OFF + Recording → Stop and transcribe
-            else if (!scrollLockOn && currentState == DictationState.Recording)
+            // Recording → Stop and transcribe
+            else if (currentState == DictationState.Recording)
             {
-                _logger.LogInformation("ScrollLock OFF - stopping dictation");
+                _logger.LogInformation("ScrollLock pressed - stopping dictation");
                 _ = Task.Run(async () => await StopAndTranscribeAsync());
             }
-            // ScrollLock ON + Recording → Emergency cancel
-            else if (scrollLockOn && currentState == DictationState.Recording)
+            // Transcribing → Ignore (use Pause to cancel)
+            else if (currentState == DictationState.Transcribing)
             {
-                _logger.LogWarning("ScrollLock toggled during recording - emergency stop");
-                _ = Task.Run(async () => await EmergencyStopAsync());
+                _logger.LogDebug("ScrollLock pressed during transcription - ignored (use Pause to cancel)");
             }
         }
         catch (Exception ex)

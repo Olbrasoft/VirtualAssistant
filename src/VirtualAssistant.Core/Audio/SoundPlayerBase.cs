@@ -108,6 +108,22 @@ public abstract class SoundPlayerBase : ISoundEffectPlayer, IDisposable
         {
             lock (_lock)
             {
+                // Kill the process if cancellation was requested and it's still running
+                // This fixes a race condition where StopLoop() cancels the token but
+                // the process keeps running because Dispose() doesn't terminate it
+                try
+                {
+                    if (cancellationToken.IsCancellationRequested && !process.HasExited)
+                    {
+                        process.Kill();
+                        Logger.LogDebug("Killed audio process due to cancellation");
+                    }
+                }
+                catch (Exception ex)
+                {
+                    Logger.LogDebug(ex, "Error killing process during cancellation");
+                }
+
                 process.Dispose();
                 if (_playProcess == process)
                     _playProcess = null;
