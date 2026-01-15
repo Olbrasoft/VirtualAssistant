@@ -9,7 +9,6 @@ public class KeyboardMonitorWorkerTests : IDisposable
 {
     private readonly Mock<ILogger<KeyboardMonitorWorker>> _loggerMock;
     private readonly Mock<IKeyboardMonitor> _keyboardMonitorMock;
-    private readonly Mock<IManualMuteService> _muteServiceMock;
     private readonly KeyboardMonitorWorker _sut;
 
     private EventHandler<KeyEventArgs>? _capturedKeyReleasedHandler;
@@ -18,15 +17,13 @@ public class KeyboardMonitorWorkerTests : IDisposable
     {
         _loggerMock = new Mock<ILogger<KeyboardMonitorWorker>>();
         _keyboardMonitorMock = new Mock<IKeyboardMonitor>();
-        _muteServiceMock = new Mock<IManualMuteService>();
 
         _keyboardMonitorMock.SetupAdd(x => x.KeyReleased += It.IsAny<EventHandler<KeyEventArgs>>())
             .Callback<EventHandler<KeyEventArgs>>(handler => _capturedKeyReleasedHandler = handler);
 
         _sut = new KeyboardMonitorWorker(
             _loggerMock.Object,
-            _keyboardMonitorMock.Object,
-            _muteServiceMock.Object);
+            _keyboardMonitorMock.Object);
     }
 
     #region Constructor Tests
@@ -79,57 +76,18 @@ public class KeyboardMonitorWorkerTests : IDisposable
     #region Key Event Handling Tests
 
     [Fact]
-    public void OnKeyReleased_ScrollLock_TogglesMute()
+    public void OnKeyReleased_HandlesKeyEventWithoutError()
     {
-        _muteServiceMock.Setup(x => x.Toggle()).Returns(true);
+        // Key events are logged but no longer trigger any action
+        // ScrollLock is now handled by DictationWorker for dictation
+        var exception = Record.Exception(() =>
+        {
+            _capturedKeyReleasedHandler?.Invoke(this, new KeyEventArgs { Key = KeyCode.ScrollLock, IsPressed = false });
+            _capturedKeyReleasedHandler?.Invoke(this, new KeyEventArgs { Key = KeyCode.CapsLock, IsPressed = false });
+            _capturedKeyReleasedHandler?.Invoke(this, new KeyEventArgs { Key = KeyCode.Escape, IsPressed = false });
+        });
 
-        _capturedKeyReleasedHandler?.Invoke(this, new KeyEventArgs { Key = KeyCode.ScrollLock, IsPressed = false });
-
-        _muteServiceMock.Verify(x => x.Toggle(), Times.Once);
-    }
-
-    [Fact]
-    public void OnKeyReleased_NonScrollLockKey_DoesNotToggleMute()
-    {
-        _capturedKeyReleasedHandler?.Invoke(this, new KeyEventArgs { Key = KeyCode.CapsLock, IsPressed = false });
-
-        _muteServiceMock.Verify(x => x.Toggle(), Times.Never);
-    }
-
-    [Fact]
-    public void OnKeyReleased_EscapeKey_DoesNotToggleMute()
-    {
-        _capturedKeyReleasedHandler?.Invoke(this, new KeyEventArgs { Key = KeyCode.Escape, IsPressed = false });
-
-        _muteServiceMock.Verify(x => x.Toggle(), Times.Never);
-    }
-
-    [Fact]
-    public void OnKeyReleased_NumLockKey_DoesNotToggleMute()
-    {
-        _capturedKeyReleasedHandler?.Invoke(this, new KeyEventArgs { Key = KeyCode.NumLock, IsPressed = false });
-
-        _muteServiceMock.Verify(x => x.Toggle(), Times.Never);
-    }
-
-    [Fact]
-    public void OnKeyReleased_UnknownKey_DoesNotToggleMute()
-    {
-        _capturedKeyReleasedHandler?.Invoke(this, new KeyEventArgs { Key = KeyCode.Unknown, IsPressed = false });
-
-        _muteServiceMock.Verify(x => x.Toggle(), Times.Never);
-    }
-
-    [Fact]
-    public void OnKeyReleased_MultipleScrollLockPresses_TogglesMultipleTimes()
-    {
-        _muteServiceMock.Setup(x => x.Toggle()).Returns(true);
-
-        _capturedKeyReleasedHandler?.Invoke(this, new KeyEventArgs { Key = KeyCode.ScrollLock, IsPressed = false });
-        _capturedKeyReleasedHandler?.Invoke(this, new KeyEventArgs { Key = KeyCode.ScrollLock, IsPressed = false });
-        _capturedKeyReleasedHandler?.Invoke(this, new KeyEventArgs { Key = KeyCode.ScrollLock, IsPressed = false });
-
-        _muteServiceMock.Verify(x => x.Toggle(), Times.Exactly(3));
+        Assert.Null(exception);
     }
 
     #endregion

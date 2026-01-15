@@ -310,18 +310,18 @@ public class DictationWorkerTests : IDisposable
     #region Key Event Handling Tests
 
     [SkipOnCIFact]
-    public async Task KeyReleased_CapsLockOnWhileIdle_StartsRecording()
+    public async Task KeyReleased_ScrollLockOnWhileIdle_StartsRecording()
     {
         using var cts = new CancellationTokenSource();
         await _sut.StartAsync(cts.Token);
         await Task.Delay(50);
 
-        _keyboardMonitorMock.Setup(x => x.IsCapsLockOn()).Returns(true);
+        _keyboardMonitorMock.Setup(x => x.IsScrollLockOn()).Returns(true);
         _stateMachineMock.SetupGet(x => x.CurrentState).Returns(DictationState.Idle);
         _recordingCoordinatorMock.Setup(x => x.StartRecordingAsync(It.IsAny<CancellationToken>()))
             .Returns(Task.CompletedTask);
 
-        _capturedKeyReleasedHandler?.Invoke(this, new KeyEventArgs { Key = KeyCode.CapsLock, IsPressed = false });
+        _capturedKeyReleasedHandler?.Invoke(this, new KeyEventArgs { Key = KeyCode.ScrollLock, IsPressed = false });
         await Task.Delay(150);
 
         _stateMachineMock.Verify(x => x.TransitionTo(DictationState.Recording), Times.Once);
@@ -329,7 +329,7 @@ public class DictationWorkerTests : IDisposable
     }
 
     [Fact]
-    public async Task KeyReleased_NonCapsLockKey_DoesNotStartRecording()
+    public async Task KeyReleased_NonScrollLockKey_DoesNotStartRecording()
     {
         using var cts = new CancellationTokenSource();
         await _sut.StartAsync(cts.Token);
@@ -350,16 +350,16 @@ public class DictationWorkerTests : IDisposable
         await Task.Delay(50);
 
         _sut.SetDictationEnabled(false);
-        _keyboardMonitorMock.Setup(x => x.IsCapsLockOn()).Returns(true);
+        _keyboardMonitorMock.Setup(x => x.IsScrollLockOn()).Returns(true);
 
-        _capturedKeyReleasedHandler?.Invoke(this, new KeyEventArgs { Key = KeyCode.CapsLock, IsPressed = false });
+        _capturedKeyReleasedHandler?.Invoke(this, new KeyEventArgs { Key = KeyCode.ScrollLock, IsPressed = false });
         await Task.Delay(100);
 
         _stateMachineMock.Verify(x => x.TransitionTo(It.IsAny<DictationState>()), Times.Never);
     }
 
     [SkipOnCIFact]
-    public async Task KeyReleased_ScrollLockWhileTranscribing_CancelsTranscription()
+    public async Task KeyReleased_PauseWhileTranscribing_CancelsTranscription()
     {
         using var cts = new CancellationTokenSource();
         await _sut.StartAsync(cts.Token);
@@ -367,7 +367,7 @@ public class DictationWorkerTests : IDisposable
 
         _stateMachineMock.SetupGet(x => x.CurrentState).Returns(DictationState.Transcribing);
 
-        _capturedKeyReleasedHandler?.Invoke(this, new KeyEventArgs { Key = KeyCode.ScrollLock, IsPressed = false });
+        _capturedKeyReleasedHandler?.Invoke(this, new KeyEventArgs { Key = KeyCode.Pause, IsPressed = false });
         await Task.Delay(100);
 
         _typingSoundMock.Verify(x => x.StopLoop(), Times.Once);
@@ -376,7 +376,7 @@ public class DictationWorkerTests : IDisposable
     }
 
     [SkipOnCIFact]
-    public async Task KeyReleased_CapsLockOffWhileRecording_StopsAndTranscribes()
+    public async Task KeyReleased_ScrollLockOffWhileRecording_StopsAndTranscribes()
     {
         using var cts = new CancellationTokenSource();
         await _sut.StartAsync(cts.Token);
@@ -388,7 +388,7 @@ public class DictationWorkerTests : IDisposable
             OriginalText = "Test transcription"
         };
 
-        _keyboardMonitorMock.Setup(x => x.IsCapsLockOn()).Returns(false);
+        _keyboardMonitorMock.Setup(x => x.IsScrollLockOn()).Returns(false);
         _stateMachineMock.SetupGet(x => x.CurrentState).Returns(DictationState.Recording);
         _recordingCoordinatorMock.Setup(x => x.StopRecordingAsync(It.IsAny<CancellationToken>()))
             .ReturnsAsync(audioData);
@@ -400,7 +400,7 @@ public class DictationWorkerTests : IDisposable
                 It.IsAny<byte[]>(), It.IsAny<string>(), It.IsAny<LlmCorrectionResult?>(), It.IsAny<CancellationToken>()))
             .ReturnsAsync(1);
 
-        _capturedKeyReleasedHandler?.Invoke(this, new KeyEventArgs { Key = KeyCode.CapsLock, IsPressed = false });
+        _capturedKeyReleasedHandler?.Invoke(this, new KeyEventArgs { Key = KeyCode.ScrollLock, IsPressed = false });
         await Task.Delay(300);
 
         _recordingCoordinatorMock.Verify(x => x.StopRecordingAsync(It.IsAny<CancellationToken>()), Times.Once);
@@ -409,18 +409,18 @@ public class DictationWorkerTests : IDisposable
     }
 
     [SkipOnCIFact]
-    public async Task KeyReleased_CapsLockToggledDuringRecording_PerformsEmergencyStop()
+    public async Task KeyReleased_ScrollLockToggledDuringRecording_PerformsEmergencyStop()
     {
         using var cts = new CancellationTokenSource();
         await _sut.StartAsync(cts.Token);
         await Task.Delay(50);
 
-        _keyboardMonitorMock.Setup(x => x.IsCapsLockOn()).Returns(true);
+        _keyboardMonitorMock.Setup(x => x.IsScrollLockOn()).Returns(true);
         _stateMachineMock.SetupGet(x => x.CurrentState).Returns(DictationState.Recording);
         _recordingCoordinatorMock.Setup(x => x.EmergencyStopAsync(It.IsAny<CancellationToken>()))
             .Returns(Task.CompletedTask);
 
-        _capturedKeyReleasedHandler?.Invoke(this, new KeyEventArgs { Key = KeyCode.CapsLock, IsPressed = false });
+        _capturedKeyReleasedHandler?.Invoke(this, new KeyEventArgs { Key = KeyCode.ScrollLock, IsPressed = false });
         await Task.Delay(150);
 
         _recordingCoordinatorMock.Verify(x => x.EmergencyStopAsync(It.IsAny<CancellationToken>()), Times.Once);
@@ -438,12 +438,12 @@ public class DictationWorkerTests : IDisposable
         await _sut.StartAsync(cts.Token);
         await Task.Delay(50);
 
-        _keyboardMonitorMock.Setup(x => x.IsCapsLockOn()).Returns(false);
+        _keyboardMonitorMock.Setup(x => x.IsScrollLockOn()).Returns(false);
         _stateMachineMock.SetupGet(x => x.CurrentState).Returns(DictationState.Recording);
         _recordingCoordinatorMock.Setup(x => x.StopRecordingAsync(It.IsAny<CancellationToken>()))
             .ReturnsAsync(Array.Empty<byte>());
 
-        _capturedKeyReleasedHandler?.Invoke(this, new KeyEventArgs { Key = KeyCode.CapsLock, IsPressed = false });
+        _capturedKeyReleasedHandler?.Invoke(this, new KeyEventArgs { Key = KeyCode.ScrollLock, IsPressed = false });
         await Task.Delay(200);
 
         _transcriptionServiceMock.Verify(x => x.TranscribeAsync(It.IsAny<byte[]>(), It.IsAny<CancellationToken>()), Times.Never);
@@ -460,14 +460,14 @@ public class DictationWorkerTests : IDisposable
         var audioData = new byte[] { 1, 2, 3, 4 };
         var failedResult = new TranscriptionResult("Error") { OriginalText = null };
 
-        _keyboardMonitorMock.Setup(x => x.IsCapsLockOn()).Returns(false);
+        _keyboardMonitorMock.Setup(x => x.IsScrollLockOn()).Returns(false);
         _stateMachineMock.SetupGet(x => x.CurrentState).Returns(DictationState.Recording);
         _recordingCoordinatorMock.Setup(x => x.StopRecordingAsync(It.IsAny<CancellationToken>()))
             .ReturnsAsync(audioData);
         _transcriptionServiceMock.Setup(x => x.TranscribeAsync(audioData, It.IsAny<CancellationToken>()))
             .ReturnsAsync(failedResult);
 
-        _capturedKeyReleasedHandler?.Invoke(this, new KeyEventArgs { Key = KeyCode.CapsLock, IsPressed = false });
+        _capturedKeyReleasedHandler?.Invoke(this, new KeyEventArgs { Key = KeyCode.ScrollLock, IsPressed = false });
         await Task.Delay(300);
 
         _typingSoundMock.Verify(x => x.StopLoop(), Times.AtLeastOnce);
@@ -487,7 +487,7 @@ public class DictationWorkerTests : IDisposable
             OriginalText = "Hello world"
         };
 
-        _keyboardMonitorMock.Setup(x => x.IsCapsLockOn()).Returns(false);
+        _keyboardMonitorMock.Setup(x => x.IsScrollLockOn()).Returns(false);
         _stateMachineMock.SetupGet(x => x.CurrentState).Returns(DictationState.Recording);
         _recordingCoordinatorMock.Setup(x => x.StopRecordingAsync(It.IsAny<CancellationToken>()))
             .ReturnsAsync(audioData);
@@ -499,7 +499,7 @@ public class DictationWorkerTests : IDisposable
                 audioData, "Hello world", null, It.IsAny<CancellationToken>()))
             .ReturnsAsync(1);
 
-        _capturedKeyReleasedHandler?.Invoke(this, new KeyEventArgs { Key = KeyCode.CapsLock, IsPressed = false });
+        _capturedKeyReleasedHandler?.Invoke(this, new KeyEventArgs { Key = KeyCode.ScrollLock, IsPressed = false });
         await Task.Delay(400);
 
         _keyboardSimulationMock.Verify(x => x.TypeIntoActiveWindowAsync("Hello world", It.IsAny<CancellationToken>()), Times.Once);
@@ -523,7 +523,7 @@ public class DictationWorkerTests : IDisposable
             PromptId = 42
         };
 
-        _keyboardMonitorMock.Setup(x => x.IsCapsLockOn()).Returns(false);
+        _keyboardMonitorMock.Setup(x => x.IsScrollLockOn()).Returns(false);
         _stateMachineMock.SetupGet(x => x.CurrentState).Returns(DictationState.Recording);
         _recordingCoordinatorMock.Setup(x => x.StopRecordingAsync(It.IsAny<CancellationToken>()))
             .ReturnsAsync(audioData);
@@ -535,7 +535,7 @@ public class DictationWorkerTests : IDisposable
                 It.IsAny<byte[]>(), It.IsAny<string>(), It.IsAny<LlmCorrectionResult?>(), It.IsAny<CancellationToken>()))
             .ReturnsAsync(1);
 
-        _capturedKeyReleasedHandler?.Invoke(this, new KeyEventArgs { Key = KeyCode.CapsLock, IsPressed = false });
+        _capturedKeyReleasedHandler?.Invoke(this, new KeyEventArgs { Key = KeyCode.ScrollLock, IsPressed = false });
         await Task.Delay(400);
 
         _persistenceServiceMock.Verify(x => x.SaveTranscriptionAsync(
@@ -562,7 +562,7 @@ public class DictationWorkerTests : IDisposable
             OriginalText = "Test text"
         };
 
-        _keyboardMonitorMock.Setup(x => x.IsCapsLockOn()).Returns(false);
+        _keyboardMonitorMock.Setup(x => x.IsScrollLockOn()).Returns(false);
         _stateMachineMock.SetupGet(x => x.CurrentState).Returns(DictationState.Recording);
         _recordingCoordinatorMock.Setup(x => x.StopRecordingAsync(It.IsAny<CancellationToken>()))
             .ReturnsAsync(audioData);
@@ -574,7 +574,7 @@ public class DictationWorkerTests : IDisposable
                 It.IsAny<byte[]>(), It.IsAny<string>(), It.IsAny<LlmCorrectionResult?>(), It.IsAny<CancellationToken>()))
             .ReturnsAsync(1);
 
-        _capturedKeyReleasedHandler?.Invoke(this, new KeyEventArgs { Key = KeyCode.CapsLock, IsPressed = false });
+        _capturedKeyReleasedHandler?.Invoke(this, new KeyEventArgs { Key = KeyCode.ScrollLock, IsPressed = false });
         await Task.Delay(400);
 
         _typingSoundMock.Verify(x => x.StopLoop(), Times.AtLeastOnce);

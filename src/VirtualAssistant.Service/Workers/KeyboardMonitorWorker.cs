@@ -3,22 +3,20 @@ using Olbrasoft.VirtualAssistant.Core.Services;
 namespace Olbrasoft.VirtualAssistant.Service.Workers;
 
 /// <summary>
-/// Background worker that monitors keyboard for ScrollLock key to toggle mute.
+/// Background worker that monitors keyboard events.
+/// Note: Mute toggle was removed. ScrollLock is now used for dictation (DictationWorker).
 /// </summary>
 public class KeyboardMonitorWorker : BackgroundService
 {
     private readonly ILogger<KeyboardMonitorWorker> _logger;
     private readonly IKeyboardMonitor _keyboardMonitor;
-    private readonly IManualMuteService _muteService;
 
     public KeyboardMonitorWorker(
         ILogger<KeyboardMonitorWorker> logger,
-        IKeyboardMonitor keyboardMonitor,
-        IManualMuteService muteService)
+        IKeyboardMonitor keyboardMonitor)
     {
         _logger = logger;
         _keyboardMonitor = keyboardMonitor;
-        _muteService = muteService;
 
         // Subscribe to key events
         _keyboardMonitor.KeyReleased += OnKeyReleased;
@@ -46,12 +44,8 @@ public class KeyboardMonitorWorker : BackgroundService
 
     private void OnKeyReleased(object? sender, KeyEventArgs e)
     {
-        _logger.LogInformation("Key released: {Key}", e.Key);
-        
-        if (e.Key == KeyCode.ScrollLock)
-        {
-            _logger.LogInformation("ScrollLock released - toggling mute");
-            _muteService.Toggle();
-        }
+        _logger.LogDebug("Key released: {Key}", e.Key);
+        // Note: ScrollLock is now used for dictation (DictationWorker)
+        // Mute toggle via keyboard has been removed
     }
 }

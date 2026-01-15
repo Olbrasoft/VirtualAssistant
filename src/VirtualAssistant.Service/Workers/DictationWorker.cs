@@ -77,7 +77,7 @@ public class DictationWorker : BackgroundService, IDictationControl
 
     protected override async Task ExecuteAsync(CancellationToken stoppingToken)
     {
-        _logger.LogInformation("Dictation worker starting - CapsLock to record, Scroll Lock to cancel");
+        _logger.LogInformation("Dictation worker starting - ScrollLock to record, Pause to cancel");
 
         try
         {
@@ -128,42 +128,42 @@ public class DictationWorker : BackgroundService, IDictationControl
             if (!_dictationEnabled)
                 return;
 
-            // Scroll Lock - cancel transcription
-            if (e.Key == KeyCode.ScrollLock && _stateMachine.CurrentState == DictationState.Transcribing)
+            // Pause - cancel transcription
+            if (e.Key == KeyCode.Pause && _stateMachine.CurrentState == DictationState.Transcribing)
             {
-                _logger.LogInformation("Scroll Lock pressed - canceling transcription");
+                _logger.LogInformation("Pause pressed - canceling transcription");
                 CancelTranscription();
                 return;
             }
 
-            // Only handle CapsLock
-            if (e.Key != KeyCode.CapsLock)
+            // Only handle ScrollLock
+            if (e.Key != KeyCode.ScrollLock)
                 return;
 
             // Small delay to ensure LED state is updated by kernel
             await Task.Delay(_options.KeyboardLedSettleTimeMs);
 
-            var capsLockOn = _keyboardMonitor.IsCapsLockOn();
+            var scrollLockOn = _keyboardMonitor.IsScrollLockOn();
             var currentState = _stateMachine.CurrentState;
 
-            _logger.LogDebug("CapsLock released - LED: {CapsLockOn}, State: {State}", capsLockOn, currentState);
+            _logger.LogDebug("ScrollLock released - LED: {ScrollLockOn}, State: {State}", scrollLockOn, currentState);
 
-            // CapsLock ON + Idle → Start recording
-            if (capsLockOn && currentState == DictationState.Idle)
+            // ScrollLock ON + Idle → Start recording
+            if (scrollLockOn && currentState == DictationState.Idle)
             {
-                _logger.LogInformation("CapsLock ON - starting dictation");
+                _logger.LogInformation("ScrollLock ON - starting dictation");
                 _ = Task.Run(async () => await StartRecordingAsync());
             }
-            // CapsLock OFF + Recording → Stop and transcribe
-            else if (!capsLockOn && currentState == DictationState.Recording)
+            // ScrollLock OFF + Recording → Stop and transcribe
+            else if (!scrollLockOn && currentState == DictationState.Recording)
             {
-                _logger.LogInformation("CapsLock OFF - stopping dictation");
+                _logger.LogInformation("ScrollLock OFF - stopping dictation");
                 _ = Task.Run(async () => await StopAndTranscribeAsync());
             }
-            // CapsLock ON + Recording → Emergency cancel
-            else if (capsLockOn && currentState == DictationState.Recording)
+            // ScrollLock ON + Recording → Emergency cancel
+            else if (scrollLockOn && currentState == DictationState.Recording)
             {
-                _logger.LogWarning("CapsLock toggled during recording - emergency stop");
+                _logger.LogWarning("ScrollLock toggled during recording - emergency stop");
                 _ = Task.Run(async () => await EmergencyStopAsync());
             }
         }
