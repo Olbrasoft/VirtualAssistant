@@ -65,7 +65,7 @@ public static class HostingExtensions
     public static WebApplication ConfigurePipeline(this WebApplication app)
     {
         app.UseDefaultFiles();
-        app.UseStaticFiles();
+        // Note: UseStaticFiles is called in MapVirtualAssistantEndpoints
         app.ApplyDatabaseMigrations();
         app.MapVirtualAssistantEndpoints();
 
@@ -109,6 +109,7 @@ public static class HostingExtensions
         if (lockManager.TryAcquire())
             return lockManager;
 
+        lockManager.Dispose();
         Console.WriteLine("ERROR: VirtualAssistant is already running!");
         Console.WriteLine("Only one instance is allowed.");
         return null;
