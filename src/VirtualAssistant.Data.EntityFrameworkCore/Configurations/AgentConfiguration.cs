@@ -68,6 +68,14 @@ public class AgentConfiguration : IEntityTypeConfiguration<Agent>
                 Label = "agent:gemini",
                 IsActive = true,
                 CreatedAt = new DateTime(2026, 1, 6, 22, 43, 47, DateTimeKind.Utc)
+            },
+            new Agent
+            {
+                Id = 20,
+                Name = "antigravity",
+                Label = "agent:antigravity",
+                IsActive = true,
+                CreatedAt = new DateTime(2026, 1, 15, 12, 40, 0, DateTimeKind.Utc)
             }
         );
     }
