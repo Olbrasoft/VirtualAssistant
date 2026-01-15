@@ -46,12 +46,8 @@ public class KeyboardMonitorWorker : BackgroundService
 
     private void OnKeyReleased(object? sender, KeyEventArgs e)
     {
-        _logger.LogInformation("Key released: {Key}", e.Key);
-        
-        if (e.Key == KeyCode.ScrollLock)
-        {
-            _logger.LogInformation("ScrollLock released - toggling mute");
-            _muteService.Toggle();
-        }
+        _logger.LogDebug("Key released: {Key}", e.Key);
+        // Note: ScrollLock is now used for dictation (DictationWorker)
+        // Mute toggle via keyboard has been removed
     }
 }
