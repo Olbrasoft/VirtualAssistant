@@ -374,6 +374,23 @@ public class DictationWorkerTests : IDisposable
     }
 
     [SkipOnCIFact]
+    public async Task KeyReleased_PauseWhileRecording_CancelsRecording()
+    {
+        using var cts = new CancellationTokenSource();
+        await _sut.StartAsync(cts.Token);
+        await Task.Delay(50);
+
+        _stateMachineMock.SetupGet(x => x.CurrentState).Returns(DictationState.Recording);
+
+        _capturedKeyReleasedHandler?.Invoke(this, new KeyEventArgs { Key = KeyCode.Pause, IsPressed = false });
+        await Task.Delay(100);
+
+        _recordingCoordinatorMock.Verify(x => x.EmergencyStopAsync(It.IsAny<CancellationToken>()), Times.Once);
+        _cancelSoundMock.Verify(x => x.Play(), Times.Once);
+        _stateMachineMock.Verify(x => x.TransitionTo(DictationState.Idle), Times.Once);
+    }
+
+    [SkipOnCIFact]
     public async Task KeyReleased_ScrollLockWhileRecording_StopsAndTranscribes()
     {
         using var cts = new CancellationTokenSource();
