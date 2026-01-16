@@ -89,6 +89,11 @@ public class VirtualAssistantDbContext : DbContext
     /// </summary>
     public DbSet<Prompt> Prompts => Set<Prompt>();
 
+    /// <summary>
+    /// Gets or sets the LlmModels DbSet for tracking LLM models used in corrections.
+    /// </summary>
+    public DbSet<LlmModel> LlmModels => Set<LlmModel>();
+
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {
         base.OnModelCreating(modelBuilder);
