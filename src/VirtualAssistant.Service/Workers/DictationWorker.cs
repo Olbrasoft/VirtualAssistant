@@ -128,12 +128,26 @@ public class DictationWorker : BackgroundService, IDictationControl
             if (!_dictationEnabled)
                 return;
 
-            // Pause - cancel transcription
-            if (e.Key == KeyCode.Pause && _stateMachine.CurrentState == DictationState.Transcribing)
+            // Pause - cancel recording or transcription
+            if (e.Key == KeyCode.Pause)
             {
-                _logger.LogInformation("Pause pressed - canceling transcription");
-                CancelTranscription();
-                return;
+                var state = _stateMachine.CurrentState;
+
+                // Cancel during recording - discard audio, play cancel sound
+                if (state == DictationState.Recording)
+                {
+                    _logger.LogInformation("Pause pressed during recording - canceling dictation");
+                    await CancelRecordingAsync();
+                    return;
+                }
+
+                // Cancel during transcription
+                if (state == DictationState.Transcribing)
+                {
+                    _logger.LogInformation("Pause pressed - canceling transcription");
+                    CancelTranscription();
+                    return;
+                }
             }
 
             // Only handle ScrollLock
@@ -314,6 +328,30 @@ public class DictationWorker : BackgroundService, IDictationControl
 
         _logger.LogInformation("Text typed successfully into active window");
         _stateMachine.TransitionTo(DictationState.Idle);
+    }
+
+    private async Task CancelRecordingAsync()
+    {
+        try
+        {
+            _logger.LogInformation("Canceling recording");
+
+            // Emergency stop recording via coordinator (discards audio data)
+            await _recordingCoordinator.EmergencyStopAsync();
+
+            // Play cancel sound (paper-rip effect)
+            _cancelSound.Play();
+
+            // Return to Idle without transcription
+            _stateMachine.TransitionTo(DictationState.Idle);
+
+            _logger.LogInformation("Recording canceled");
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Error canceling recording");
+            _stateMachine.TransitionTo(DictationState.Idle);
+        }
     }
 
     private async Task EmergencyStopAsync()
