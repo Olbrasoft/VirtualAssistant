@@ -9,15 +9,15 @@ namespace Olbrasoft.VirtualAssistant.Voice.Services;
 /// <summary>
 /// Service for transcribing audio using SpeechToText gRPC microservice.
 /// Wrapper that delegates to ISpeechTranscriber (SpeechToTextGrpcClient).
-/// After transcription, applies text filtering and optionally Mistral LLM correction.
-/// Pipeline: Whisper → Text Filtering → Mistral LLM
+/// After transcription, applies text filtering and optionally LLM correction.
+/// Pipeline: Whisper → Text Filtering → LLM (via factory)
 /// </summary>
 public class TranscriptionService : ITranscriptionService
 {
     private readonly ILogger<TranscriptionService> _logger;
     private readonly ISpeechTranscriber _transcriber;
     private readonly ITextFilter? _textFilter;
-    private readonly ILlmProvider? _llmProvider;
+    private readonly ILlmProviderFactory? _llmProviderFactory;
     private readonly ContinuousListenerOptions _options;
     private bool _disposed;
 
@@ -26,12 +26,12 @@ public class TranscriptionService : ITranscriptionService
         ISpeechTranscriber transcriber,
         IConfiguration configuration,
         ITextFilter? textFilter = null,
-        ILlmProvider? llmProvider = null)
+        ILlmProviderFactory? llmProviderFactory = null)
     {
         _logger = logger;
         _transcriber = transcriber ?? throw new ArgumentNullException(nameof(transcriber));
         _textFilter = textFilter; // Optional text filtering (Phase 3)
-        _llmProvider = llmProvider; // Optional Mistral LLM for ASR correction (Phase 2)
+        _llmProviderFactory = llmProviderFactory; // Optional LLM factory for ASR correction
         _options = new ContinuousListenerOptions();
         configuration.GetSection(ContinuousListenerOptions.SectionName).Bind(_options);
     }
@@ -84,13 +84,14 @@ public class TranscriptionService : ITranscriptionService
             }
         }
 
-        // 2. Apply LLM correction if available (Mistral for Czech ASR)
-        if (_llmProvider != null && !string.IsNullOrWhiteSpace(processedText))
+        // 2. Apply LLM correction if available (via factory for runtime provider switching)
+        if (_llmProviderFactory != null && !string.IsNullOrWhiteSpace(processedText))
         {
             try
             {
+                var llmProvider = _llmProviderFactory.GetActiveProvider();
                 var beforeLlm = processedText;
-                var correctionResult = await _llmProvider.CorrectTextAsync(processedText, cancellationToken);
+                var correctionResult = await llmProvider.CorrectTextAsync(processedText, cancellationToken);
                 processedText = correctionResult.CorrectedText;
                 llmDurationMs = correctionResult.DurationMs;
                 promptId = correctionResult.PromptId;

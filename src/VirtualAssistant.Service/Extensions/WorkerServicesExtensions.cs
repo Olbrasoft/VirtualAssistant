@@ -67,14 +67,14 @@ public static class WorkerServicesExtensions
 
             var transcriptionLogger = sp.GetRequiredService<ILogger<TranscriptionService>>();
             var textFilter = sp.GetRequiredService<ITextFilter>();
-            var llmProvider = sp.GetRequiredService<ILlmProvider>();
+            var llmProviderFactory = sp.GetRequiredService<ILlmProviderFactory>();
 
             var dictationTranscriptionService = new TranscriptionService(
                 transcriptionLogger,
                 dictationTranscriber,
                 configuration,
                 textFilter,
-                llmProvider);
+                llmProviderFactory);
 
             return new DictationWorker(
                 logger,

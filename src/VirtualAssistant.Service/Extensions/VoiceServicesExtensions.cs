@@ -58,6 +58,12 @@ public static class VoiceServicesExtensions
         services.Configure<MistralOptions>(
             configuration.GetSection(Olbrasoft.VirtualAssistant.Voice.Configuration.MistralOptions.SectionName));
 
+        services.Configure<ZenOptions>(
+            configuration.GetSection(ZenOptions.SectionName));
+
+        services.Configure<LlmProviderOptions>(
+            configuration.GetSection(LlmProviderOptions.SectionName));
+
         services.Configure<TtsProfilesOptions>(
             configuration.GetSection(TtsProfilesOptions.SectionName));
     }
@@ -103,8 +109,8 @@ public static class VoiceServicesExtensions
             var transcriber = sp.GetRequiredService<ISpeechTranscriber>();
             var config = sp.GetRequiredService<IConfiguration>();
             var textFilter = sp.GetRequiredService<ITextFilter>();
-            var llmProvider = sp.GetRequiredService<ILlmProvider>();
-            return new TranscriptionService(logger, transcriber, config, textFilter, llmProvider);
+            var llmProviderFactory = sp.GetRequiredService<ILlmProviderFactory>();
+            return new TranscriptionService(logger, transcriber, config, textFilter, llmProviderFactory);
         });
 
         var openCodeUrl = configuration["OpenCodeUrl"] ?? "http://localhost:4096";
@@ -189,8 +195,12 @@ public static class VoiceServicesExtensions
             return new ReloadablePromptCache(loader, logger);
         });
 
+        // Register HTTP clients for LLM providers
         services.AddHttpClient("Mistral");
-        services.AddSingleton<ILlmProvider>(sp =>
+        services.AddHttpClient("Zen");
+
+        // Register MistralProvider
+        services.AddSingleton<ILlmProvider, MistralProvider>(sp =>
         {
             var httpClientFactory = sp.GetRequiredService<IHttpClientFactory>();
             var httpClient = httpClientFactory.CreateClient("Mistral");
@@ -201,6 +211,22 @@ public static class VoiceServicesExtensions
             var queryProcessor = sp.GetRequiredService<IQueryProcessor>();
             return new MistralProvider(httpClient, options, promptCache, logger, desktopContextService, queryProcessor);
         });
+
+        // Register ZenProvider
+        services.AddSingleton<ILlmProvider, ZenProvider>(sp =>
+        {
+            var httpClientFactory = sp.GetRequiredService<IHttpClientFactory>();
+            var httpClient = httpClientFactory.CreateClient("Zen");
+            var options = sp.GetRequiredService<IOptions<ZenOptions>>();
+            var promptCache = sp.GetRequiredService<IPromptCache>();
+            var logger = sp.GetRequiredService<ILogger<ZenProvider>>();
+            var desktopContextService = sp.GetRequiredService<IDesktopContextService>();
+            var queryProcessor = sp.GetRequiredService<IQueryProcessor>();
+            return new ZenProvider(httpClient, options, promptCache, logger, desktopContextService, queryProcessor);
+        });
+
+        // Register LlmProviderFactory
+        services.AddSingleton<ILlmProviderFactory, LlmProviderFactory>();
     }
 
     private static void AddTextFilterServices(this IServiceCollection services)
