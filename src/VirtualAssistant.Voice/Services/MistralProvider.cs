@@ -207,14 +207,10 @@ public class MistralProvider : ILlmProvider
 
         try
         {
-            // Get context-aware prompt and model ID in parallel
-            var promptTask = GetSystemPromptAsync(cancellationToken);
-            var modelIdTask = GetModelIdAsync(cancellationToken);
-
-            await Task.WhenAll(promptTask, modelIdTask);
-
-            var (promptText, promptId) = promptTask.Result;
-            var modelId = modelIdTask.Result;
+            // Get context-aware prompt and model ID sequentially
+            // (cannot run in parallel - DbContext is not thread-safe)
+            var (promptText, promptId) = await GetSystemPromptAsync(cancellationToken);
+            var modelId = await GetModelIdAsync(cancellationToken);
 
             var request = new
             {
