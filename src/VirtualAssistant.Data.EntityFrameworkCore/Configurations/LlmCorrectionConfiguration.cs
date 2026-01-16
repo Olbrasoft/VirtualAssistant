@@ -36,6 +36,10 @@ public class LlmCorrectionConfiguration : IEntityTypeConfiguration<LlmCorrection
             .HasColumnName("prompt_id")
             .IsRequired(); // NOT NULL - always has a prompt
 
+        builder.Property(l => l.ModelId)
+            .HasColumnName("model_id")
+            .IsRequired(false); // NULL for legacy corrections before model tracking
+
         // Foreign key relationships
         builder.HasOne(l => l.WhisperTranscription)
             .WithMany()
@@ -47,8 +51,14 @@ public class LlmCorrectionConfiguration : IEntityTypeConfiguration<LlmCorrection
             .HasForeignKey(l => l.PromptId)
             .OnDelete(DeleteBehavior.Restrict);
 
+        builder.HasOne(l => l.Model)
+            .WithMany(m => m.LlmCorrections)
+            .HasForeignKey(l => l.ModelId)
+            .OnDelete(DeleteBehavior.Restrict);
+
         builder.HasIndex(l => l.WhisperTranscriptionId);
         builder.HasIndex(l => l.PromptId);
+        builder.HasIndex(l => l.ModelId);
         builder.HasIndex(l => l.CreatedAt);
     }
 }

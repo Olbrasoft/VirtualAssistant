@@ -37,6 +37,12 @@ public class LlmCorrection
     public int? PromptId { get; set; }
 
     /// <summary>
+    /// Foreign key to LlmModel - which model performed this correction.
+    /// NULL for legacy corrections before model tracking was implemented.
+    /// </summary>
+    public int? ModelId { get; set; }
+
+    /// <summary>
     /// Navigation property to the original Whisper transcription.
     /// </summary>
     public WhisperTranscription WhisperTranscription { get; set; } = null!;
@@ -45,4 +51,9 @@ public class LlmCorrection
     /// Navigation property to the prompt that was used for this correction.
     /// </summary>
     public Prompt Prompt { get; set; } = null!;
+
+    /// <summary>
+    /// Navigation property to the model that performed this correction.
+    /// </summary>
+    public LlmModel? Model { get; set; }
 }
