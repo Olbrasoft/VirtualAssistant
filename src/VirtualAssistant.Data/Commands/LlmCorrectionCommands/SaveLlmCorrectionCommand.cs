@@ -9,9 +9,11 @@ namespace Olbrasoft.VirtualAssistant.Data.Commands.LlmCorrectionCommands;
 /// <param name="CorrectedText">The text after LLM correction. Must not be null or empty.</param>
 /// <param name="DurationMs">API call duration in milliseconds. Must be greater than 0.</param>
 /// <param name="PromptId">ID of the prompt used for correction. NULL if no prompt tracking (legacy/skipped).</param>
+/// <param name="ModelId">ID of the LLM model used. NULL for legacy corrections or when skipped.</param>
 public record SaveLlmCorrectionCommand(
     int WhisperTranscriptionId,
     string CorrectedText,
     int DurationMs,
-    int? PromptId
+    int? PromptId,
+    int? ModelId = null
 ) : ICommand<LlmCorrection>;

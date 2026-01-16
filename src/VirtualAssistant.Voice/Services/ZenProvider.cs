@@ -151,8 +151,7 @@ public class ZenProvider : ILlmProvider
     public void ReloadPrompt()
     {
         _promptCache.ClearCache();
-        _cachedModelId = null; // Also clear model cache
-        _logger.LogInformation("Zen prompt and model caches cleared, will reload on next request");
+        _logger.LogInformation("Zen prompt cache cleared, prompts will reload on next request");
     }
 
     /// <summary>

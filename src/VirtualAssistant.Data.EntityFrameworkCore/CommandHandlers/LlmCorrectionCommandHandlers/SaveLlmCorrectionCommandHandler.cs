@@ -21,6 +21,7 @@ public class SaveLlmCorrectionCommandHandler(VirtualAssistantDbContext context)
             CorrectedText = command.CorrectedText,
             DurationMs = command.DurationMs,
             PromptId = command.PromptId, // NULL indicates no prompt tracking (e.g., legacy code or system without desktop monitoring)
+            ModelId = command.ModelId,   // NULL for legacy corrections or when skipped
             CreatedAt = System.DateTime.UtcNow
         };
 

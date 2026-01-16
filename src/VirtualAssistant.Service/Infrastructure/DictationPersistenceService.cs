@@ -90,15 +90,17 @@ public class DictationPersistenceService : IDictationPersistenceService
                     WhisperTranscriptionId: transcription.Id,
                     CorrectedText: correctionResult.CorrectedText,
                     DurationMs: correctionResult.DurationMs,
-                    PromptId: correctionResult.PromptId  // NEW: Track which prompt was used
+                    PromptId: correctionResult.PromptId,
+                    ModelId: correctionResult.ModelId  // Track which model was used
                 );
                 var correction = await _commandExecutor.ExecuteAsync(command, cancellationToken);
 
                 _logger.LogDebug(
-                    "Saved LLM correction {Id} for transcription {TranscriptionId} using prompt ID {PromptId} (duration: {Duration}ms): '{Original}' → '{Corrected}'",
+                    "Saved LLM correction {Id} for transcription {TranscriptionId} using prompt ID {PromptId}, model ID {ModelId} (duration: {Duration}ms): '{Original}' → '{Corrected}'",
                     correction.Id,
                     transcription.Id,
                     correctionResult.PromptId,
+                    correctionResult.ModelId,
                     correctionResult.DurationMs,
                     originalText.Length > 30 ? originalText[..30] + "..." : originalText,
                     correctionResult.CorrectedText.Length > 30 ? correctionResult.CorrectedText[..30] + "..." : correctionResult.CorrectedText);
