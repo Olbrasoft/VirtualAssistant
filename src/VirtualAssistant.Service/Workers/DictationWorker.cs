@@ -284,7 +284,8 @@ public class DictationWorker : BackgroundService, IDictationControl
             correctionResult = new LlmCorrectionResult(
                 CorrectedText: correctedText,
                 PromptId: result.PromptId,  // PromptId from TranscriptionService (context-aware prompt selection)
-                DurationMs: result.LlmDurationMs.Value
+                DurationMs: result.LlmDurationMs.Value,
+                ModelId: result.ModelId  // ModelId from LLM provider
             );
         }
 

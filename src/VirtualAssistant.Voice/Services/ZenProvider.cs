@@ -185,14 +185,10 @@ public class ZenProvider : ILlmProvider
 
         try
         {
-            // Get context-aware prompt and model ID in parallel
-            var promptTask = GetSystemPromptAsync(cancellationToken);
-            var modelIdTask = GetModelIdAsync(cancellationToken);
-
-            await Task.WhenAll(promptTask, modelIdTask);
-
-            var (promptText, promptId) = promptTask.Result;
-            var modelId = modelIdTask.Result;
+            // Get context-aware prompt and model ID sequentially
+            // (cannot run in parallel - DbContext is not thread-safe)
+            var (promptText, promptId) = await GetSystemPromptAsync(cancellationToken);
+            var modelId = await GetModelIdAsync(cancellationToken);
 
             var request = new
             {
@@ -206,7 +202,7 @@ public class ZenProvider : ILlmProvider
                 max_tokens = _options.MaxTokens
             };
 
-            var response = await _httpClient.PostAsJsonAsync("/chat/completions", request, cancellationToken);
+            var response = await _httpClient.PostAsJsonAsync("chat/completions", request, cancellationToken);
 
             // Capture rate limit headers
             _lastRateLimitHeaders = new Dictionary<string, string>();
