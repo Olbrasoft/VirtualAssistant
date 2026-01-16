@@ -50,6 +50,8 @@ public class LlmProviderFactoryTests
         // Assert
         var activeProvider = factory.GetActiveProvider();
         Assert.NotNull(activeProvider);
+        // First provider in dictionary order (mistral was added first)
+        Assert.Equal("mistral", activeProvider.ProviderName);
     }
 
     [Fact]
@@ -175,6 +177,27 @@ public class LlmProviderFactoryTests
 
         // Act & Assert
         Assert.Throws<InvalidOperationException>(() => factory.GetActiveProvider());
+    }
+
+    [Fact]
+    public void Constructor_WithDuplicateProviderNames_ThrowsArgumentException()
+    {
+        // Arrange
+        var duplicateProvider1 = new Mock<ILlmProvider>();
+        duplicateProvider1.Setup(p => p.ProviderName).Returns("mistral");
+
+        var duplicateProvider2 = new Mock<ILlmProvider>();
+        duplicateProvider2.Setup(p => p.ProviderName).Returns("MISTRAL"); // Same name, different case
+
+        var providers = new[] { duplicateProvider1.Object, duplicateProvider2.Object };
+        var options = Options.Create(new LlmProviderOptions { ActiveProvider = "mistral" });
+
+        // Act & Assert
+        var ex = Assert.Throws<ArgumentException>(() =>
+            new LlmProviderFactory(providers, options, _loggerMock.Object));
+
+        Assert.Contains("Duplicate LLM provider name", ex.Message);
+        Assert.Contains("mistral", ex.Message, StringComparison.OrdinalIgnoreCase);
     }
 
     [Fact]

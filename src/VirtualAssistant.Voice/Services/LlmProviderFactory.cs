@@ -6,13 +6,15 @@ namespace Olbrasoft.VirtualAssistant.Voice.Services;
 
 /// <summary>
 /// Factory for creating and selecting LLM providers.
-/// Supports runtime provider switching via configuration.
+/// Supports thread-safe runtime provider switching via configuration.
 /// </summary>
 public class LlmProviderFactory : ILlmProviderFactory
 {
     private readonly ILogger<LlmProviderFactory> _logger;
     private readonly Dictionary<string, ILlmProvider> _providers;
-    private string _activeProviderName;
+    private readonly IReadOnlyCollection<string> _availableProviders;
+    private readonly object _lock = new();
+    private volatile string _activeProviderName;
 
     public LlmProviderFactory(
         IEnumerable<ILlmProvider> providers,
@@ -22,10 +24,25 @@ public class LlmProviderFactory : ILlmProviderFactory
         _logger = logger ?? throw new ArgumentNullException(nameof(logger));
         ArgumentNullException.ThrowIfNull(options);
 
-        _providers = providers.ToDictionary(
-            p => p.ProviderName,
-            p => p,
-            StringComparer.OrdinalIgnoreCase);
+        // Build provider dictionary with duplicate detection
+        _providers = new Dictionary<string, ILlmProvider>(StringComparer.OrdinalIgnoreCase);
+
+        foreach (var provider in providers)
+        {
+            var providerName = provider.ProviderName;
+
+            if (_providers.ContainsKey(providerName))
+            {
+                throw new ArgumentException(
+                    $"Duplicate LLM provider name '{providerName}'. Providers must have unique ProviderName values (case-insensitive).",
+                    nameof(providers));
+            }
+
+            _providers[providerName] = provider;
+        }
+
+        // Cache available providers list (immutable after construction)
+        _availableProviders = _providers.Keys.ToList().AsReadOnly();
 
         _activeProviderName = options.Value.ActiveProvider;
 
@@ -51,7 +68,9 @@ public class LlmProviderFactory : ILlmProviderFactory
     /// <inheritdoc />
     public ILlmProvider GetActiveProvider()
     {
-        if (string.IsNullOrEmpty(_activeProviderName) || !_providers.TryGetValue(_activeProviderName, out var provider))
+        var activeProviderName = _activeProviderName;
+
+        if (string.IsNullOrEmpty(activeProviderName) || !_providers.TryGetValue(activeProviderName, out var provider))
         {
             throw new InvalidOperationException(
                 $"No active LLM provider configured. Available providers: {string.Join(", ", _providers.Keys)}");
@@ -72,7 +91,7 @@ public class LlmProviderFactory : ILlmProviderFactory
     /// <inheritdoc />
     public IReadOnlyCollection<string> GetAvailableProviders()
     {
-        return _providers.Keys.ToList().AsReadOnly();
+        return _availableProviders;
     }
 
     /// <inheritdoc />
@@ -80,23 +99,26 @@ public class LlmProviderFactory : ILlmProviderFactory
     {
         ArgumentException.ThrowIfNullOrEmpty(providerName);
 
-        if (!_providers.ContainsKey(providerName))
+        lock (_lock)
         {
-            _logger.LogWarning(
-                "Cannot set active provider to '{ProviderName}' - provider not found. Available: {AvailableProviders}",
-                providerName,
-                string.Join(", ", _providers.Keys));
-            return false;
+            if (!_providers.ContainsKey(providerName))
+            {
+                _logger.LogWarning(
+                    "Cannot set active provider to '{ProviderName}' - provider not found. Available: {AvailableProviders}",
+                    providerName,
+                    string.Join(", ", _providers.Keys));
+                return false;
+            }
+
+            var previousProvider = _activeProviderName;
+            _activeProviderName = providerName;
+
+            _logger.LogInformation(
+                "Active LLM provider changed from '{PreviousProvider}' to '{NewProvider}'",
+                previousProvider,
+                providerName);
+
+            return true;
         }
-
-        var previousProvider = _activeProviderName;
-        _activeProviderName = providerName;
-
-        _logger.LogInformation(
-            "Active LLM provider changed from '{PreviousProvider}' to '{NewProvider}'",
-            previousProvider,
-            providerName);
-
-        return true;
     }
 }

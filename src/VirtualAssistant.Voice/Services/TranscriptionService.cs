@@ -85,11 +85,11 @@ public class TranscriptionService : ITranscriptionService
         }
 
         // 2. Apply LLM correction if available (via factory for runtime provider switching)
-        var llmProvider = _llmProviderFactory?.GetActiveProvider();
-        if (llmProvider != null && !string.IsNullOrWhiteSpace(processedText))
+        if (_llmProviderFactory != null && !string.IsNullOrWhiteSpace(processedText))
         {
             try
             {
+                var llmProvider = _llmProviderFactory.GetActiveProvider();
                 var beforeLlm = processedText;
                 var correctionResult = await llmProvider.CorrectTextAsync(processedText, cancellationToken);
                 processedText = correctionResult.CorrectedText;
