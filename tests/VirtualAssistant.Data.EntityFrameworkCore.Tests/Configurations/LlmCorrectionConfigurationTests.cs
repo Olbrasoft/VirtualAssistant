@@ -76,31 +76,6 @@ public class LlmCorrectionConfigurationTests
     }
 
     [Fact]
-    public async Task LlmCorrection_WithNullModelId_CanBeSaved()
-    {
-        // Arrange - simulates legacy corrections before model tracking
-        using var context = CreateInMemoryContext();
-        var (_, _, prompt, transcription) = await SetupDependencies(context);
-
-        var correction = new LlmCorrection
-        {
-            WhisperTranscriptionId = transcription.Id,
-            CorrectedText = "Legacy corrected text",
-            DurationMs = 50,
-            PromptId = prompt.Id,
-            ModelId = null // Legacy correction without model tracking
-        };
-
-        // Act
-        context.LlmCorrections.Add(correction);
-        await context.SaveChangesAsync();
-
-        // Assert
-        var saved = await context.LlmCorrections.FirstAsync();
-        Assert.Null(saved.ModelId);
-    }
-
-    [Fact]
     public async Task LlmCorrection_CanNavigateToModel()
     {
         // Arrange
@@ -219,53 +194,4 @@ public class LlmCorrectionConfigurationTests
         Assert.Equal(2, savedModel.LlmCorrections.Count);
     }
 
-    [Fact]
-    public async Task LlmCorrection_CanFilterLegacyCorrections()
-    {
-        // Arrange
-        using var context = CreateInMemoryContext();
-        var (_, model, prompt, transcription) = await SetupDependencies(context);
-
-        var transcription2 = new WhisperTranscription
-        {
-            TranscribedText = "Another",
-            AudioDurationMs = 1000
-        };
-        context.WhisperTranscriptions.Add(transcription2);
-        await context.SaveChangesAsync();
-
-        context.LlmCorrections.AddRange(
-            new LlmCorrection
-            {
-                WhisperTranscriptionId = transcription.Id,
-                CorrectedText = "New correction with model",
-                DurationMs = 50,
-                PromptId = prompt.Id,
-                ModelId = model.Id
-            },
-            new LlmCorrection
-            {
-                WhisperTranscriptionId = transcription2.Id,
-                CorrectedText = "Legacy correction",
-                DurationMs = 60,
-                PromptId = prompt.Id,
-                ModelId = null // Legacy
-            }
-        );
-        await context.SaveChangesAsync();
-
-        // Act
-        var legacyCorrections = await context.LlmCorrections
-            .Where(c => c.ModelId == null)
-            .ToListAsync();
-
-        var newCorrections = await context.LlmCorrections
-            .Where(c => c.ModelId != null)
-            .ToListAsync();
-
-        // Assert
-        Assert.Single(legacyCorrections);
-        Assert.Single(newCorrections);
-        Assert.Equal("Legacy correction", legacyCorrections[0].CorrectedText);
-    }
 }

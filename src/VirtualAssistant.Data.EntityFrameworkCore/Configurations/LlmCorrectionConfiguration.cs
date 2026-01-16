@@ -38,7 +38,7 @@ public class LlmCorrectionConfiguration : IEntityTypeConfiguration<LlmCorrection
 
         builder.Property(l => l.ModelId)
             .HasColumnName("model_id")
-            .IsRequired(false); // NULL for legacy corrections before model tracking
+            .IsRequired(); // Required - every correction must be associated with a model
 
         // Foreign key relationships
         builder.HasOne(l => l.WhisperTranscription)

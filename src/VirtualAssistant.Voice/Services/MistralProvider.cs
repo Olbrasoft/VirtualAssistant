@@ -5,6 +5,7 @@ using Microsoft.Extensions.Options;
 using Olbrasoft.Data.Cqrs;
 using Olbrasoft.VirtualAssistant.Core.Models;
 using Olbrasoft.VirtualAssistant.Core.Services;
+using Olbrasoft.VirtualAssistant.Data.Queries.LlmModelQueries;
 using Olbrasoft.VirtualAssistant.Data.Queries.PromptQueries;
 using Olbrasoft.VirtualAssistant.Voice.Configuration;
 
@@ -23,6 +24,7 @@ public class MistralProvider : ILlmProvider
     private readonly IQueryProcessor _queryProcessor;
     private Dictionary<string, string> _lastRateLimitHeaders = new();
     private bool _runtimeEnabled;
+    private int? _cachedModelId;
 
     /// <summary>
     /// Gets the provider name identifier ("mistral").
@@ -108,6 +110,41 @@ public class MistralProvider : ILlmProvider
     }
 
     /// <summary>
+    /// Gets the ModelId from database based on configured ModelIdentifier.
+    /// Caches the result for subsequent calls.
+    /// </summary>
+    private async Task<int?> GetModelIdAsync(CancellationToken ct)
+    {
+        if (_cachedModelId.HasValue)
+            return _cachedModelId;
+
+        try
+        {
+            var model = await _queryProcessor.ProcessAsync(
+                new GetLlmModelByIdentifierQuery(_options.Model), ct);
+
+            if (model != null)
+            {
+                _cachedModelId = model.Id;
+                _logger.LogDebug("Resolved ModelId {ModelId} for model identifier '{ModelIdentifier}'",
+                    model.Id, _options.Model);
+            }
+            else
+            {
+                _logger.LogWarning("LlmModel with identifier '{ModelIdentifier}' not found in database. " +
+                    "ModelId will be NULL in correction results.", _options.Model);
+            }
+
+            return _cachedModelId;
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Error resolving ModelId for '{ModelIdentifier}'", _options.Model);
+            return null;
+        }
+    }
+
+    /// <summary>
     /// Sets the runtime enabled state for LLM correction.
     /// This allows toggling LLM correction on/off at runtime without changing configuration.
     /// </summary>
@@ -170,8 +207,14 @@ public class MistralProvider : ILlmProvider
 
         try
         {
-            // Get context-aware prompt
-            var (promptText, promptId) = await GetSystemPromptAsync(cancellationToken);
+            // Get context-aware prompt and model ID in parallel
+            var promptTask = GetSystemPromptAsync(cancellationToken);
+            var modelIdTask = GetModelIdAsync(cancellationToken);
+
+            await Task.WhenAll(promptTask, modelIdTask);
+
+            var (promptText, promptId) = promptTask.Result;
+            var modelId = modelIdTask.Result;
 
             var request = new
             {
@@ -206,10 +249,10 @@ public class MistralProvider : ILlmProvider
             var correctedText = result.Choices[0].Message.Content.Trim();
             var durationMs = (int)(DateTime.UtcNow - startTime).TotalMilliseconds;
 
-            _logger.LogInformation("Mistral correction completed in {Duration}ms using prompt ID {PromptId}. Original length: {OriginalLength}, Corrected length: {CorrectedLength}",
-                durationMs, promptId, text.Length, correctedText.Length);
+            _logger.LogInformation("Mistral correction completed in {Duration}ms using prompt ID {PromptId}, model ID {ModelId}. Original length: {OriginalLength}, Corrected length: {CorrectedLength}",
+                durationMs, promptId, modelId, text.Length, correctedText.Length);
 
-            return new LlmCorrectionResult(correctedText, promptId, durationMs);
+            return new LlmCorrectionResult(correctedText, promptId, durationMs, modelId);
         }
         catch (HttpRequestException ex)
         {

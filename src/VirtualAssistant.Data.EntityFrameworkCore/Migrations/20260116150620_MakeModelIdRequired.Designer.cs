@@ -2,6 +2,7 @@
 using System;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Infrastructure;
+using Microsoft.EntityFrameworkCore.Migrations;
 using Microsoft.EntityFrameworkCore.Storage.ValueConversion;
 using Npgsql.EntityFrameworkCore.PostgreSQL.Metadata;
 using Olbrasoft.VirtualAssistant.Data.EntityFrameworkCore;
@@ -11,9 +12,11 @@ using Olbrasoft.VirtualAssistant.Data.EntityFrameworkCore;
 namespace Olbrasoft.VirtualAssistant.Data.EntityFrameworkCore.Migrations
 {
     [DbContext(typeof(VirtualAssistantDbContext))]
-    partial class VirtualAssistantDbContextModelSnapshot : ModelSnapshot
+    [Migration("20260116150620_MakeModelIdRequired")]
+    partial class MakeModelIdRequired
     {
-        protected override void BuildModel(ModelBuilder modelBuilder)
+        /// <inheritdoc />
+        protected override void BuildTargetModel(ModelBuilder modelBuilder)
         {
 #pragma warning disable 612, 618
             modelBuilder

@@ -108,7 +108,7 @@ public class DictationPersistenceServiceTests
             .ReturnsAsync(expectedCorrection);
 
         // Act
-        var correctionResult = new LlmCorrectionResult(correctedText, null, llmDurationMs);
+        var correctionResult = new LlmCorrectionResult(correctedText, PromptId: 1, llmDurationMs, ModelId: 2);
         var result = await _service.SaveTranscriptionAsync(
             audioData,
             originalText,
@@ -147,7 +147,7 @@ public class DictationPersistenceServiceTests
             .ReturnsAsync(expectedTranscription);
 
         // Act
-        var correctionResult = new LlmCorrectionResult(correctedText, null, 100);
+        var correctionResult = new LlmCorrectionResult(correctedText, PromptId: 1, 100, ModelId: 2);
         var result = await _service.SaveTranscriptionAsync(
             audioData,
             originalText,
@@ -156,6 +156,39 @@ public class DictationPersistenceServiceTests
 
         // Assert
         Assert.Equal(111, result);
+        _commandExecutorMock.Verify(x => x.ExecuteAsync(
+            It.IsAny<ICommand<LlmCorrection>>(), It.IsAny<CancellationToken>()), Times.Never);
+    }
+
+    [Fact]
+    public async Task SaveTranscriptionAsync_WithMissingModelId_DoesNotSaveLlmCorrection()
+    {
+        // Arrange - LLM correction without ModelId (required since model tracking)
+        var audioData = new byte[16000];
+        var originalText = "helo world";
+        var correctedText = "Hello world"; // Different from original
+
+        var expectedTranscription = new WhisperTranscription
+        {
+            Id = 222,
+            TranscribedText = originalText,
+            AudioDurationMs = 500
+        };
+
+        _commandExecutorMock
+            .Setup(x => x.ExecuteAsync(It.IsAny<ICommand<WhisperTranscription>>(), It.IsAny<CancellationToken>()))
+            .ReturnsAsync(expectedTranscription);
+
+        // Act - correction without ModelId should not be saved
+        var correctionResult = new LlmCorrectionResult(correctedText, PromptId: 1, 100, ModelId: null);
+        var result = await _service.SaveTranscriptionAsync(
+            audioData,
+            originalText,
+            correctionResult,
+            CancellationToken.None);
+
+        // Assert - returns transcription ID but LLM correction is not saved (graceful degradation)
+        Assert.Equal(222, result);
         _commandExecutorMock.Verify(x => x.ExecuteAsync(
             It.IsAny<ICommand<LlmCorrection>>(), It.IsAny<CancellationToken>()), Times.Never);
     }
@@ -239,7 +272,7 @@ public class DictationPersistenceServiceTests
             .ThrowsAsync(new InvalidOperationException("LLM save failed"));
 
         // Act
-        var correctionResult = new LlmCorrectionResult(correctedText, null, 100);
+        var correctionResult = new LlmCorrectionResult(correctedText, PromptId: 1, 100, ModelId: 2);
         var result = await _service.SaveTranscriptionAsync(
             audioData,
             originalText,

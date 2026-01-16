@@ -38,9 +38,9 @@ public class LlmCorrection
 
     /// <summary>
     /// Foreign key to LlmModel - which model performed this correction.
-    /// NULL for legacy corrections before model tracking was implemented.
+    /// Required - every correction must be associated with a model.
     /// </summary>
-    public int? ModelId { get; set; }
+    public int ModelId { get; set; }
 
     /// <summary>
     /// Navigation property to the original Whisper transcription.
@@ -55,5 +55,5 @@ public class LlmCorrection
     /// <summary>
     /// Navigation property to the model that performed this correction.
     /// </summary>
-    public LlmModel? Model { get; set; }
+    public LlmModel Model { get; set; } = null!;
 }

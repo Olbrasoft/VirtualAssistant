@@ -84,6 +84,15 @@ public class DictationPersistenceService : IDictationPersistenceService
         // Note: If LLM save fails, we still return the transcription ID (graceful degradation)
         if (correctionResult != null && correctionResult.CorrectedText != originalText)
         {
+            // ModelId is required for all corrections
+            if (!correctionResult.ModelId.HasValue)
+            {
+                _logger.LogError("Cannot save LLM correction without ModelId for transcription {TranscriptionId}. " +
+                    "This indicates a bug in the LLM provider - it should always return ModelId when correction is applied.",
+                    transcription.Id);
+                return transcription.Id;
+            }
+
             try
             {
                 var command = new SaveLlmCorrectionCommand(
@@ -91,7 +100,7 @@ public class DictationPersistenceService : IDictationPersistenceService
                     CorrectedText: correctionResult.CorrectedText,
                     DurationMs: correctionResult.DurationMs,
                     PromptId: correctionResult.PromptId,
-                    ModelId: correctionResult.ModelId  // Track which model was used
+                    ModelId: correctionResult.ModelId.Value  // Required - every correction must have a model
                 );
                 var correction = await _commandExecutor.ExecuteAsync(command, cancellationToken);
 
