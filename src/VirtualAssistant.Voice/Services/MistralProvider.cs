@@ -248,7 +248,10 @@ public class MistralProvider : ILlmProvider
             _logger.LogInformation("Mistral correction completed in {Duration}ms using prompt ID {PromptId}, model ID {ModelId}. Original length: {OriginalLength}, Corrected length: {CorrectedLength}",
                 durationMs, promptId, modelId, text.Length, correctedText.Length);
 
-            return new LlmCorrectionResult(correctedText, promptId, durationMs, modelId);
+            var correctionResult = new LlmCorrectionResult(correctedText, promptId, durationMs, modelId);
+            _logger.LogDebug("Returning LlmCorrectionResult: CorrectedText.Length={Length}, PromptId={PromptId}, DurationMs={DurationMs}, ModelId={ModelId}, ModelId.HasValue={HasValue}",
+                correctionResult.CorrectedText.Length, correctionResult.PromptId, correctionResult.DurationMs, correctionResult.ModelId, correctionResult.ModelId.HasValue);
+            return correctionResult;
         }
         catch (HttpRequestException ex)
         {
