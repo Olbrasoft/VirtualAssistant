@@ -88,7 +88,7 @@ public class ContinuousListenerOptions
     // Computed properties
     public int ChunkSizeBytes => SampleRate * VadChunkMs / 1000 * 2; // 16-bit = 2 bytes per sample
     public int PreBufferMaxBytes => SampleRate * PreBufferMs / 1000 * 2;
-    public int MaxSegmentBytes => SampleRate * MaxSegmentMs / 1000 * 2; // Max audio size for transcription
+    public int MaxSegmentBytes => (int)((long)SampleRate * MaxSegmentMs / 1000 * 2); // Max audio size for transcription (use long to prevent overflow)
 
     /// <summary>
     /// Gets the full path for WhisperModelPath, resolving relative paths.
