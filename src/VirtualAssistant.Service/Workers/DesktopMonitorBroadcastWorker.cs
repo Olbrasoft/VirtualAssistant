@@ -18,6 +18,7 @@ public class DesktopMonitorBroadcastWorker : BackgroundService
     private readonly IHubContext<DesktopMonitorHub> _hubContext;
     private readonly IQueryProcessor _queryProcessor;
     private readonly object _subscriptionLock = new();
+    private readonly SemaphoreSlim _dbLock = new(1, 1);  // Serialize DB operations
     private IDisposable? _subscription;
 
     public DesktopMonitorBroadcastWorker(
@@ -67,7 +68,7 @@ public class DesktopMonitorBroadcastWorker : BackgroundService
                 case ChangeType.ApplicationChanged:
                 case ChangeType.WindowFocusChanged:
                     await BroadcastFocusChanged(newContext);
-                    await BroadcastPromptChanged(newContext.ActiveApplication);  // NEW: Broadcast prompt change
+                    await BroadcastPromptChanged(newContext);  // Pass full context for consistency
                     break;
             }
 
@@ -103,13 +104,18 @@ public class DesktopMonitorBroadcastWorker : BackgroundService
         await _hubContext.Clients.All.SendAsync("LogMessage", message);
     }
 
-    private async Task BroadcastPromptChanged(string activeApplication)
+    private async Task BroadcastPromptChanged(DesktopContext context)
     {
+        // Serialize DB operations to avoid DbContext threading issues
+        await _dbLock.WaitAsync();
         try
         {
-            // Detect prompt for current application (reuses queries from #582)
+            // Use context.ActiveWindowTitle for prompt matching (same source as BroadcastFocusChanged)
+            var activeWindowTitle = context.ActiveWindowTitle;
+
+            // Detect prompt by matching window title against app_id_pattern
             var prompt = await _queryProcessor.ProcessAsync(
-                new GetPromptByAppIdPatternQuery(activeApplication),
+                new GetPromptByAppIdPatternQuery(activeWindowTitle),
                 CancellationToken.None);
 
             // Fallback to Default if no match
@@ -118,19 +124,31 @@ public class DesktopMonitorBroadcastWorker : BackgroundService
                 CancellationToken.None);
 
             _logger.LogDebug(
-                "Broadcasting prompt change: {AppName} (ID: {AppId}) → {Prompt}",
-                prompt.ApplicationName, activeApplication, prompt.PromptFileName);
+                "Broadcasting prompt change: {WindowTitle} → {Prompt}",
+                activeWindowTitle, prompt?.PromptFileName ?? "null");
 
             // Broadcast prompt change to all connected clients
+            // Use context.ActiveWindowTitle for APP ID to match ACTIVE WINDOW display
             await _hubContext.Clients.All.SendAsync(
                 "PromptChanged",
-                prompt.ApplicationName,        // e.g., "Claude Code"
-                activeApplication,             // e.g., "code"
-                prompt.PromptFileName);        // e.g., "ClaudeCodeCorrection.md"
+                prompt?.ApplicationName ?? "Unknown",  // e.g., "Claude Code"
+                context.ActiveWindowTitle,             // SAME as ACTIVE WINDOW field
+                prompt?.PromptFileName ?? "DefaultCorrection");
         }
         catch (Exception ex)
         {
-            _logger.LogWarning(ex, "Failed to detect prompt for application '{App}'", activeApplication);
+            _logger.LogWarning(ex, "Failed to detect prompt for window title '{Title}'", context.ActiveWindowTitle);
+
+            // Even on error, broadcast with correct window title
+            await _hubContext.Clients.All.SendAsync(
+                "PromptChanged",
+                "Default",
+                context.ActiveWindowTitle,  // SAME as ACTIVE WINDOW field
+                "DefaultCorrection");
+        }
+        finally
+        {
+            _dbLock.Release();
         }
     }
 

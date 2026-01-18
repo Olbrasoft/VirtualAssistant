@@ -3,7 +3,7 @@ namespace Olbrasoft.VirtualAssistant.Voice.Configuration;
 /// <summary>
 /// Configuration options for Mistral API.
 /// </summary>
-public class MistralOptions
+public class MistralOptions : ILlmProviderOptions
 {
     /// <summary>
     /// Configuration section name.

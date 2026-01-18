@@ -38,6 +38,12 @@ public interface ILlmProvider
     void SetEnabled(bool enabled);
 
     /// <summary>
+    /// Gets the current runtime enabled state.
+    /// </summary>
+    /// <returns>True if provider is enabled, false otherwise</returns>
+    bool IsEnabled();
+
+    /// <summary>
     /// Reloads the system prompt from disk, clearing any cached version.
     /// </summary>
     void ReloadPrompt();

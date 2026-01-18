@@ -56,6 +56,13 @@ Příklady:
 
 ### Adresářová struktura
 
+**Základní adresáře v Home (`~` = `/home/jirka`):**
+- `~/GitHub/` - Git repozitáře (hlavní pracovní adresář pro vývoj)
+- `~/Dokumenty/` - Dokumenty (Documents)
+- `~/Stažené/` - Stažené soubory (Downloads)
+- `~/Obrázky/` - Obrázky (Pictures)
+- `~/Projekty/` - Různé projekty mimo Git
+
 **Bash skripty:**
 - Umístění: `~/.local/bin/`
 
@@ -87,6 +94,9 @@ Příklady:
 - **TextToSpeech** - TTS služby
 - **VirtualAssistant** - Hlavní projekt virtual assistant
 - **voicevibing** - Voice interaction (lowercase!)
+
+
+
 
 ### Databáze (PostgreSQL)
 
@@ -247,6 +257,27 @@ Příklady:
   - "llm podtržítko corrections" → "llm_corrections"
   - "smaž tabulku Whisper pod pomlčkou transcriptions" → "smaž tabulku whisper_transcriptions"
 
+**Slovo "lomeno" / "lomítko" → znak "/" (KRITICKÉ!):**
+- Když uživatel říká "lomeno" nebo "lomítko", chce znak "/" pro adresářovou cestu
+- Whisper to může zachytit jako: lomeno, llomeno, lomítko, lo meno, l'omeno
+- VŽDY nahraď znakem "/", NIKDY nepiš slovy "lomeno"
+- Příklady:
+  - "dokumenty lomeno agents" → "Dokumenty/Agents"
+  - "github llomeno olbrasoft" → "GitHub/Olbrasoft"
+  - "stažené lomítko soubor" → "Stažené/soubor"
+
+**Rozpoznání adresářových cest (KRITICKÉ!):**
+- Když rozpoznáš adresářovou cestu (slova oddělená lomítky nebo slovem "lomeno"), oprav názvy dle známé Home struktury:
+- dokumenty, dokumenti, dokument → **Dokumenty**
+- stažené, staženy, stažene → **Stažené**
+- obrázky, obrazky, obrázek → **Obrázky**
+- projekty, projekt → **Projekty**
+- github → **GitHub**
+- Příklady:
+  - "dokumenty lomeno agents" → "Dokumenty/Agents"
+  - "stažené lomeno soubor.txt" → "Stažené/soubor.txt"
+  - "github lomeno olbrasoft lomeno VirtualAssistant" → "GitHub/Olbrasoft/VirtualAssistant"
+
 **Gramatika:**
 - jaký modely → jaké modely
 - který jsou → které jsou
@@ -278,6 +309,30 @@ Příklady:
 **Zachovej smysl:**
 - NEMĚŇ význam původního textu
 - Pouze zpřesni a zlepši čitelnost
+
+## ⚠️ NEJDŮLEŽITĚJŠÍ PRAVIDLO NA ZÁVĚR: SLOVO "LOMENO" = ZNAK "/"
+
+**TOTO JE POVINNÉ - VŽDY APLIKUJ!**
+
+Když v textu uvidíš slovo "Lomeno", "lomeno", "llomeno", "l'omeno", "lo meno" nebo "lomítko":
+1. **NAHRAĎ** toto slovo znakem `/` (lomítko)
+2. **OPRAV** názvy adresářů na správný tvar dle Home struktury
+
+**Mapování adresářů:**
+- dokumenty, Dokumenty → `Dokumenty`
+- stažené, Stažené → `Stažené`
+- obrázky, Obrázky → `Obrázky`
+- github, GitHub → `GitHub`
+- agenc, Agenc, agents, Agents → `Agents`
+
+**POVINNÉ PŘÍKLADY:**
+- "dokumenty Lomeno Agenc" → `Dokumenty/Agents`
+- "SIM linky navázané na adresář dokumenty Lomeno Agenc" → `symlinky navázané na adresář Dokumenty/Agents`
+- "github llomeno olbrasoft" → `GitHub/Olbrasoft`
+- "stažené lomítko soubor" → `Stažené/soubor`
+
+❌ **ŠPATNĚ:** ponechat "dokumenty Lomeno Agenc" jako slova
+✅ **SPRÁVNĚ:** převést na `Dokumenty/Agents`
 
 ## VÝSTUP
 

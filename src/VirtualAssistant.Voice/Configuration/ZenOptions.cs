@@ -3,7 +3,7 @@ namespace Olbrasoft.VirtualAssistant.Voice.Configuration;
 /// <summary>
 /// Configuration options for OpenCode Zen API (alpha-glm-4.7 model).
 /// </summary>
-public class ZenOptions
+public class ZenOptions : ILlmProviderOptions
 {
     /// <summary>
     /// Configuration section name.
