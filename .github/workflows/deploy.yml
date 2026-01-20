@@ -10,17 +10,12 @@ jobs:
     runs-on: self-hosted
 
     steps:
-      - name: Setup git config
-        run: |
-          # Create empty gitconfig to prevent warnings
-          touch ~/.gitconfig
-          git config --global init.defaultBranch main
-
       - name: Checkout VirtualAssistant
         uses: actions/checkout@v4
         with:
           path: VirtualAssistant
           persist-credentials: false
+          set-safe-directory: false
 
       - name: Checkout Data dependency
         uses: actions/checkout@v4
@@ -28,6 +23,7 @@ jobs:
           repository: Olbrasoft/Data
           path: Data
           persist-credentials: false
+          set-safe-directory: false
 
       # .NET 10 is already installed system-wide on the self-hosted runner
       - name: Verify .NET version
