@@ -38,7 +38,7 @@ public class NotificationServiceTests
             .ReturnsAsync(expectedId);
 
         // Act
-        var result = await _service.CreateNotificationAsync("Test", "claude-code", null, CancellationToken.None);
+        var result = await _service.CreateNotificationAsync("Test", "claude-code", null, null, null, CancellationToken.None);
 
         // Assert
         Assert.Equal(expectedId, result);
@@ -57,11 +57,30 @@ public class NotificationServiceTests
             .ReturnsAsync(1);
 
         // Act
-        await _service.CreateNotificationAsync("Test", "claude-code", issueIds, CancellationToken.None);
+        await _service.CreateNotificationAsync("Test", "claude-code", issueIds, null, null, CancellationToken.None);
 
         // Assert
         _mockCommandExecutor.Verify(x => x.ExecuteAsync(
             It.Is<CreateNotificationCommand>(c => c.IssueIds != null && c.IssueIds.SequenceEqual(issueIds)),
+            It.IsAny<CancellationToken>()), Times.Once);
+    }
+
+    [Fact]
+    public async Task CreateNotificationAsync_WithLlmInfo_PassesLlmInfoToCommand()
+    {
+        // Arrange
+        _mockCommandExecutor
+            .Setup(x => x.ExecuteAsync(It.IsAny<CreateNotificationCommand>(), It.IsAny<CancellationToken>()))
+            .ReturnsAsync(1);
+
+        // Act
+        await _service.CreateNotificationAsync("Test", "claude-code", null, "anthropic", "claude-opus-4-5", CancellationToken.None);
+
+        // Assert
+        _mockCommandExecutor.Verify(x => x.ExecuteAsync(
+            It.Is<CreateNotificationCommand>(c =>
+                c.ProviderName == "anthropic" &&
+                c.ModelName == "claude-opus-4-5"),
             It.IsAny<CancellationToken>()), Times.Once);
     }
 

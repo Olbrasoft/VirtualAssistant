@@ -2,6 +2,7 @@ namespace Olbrasoft.VirtualAssistant.Data.EntityFrameworkCore.Configurations;
 
 /// <summary>
 /// EF Core configuration for LlmModel entity with PostgreSQL snake_case naming.
+/// Provider relationship is managed via ModelProviderMapping (many-to-many).
 /// </summary>
 public class LlmModelConfiguration : IEntityTypeConfiguration<LlmModel>
 {
@@ -24,10 +25,6 @@ public class LlmModelConfiguration : IEntityTypeConfiguration<LlmModel>
             .IsRequired()
             .HasMaxLength(100);
 
-        builder.Property(m => m.ProviderId)
-            .HasColumnName("provider_id")
-            .IsRequired();
-
         builder.Property(m => m.IsActive)
             .HasColumnName("is_active")
             .IsRequired()
@@ -43,37 +40,11 @@ public class LlmModelConfiguration : IEntityTypeConfiguration<LlmModel>
             .IsUnique()
             .HasDatabaseName("ix_llm_models_model_identifier");
 
-        // Index on ProviderId for filtering
-        builder.HasIndex(m => m.ProviderId)
-            .HasDatabaseName("ix_llm_models_provider_id");
-
-        // Foreign key to Provider
-        builder.HasOne(m => m.Provider)
-            .WithMany()
-            .HasForeignKey(m => m.ProviderId)
-            .OnDelete(DeleteBehavior.Restrict);
-
-        // Seed LLM models
+        // Seed LLM models (provider relationship via ModelProviderMapping)
         var seedCreatedAt = new DateTime(2026, 1, 16, 12, 0, 0, DateTimeKind.Utc);
         builder.HasData(
-            new LlmModel
-            {
-                Id = 1,
-                Name = "Mistral Large",
-                ModelIdentifier = "mistral-large-latest",
-                ProviderId = 7,
-                IsActive = true,
-                CreatedAt = seedCreatedAt
-            },
-            new LlmModel
-            {
-                Id = 2,
-                Name = "Alpha GLM 4.7",
-                ModelIdentifier = "alpha-glm-4.7",
-                ProviderId = 8,
-                IsActive = true,
-                CreatedAt = seedCreatedAt
-            }
+            new { Id = 1, Name = "Mistral Large", ModelIdentifier = "mistral-large-latest", IsActive = true, CreatedAt = seedCreatedAt },
+            new { Id = 2, Name = "Alpha GLM 4.7", ModelIdentifier = "alpha-glm-4.7", IsActive = true, CreatedAt = seedCreatedAt }
         );
     }
 }

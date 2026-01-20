@@ -66,6 +66,25 @@ public class NotificationConfiguration : IEntityTypeConfiguration<Notification>
             .HasForeignKey(nta => nta.NotificationId)
             .OnDelete(DeleteBehavior.Cascade);
 
+        // LLM tracking fields
+        builder.Property(n => n.LlmProviderId)
+            .HasColumnName("llm_provider_id");
+
+        builder.Property(n => n.LlmModelId)
+            .HasColumnName("llm_model_id");
+
+        // Relationship with Provider (LLM tracking - which LLM provider agent used)
+        builder.HasOne(n => n.LlmProvider)
+            .WithMany(p => p.LlmNotifications)
+            .HasForeignKey(n => n.LlmProviderId)
+            .OnDelete(DeleteBehavior.SetNull);
+
+        // Relationship with LlmModel (LLM tracking - which model agent used)
+        builder.HasOne(n => n.LlmModel)
+            .WithMany(m => m.Notifications)
+            .HasForeignKey(n => n.LlmModelId)
+            .OnDelete(DeleteBehavior.SetNull);
+
         // Indexes
         builder.HasIndex(n => n.NotificationStatusId)
             .HasDatabaseName("ix_notifications_status");
@@ -78,5 +97,11 @@ public class NotificationConfiguration : IEntityTypeConfiguration<Notification>
 
         builder.HasIndex(n => n.FinalProviderId)
             .HasDatabaseName("ix_notifications_final_provider");
+
+        builder.HasIndex(n => n.LlmProviderId)
+            .HasDatabaseName("ix_notifications_llm_provider");
+
+        builder.HasIndex(n => n.LlmModelId)
+            .HasDatabaseName("ix_notifications_llm_model");
     }
 }

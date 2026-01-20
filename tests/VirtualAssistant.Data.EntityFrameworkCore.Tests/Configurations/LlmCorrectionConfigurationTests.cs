@@ -14,17 +14,12 @@ public class LlmCorrectionConfigurationTests
         return new VirtualAssistantDbContext(options);
     }
 
-    private async Task<(Provider provider, LlmModel model, Prompt prompt, WhisperTranscription transcription)> SetupDependencies(VirtualAssistantDbContext context)
+    private async Task<(LlmModel model, Prompt prompt, WhisperTranscription transcription)> SetupDependencies(VirtualAssistantDbContext context)
     {
-        var provider = new Provider { Name = "Test LLM", Type = "llm", Enabled = true, Priority = 1 };
-        context.Providers.Add(provider);
-        await context.SaveChangesAsync();
-
         var model = new LlmModel
         {
             Name = "Test Model",
-            ModelIdentifier = "test-model",
-            ProviderId = provider.Id
+            ModelIdentifier = "test-model"
         };
         context.LlmModels.Add(model);
 
@@ -46,7 +41,7 @@ public class LlmCorrectionConfigurationTests
 
         await context.SaveChangesAsync();
 
-        return (provider, model, prompt, transcription);
+        return (model, prompt, transcription);
     }
 
     [Fact]
@@ -54,7 +49,7 @@ public class LlmCorrectionConfigurationTests
     {
         // Arrange
         using var context = CreateInMemoryContext();
-        var (_, model, prompt, transcription) = await SetupDependencies(context);
+        var (model, prompt, transcription) = await SetupDependencies(context);
 
         var correction = new LlmCorrection
         {
@@ -80,7 +75,7 @@ public class LlmCorrectionConfigurationTests
     {
         // Arrange
         using var context = CreateInMemoryContext();
-        var (_, model, prompt, transcription) = await SetupDependencies(context);
+        var (model, prompt, transcription) = await SetupDependencies(context);
 
         var correction = new LlmCorrection
         {
@@ -109,13 +104,12 @@ public class LlmCorrectionConfigurationTests
     {
         // Arrange
         using var context = CreateInMemoryContext();
-        var (provider, model1, prompt, transcription) = await SetupDependencies(context);
+        var (model1, prompt, transcription) = await SetupDependencies(context);
 
         var model2 = new LlmModel
         {
             Name = "Model 2",
-            ModelIdentifier = "model-2",
-            ProviderId = provider.Id
+            ModelIdentifier = "model-2"
         };
         context.LlmModels.Add(model2);
         await context.SaveChangesAsync();
@@ -163,7 +157,7 @@ public class LlmCorrectionConfigurationTests
     {
         // Arrange
         using var context = CreateInMemoryContext();
-        var (_, model, prompt, transcription) = await SetupDependencies(context);
+        var (model, prompt, transcription) = await SetupDependencies(context);
 
         context.LlmCorrections.AddRange(
             new LlmCorrection

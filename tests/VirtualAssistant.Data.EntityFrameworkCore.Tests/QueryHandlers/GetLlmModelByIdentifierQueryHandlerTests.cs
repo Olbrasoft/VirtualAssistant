@@ -21,15 +21,11 @@ public class GetLlmModelByIdentifierQueryHandlerTests
     {
         // Arrange
         using var context = CreateInMemoryContext();
-        var provider = new Provider { Name = "Zen", Type = "llm", Enabled = true, Priority = 1 };
-        context.Providers.Add(provider);
-        await context.SaveChangesAsync();
 
         var model = new LlmModel
         {
             Name = "Alpha GLM 4.7",
             ModelIdentifier = "alpha-glm-4.7",
-            ProviderId = provider.Id,
             IsActive = true
         };
         context.LlmModels.Add(model);
@@ -52,15 +48,11 @@ public class GetLlmModelByIdentifierQueryHandlerTests
     {
         // Arrange
         using var context = CreateInMemoryContext();
-        var provider = new Provider { Name = "Zen", Type = "llm", Enabled = true, Priority = 1 };
-        context.Providers.Add(provider);
-        await context.SaveChangesAsync();
 
         var model = new LlmModel
         {
             Name = "Alpha GLM 4.7",
             ModelIdentifier = "alpha-glm-4.7",
-            ProviderId = provider.Id,
             IsActive = false // Inactive
         };
         context.LlmModels.Add(model);
@@ -96,23 +88,18 @@ public class GetLlmModelByIdentifierQueryHandlerTests
     {
         // Arrange
         using var context = CreateInMemoryContext();
-        var provider = new Provider { Name = "LLM Provider", Type = "llm", Enabled = true, Priority = 1 };
-        context.Providers.Add(provider);
-        await context.SaveChangesAsync();
 
         context.LlmModels.AddRange(
             new LlmModel
             {
                 Name = "Mistral Large",
                 ModelIdentifier = "mistral-large-latest",
-                ProviderId = provider.Id,
                 IsActive = true
             },
             new LlmModel
             {
                 Name = "Alpha GLM 4.7",
                 ModelIdentifier = "alpha-glm-4.7",
-                ProviderId = provider.Id,
                 IsActive = true
             }
         );

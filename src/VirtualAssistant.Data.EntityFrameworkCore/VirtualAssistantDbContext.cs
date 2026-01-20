@@ -94,6 +94,11 @@ public class VirtualAssistantDbContext : DbContext
     /// </summary>
     public DbSet<LlmModel> LlmModels => Set<LlmModel>();
 
+    /// <summary>
+    /// Gets or sets the ModelProviderMappings DbSet (many-to-many junction table).
+    /// </summary>
+    public DbSet<ModelProviderMapping> ModelProviderMappings => Set<ModelProviderMapping>();
+
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {
         base.OnModelCreating(modelBuilder);

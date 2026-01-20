@@ -2,6 +2,7 @@
 using System;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Infrastructure;
+using Microsoft.EntityFrameworkCore.Migrations;
 using Microsoft.EntityFrameworkCore.Storage.ValueConversion;
 using Npgsql.EntityFrameworkCore.PostgreSQL.Metadata;
 using Olbrasoft.VirtualAssistant.Data.EntityFrameworkCore;
@@ -11,9 +12,11 @@ using Olbrasoft.VirtualAssistant.Data.EntityFrameworkCore;
 namespace Olbrasoft.VirtualAssistant.Data.EntityFrameworkCore.Migrations
 {
     [DbContext(typeof(VirtualAssistantDbContext))]
-    partial class VirtualAssistantDbContextModelSnapshot : ModelSnapshot
+    [Migration("20260120013828_AddLlmTrackingToNotifications")]
+    partial class AddLlmTrackingToNotifications
     {
-        protected override void BuildModel(ModelBuilder modelBuilder)
+        /// <inheritdoc />
+        protected override void BuildTargetModel(ModelBuilder modelBuilder)
         {
 #pragma warning disable 612, 618
             modelBuilder
@@ -276,11 +279,18 @@ namespace Olbrasoft.VirtualAssistant.Data.EntityFrameworkCore.Migrations
                         .HasColumnType("character varying(100)")
                         .HasColumnName("name");
 
+                    b.Property<int>("ProviderId")
+                        .HasColumnType("integer")
+                        .HasColumnName("provider_id");
+
                     b.HasKey("Id");
 
                     b.HasIndex("ModelIdentifier")
                         .IsUnique()
                         .HasDatabaseName("ix_llm_models_model_identifier");
+
+                    b.HasIndex("ProviderId")
+                        .HasDatabaseName("ix_llm_models_provider_id");
 
                     b.ToTable("llm_models", (string)null);
 
@@ -291,7 +301,8 @@ namespace Olbrasoft.VirtualAssistant.Data.EntityFrameworkCore.Migrations
                             CreatedAt = new DateTime(2026, 1, 16, 12, 0, 0, 0, DateTimeKind.Utc),
                             IsActive = true,
                             ModelIdentifier = "mistral-large-latest",
-                            Name = "Mistral Large"
+                            Name = "Mistral Large",
+                            ProviderId = 7
                         },
                         new
                         {
@@ -299,7 +310,8 @@ namespace Olbrasoft.VirtualAssistant.Data.EntityFrameworkCore.Migrations
                             CreatedAt = new DateTime(2026, 1, 16, 12, 0, 0, 0, DateTimeKind.Utc),
                             IsActive = true,
                             ModelIdentifier = "alpha-glm-4.7",
-                            Name = "Alpha GLM 4.7"
+                            Name = "Alpha GLM 4.7",
+                            ProviderId = 8
                         });
                 });
 
@@ -990,6 +1002,17 @@ namespace Olbrasoft.VirtualAssistant.Data.EntityFrameworkCore.Migrations
                         .IsRequired();
 
                     b.Navigation("WhisperTranscription");
+                });
+
+            modelBuilder.Entity("Olbrasoft.VirtualAssistant.Data.Entities.LlmModel", b =>
+                {
+                    b.HasOne("Olbrasoft.VirtualAssistant.Data.Entities.Provider", "Provider")
+                        .WithMany()
+                        .HasForeignKey("ProviderId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
+                    b.Navigation("Provider");
                 });
 
             modelBuilder.Entity("Olbrasoft.VirtualAssistant.Data.Entities.ModelProviderMapping", b =>
