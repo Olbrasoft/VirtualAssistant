@@ -8,12 +8,14 @@ on:
 jobs:
   deploy:
     runs-on: self-hosted
-    env:
-      # Prevent "could not lock config file" warnings on self-hosted runner
-      GIT_CONFIG_GLOBAL: /dev/null
-      GIT_CONFIG_SYSTEM: /dev/null
 
     steps:
+      - name: Setup git config
+        run: |
+          # Create empty gitconfig to prevent warnings
+          touch ~/.gitconfig
+          git config --global init.defaultBranch main
+
       - name: Checkout VirtualAssistant
         uses: actions/checkout@v4
         with:
