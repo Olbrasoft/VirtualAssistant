@@ -96,14 +96,13 @@ public class CreateNotificationCommandHandler(VirtualAssistantDbContext context)
             var model = await Context.LlmModels
                 .FirstOrDefaultAsync(m => m.ModelIdentifier == modelName, token);
 
-            if (model == null && providerId.HasValue)
+            if (model == null)
             {
-                // Only create model if we have a valid provider (ProviderId is required FK)
+                // Create new model (provider relationship via ModelProviderMapping)
                 model = new LlmModel
                 {
                     Name = modelName,
                     ModelIdentifier = modelName,
-                    ProviderId = providerId.Value,
                     IsActive = true,
                     CreatedAt = DateTime.UtcNow
                 };
@@ -112,7 +111,7 @@ public class CreateNotificationCommandHandler(VirtualAssistantDbContext context)
                 await Context.SaveChangesAsync(token);
             }
 
-            modelId = model?.Id;
+            modelId = model.Id;
 
             // Ensure mapping exists between model and provider
             if (providerId.HasValue && modelId.HasValue)

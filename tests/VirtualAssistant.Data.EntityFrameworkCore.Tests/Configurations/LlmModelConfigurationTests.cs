@@ -19,21 +19,11 @@ public class LlmModelConfigurationTests
     {
         // Arrange
         using var context = CreateInMemoryContext();
-        var provider = new Provider
-        {
-            Name = "Test Provider",
-            Type = "llm",
-            Enabled = true,
-            Priority = 1
-        };
-        context.Providers.Add(provider);
-        await context.SaveChangesAsync();
 
         var model = new LlmModel
         {
             Name = "Test Model",
             ModelIdentifier = "test-model-v1",
-            ProviderId = provider.Id,
             IsActive = true
         };
 
@@ -53,15 +43,11 @@ public class LlmModelConfigurationTests
     {
         // Arrange
         using var context = CreateInMemoryContext();
-        var provider = new Provider { Name = "Provider", Type = "llm", Enabled = true, Priority = 1 };
-        context.Providers.Add(provider);
-        await context.SaveChangesAsync();
 
         var model = new LlmModel
         {
             Name = "Model",
-            ModelIdentifier = "model-id",
-            ProviderId = provider.Id
+            ModelIdentifier = "model-id"
         };
 
         // Act
@@ -73,53 +59,15 @@ public class LlmModelConfigurationTests
     }
 
     [Fact]
-    public async Task LlmModel_CanNavigateToProvider()
-    {
-        // Arrange
-        using var context = CreateInMemoryContext();
-        var provider = new Provider
-        {
-            Name = "Mistral AI",
-            Type = "llm",
-            Enabled = true,
-            Priority = 1
-        };
-        context.Providers.Add(provider);
-        await context.SaveChangesAsync();
-
-        var model = new LlmModel
-        {
-            Name = "Mistral Large",
-            ModelIdentifier = "mistral-large-latest",
-            ProviderId = provider.Id
-        };
-        context.LlmModels.Add(model);
-        await context.SaveChangesAsync();
-
-        // Act
-        var savedModel = await context.LlmModels
-            .Include(m => m.Provider)
-            .FirstAsync();
-
-        // Assert
-        Assert.NotNull(savedModel.Provider);
-        Assert.Equal("Mistral AI", savedModel.Provider.Name);
-    }
-
-    [Fact]
     public async Task LlmModel_IsActiveDefaultsToTrue()
     {
         // Arrange
         using var context = CreateInMemoryContext();
-        var provider = new Provider { Name = "Provider", Type = "llm", Enabled = true, Priority = 1 };
-        context.Providers.Add(provider);
-        await context.SaveChangesAsync();
 
         var model = new LlmModel
         {
             Name = "Model",
-            ModelIdentifier = "model-id",
-            ProviderId = provider.Id
+            ModelIdentifier = "model-id"
             // IsActive not explicitly set
         };
 
@@ -137,15 +85,11 @@ public class LlmModelConfigurationTests
     {
         // Arrange
         using var context = CreateInMemoryContext();
-        var provider = new Provider { Name = "Provider", Type = "llm", Enabled = true, Priority = 1 };
-        context.Providers.Add(provider);
-        await context.SaveChangesAsync();
 
         var model = new LlmModel
         {
             Name = "Deprecated Model",
             ModelIdentifier = "old-model",
-            ProviderId = provider.Id,
             IsActive = false
         };
 
@@ -163,13 +107,10 @@ public class LlmModelConfigurationTests
     {
         // Arrange
         using var context = CreateInMemoryContext();
-        var provider = new Provider { Name = "Provider", Type = "llm", Enabled = true, Priority = 1 };
-        context.Providers.Add(provider);
-        await context.SaveChangesAsync();
 
         context.LlmModels.AddRange(
-            new LlmModel { Name = "Model A", ModelIdentifier = "model-a", ProviderId = provider.Id },
-            new LlmModel { Name = "Model B", ModelIdentifier = "model-b", ProviderId = provider.Id }
+            new LlmModel { Name = "Model A", ModelIdentifier = "model-a" },
+            new LlmModel { Name = "Model B", ModelIdentifier = "model-b" }
         );
         await context.SaveChangesAsync();
 
@@ -188,13 +129,10 @@ public class LlmModelConfigurationTests
     {
         // Arrange
         using var context = CreateInMemoryContext();
-        var provider = new Provider { Name = "Provider", Type = "llm", Enabled = true, Priority = 1 };
-        context.Providers.Add(provider);
-        await context.SaveChangesAsync();
 
         context.LlmModels.AddRange(
-            new LlmModel { Name = "Active Model", ModelIdentifier = "active", ProviderId = provider.Id, IsActive = true },
-            new LlmModel { Name = "Inactive Model", ModelIdentifier = "inactive", ProviderId = provider.Id, IsActive = false }
+            new LlmModel { Name = "Active Model", ModelIdentifier = "active", IsActive = true },
+            new LlmModel { Name = "Inactive Model", ModelIdentifier = "inactive", IsActive = false }
         );
         await context.SaveChangesAsync();
 
@@ -213,16 +151,12 @@ public class LlmModelConfigurationTests
     {
         // Arrange
         using var context = CreateInMemoryContext();
-        var provider = new Provider { Name = "Provider", Type = "llm", Enabled = true, Priority = 1 };
-        context.Providers.Add(provider);
-        await context.SaveChangesAsync();
 
         var beforeCreate = DateTime.UtcNow;
         var model = new LlmModel
         {
             Name = "Model",
-            ModelIdentifier = "model-id",
-            ProviderId = provider.Id
+            ModelIdentifier = "model-id"
         };
 
         // Act

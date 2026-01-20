@@ -2,7 +2,7 @@ namespace Olbrasoft.VirtualAssistant.Data.Entities;
 
 /// <summary>
 /// Represents an LLM model used for ASR transcription correction.
-/// Links to Provider for external service tracking.
+/// Provider relationship is managed via ModelProviderMapping (many-to-many).
 /// </summary>
 public class LlmModel
 {
@@ -22,11 +22,6 @@ public class LlmModel
     public required string ModelIdentifier { get; set; }
 
     /// <summary>
-    /// Foreign key to Provider.
-    /// </summary>
-    public int ProviderId { get; set; }
-
-    /// <summary>
     /// Whether this model is currently active and available for use.
     /// </summary>
     public bool IsActive { get; set; } = true;
@@ -35,11 +30,6 @@ public class LlmModel
     /// When this model was added to the system (UTC).
     /// </summary>
     public DateTime CreatedAt { get; set; } = DateTime.UtcNow;
-
-    /// <summary>
-    /// Navigation property to the provider.
-    /// </summary>
-    public Provider Provider { get; set; } = null!;
 
     /// <summary>
     /// Navigation property - all corrections made by this model.
