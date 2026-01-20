@@ -14,12 +14,14 @@ jobs:
         uses: actions/checkout@v4
         with:
           path: VirtualAssistant
+          persist-credentials: false
 
       - name: Checkout Data dependency
         uses: actions/checkout@v4
         with:
           repository: Olbrasoft/Data
           path: Data
+          persist-credentials: false
 
       # .NET 10 is already installed system-wide on the self-hosted runner
       - name: Verify .NET version
