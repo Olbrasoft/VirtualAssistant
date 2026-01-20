@@ -4,8 +4,9 @@ namespace Olbrasoft.VirtualAssistant.Data.EntityFrameworkCore.QueryHandlers.Prom
 
 /// <summary>
 /// Handler for GetPromptByAppIdPatternQuery.
-/// Finds a prompt where the active window title contains the prompt's AppIdPattern.
-/// Tests against window title (e.g., "Claude Code", "Ferdium - WhatsApp", "OpenCode").
+/// Finds a prompt by matching against application pattern (priority) or window title pattern.
+/// Priority: 1) ApplicationPattern matches ActiveApplication (e.g., "antigravity.desktop")
+///           2) AppIdPattern matches ActiveWindowTitle (e.g., "Claude Code", "OC |")
 /// Returns NULL if no match found.
 /// </summary>
 public class GetPromptByAppIdPatternQueryHandler(VirtualAssistantDbContext context)
@@ -15,11 +16,22 @@ public class GetPromptByAppIdPatternQueryHandler(VirtualAssistantDbContext conte
     {
         ArgumentException.ThrowIfNullOrWhiteSpace(query.ActiveWindowTitle, nameof(query.ActiveWindowTitle));
 
-        // Find first match where ActiveWindowTitle contains AppIdPattern (case-sensitive!)
+        // Priority 1: Match by ApplicationPattern (desktop file name)
+        // Example: ActiveApplication = "antigravity.desktop" matches ApplicationPattern = "antigravity"
+        if (!string.IsNullOrWhiteSpace(query.ActiveApplication))
+        {
+            var appMatch = await Context.Prompts
+                .Where(p => p.ApplicationPattern != null && p.ApplicationPattern != "")
+                .Where(p => EF.Functions.Like(query.ActiveApplication, "%" + p.ApplicationPattern + "%"))
+                .FirstOrDefaultAsync(token);
+
+            if (appMatch != null)
+                return appMatch;
+        }
+
+        // Priority 2: Match by AppIdPattern (window title)
         // Example: windowTitle = "Claude Code - file.cs" matches AppIdPattern = "Claude Code"
-        // Example: windowTitle = "OpenCode" matches AppIdPattern = "OpenCode"
-        // Example: windowTitle = "Ferdium - WhatsApp - (1) WhatsApp" matches AppIdPattern = "Ferdium"
-        // Uses EF.Functions.Like for database-side pattern matching to avoid loading all prompts into memory
+        // Example: windowTitle = "OC | Create issues" matches AppIdPattern = "OC |"
         return await Context.Prompts
             .Where(p => p.AppIdPattern != "*")
             .Where(p => EF.Functions.Like(query.ActiveWindowTitle, "%" + p.AppIdPattern + "%"))

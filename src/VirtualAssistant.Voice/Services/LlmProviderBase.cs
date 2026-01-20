@@ -78,12 +78,12 @@ public abstract class LlmProviderBase : ILlmProvider
         try
         {
             var context = await DesktopContextService.GetCurrentContextAsync(ct);
-            var windowTitle = context.ActiveWindowTitle;
 
-            Logger.LogDebug("Active window: '{Title}', looking for matching prompt pattern", windowTitle);
+            Logger.LogDebug("Active window: '{Title}', app: '{App}', looking for matching prompt pattern",
+                context.ActiveWindowTitle, context.ActiveApplication);
 
             var prompt = await QueryProcessor.ProcessAsync(
-                new GetPromptByAppIdPatternQuery(windowTitle), ct);
+                new GetPromptByAppIdPatternQuery(context.ActiveWindowTitle, context.ActiveApplication), ct);
 
             prompt ??= await QueryProcessor.ProcessAsync(new GetDefaultPromptQuery(), ct);
 
@@ -96,7 +96,7 @@ public abstract class LlmProviderBase : ILlmProvider
             var promptText = PromptCache.GetPrompt(prompt.PromptFileName);
 
             Logger.LogDebug("Using prompt '{Prompt}' (ID: {Id}) for window '{Title}'",
-                prompt.PromptFileName, prompt.Id, windowTitle);
+                prompt.PromptFileName, prompt.Id, context.ActiveWindowTitle);
 
             return (promptText, prompt.Id);
         }

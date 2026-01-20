@@ -21,6 +21,9 @@ public class DesktopMonitorBroadcastWorker : BackgroundService
     private readonly SemaphoreSlim _dbLock = new(1, 1);  // Serialize DB operations
     private IDisposable? _subscription;
 
+    // Transient windows that should not trigger prompt changes (e.g., clipboard utilities)
+    private static readonly string[] TransientWindowTitles = ["wl-clipboard", "xclip", "xsel"];
+
     public DesktopMonitorBroadcastWorker(
         ILogger<DesktopMonitorBroadcastWorker> logger,
         IDesktopContextService desktopContextService,
@@ -68,7 +71,15 @@ public class DesktopMonitorBroadcastWorker : BackgroundService
                 case ChangeType.ApplicationChanged:
                 case ChangeType.WindowFocusChanged:
                     await BroadcastFocusChanged(newContext);
-                    await BroadcastPromptChanged(newContext);  // Pass full context for consistency
+                    // Skip prompt change for transient windows (clipboard utilities, etc.)
+                    if (!IsTransientWindow(newContext.ActiveWindowTitle))
+                    {
+                        await BroadcastPromptChanged(newContext);
+                    }
+                    else
+                    {
+                        _logger.LogDebug("Skipping prompt change for transient window: {Title}", newContext.ActiveWindowTitle);
+                    }
                     break;
             }
 
@@ -110,12 +121,11 @@ public class DesktopMonitorBroadcastWorker : BackgroundService
         await _dbLock.WaitAsync();
         try
         {
-            // Use context.ActiveWindowTitle for prompt matching (same source as BroadcastFocusChanged)
-            var activeWindowTitle = context.ActiveWindowTitle;
-
-            // Detect prompt by matching window title against app_id_pattern
+            // Detect prompt by matching:
+            // 1) ApplicationPattern against ActiveApplication (e.g., "antigravity.desktop")
+            // 2) AppIdPattern against ActiveWindowTitle (e.g., "Claude Code", "OC |")
             var prompt = await _queryProcessor.ProcessAsync(
-                new GetPromptByAppIdPatternQuery(activeWindowTitle),
+                new GetPromptByAppIdPatternQuery(context.ActiveWindowTitle, context.ActiveApplication),
                 CancellationToken.None);
 
             // Fallback to Default if no match
@@ -124,8 +134,8 @@ public class DesktopMonitorBroadcastWorker : BackgroundService
                 CancellationToken.None);
 
             _logger.LogDebug(
-                "Broadcasting prompt change: {WindowTitle} → {Prompt}",
-                activeWindowTitle, prompt?.PromptFileName ?? "null");
+                "Broadcasting prompt change: {WindowTitle} ({App}) → {Prompt}",
+                context.ActiveWindowTitle, context.ActiveApplication, prompt?.PromptFileName ?? "null");
 
             // Broadcast prompt change to all connected clients
             // Use context.ActiveWindowTitle for APP ID to match ACTIVE WINDOW display
@@ -150,6 +160,16 @@ public class DesktopMonitorBroadcastWorker : BackgroundService
         {
             _dbLock.Release();
         }
+    }
+
+    /// <summary>
+    /// Checks if the window title belongs to a transient utility window (clipboard, etc.)
+    /// that should not trigger prompt changes.
+    /// </summary>
+    private static bool IsTransientWindow(string windowTitle)
+    {
+        return TransientWindowTitles.Any(t =>
+            windowTitle.Equals(t, StringComparison.OrdinalIgnoreCase));
     }
 
     public override Task StopAsync(CancellationToken cancellationToken)

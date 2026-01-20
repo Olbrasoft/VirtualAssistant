@@ -29,6 +29,10 @@ public class PromptConfiguration : IEntityTypeConfiguration<Prompt>
             .IsRequired()
             .HasMaxLength(100);
 
+        builder.Property(p => p.ApplicationPattern)
+            .HasColumnName("application_pattern")
+            .HasMaxLength(100);
+
         builder.Property(p => p.PromptFileName)
             .HasColumnName("prompt_file_name")
             .IsRequired()
@@ -46,5 +50,6 @@ public class PromptConfiguration : IEntityTypeConfiguration<Prompt>
             .OnDelete(DeleteBehavior.Restrict);
 
         builder.HasIndex(p => p.AppIdPattern);
+        builder.HasIndex(p => p.ApplicationPattern);
     }
 }

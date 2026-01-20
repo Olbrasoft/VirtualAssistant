@@ -21,9 +21,15 @@ public class Prompt
     public string ApplicationName { get; set; } = string.Empty;
 
     /// <summary>
-    /// Pattern to match against DesktopContext.ActiveApplication (e.g., "code", "ferdium", "*" for default).
+    /// Pattern to match against window title (e.g., "Claude Code", "Ferdium", "OC |").
     /// </summary>
     public string AppIdPattern { get; set; } = string.Empty;
+
+    /// <summary>
+    /// Pattern to match against desktop application name (e.g., "antigravity.desktop", "code.desktop").
+    /// When set, matches if ActiveApplication contains this pattern. Takes precedence over AppIdPattern.
+    /// </summary>
+    public string? ApplicationPattern { get; set; }
 
     /// <summary>
     /// Filename of the prompt in Prompts/ directory (e.g., "OpenCodeCorrection.md").
