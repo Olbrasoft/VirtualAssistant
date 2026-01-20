@@ -1,3 +1,4 @@
+using Microsoft.EntityFrameworkCore;
 using Olbrasoft.VirtualAssistant.Data.Commands.NotificationCommands;
 using Olbrasoft.VirtualAssistant.Data.Enums;
 
@@ -5,7 +6,7 @@ namespace Olbrasoft.VirtualAssistant.Data.EntityFrameworkCore.CommandHandlers.No
 
 /// <summary>
 /// Handler for CreateNotificationCommand.
-/// Creates a new notification in the database.
+/// Creates a new notification in the database with optional LLM tracking.
 /// </summary>
 public class CreateNotificationCommandHandler(VirtualAssistantDbContext context)
     : VirtualAssistantDbCommandHandler<CreateNotificationCommand, Notification, int>(context)
@@ -17,12 +18,18 @@ public class CreateNotificationCommandHandler(VirtualAssistantDbContext context)
 
         var agentType = MapAgentNameToType(command.AgentName);
 
+        // Get or create LLM provider and model if provided
+        var (llmProviderId, llmModelId) = await GetOrCreateLlmInfoAsync(
+            command.ProviderName, command.ModelName, token);
+
         var notification = new Notification
         {
             Text = command.Text,
             AgentId = (int)agentType,
             CreatedAt = DateTime.UtcNow,
-            NotificationStatusId = (int)NotificationStatusEnum.NewlyReceived
+            NotificationStatusId = (int)NotificationStatusEnum.NewlyReceived,
+            LlmProviderId = llmProviderId,
+            LlmModelId = llmModelId
         };
 
         Context.Notifications.Add(notification);
@@ -44,6 +51,94 @@ public class CreateNotificationCommandHandler(VirtualAssistantDbContext context)
         await Context.SaveChangesAsync(token);
 
         return notification.Id;
+    }
+
+    /// <summary>
+    /// Gets or creates LLM provider and model, ensuring the mapping exists between them.
+    /// </summary>
+    private async Task<(int? ProviderId, int? ModelId)> GetOrCreateLlmInfoAsync(
+        string? providerName, string? modelName, CancellationToken token)
+    {
+        if (string.IsNullOrWhiteSpace(providerName) && string.IsNullOrWhiteSpace(modelName))
+        {
+            return (null, null);
+        }
+
+        int? providerId = null;
+        int? modelId = null;
+
+        // Get or create LLM provider
+        if (!string.IsNullOrWhiteSpace(providerName))
+        {
+            var provider = await Context.Providers
+                .FirstOrDefaultAsync(p => p.Name == providerName && p.Type == "llm", token);
+
+            if (provider == null)
+            {
+                provider = new Provider
+                {
+                    Name = providerName,
+                    Type = "llm",
+                    Enabled = true,
+                    Priority = 0,
+                    CreatedAt = DateTime.UtcNow
+                };
+                Context.Providers.Add(provider);
+                await Context.SaveChangesAsync(token);
+            }
+
+            providerId = provider.Id;
+        }
+
+        // Get or create LLM model
+        if (!string.IsNullOrWhiteSpace(modelName))
+        {
+            var model = await Context.LlmModels
+                .FirstOrDefaultAsync(m => m.ModelIdentifier == modelName, token);
+
+            if (model == null)
+            {
+                model = new LlmModel
+                {
+                    Name = modelName,
+                    ModelIdentifier = modelName,
+                    ProviderId = providerId ?? 0, // Use provider if available, otherwise 0 (will be invalid but we have mapping)
+                    IsActive = true,
+                    CreatedAt = DateTime.UtcNow
+                };
+
+                // If we have a provider, set it properly
+                if (providerId.HasValue)
+                {
+                    model.ProviderId = providerId.Value;
+                }
+
+                Context.LlmModels.Add(model);
+                await Context.SaveChangesAsync(token);
+            }
+
+            modelId = model.Id;
+
+            // Ensure mapping exists between model and provider
+            if (providerId.HasValue)
+            {
+                var mappingExists = await Context.ModelProviderMappings
+                    .AnyAsync(m => m.ModelId == modelId && m.ProviderId == providerId, token);
+
+                if (!mappingExists)
+                {
+                    Context.ModelProviderMappings.Add(new ModelProviderMapping
+                    {
+                        ModelId = modelId.Value,
+                        ProviderId = providerId.Value,
+                        CreatedAt = DateTime.UtcNow
+                    });
+                    await Context.SaveChangesAsync(token);
+                }
+            }
+        }
+
+        return (providerId, modelId);
     }
 
     private static AgentType MapAgentNameToType(string agentName)

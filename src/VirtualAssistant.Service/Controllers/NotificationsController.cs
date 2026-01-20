@@ -46,10 +46,12 @@ public class NotificationsController : ControllerBase
             return BadRequest(new ErrorResponse { Error = "Source (agent name) is required" });
         }
 
-        _logger.LogInformation("Notification from {Source}: {Text}", request.Source, request.Text);
+        _logger.LogInformation("Notification from {Source}: {Text} (LLM: {Provider}/{Model})",
+            request.Source, request.Text, request.ProviderName ?? "none", request.ModelName ?? "none");
 
-        // Save to database (with optional issue IDs)
-        var notificationId = await _notificationService.CreateNotificationAsync(request.Text, request.Source, request.IssueIds, ct);
+        // Save to database (with optional issue IDs and LLM tracking)
+        var notificationId = await _notificationService.CreateNotificationAsync(
+            request.Text, request.Source, request.IssueIds, request.ProviderName, request.ModelName, ct);
 
         // Queue for batched TTS processing (include notification ID for status tracking)
         var agentNotification = new AgentNotification
@@ -84,6 +86,18 @@ public class CreateNotificationRequest
     /// Optional GitHub issue IDs to associate with this notification.
     /// </summary>
     public List<int>? IssueIds { get; set; }
+
+    /// <summary>
+    /// Name of the LLM provider (e.g., "anthropic", "openai").
+    /// Will be created automatically if not exists.
+    /// </summary>
+    public string? ProviderName { get; set; }
+
+    /// <summary>
+    /// Identifier of the LLM model (e.g., "claude-opus-4-5-20251101").
+    /// Will be created automatically if not exists.
+    /// </summary>
+    public string? ModelName { get; set; }
 }
 
 /// <summary>

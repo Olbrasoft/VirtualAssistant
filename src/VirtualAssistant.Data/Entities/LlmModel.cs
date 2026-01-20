@@ -45,4 +45,14 @@ public class LlmModel
     /// Navigation property - all corrections made by this model.
     /// </summary>
     public ICollection<LlmCorrection> LlmCorrections { get; set; } = new List<LlmCorrection>();
+
+    /// <summary>
+    /// Navigation property - providers that offer this model (many-to-many).
+    /// </summary>
+    public ICollection<ModelProviderMapping> ProviderMappings { get; set; } = [];
+
+    /// <summary>
+    /// Navigation property - notifications that used this LLM model.
+    /// </summary>
+    public ICollection<Notification> Notifications { get; set; } = [];
 }

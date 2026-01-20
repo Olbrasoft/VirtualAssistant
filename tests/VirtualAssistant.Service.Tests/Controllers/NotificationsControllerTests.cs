@@ -40,6 +40,8 @@ public class NotificationsControllerTests
                 It.IsAny<string>(),
                 It.IsAny<string>(),
                 It.IsAny<IReadOnlyList<int>>(),
+                It.IsAny<string?>(),
+                It.IsAny<string?>(),
                 It.IsAny<CancellationToken>()))
             .ReturnsAsync(42);
 
@@ -51,7 +53,7 @@ public class NotificationsControllerTests
         Assert.NotNull(okResult.Value);
 
         _notificationServiceMock.Verify(
-            x => x.CreateNotificationAsync("Test notification", "claude-code", null, It.IsAny<CancellationToken>()),
+            x => x.CreateNotificationAsync("Test notification", "claude-code", null, null, null, It.IsAny<CancellationToken>()),
             Times.Once);
         _batchingServiceMock.Verify(
             x => x.QueueNotification(It.Is<AgentNotification>(n =>
@@ -76,6 +78,8 @@ public class NotificationsControllerTests
                 It.IsAny<string>(),
                 It.IsAny<string>(),
                 It.IsAny<IReadOnlyList<int>>(),
+                It.IsAny<string?>(),
+                It.IsAny<string?>(),
                 It.IsAny<CancellationToken>()))
             .ReturnsAsync(1);
 
@@ -90,6 +94,46 @@ public class NotificationsControllerTests
                 "Working on issues",
                 "claude-code",
                 It.Is<IReadOnlyList<int>>(ids => ids.Count == 2 && ids.Contains(123) && ids.Contains(456)),
+                null,
+                null,
+                It.IsAny<CancellationToken>()),
+            Times.Once);
+    }
+
+    [Fact]
+    public async Task CreateNotification_WithLlmInfo_PassesLlmInfoToService()
+    {
+        // Arrange
+        var request = new CreateNotificationRequest
+        {
+            Text = "Test notification",
+            Source = "claude-code",
+            ProviderName = "anthropic",
+            ModelName = "claude-opus-4-5"
+        };
+        _notificationServiceMock
+            .Setup(x => x.CreateNotificationAsync(
+                It.IsAny<string>(),
+                It.IsAny<string>(),
+                It.IsAny<IReadOnlyList<int>>(),
+                It.IsAny<string?>(),
+                It.IsAny<string?>(),
+                It.IsAny<CancellationToken>()))
+            .ReturnsAsync(1);
+
+        // Act
+        var result = await _controller.CreateNotification(request, CancellationToken.None);
+
+        // Assert
+        Assert.IsType<OkObjectResult>(result);
+
+        _notificationServiceMock.Verify(
+            x => x.CreateNotificationAsync(
+                "Test notification",
+                "claude-code",
+                null,
+                "anthropic",
+                "claude-opus-4-5",
                 It.IsAny<CancellationToken>()),
             Times.Once);
     }
@@ -113,7 +157,13 @@ public class NotificationsControllerTests
         Assert.Equal("Text is required", error.Error);
 
         _notificationServiceMock.Verify(
-            x => x.CreateNotificationAsync(It.IsAny<string>(), It.IsAny<string>(), It.IsAny<IReadOnlyList<int>>(), It.IsAny<CancellationToken>()),
+            x => x.CreateNotificationAsync(
+                It.IsAny<string>(),
+                It.IsAny<string>(),
+                It.IsAny<IReadOnlyList<int>>(),
+                It.IsAny<string?>(),
+                It.IsAny<string?>(),
+                It.IsAny<CancellationToken>()),
             Times.Never);
     }
 

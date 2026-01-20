@@ -14,4 +14,14 @@ public class Provider
 
     // Navigation
     public ICollection<NotificationTtsAttempt> TtsAttempts { get; set; } = new List<NotificationTtsAttempt>();
+
+    /// <summary>
+    /// Navigation property - models available through this provider (many-to-many).
+    /// </summary>
+    public ICollection<ModelProviderMapping> ModelMappings { get; set; } = [];
+
+    /// <summary>
+    /// Navigation property - notifications that used this LLM provider.
+    /// </summary>
+    public ICollection<Notification> LlmNotifications { get; set; } = [];
 }

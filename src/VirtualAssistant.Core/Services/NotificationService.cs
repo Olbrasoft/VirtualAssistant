@@ -28,21 +28,27 @@ public class NotificationService : INotificationService
     }
 
     /// <inheritdoc />
-    public async Task<int> CreateNotificationAsync(string text, string agentName, IReadOnlyList<int>? issueIds = null, CancellationToken ct = default)
+    public async Task<int> CreateNotificationAsync(
+        string text,
+        string agentName,
+        IReadOnlyList<int>? issueIds = null,
+        string? providerName = null,
+        string? modelName = null,
+        CancellationToken ct = default)
     {
         // Validation delegated to command handler (DRY principle)
-        var command = new CreateNotificationCommand(text, agentName, issueIds);
+        var command = new CreateNotificationCommand(text, agentName, issueIds, providerName, modelName);
         var notificationId = await _commandExecutor.ExecuteAsync(command, ct);
 
         if (issueIds is { Count: > 0 })
         {
-            _logger.LogInformation("Created notification {Id} from agent {AgentName} with {IssueCount} linked issues",
-                notificationId, agentName, issueIds.Count);
+            _logger.LogInformation("Created notification {Id} from agent {AgentName} with {IssueCount} linked issues (LLM: {Provider}/{Model})",
+                notificationId, agentName, issueIds.Count, providerName ?? "none", modelName ?? "none");
         }
         else
         {
-            _logger.LogInformation("Created notification {Id} from agent {AgentName}",
-                notificationId, agentName);
+            _logger.LogInformation("Created notification {Id} from agent {AgentName} (LLM: {Provider}/{Model})",
+                notificationId, agentName, providerName ?? "none", modelName ?? "none");
         }
 
         return notificationId;

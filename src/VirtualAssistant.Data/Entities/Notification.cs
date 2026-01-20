@@ -48,4 +48,25 @@ public class Notification : BaseEnity
     public string? FinalTtsStatus { get; set; } // "success", "error", "timeout", "all_failed"
     public DateTime? TtsCompletedAt { get; set; }
     public ICollection<NotificationTtsAttempt> TtsAttempts { get; set; } = new List<NotificationTtsAttempt>();
+
+    // LLM tracking (which model/provider the agent was using)
+    /// <summary>
+    /// Foreign key to LLM provider used by the agent (nullable for old records).
+    /// </summary>
+    public int? LlmProviderId { get; set; }
+
+    /// <summary>
+    /// Navigation property to the LLM provider.
+    /// </summary>
+    public Provider? LlmProvider { get; set; }
+
+    /// <summary>
+    /// Foreign key to LLM model used by the agent (nullable for old records).
+    /// </summary>
+    public int? LlmModelId { get; set; }
+
+    /// <summary>
+    /// Navigation property to the LLM model.
+    /// </summary>
+    public LlmModel? LlmModel { get; set; }
 }

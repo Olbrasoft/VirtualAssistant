@@ -14,9 +14,17 @@ public interface INotificationService
     /// <param name="text">Notification text content</param>
     /// <param name="agentName">Agent name (e.g., "opencode", "claude") - will be looked up in database</param>
     /// <param name="issueIds">Optional GitHub issue IDs to associate with this notification</param>
+    /// <param name="providerName">Optional LLM provider name (e.g., "anthropic"). Will be auto-created if not exists.</param>
+    /// <param name="modelName">Optional LLM model identifier (e.g., "claude-opus-4-5-20251101"). Will be auto-created if not exists.</param>
     /// <param name="ct">Cancellation token</param>
     /// <returns>The ID of the created notification</returns>
-    Task<int> CreateNotificationAsync(string text, string agentName, IReadOnlyList<int>? issueIds = null, CancellationToken ct = default);
+    Task<int> CreateNotificationAsync(
+        string text,
+        string agentName,
+        IReadOnlyList<int>? issueIds = null,
+        string? providerName = null,
+        string? modelName = null,
+        CancellationToken ct = default);
 
     /// <summary>
     /// Gets all notifications with NewlyReceived status.
