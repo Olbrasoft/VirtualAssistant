@@ -90,12 +90,16 @@ public class CreateNotificationRequest
     /// <summary>
     /// Name of the LLM provider (e.g., "anthropic", "openai").
     /// Will be created automatically if not exists.
+    /// Can be used independently or together with <see cref="ModelName"/>.
+    /// When both are provided, a mapping between them is created.
     /// </summary>
     public string? ProviderName { get; set; }
 
     /// <summary>
-    /// Identifier of the LLM model (e.g., "claude-opus-4-5-20251101").
+    /// Identifier of the LLM model (e.g., "claude-opus-4-5-20251101", "gpt-4.1-mini").
     /// Will be created automatically if not exists.
+    /// Can be used independently or together with <see cref="ProviderName"/>.
+    /// When both are provided, a mapping between them is created.
     /// </summary>
     public string? ModelName { get; set; }
 }

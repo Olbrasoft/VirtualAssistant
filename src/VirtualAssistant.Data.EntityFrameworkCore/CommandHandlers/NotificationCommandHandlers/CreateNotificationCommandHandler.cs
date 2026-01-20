@@ -55,7 +55,14 @@ public class CreateNotificationCommandHandler(VirtualAssistantDbContext context)
 
     /// <summary>
     /// Gets or creates LLM provider and model, ensuring the mapping exists between them.
+    /// Uses transaction to ensure atomicity and handles race conditions gracefully.
     /// </summary>
+    /// <remarks>
+    /// Provider and model can be specified independently:
+    /// - Only providerName: Creates/finds provider, notification linked to provider only
+    /// - Only modelName: Creates/finds model, notification linked to model only (no provider)
+    /// - Both: Creates/finds both and ensures mapping exists between them
+    /// </remarks>
     private async Task<(int? ProviderId, int? ModelId)> GetOrCreateLlmInfoAsync(
         string? providerName, string? modelName, CancellationToken token)
     {
@@ -64,75 +71,142 @@ public class CreateNotificationCommandHandler(VirtualAssistantDbContext context)
             return (null, null);
         }
 
-        int? providerId = null;
-        int? modelId = null;
-
-        // Get or create LLM provider
-        if (!string.IsNullOrWhiteSpace(providerName))
+        await using var transaction = await Context.Database.BeginTransactionAsync(token);
+        try
         {
-            var provider = await Context.Providers
-                .FirstOrDefaultAsync(p => p.Name == providerName && p.Type == "llm", token);
+            int? providerId = null;
+            int? modelId = null;
 
-            if (provider == null)
+            // Get or create LLM provider
+            if (!string.IsNullOrWhiteSpace(providerName))
             {
-                provider = new Provider
-                {
-                    Name = providerName,
-                    Type = "llm",
-                    Enabled = true,
-                    Priority = 0,
-                    CreatedAt = DateTime.UtcNow
-                };
-                Context.Providers.Add(provider);
-                await Context.SaveChangesAsync(token);
+                providerId = await GetOrCreateProviderAsync(providerName, token);
             }
 
-            providerId = provider.Id;
-        }
-
-        // Get or create LLM model
-        if (!string.IsNullOrWhiteSpace(modelName))
-        {
-            var model = await Context.LlmModels
-                .FirstOrDefaultAsync(m => m.ModelIdentifier == modelName, token);
-
-            if (model == null)
+            // Get or create LLM model
+            if (!string.IsNullOrWhiteSpace(modelName))
             {
-                // Create new model (provider relationship via ModelProviderMapping)
-                model = new LlmModel
+                modelId = await GetOrCreateModelAsync(modelName, token);
+
+                // Ensure mapping exists between model and provider
+                if (providerId.HasValue && modelId.HasValue)
                 {
-                    Name = modelName,
-                    ModelIdentifier = modelName,
-                    IsActive = true,
-                    CreatedAt = DateTime.UtcNow
-                };
-
-                Context.LlmModels.Add(model);
-                await Context.SaveChangesAsync(token);
-            }
-
-            modelId = model.Id;
-
-            // Ensure mapping exists between model and provider
-            if (providerId.HasValue && modelId.HasValue)
-            {
-                var mappingExists = await Context.ModelProviderMappings
-                    .AnyAsync(m => m.ModelId == modelId && m.ProviderId == providerId, token);
-
-                if (!mappingExists)
-                {
-                    Context.ModelProviderMappings.Add(new ModelProviderMapping
-                    {
-                        ModelId = modelId.Value,
-                        ProviderId = providerId.Value,
-                        CreatedAt = DateTime.UtcNow
-                    });
-                    await Context.SaveChangesAsync(token);
+                    await EnsureMappingExistsAsync(modelId.Value, providerId.Value, token);
                 }
             }
+
+            await transaction.CommitAsync(token);
+            return (providerId, modelId);
+        }
+        catch
+        {
+            await transaction.RollbackAsync(token);
+            throw;
+        }
+    }
+
+    private async Task<int> GetOrCreateProviderAsync(string providerName, CancellationToken token)
+    {
+        var provider = await Context.Providers
+            .FirstOrDefaultAsync(p => p.Name == providerName && p.Type == "llm", token);
+
+        if (provider != null)
+        {
+            return provider.Id;
         }
 
-        return (providerId, modelId);
+        // Try to create, handle race condition if another request created it
+        provider = new Provider
+        {
+            Name = providerName,
+            Type = "llm",
+            Enabled = true,
+            Priority = 0,
+            CreatedAt = DateTime.UtcNow
+        };
+
+        Context.Providers.Add(provider);
+
+        try
+        {
+            await Context.SaveChangesAsync(token);
+            return provider.Id;
+        }
+        catch (DbUpdateException)
+        {
+            // Race condition: another request created the provider, fetch it
+            Context.Entry(provider).State = EntityState.Detached;
+            var existingProvider = await Context.Providers
+                .FirstAsync(p => p.Name == providerName && p.Type == "llm", token);
+            return existingProvider.Id;
+        }
+    }
+
+    private async Task<int> GetOrCreateModelAsync(string modelName, CancellationToken token)
+    {
+        var model = await Context.LlmModels
+            .FirstOrDefaultAsync(m => m.ModelIdentifier == modelName, token);
+
+        if (model != null)
+        {
+            return model.Id;
+        }
+
+        // Try to create, handle race condition if another request created it
+        model = new LlmModel
+        {
+            Name = modelName,
+            ModelIdentifier = modelName,
+            IsActive = true,
+            CreatedAt = DateTime.UtcNow
+        };
+
+        Context.LlmModels.Add(model);
+
+        try
+        {
+            await Context.SaveChangesAsync(token);
+            return model.Id;
+        }
+        catch (DbUpdateException)
+        {
+            // Race condition: another request created the model, fetch it
+            Context.Entry(model).State = EntityState.Detached;
+            var existingModel = await Context.LlmModels
+                .FirstAsync(m => m.ModelIdentifier == modelName, token);
+            return existingModel.Id;
+        }
+    }
+
+    private async Task EnsureMappingExistsAsync(int modelId, int providerId, CancellationToken token)
+    {
+        var mappingExists = await Context.ModelProviderMappings
+            .AnyAsync(m => m.ModelId == modelId && m.ProviderId == providerId, token);
+
+        if (mappingExists)
+        {
+            return;
+        }
+
+        // Try to create, handle race condition if another request created it
+        var mapping = new ModelProviderMapping
+        {
+            ModelId = modelId,
+            ProviderId = providerId,
+            CreatedAt = DateTime.UtcNow
+        };
+
+        Context.ModelProviderMappings.Add(mapping);
+
+        try
+        {
+            await Context.SaveChangesAsync(token);
+        }
+        catch (DbUpdateException)
+        {
+            // Race condition: another request created the mapping, ignore
+            Context.Entry(mapping).State = EntityState.Detached;
+        }
     }
 
     private static AgentType MapAgentNameToType(string agentName)
