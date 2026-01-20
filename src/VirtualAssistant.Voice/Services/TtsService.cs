@@ -103,6 +103,12 @@ public sealed class TtsService : IDisposable
 
             return await SpeakDirectAsync(text, source, skipCache, cancellationToken);
         }
+        catch (OperationCanceledException)
+        {
+            // Re-throw cancellation to let caller (VirtualAssistantSpeaker) handle it
+            // and properly set TtsResult.Cancelled = true
+            throw;
+        }
         catch (Exception ex)
         {
             _logger.LogError(ex, "TTS error for text: {Text}", text);

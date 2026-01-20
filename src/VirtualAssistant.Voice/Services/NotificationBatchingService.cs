@@ -128,7 +128,7 @@ public class NotificationBatchingService : INotificationBatchingService, IDispos
             // Record TTS tracking if we have a notification ID
             if (notification.NotificationId.HasValue)
             {
-                var status = ttsResult.Cancelled ? "cancelled"
+                var status = ttsResult.Cancelled ? "cancelled_by_dictation"
                     : ttsResult.Skipped ? "skipped"
                     : ttsResult.Success ? "success"
                     : "error";
