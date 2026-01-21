@@ -122,6 +122,7 @@ public static class VoiceServicesExtensions
     {
         services.AddSingleton<IClipboardManager, WlClipboardManager>();
         services.AddSingleton<ITerminalDetector, WaylandTerminalDetector>();
+        services.AddSingleton<ICliAppDetector, TerminalCliAppDetector>();
         services.AddSingleton<IKeyboardSimulationService, XDoToolKeyboardService>();
 
         services.AddSingleton<IKeyboardLedReader, LinuxKeyboardLedReader>();

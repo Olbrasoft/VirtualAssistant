@@ -3,6 +3,7 @@ using Olbrasoft.Data.Cqrs;
 using Olbrasoft.VirtualAssistant.Service.Hubs;
 using Olbrasoft.VirtualAssistant.Core.Models;
 using Olbrasoft.VirtualAssistant.Core.Services;
+using Olbrasoft.VirtualAssistant.Core.WindowManagement;
 using Olbrasoft.VirtualAssistant.Data.Queries.PromptQueries;
 
 namespace Olbrasoft.VirtualAssistant.Service.Workers;
@@ -17,6 +18,7 @@ public class DesktopMonitorBroadcastWorker : BackgroundService
     private readonly IDesktopContextService _desktopContextService;
     private readonly IHubContext<DesktopMonitorHub> _hubContext;
     private readonly IQueryProcessor _queryProcessor;
+    private readonly ICliAppDetector _cliAppDetector;
     private readonly object _subscriptionLock = new();
     private readonly SemaphoreSlim _dbLock = new(1, 1);  // Serialize DB operations
     private IDisposable? _subscription;
@@ -28,12 +30,14 @@ public class DesktopMonitorBroadcastWorker : BackgroundService
         ILogger<DesktopMonitorBroadcastWorker> logger,
         IDesktopContextService desktopContextService,
         IHubContext<DesktopMonitorHub> hubContext,
-        IQueryProcessor queryProcessor)
+        IQueryProcessor queryProcessor,
+        ICliAppDetector cliAppDetector)
     {
         _logger = logger;
         _desktopContextService = desktopContextService;
         _hubContext = hubContext;
         _queryProcessor = queryProcessor;
+        _cliAppDetector = cliAppDetector;
     }
 
     protected override Task ExecuteAsync(CancellationToken stoppingToken)
@@ -121,6 +125,23 @@ public class DesktopMonitorBroadcastWorker : BackgroundService
         await _dbLock.WaitAsync();
         try
         {
+            // Priority 0: Check for CLI apps running in terminals (e.g., Claude Code, OpenCode)
+            // This handles cases where CLI apps change the terminal window title
+            var cliApp = await _cliAppDetector.DetectCliAppAsync(CancellationToken.None);
+            if (cliApp != null)
+            {
+                _logger.LogDebug(
+                    "CLI app detected in terminal: {AppName} → {Prompt}",
+                    cliApp.AppName, cliApp.PromptFileName);
+
+                await _hubContext.Clients.All.SendAsync(
+                    "PromptChanged",
+                    cliApp.AppName,
+                    context.ActiveWindowTitle,
+                    cliApp.PromptFileName);
+                return;
+            }
+
             // Detect prompt by matching:
             // 1) ApplicationPattern against ActiveApplication (e.g., "antigravity.desktop")
             // 2) AppIdPattern against ActiveWindowTitle (e.g., "Claude Code", "OC |")

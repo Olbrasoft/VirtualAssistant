@@ -8,6 +8,7 @@ using Olbrasoft.VirtualAssistant.Service.Workers;
 using System.Reactive.Subjects;
 using Olbrasoft.VirtualAssistant.Core.Models;
 using Olbrasoft.VirtualAssistant.Core.Services;
+using Olbrasoft.VirtualAssistant.Core.WindowManagement;
 
 namespace Olbrasoft.VirtualAssistant.Service.Tests.Workers;
 
@@ -23,6 +24,7 @@ public class DesktopMonitorBroadcastWorkerTests : IDisposable
     private readonly Mock<IHubClients> _hubClientsMock;
     private readonly Mock<IClientProxy> _clientProxyMock;
     private readonly Mock<IQueryProcessor> _queryProcessorMock;
+    private readonly Mock<ICliAppDetector> _cliAppDetectorMock;
     private readonly Subject<DesktopContextChange> _contextChangesSubject;
     private readonly DesktopMonitorBroadcastWorker _sut;
 
@@ -34,6 +36,7 @@ public class DesktopMonitorBroadcastWorkerTests : IDisposable
         _hubClientsMock = new Mock<IHubClients>();
         _clientProxyMock = new Mock<IClientProxy>();
         _queryProcessorMock = new Mock<IQueryProcessor>();
+        _cliAppDetectorMock = new Mock<ICliAppDetector>();
 
         // Setup Subject for observable stream
         _contextChangesSubject = new Subject<DesktopContextChange>();
@@ -48,11 +51,16 @@ public class DesktopMonitorBroadcastWorkerTests : IDisposable
         _hubClientsMock.Setup(x => x.All)
             .Returns(_clientProxyMock.Object);
 
+        // By default, no CLI app detected
+        _cliAppDetectorMock.Setup(x => x.DetectCliAppAsync(It.IsAny<CancellationToken>()))
+            .ReturnsAsync((CliAppDetectionResult?)null);
+
         _sut = new DesktopMonitorBroadcastWorker(
             _loggerMock.Object,
             _desktopContextServiceMock.Object,
             _hubContextMock.Object,
-            _queryProcessorMock.Object
+            _queryProcessorMock.Object,
+            _cliAppDetectorMock.Object
         );
     }
 
