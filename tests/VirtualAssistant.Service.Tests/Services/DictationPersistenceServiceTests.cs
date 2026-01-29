@@ -63,6 +63,7 @@ public class DictationPersistenceServiceTests
             audioData,
             originalText,
             correctionResult: null,  // No LLM correction
+            sttProviderId: 13,
             CancellationToken.None);
 
         // Assert
@@ -113,6 +114,7 @@ public class DictationPersistenceServiceTests
             audioData,
             originalText,
             correctionResult,
+            sttProviderId: 13,
             CancellationToken.None);
 
         // Assert
@@ -152,6 +154,7 @@ public class DictationPersistenceServiceTests
             audioData,
             originalText,
             correctionResult,
+            sttProviderId: 13,
             CancellationToken.None);
 
         // Assert
@@ -185,6 +188,7 @@ public class DictationPersistenceServiceTests
             audioData,
             originalText,
             correctionResult,
+            sttProviderId: 13,
             CancellationToken.None);
 
         // Assert - returns transcription ID but LLM correction is not saved (graceful degradation)
@@ -217,6 +221,7 @@ public class DictationPersistenceServiceTests
             audioData,
             text,
             correctionResult: null,
+            sttProviderId: 13,
             CancellationToken.None);
 
         // Assert
@@ -249,6 +254,7 @@ public class DictationPersistenceServiceTests
             audioData,
             text,
             correctionResult: null,
+            sttProviderId: 13,
             CancellationToken.None);
 
         // Assert
@@ -277,6 +283,7 @@ public class DictationPersistenceServiceTests
             audioData,
             originalText,
             correctionResult,
+            sttProviderId: 13,
             CancellationToken.None);
 
         // Assert
@@ -297,7 +304,7 @@ public class DictationPersistenceServiceTests
 
         // Act & Assert
         var exception = await Assert.ThrowsAsync<ArgumentException>(
-            () => _service.SaveTranscriptionAsync(audioData!, text, null, CancellationToken.None));
+            () => _service.SaveTranscriptionAsync(audioData!, text, null, 13, CancellationToken.None));
 
         Assert.Equal("audioData", exception.ParamName);
         Assert.Contains("cannot be null or empty", exception.Message);
@@ -312,7 +319,7 @@ public class DictationPersistenceServiceTests
 
         // Act & Assert
         var exception = await Assert.ThrowsAsync<ArgumentException>(
-            () => _service.SaveTranscriptionAsync(audioData, text, null, CancellationToken.None));
+            () => _service.SaveTranscriptionAsync(audioData, text, null, 13, CancellationToken.None));
 
         Assert.Equal("audioData", exception.ParamName);
         Assert.Contains("cannot be null or empty", exception.Message);
@@ -327,7 +334,7 @@ public class DictationPersistenceServiceTests
 
         // Act & Assert
         var exception = await Assert.ThrowsAsync<ArgumentException>(
-            () => _service.SaveTranscriptionAsync(audioData, originalText!, null, CancellationToken.None));
+            () => _service.SaveTranscriptionAsync(audioData, originalText!, null, 13, CancellationToken.None));
 
         Assert.Equal("originalText", exception.ParamName);
         Assert.Contains("cannot be null or empty", exception.Message);
@@ -342,7 +349,7 @@ public class DictationPersistenceServiceTests
 
         // Act & Assert
         var exception = await Assert.ThrowsAsync<ArgumentException>(
-            () => _service.SaveTranscriptionAsync(audioData, originalText, null, CancellationToken.None));
+            () => _service.SaveTranscriptionAsync(audioData, originalText, null, 13, CancellationToken.None));
 
         Assert.Equal("originalText", exception.ParamName);
         Assert.Contains("cannot be null or empty", exception.Message);
@@ -357,7 +364,7 @@ public class DictationPersistenceServiceTests
 
         // Act & Assert
         var exception = await Assert.ThrowsAsync<ArgumentException>(
-            () => _service.SaveTranscriptionAsync(audioData, originalText, null, CancellationToken.None));
+            () => _service.SaveTranscriptionAsync(audioData, originalText, null, 13, CancellationToken.None));
 
         Assert.Equal("originalText", exception.ParamName);
         Assert.Contains("cannot be null or empty", exception.Message);
@@ -376,7 +383,7 @@ public class DictationPersistenceServiceTests
             .ReturnsAsync(new VoiceTranscription { Id = 1, TranscribedText = text, AudioDurationMs = expectedDurationMs });
 
         // Act
-        var result = await _service.SaveTranscriptionAsync(audioData, text, null, CancellationToken.None);
+        var result = await _service.SaveTranscriptionAsync(audioData, text, null, 13, CancellationToken.None);
 
         // Assert
         Assert.Equal(1, result);

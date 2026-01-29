@@ -69,7 +69,8 @@ public sealed class FallbackSpeechTranscriber : ISpeechTranscriber
         {
             LastUsedProviderId = _factory.GetProviderId(_settings.PrimaryProvider);
             _logger.LogDebug("Fallback disabled, using primary provider: {Provider}", _settings.PrimaryProvider);
-            return await _primary.TranscribeAsync(audioData, cancellationToken);
+            var primaryResult = await _primary.TranscribeAsync(audioData, cancellationToken);
+            return WithProviderId(primaryResult, LastUsedProviderId);
         }
 
         try
@@ -80,7 +81,7 @@ public sealed class FallbackSpeechTranscriber : ISpeechTranscriber
             {
                 LastUsedProviderId = _factory.GetProviderId(_settings.PrimaryProvider);
                 _logger.LogDebug("Primary provider {Provider} succeeded", _settings.PrimaryProvider);
-                return result;
+                return WithProviderId(result, LastUsedProviderId);
             }
 
             // Short-circuit non-provider failures (e.g., input validation, cancellation)
@@ -105,7 +106,7 @@ public sealed class FallbackSpeechTranscriber : ISpeechTranscriber
                 _logger.LogWarning(
                     "Primary provider {Provider} returned non-transient error: {Error}, not falling back",
                     _settings.PrimaryProvider, result.ErrorMessage);
-                return result;
+                return WithProviderId(result, LastUsedProviderId);
             }
 
             _logger.LogWarning(
@@ -123,8 +124,28 @@ public sealed class FallbackSpeechTranscriber : ISpeechTranscriber
         // Use fallback provider
         LastUsedProviderId = _factory.GetProviderId(_settings.FallbackProvider);
         _logger.LogInformation("Using fallback provider: {Provider}", _settings.FallbackProvider);
-        return await _fallback.TranscribeAsync(audioData, cancellationToken);
+        var fallbackResult = await _fallback.TranscribeAsync(audioData, cancellationToken);
+        return WithProviderId(fallbackResult, LastUsedProviderId);
     }
+
+    /// <summary>
+    /// Creates a new TranscriptionResult with the SttProviderId set.
+    /// </summary>
+    private static TranscriptionResult WithProviderId(TranscriptionResult result, int providerId) =>
+        result.Success
+            ? new TranscriptionResult(result.Text, result.Confidence)
+            {
+                OriginalText = result.OriginalText,
+                FilteredText = result.FilteredText,
+                LlmDurationMs = result.LlmDurationMs,
+                PromptId = result.PromptId,
+                ModelId = result.ModelId,
+                SttProviderId = providerId
+            }
+            : new TranscriptionResult(result.ErrorMessage ?? "Unknown error")
+            {
+                SttProviderId = providerId
+            };
 
     /// <summary>
     /// Transcribes audio stream with automatic fallback on failure.

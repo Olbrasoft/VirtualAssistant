@@ -303,10 +303,15 @@ public class DictationWorker : BackgroundService, IDictationControl
             );
         }
 
+        // Get the STT provider ID from the transcription result (set by the active speech transcriber)
+        // If not set, fall back to 0 (unknown) instead of assuming a specific provider.
+        var sttProviderId = result.SttProviderId.GetValueOrDefault();
+
         await persistenceService.SaveTranscriptionAsync(
             audioData,
             originalText,
             correctionResult,
+            sttProviderId,
             _transcriptionCts!.Token);
     }
 

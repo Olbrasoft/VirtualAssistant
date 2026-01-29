@@ -19,9 +19,6 @@ public class DictationPersistenceService : IDictationPersistenceService
     private readonly ICommandExecutor _commandExecutor;
     private readonly AudioRecordingOptions _options;
 
-    // TODO: Issue #821 - Replace with SttProviderFactory.GetProviderId() when implemented
-    private const int WhisperLocalProviderId = 13;
-
     public DictationPersistenceService(
         ILogger<DictationPersistenceService> logger,
         ICommandExecutor commandExecutor,
@@ -38,6 +35,7 @@ public class DictationPersistenceService : IDictationPersistenceService
         byte[] audioData,
         string originalText,
         LlmCorrectionResult? correctionResult,
+        int sttProviderId,
         CancellationToken cancellationToken = default)
     {
         // Input validation
@@ -69,11 +67,10 @@ public class DictationPersistenceService : IDictationPersistenceService
         VoiceTranscription transcription;
         try
         {
-            // TODO: Issue #821 - Get ProviderId from SttProviderFactory when implemented
             var command = new SaveVoiceTranscriptionCommand(
                 Text: originalText,
                 DurationMs: audioDurationMs,
-                ProviderId: WhisperLocalProviderId
+                ProviderId: sttProviderId
             );
             transcription = await _commandExecutor.ExecuteAsync(command, cancellationToken);
 
