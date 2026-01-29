@@ -3,6 +3,7 @@ using Olbrasoft.VirtualAssistant.Core.Audio;
 using Olbrasoft.VirtualAssistant.Core.Configuration;
 using Olbrasoft.VirtualAssistant.Core.Keyboard;
 using Olbrasoft.VirtualAssistant.Core.Services;
+using Olbrasoft.VirtualAssistant.Core.Speech;
 using Olbrasoft.VirtualAssistant.Service.Infrastructure;
 using Olbrasoft.VirtualAssistant.Service.Workers;
 using Olbrasoft.VirtualAssistant.Voice.Filters;
@@ -48,22 +49,56 @@ public static class WorkerServicesExtensions
                 audioCaptureService,
                 audioRecordingOptions);
 
-            // Create dedicated TranscriptionService for Dictation with large-v3-turbo model
+            // Create dedicated TranscriptionService for Dictation with Google STT primary + Whisper fallback
             var dictationOptionsService = sp.GetRequiredService<IOptions<DictationOptions>>();
             var dictationOptions = dictationOptionsService.Value;
+            var speechSettings = sp.GetRequiredService<IOptions<SpeechProviderSettings>>().Value;
+            var factory = sp.GetRequiredService<ISpeechTranscriberFactory>();
 
-            // Create dedicated WhisperSpeechTranscriber for DictationWorker
-            // Uses DictationOptions.WhisperModelPath (large-v3-turbo) instead of ContinuousListener model
+            // Get Google STT from keyed services (primary provider)
+            var googleTranscriber = sp.GetKeyedService<ISpeechTranscriber>("google");
+
+            // Create dedicated WhisperSpeechTranscriber for dictation fallback
+            // Uses DictationOptions.WhisperModelPath (large-v3-turbo) for higher accuracy
             var continuousOptions = new ContinuousListenerOptions
             {
                 WhisperModelPath = dictationOptions.WhisperModelPath,
                 WhisperLanguage = dictationOptions.WhisperLanguage,
                 UseGpu = true // Enable GPU acceleration for dictation
             };
-            var dictationLogger = sp.GetRequiredService<ILogger<WhisperSpeechTranscriber>>();
-            var dictationTranscriber = new WhisperSpeechTranscriber(
-                dictationLogger,
+            var whisperLogger = sp.GetRequiredService<ILogger<WhisperSpeechTranscriber>>();
+            var dictationWhisperTranscriber = new WhisperSpeechTranscriber(
+                whisperLogger,
                 Microsoft.Extensions.Options.Options.Create(continuousOptions));
+
+            // Create transcriber:
+            // - If Google is available and fallback is enabled: FallbackSpeechTranscriber (Google primary + Whisper fallback)
+            // - If Google is available and fallback is disabled: use Google directly
+            // - If Google is not available: use Whisper directly
+            ISpeechTranscriber dictationTranscriber;
+            if (googleTranscriber != null)
+            {
+                if (speechSettings.EnableFallback)
+                {
+                    var fallbackLogger = sp.GetRequiredService<ILogger<FallbackSpeechTranscriber>>();
+                    dictationTranscriber = new FallbackSpeechTranscriber(
+                        googleTranscriber,
+                        dictationWhisperTranscriber,
+                        factory,
+                        fallbackLogger,
+                        speechSettings);
+                }
+                else
+                {
+                    // Fallback disabled and Google available - use Google directly
+                    dictationTranscriber = googleTranscriber;
+                }
+            }
+            else
+            {
+                // Google not available - use Whisper directly
+                dictationTranscriber = dictationWhisperTranscriber;
+            }
 
             var transcriptionLogger = sp.GetRequiredService<ILogger<TranscriptionService>>();
             var textFilter = sp.GetRequiredService<ITextFilter>();
