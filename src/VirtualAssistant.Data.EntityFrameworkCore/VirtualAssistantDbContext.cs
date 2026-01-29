@@ -10,11 +10,6 @@ public class VirtualAssistantDbContext : DbContext
     }
 
     /// <summary>
-    /// Gets or sets the VoiceTranscriptions DbSet.
-    /// </summary>
-    public DbSet<VoiceTranscription> VoiceTranscriptions => Set<VoiceTranscription>();
-
-    /// <summary>
     /// Gets or sets the SystemStartups DbSet.
     /// </summary>
     public DbSet<SystemStartup> SystemStartups => Set<SystemStartup>();
