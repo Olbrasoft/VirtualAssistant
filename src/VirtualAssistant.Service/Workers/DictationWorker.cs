@@ -303,9 +303,9 @@ public class DictationWorker : BackgroundService, IDictationControl
             );
         }
 
-        // Get the STT provider ID from the transcription result (set by FallbackSpeechTranscriber)
-        // Falls back to Whisper (13) if not set (e.g., direct Whisper transcription without fallback wrapper)
-        var sttProviderId = result.SttProviderId ?? 13;
+        // Get the STT provider ID from the transcription result (set by the active speech transcriber)
+        // If not set, fall back to 0 (unknown) instead of assuming a specific provider.
+        var sttProviderId = result.SttProviderId.GetValueOrDefault();
 
         await persistenceService.SaveTranscriptionAsync(
             audioData,

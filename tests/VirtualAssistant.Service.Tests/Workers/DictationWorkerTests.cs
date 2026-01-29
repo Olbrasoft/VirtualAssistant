@@ -493,9 +493,11 @@ public class DictationWorkerTests : IDisposable
         await Task.Delay(50);
 
         var audioData = new byte[] { 1, 2, 3, 4 };
+        const int expectedProviderId = 14; // Google STT
         var transcriptionResult = new TranscriptionResult("Hello world", 0.95f)
         {
-            OriginalText = "Hello world"
+            OriginalText = "Hello world",
+            SttProviderId = expectedProviderId
         };
 
         _stateMachineMock.SetupGet(x => x.CurrentState).Returns(DictationState.Recording);
@@ -506,7 +508,7 @@ public class DictationWorkerTests : IDisposable
         _keyboardSimulationMock.Setup(x => x.TypeIntoActiveWindowAsync("Hello world", It.IsAny<CancellationToken>()))
             .ReturnsAsync(true);
         _persistenceServiceMock.Setup(x => x.SaveTranscriptionAsync(
-                audioData, "Hello world", null, It.IsAny<int>(), It.IsAny<CancellationToken>()))
+                audioData, "Hello world", null, expectedProviderId, It.IsAny<CancellationToken>()))
             .ReturnsAsync(1);
 
         _capturedKeyReleasedHandler?.Invoke(this, new KeyEventArgs { Key = KeyCode.ScrollLock, IsPressed = false });
@@ -514,7 +516,7 @@ public class DictationWorkerTests : IDisposable
 
         _keyboardSimulationMock.Verify(x => x.TypeIntoActiveWindowAsync("Hello world", It.IsAny<CancellationToken>()), Times.Once);
         _persistenceServiceMock.Verify(x => x.SaveTranscriptionAsync(
-            audioData, "Hello world", null, It.IsAny<int>(), It.IsAny<CancellationToken>()), Times.Once);
+            audioData, "Hello world", null, expectedProviderId, It.IsAny<CancellationToken>()), Times.Once);
         _typingSoundMock.Verify(x => x.StopLoop(), Times.AtLeastOnce);
     }
 

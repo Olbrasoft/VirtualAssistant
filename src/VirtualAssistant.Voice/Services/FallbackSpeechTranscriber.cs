@@ -131,11 +131,9 @@ public sealed class FallbackSpeechTranscriber : ISpeechTranscriber
     /// <summary>
     /// Creates a new TranscriptionResult with the SttProviderId set.
     /// </summary>
-    private static TranscriptionResult WithProviderId(TranscriptionResult result, int providerId)
-    {
-        if (result.Success)
-        {
-            return new TranscriptionResult(result.Text, result.Confidence)
+    private static TranscriptionResult WithProviderId(TranscriptionResult result, int providerId) =>
+        result.Success
+            ? new TranscriptionResult(result.Text, result.Confidence)
             {
                 OriginalText = result.OriginalText,
                 FilteredText = result.FilteredText,
@@ -143,16 +141,11 @@ public sealed class FallbackSpeechTranscriber : ISpeechTranscriber
                 PromptId = result.PromptId,
                 ModelId = result.ModelId,
                 SttProviderId = providerId
-            };
-        }
-        else
-        {
-            return new TranscriptionResult(result.ErrorMessage ?? "Unknown error")
+            }
+            : new TranscriptionResult(result.ErrorMessage ?? "Unknown error")
             {
                 SttProviderId = providerId
             };
-        }
-    }
 
     /// <summary>
     /// Transcribes audio stream with automatic fallback on failure.

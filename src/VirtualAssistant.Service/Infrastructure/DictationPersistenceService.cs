@@ -19,8 +19,6 @@ public class DictationPersistenceService : IDictationPersistenceService
     private readonly ICommandExecutor _commandExecutor;
     private readonly AudioRecordingOptions _options;
 
-    private const int DefaultWhisperProviderId = 13; // Fallback if no provider ID provided
-
     public DictationPersistenceService(
         ILogger<DictationPersistenceService> logger,
         ICommandExecutor commandExecutor,
