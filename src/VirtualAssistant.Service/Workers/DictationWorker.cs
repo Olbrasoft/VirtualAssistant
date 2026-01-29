@@ -304,8 +304,8 @@ public class DictationWorker : BackgroundService, IDictationControl
         }
 
         // Get the STT provider ID from the transcription result (set by the active speech transcriber)
-        // If not set, fall back to 0 (unknown) instead of assuming a specific provider.
-        var sttProviderId = result.SttProviderId.GetValueOrDefault();
+        // Falls back to Whisper (13) if not set - required because provider_id has FK constraint
+        var sttProviderId = result.SttProviderId.GetValueOrDefault(13);
 
         await persistenceService.SaveTranscriptionAsync(
             audioData,
