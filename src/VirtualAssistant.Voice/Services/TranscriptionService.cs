@@ -119,7 +119,8 @@ public class TranscriptionService : ITranscriptionService
                 FilteredText = filteredText,  // Text after filtering but before LLM (null if no filtering)
                 LlmDurationMs = llmDurationMs, // LLM correction duration in ms (null if no LLM correction)
                 PromptId = promptId,          // Prompt ID used for LLM correction (null if no LLM correction)
-                ModelId = modelId             // Model ID used for LLM correction (null if no LLM correction)
+                ModelId = modelId,            // Model ID used for LLM correction (null if no LLM correction)
+                SttProviderId = result.SttProviderId  // Preserve STT provider ID from transcriber
             };
         }
 
