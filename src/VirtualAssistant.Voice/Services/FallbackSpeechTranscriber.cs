@@ -16,12 +16,18 @@ public sealed class FallbackSpeechTranscriber : ISpeechTranscriber
     private readonly ILogger<FallbackSpeechTranscriber> _logger;
     private readonly SpeechProviderSettings _settings;
     private bool _disposed;
+    private int _lastUsedProviderId;
 
     /// <summary>
     /// Gets the provider ID of the last used transcriber.
     /// Used for tracking which provider was actually used in database.
+    /// Thread-safe via Volatile/Interlocked for concurrent access.
     /// </summary>
-    public int LastUsedProviderId { get; private set; }
+    public int LastUsedProviderId
+    {
+        get => System.Threading.Volatile.Read(ref _lastUsedProviderId);
+        private set => System.Threading.Interlocked.Exchange(ref _lastUsedProviderId, value);
+    }
 
     /// <summary>
     /// Gets the language code from the primary provider.
@@ -53,6 +59,12 @@ public sealed class FallbackSpeechTranscriber : ISpeechTranscriber
         if (_disposed)
             throw new ObjectDisposedException(nameof(FallbackSpeechTranscriber));
 
+        if (audioData is null)
+            throw new ArgumentNullException(nameof(audioData));
+
+        if (audioData.Length == 0)
+            throw new ArgumentException("Audio data cannot be empty.", nameof(audioData));
+
         if (!_settings.EnableFallback)
         {
             LastUsedProviderId = _factory.GetProviderId(_settings.PrimaryProvider);
@@ -71,11 +83,36 @@ public sealed class FallbackSpeechTranscriber : ISpeechTranscriber
                 return result;
             }
 
+            // Short-circuit non-provider failures (e.g., input validation, cancellation)
+            var errorMessage = result.ErrorMessage ?? string.Empty;
+            var loweredError = errorMessage.ToLowerInvariant();
+
+            var isInputValidationError =
+                loweredError.Contains("audio data cannot be empty") ||
+                loweredError.Contains("audio data is empty") ||
+                loweredError.Contains("no audio data");
+
+            var isCancellationError =
+                cancellationToken.IsCancellationRequested ||
+                loweredError.Contains("transcription cancelled") ||
+                loweredError.Contains("transcription canceled") ||
+                loweredError.Contains("operation cancelled") ||
+                loweredError.Contains("operation canceled");
+
+            if (isInputValidationError || isCancellationError)
+            {
+                LastUsedProviderId = _factory.GetProviderId(_settings.PrimaryProvider);
+                _logger.LogWarning(
+                    "Primary provider {Provider} returned non-transient error: {Error}, not falling back",
+                    _settings.PrimaryProvider, result.ErrorMessage);
+                return result;
+            }
+
             _logger.LogWarning(
                 "Primary provider {Provider} returned error: {Error}, falling back to {Fallback}",
                 _settings.PrimaryProvider, result.ErrorMessage, _settings.FallbackProvider);
         }
-        catch (Exception ex) when (ShouldFallback(ex))
+        catch (Exception ex) when (ShouldFallback(ex, cancellationToken))
         {
             _logger.LogWarning(
                 ex,
@@ -97,6 +134,9 @@ public sealed class FallbackSpeechTranscriber : ISpeechTranscriber
         if (_disposed)
             throw new ObjectDisposedException(nameof(FallbackSpeechTranscriber));
 
+        if (audioStream is null)
+            throw new ArgumentNullException(nameof(audioStream));
+
         // Read stream to memory for potential retry
         using var memoryStream = new MemoryStream();
         await audioStream.CopyToAsync(memoryStream, cancellationToken);
@@ -107,12 +147,22 @@ public sealed class FallbackSpeechTranscriber : ISpeechTranscriber
 
     /// <summary>
     /// Determines if an exception should trigger fallback.
+    /// User-requested cancellations (via CancellationToken) are propagated, not retried.
     /// </summary>
-    private static bool ShouldFallback(Exception ex)
+    private static bool ShouldFallback(Exception ex, CancellationToken cancellationToken)
     {
+        // Genuine user cancellation - propagate, don't fallback
+        // Check both: the token must be cancelled AND the exception must be from that token
+        if (cancellationToken.IsCancellationRequested &&
+            ex is OperationCanceledException oce &&
+            oce.CancellationToken == cancellationToken)
+        {
+            return false;
+        }
+
         return ex is HttpRequestException        // Network error
-            || ex is TaskCanceledException       // Timeout (when not user-requested cancellation)
-            || ex is OperationCanceledException  // Operation cancelled
+            || ex is TaskCanceledException       // Timeout (internal, not user cancellation)
+            || ex is OperationCanceledException  // Timeout from HttpClient
             || ex is TimeoutException;           // Explicit timeout
     }
 

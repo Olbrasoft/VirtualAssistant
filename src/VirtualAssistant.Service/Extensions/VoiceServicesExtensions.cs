@@ -123,7 +123,11 @@ public static class VoiceServicesExtensions
         // Register STT provider factory
         services.AddSingleton<ISpeechTranscriberFactory, SpeechTranscriberFactory>();
 
-        // Register FallbackSpeechTranscriber or single provider based on settings
+        // Register FallbackSpeechTranscriber or single provider based on settings.
+        // Note: When FallbackSpeechTranscriber is used, LastUsedProviderId tracks which provider
+        // was actually used. This is a singleton, so LastUsedProviderId access is thread-safe
+        // via Volatile/Interlocked. Alternative approach would be to add ProviderId to
+        // TranscriptionResult, but that would require changes to the interface contract.
         services.AddSingleton<ISpeechTranscriber>(sp =>
         {
             var factory = sp.GetRequiredService<ISpeechTranscriberFactory>();
@@ -133,7 +137,8 @@ public static class VoiceServicesExtensions
             var primary = factory.GetProvider(settings.PrimaryProvider);
             var fallback = factory.GetProvider(settings.FallbackProvider);
 
-            // If fallback is disabled or not available, return primary provider
+            // If fallback is disabled or not available, return primary provider directly.
+            // In this case, caller should use factory.GetProviderId() for provider tracking.
             if (!settings.EnableFallback || primary == null || fallback == null)
             {
                 return primary ?? fallback ?? throw new InvalidOperationException("No STT provider available");

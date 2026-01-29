@@ -175,6 +175,27 @@ public class FallbackSpeechTranscriberTests
     }
 
     [Fact]
+    public async Task TranscribeAsync_UserCancellation_DoesNotTriggerFallback()
+    {
+        // Arrange - True user cancellation via CancellationToken
+        using var cts = new CancellationTokenSource();
+        cts.Cancel();
+
+        _primaryMock
+            .Setup(p => p.TranscribeAsync(It.IsAny<byte[]>(), It.IsAny<CancellationToken>()))
+            .ThrowsAsync(new OperationCanceledException(cts.Token));
+
+        var transcriber = CreateTranscriber();
+        var audioData = new byte[] { 1, 2, 3 };
+
+        // Act & Assert - Cancellation should propagate, not trigger fallback
+        await Assert.ThrowsAsync<OperationCanceledException>(() =>
+            transcriber.TranscribeAsync(audioData, cts.Token));
+
+        _fallbackMock.Verify(p => p.TranscribeAsync(It.IsAny<byte[]>(), It.IsAny<CancellationToken>()), Times.Never);
+    }
+
+    [Fact]
     public async Task TranscribeAsync_FallbackDisabled_NeverCallsFallback()
     {
         // Arrange
@@ -362,8 +383,11 @@ public class FallbackSpeechTranscriberTests
         transcriber.Dispose();
 
         // Act & Assert
-        await Assert.ThrowsAsync<ObjectDisposedException>(() =>
-            transcriber.TranscribeAsync(new MemoryStream()));
+        await Assert.ThrowsAsync<ObjectDisposedException>(async () =>
+        {
+            using var stream = new MemoryStream();
+            await transcriber.TranscribeAsync(stream);
+        });
     }
 
     [Fact]
@@ -391,6 +415,72 @@ public class FallbackSpeechTranscriberTests
         // Act & Assert - Exception should propagate, not trigger fallback
         await Assert.ThrowsAsync<InvalidOperationException>(() =>
             transcriber.TranscribeAsync(audioData));
+
+        _fallbackMock.Verify(p => p.TranscribeAsync(It.IsAny<byte[]>(), It.IsAny<CancellationToken>()), Times.Never);
+    }
+
+    [Fact]
+    public async Task TranscribeAsync_NullAudioData_ThrowsArgumentNullException()
+    {
+        // Arrange
+        var transcriber = CreateTranscriber();
+
+        // Act & Assert
+        await Assert.ThrowsAsync<ArgumentNullException>(() =>
+            transcriber.TranscribeAsync((byte[])null!));
+
+        _primaryMock.Verify(p => p.TranscribeAsync(It.IsAny<byte[]>(), It.IsAny<CancellationToken>()), Times.Never);
+        _fallbackMock.Verify(p => p.TranscribeAsync(It.IsAny<byte[]>(), It.IsAny<CancellationToken>()), Times.Never);
+    }
+
+    [Fact]
+    public async Task TranscribeAsync_EmptyAudioData_ThrowsArgumentException()
+    {
+        // Arrange
+        var transcriber = CreateTranscriber();
+
+        // Act & Assert
+        var ex = await Assert.ThrowsAsync<ArgumentException>(() =>
+            transcriber.TranscribeAsync(Array.Empty<byte>()));
+
+        Assert.Equal("audioData", ex.ParamName);
+        _primaryMock.Verify(p => p.TranscribeAsync(It.IsAny<byte[]>(), It.IsAny<CancellationToken>()), Times.Never);
+        _fallbackMock.Verify(p => p.TranscribeAsync(It.IsAny<byte[]>(), It.IsAny<CancellationToken>()), Times.Never);
+    }
+
+    [Fact]
+    public async Task TranscribeAsync_NullStream_ThrowsArgumentNullException()
+    {
+        // Arrange
+        var transcriber = CreateTranscriber();
+
+        // Act & Assert
+        await Assert.ThrowsAsync<ArgumentNullException>(() =>
+            transcriber.TranscribeAsync((Stream)null!));
+
+        _primaryMock.Verify(p => p.TranscribeAsync(It.IsAny<byte[]>(), It.IsAny<CancellationToken>()), Times.Never);
+        _fallbackMock.Verify(p => p.TranscribeAsync(It.IsAny<byte[]>(), It.IsAny<CancellationToken>()), Times.Never);
+    }
+
+    [Fact]
+    public async Task TranscribeAsync_PrimaryReturnsValidationError_DoesNotFallback()
+    {
+        // Arrange - Non-transient validation error should not trigger fallback
+        var validationError = new TranscriptionResult("Audio data cannot be empty");
+        _primaryMock
+            .Setup(p => p.TranscribeAsync(It.IsAny<byte[]>(), It.IsAny<CancellationToken>()))
+            .ReturnsAsync(validationError);
+
+        var transcriber = CreateTranscriber();
+        var audioData = new byte[] { 1, 2, 3 };
+
+        // Act
+        var result = await transcriber.TranscribeAsync(audioData);
+
+        // Assert - Should return primary error, not fallback
+        Assert.False(result.Success);
+        Assert.Contains("Audio data cannot be empty", result.ErrorMessage);
+        Assert.Equal(PrimaryProviderId, transcriber.LastUsedProviderId);
 
         _fallbackMock.Verify(p => p.TranscribeAsync(It.IsAny<byte[]>(), It.IsAny<CancellationToken>()), Times.Never);
     }
