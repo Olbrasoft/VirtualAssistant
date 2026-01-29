@@ -84,6 +84,9 @@ jobs:
 
       - name: Restart service
         run: |
-          systemctl --user restart virtual-assistant.service || true
+          # GitHub Actions runner doesn't have D-Bus session, so we need to set it up
+          export XDG_RUNTIME_DIR=/run/user/$(id -u)
+          export DBUS_SESSION_BUS_ADDRESS="unix:path=$XDG_RUNTIME_DIR/bus"
+          systemctl --user restart virtual-assistant.service
           sleep 2
-          systemctl --user status virtual-assistant.service --no-pager || true
+          systemctl --user status virtual-assistant.service --no-pager
