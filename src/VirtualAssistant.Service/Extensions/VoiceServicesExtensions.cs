@@ -107,17 +107,9 @@ public static class VoiceServicesExtensions
         services.AddSingleton<IClaudeNotificationSender, ClaudeNotificationSender>();
         services.AddSingleton<IClaudeDispatchService, ClaudeDispatchService>();
 
-        // Register individual STT providers
-        services.AddSingleton<WhisperSpeechTranscriber>();
+        // Register STT providers as keyed services for consistent retrieval
+        services.AddKeyedSingleton<ISpeechTranscriber, WhisperSpeechTranscriber>("whisper");
 
-        // Register STT provider factory
-        services.AddSingleton<ISpeechTranscriberFactory, SpeechTranscriberFactory>();
-
-        // Register active provider via factory (for backward compatibility)
-        services.AddSingleton<ISpeechTranscriber>(sp =>
-            sp.GetRequiredService<ISpeechTranscriberFactory>().GetActiveProvider());
-
-        // Register Google Speech-to-Text as keyed service
         services.AddHttpClient("GoogleSpeech");
         services.AddKeyedSingleton<ISpeechTranscriber, GoogleSpeechTranscriber>("google", (sp, _) =>
         {
@@ -127,6 +119,13 @@ public static class VoiceServicesExtensions
             var logger = sp.GetRequiredService<ILogger<GoogleSpeechTranscriber>>();
             return new GoogleSpeechTranscriber(httpClient, options, logger);
         });
+
+        // Register STT provider factory
+        services.AddSingleton<ISpeechTranscriberFactory, SpeechTranscriberFactory>();
+
+        // Register active provider via factory (for backward compatibility)
+        services.AddSingleton<ISpeechTranscriber>(sp =>
+            sp.GetRequiredService<ISpeechTranscriberFactory>().GetActiveProvider());
 
         services.AddSingleton<ITranscriptionService>(sp =>
         {

@@ -56,7 +56,7 @@ public class SpeechTranscriberFactory : ISpeechTranscriberFactory
         return providerName.ToLowerInvariant() switch
         {
             "google" => _serviceProvider.GetKeyedService<ISpeechTranscriber>("google"),
-            "whisper" => _serviceProvider.GetService<WhisperSpeechTranscriber>(),
+            "whisper" => _serviceProvider.GetKeyedService<ISpeechTranscriber>("whisper"),
             _ => null
         };
     }
@@ -64,7 +64,7 @@ public class SpeechTranscriberFactory : ISpeechTranscriberFactory
     /// <summary>
     /// Gets all available provider names.
     /// </summary>
-    public IEnumerable<string> GetAvailableProviders()
+    public IReadOnlyCollection<string> GetAvailableProviders()
     {
         return ["whisper", "google"];
     }
@@ -99,6 +99,14 @@ public class SpeechTranscriberFactory : ISpeechTranscriberFactory
     /// Loads provider IDs from database into cache. Called ONCE (lazy loading).
     /// Thread-safe with double-check locking pattern.
     /// </summary>
+    /// <remarks>
+    /// This method uses synchronous blocking (.GetAwaiter().GetResult()) intentionally.
+    /// The cache loading happens only ONCE during first use (startup-time lazy loading),
+    /// not during request processing. This pattern is acceptable here because:
+    /// 1. Single DB query executed at most once per application lifetime
+    /// 2. No synchronization context issues in this singleton factory
+    /// 3. Avoids adding async complexity to GetProviderId API used by transcription pipeline
+    /// </remarks>
     private void EnsureProviderIdCacheLoaded()
     {
         if (_providerIdCache != null) return;
@@ -108,6 +116,7 @@ public class SpeechTranscriberFactory : ISpeechTranscriberFactory
             if (_providerIdCache != null) return;
 
             // Load all STT providers from database - THIS IS THE ONLY DB QUERY
+            // Synchronous call is acceptable here - see remarks above
             var providers = _queryProcessor.ProcessAsync(
                 new GetProvidersByTypeQuery("stt"), CancellationToken.None).GetAwaiter().GetResult();
 

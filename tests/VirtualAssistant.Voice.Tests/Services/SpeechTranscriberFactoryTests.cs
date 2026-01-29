@@ -13,13 +13,13 @@ namespace Olbrasoft.VirtualAssistant.Voice.Tests.Services;
 
 public class SpeechTranscriberFactoryTests
 {
-    private readonly Mock<IServiceProvider> _serviceProviderMock;
+    private readonly Mock<IKeyedServiceProvider> _keyedServiceProviderMock;
     private readonly Mock<IQueryProcessor> _queryProcessorMock;
     private readonly Mock<ILogger<SpeechTranscriberFactory>> _loggerMock;
 
     public SpeechTranscriberFactoryTests()
     {
-        _serviceProviderMock = new Mock<IServiceProvider>();
+        _keyedServiceProviderMock = new Mock<IKeyedServiceProvider>();
         _queryProcessorMock = new Mock<IQueryProcessor>();
         _loggerMock = new Mock<ILogger<SpeechTranscriberFactory>>();
     }
@@ -35,7 +35,7 @@ public class SpeechTranscriberFactoryTests
         var options = Options.Create(settings);
 
         return new SpeechTranscriberFactory(
-            _serviceProviderMock.Object,
+            _keyedServiceProviderMock.Object,
             _queryProcessorMock.Object,
             options,
             _loggerMock.Object);
@@ -156,7 +156,7 @@ public class SpeechTranscriberFactoryTests
     }
 
     [Fact]
-    public void GetProviderId_QueriesOnlyStTypeProviders()
+    public void GetProviderId_QueriesOnlySttTypeProviders()
     {
         // Arrange
         SetupProviderIds();
@@ -195,7 +195,7 @@ public class SpeechTranscriberFactoryTests
 
         // Act & Assert
         Assert.Throws<ArgumentNullException>(() => new SpeechTranscriberFactory(
-            _serviceProviderMock.Object,
+            _keyedServiceProviderMock.Object,
             null!,
             settings,
             _loggerMock.Object));
@@ -206,7 +206,7 @@ public class SpeechTranscriberFactoryTests
     {
         // Act & Assert
         Assert.Throws<ArgumentNullException>(() => new SpeechTranscriberFactory(
-            _serviceProviderMock.Object,
+            _keyedServiceProviderMock.Object,
             _queryProcessorMock.Object,
             null!,
             _loggerMock.Object));
@@ -220,9 +220,81 @@ public class SpeechTranscriberFactoryTests
 
         // Act & Assert
         Assert.Throws<ArgumentNullException>(() => new SpeechTranscriberFactory(
-            _serviceProviderMock.Object,
+            _keyedServiceProviderMock.Object,
             _queryProcessorMock.Object,
             settings,
             null!));
+    }
+
+    [Fact]
+    public void GetProvider_WithWhisper_ReturnsWhisperTranscriber()
+    {
+        // Arrange
+        var mockTranscriber = new Mock<ISpeechTranscriber>();
+        _keyedServiceProviderMock
+            .Setup(sp => sp.GetKeyedService(typeof(ISpeechTranscriber), "whisper"))
+            .Returns(mockTranscriber.Object);
+        var factory = CreateFactory();
+
+        // Act
+        var provider = factory.GetProvider("whisper");
+
+        // Assert
+        Assert.NotNull(provider);
+        Assert.Same(mockTranscriber.Object, provider);
+    }
+
+    [Fact]
+    public void GetProvider_WithGoogle_ReturnsGoogleTranscriber()
+    {
+        // Arrange
+        var mockTranscriber = new Mock<ISpeechTranscriber>();
+        _keyedServiceProviderMock
+            .Setup(sp => sp.GetKeyedService(typeof(ISpeechTranscriber), "google"))
+            .Returns(mockTranscriber.Object);
+        var factory = CreateFactory();
+
+        // Act
+        var provider = factory.GetProvider("google");
+
+        // Assert
+        Assert.NotNull(provider);
+        Assert.Same(mockTranscriber.Object, provider);
+    }
+
+    [Fact]
+    public void GetActiveProvider_WithWhisperPrimary_ReturnsWhisperTranscriber()
+    {
+        // Arrange
+        var mockTranscriber = new Mock<ISpeechTranscriber>();
+        _keyedServiceProviderMock
+            .Setup(sp => sp.GetKeyedService(typeof(ISpeechTranscriber), "whisper"))
+            .Returns(mockTranscriber.Object);
+        var factory = CreateFactory("whisper");
+
+        // Act
+        var provider = factory.GetActiveProvider();
+
+        // Assert
+        Assert.NotNull(provider);
+        Assert.Same(mockTranscriber.Object, provider);
+    }
+
+    [Fact]
+    public void GetActiveProvider_WithGooglePrimary_ReturnsGoogleTranscriber()
+    {
+        // Arrange
+        var mockTranscriber = new Mock<ISpeechTranscriber>();
+        _keyedServiceProviderMock
+            .Setup(sp => sp.GetKeyedService(typeof(ISpeechTranscriber), "google"))
+            .Returns(mockTranscriber.Object);
+        var factory = CreateFactory("google");
+
+        // Act
+        var provider = factory.GetActiveProvider();
+
+        // Assert
+        Assert.NotNull(provider);
+        Assert.Same(mockTranscriber.Object, provider);
     }
 }

@@ -23,7 +23,7 @@ public interface ISpeechTranscriberFactory
     /// Gets all available provider names.
     /// </summary>
     /// <returns>Collection of available provider names.</returns>
-    IEnumerable<string> GetAvailableProviders();
+    IReadOnlyCollection<string> GetAvailableProviders();
 
     /// <summary>
     /// Gets the database provider ID for tracking.
