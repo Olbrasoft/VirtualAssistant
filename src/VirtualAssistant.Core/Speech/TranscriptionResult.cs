@@ -56,6 +56,13 @@ public class TranscriptionResult
     public int? ModelId { get; init; }
 
     /// <summary>
+    /// Gets the ID of the STT provider that performed the transcription.
+    /// Used for tracking which provider (Google, Whisper, etc.) was used.
+    /// Null if provider tracking is not available.
+    /// </summary>
+    public int? SttProviderId { get; init; }
+
+    /// <summary>
     /// Initializes a new instance for successful transcription.
     /// </summary>
     public TranscriptionResult(string text, float confidence)
