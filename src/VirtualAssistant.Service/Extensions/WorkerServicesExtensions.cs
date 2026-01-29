@@ -71,22 +71,32 @@ public static class WorkerServicesExtensions
                 whisperLogger,
                 Microsoft.Extensions.Options.Options.Create(continuousOptions));
 
-            // Create transcriber: FallbackSpeechTranscriber with Google primary + Whisper fallback
-            // or just Whisper if Google is not available
+            // Create transcriber:
+            // - If Google is available and fallback is enabled: FallbackSpeechTranscriber (Google primary + Whisper fallback)
+            // - If Google is available and fallback is disabled: use Google directly
+            // - If Google is not available: use Whisper directly
             ISpeechTranscriber dictationTranscriber;
-            if (speechSettings.EnableFallback && googleTranscriber != null)
+            if (googleTranscriber != null)
             {
-                var fallbackLogger = sp.GetRequiredService<ILogger<FallbackSpeechTranscriber>>();
-                dictationTranscriber = new FallbackSpeechTranscriber(
-                    googleTranscriber,
-                    dictationWhisperTranscriber,
-                    factory,
-                    fallbackLogger,
-                    speechSettings);
+                if (speechSettings.EnableFallback)
+                {
+                    var fallbackLogger = sp.GetRequiredService<ILogger<FallbackSpeechTranscriber>>();
+                    dictationTranscriber = new FallbackSpeechTranscriber(
+                        googleTranscriber,
+                        dictationWhisperTranscriber,
+                        factory,
+                        fallbackLogger,
+                        speechSettings);
+                }
+                else
+                {
+                    // Fallback disabled and Google available - use Google directly
+                    dictationTranscriber = googleTranscriber;
+                }
             }
             else
             {
-                // Fallback disabled or Google not available - use Whisper directly
+                // Google not available - use Whisper directly
                 dictationTranscriber = dictationWhisperTranscriber;
             }
 
