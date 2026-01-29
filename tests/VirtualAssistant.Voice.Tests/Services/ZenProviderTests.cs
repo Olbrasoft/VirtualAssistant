@@ -4,6 +4,7 @@ using Moq;
 using Olbrasoft.Data.Cqrs;
 using Olbrasoft.VirtualAssistant.Core.Models;
 using Olbrasoft.VirtualAssistant.Core.Services;
+using Olbrasoft.VirtualAssistant.Core.WindowManagement;
 using Olbrasoft.VirtualAssistant.Voice.Configuration;
 using Olbrasoft.VirtualAssistant.Voice.Services;
 
@@ -16,6 +17,7 @@ public class ZenProviderTests
     private readonly Mock<ILogger<ZenProvider>> _loggerMock;
     private readonly Mock<IDesktopContextService> _desktopContextServiceMock;
     private readonly Mock<IQueryProcessor> _queryProcessorMock;
+    private readonly Mock<ICliAppDetector> _cliAppDetectorMock;
     private readonly ZenOptions _options;
 
     public ZenProviderTests()
@@ -39,6 +41,7 @@ public class ZenProviderTests
         _loggerMock = new Mock<ILogger<ZenProvider>>();
         _desktopContextServiceMock = new Mock<IDesktopContextService>();
         _queryProcessorMock = new Mock<IQueryProcessor>();
+        _cliAppDetectorMock = new Mock<ICliAppDetector>();
     }
 
     private ZenProvider CreateSut()
@@ -50,7 +53,8 @@ public class ZenProviderTests
             _promptCacheMock.Object,
             _loggerMock.Object,
             _desktopContextServiceMock.Object,
-            _queryProcessorMock.Object);
+            _queryProcessorMock.Object,
+            _cliAppDetectorMock.Object);
     }
 
     [Fact]
@@ -180,7 +184,8 @@ public class ZenProviderTests
             null!,
             _loggerMock.Object,
             _desktopContextServiceMock.Object,
-            _queryProcessorMock.Object));
+            _queryProcessorMock.Object,
+            _cliAppDetectorMock.Object));
     }
 
     [Fact]
@@ -193,7 +198,8 @@ public class ZenProviderTests
             _promptCacheMock.Object,
             _loggerMock.Object,
             null!,
-            _queryProcessorMock.Object));
+            _queryProcessorMock.Object,
+            _cliAppDetectorMock.Object));
     }
 
     [Fact]
@@ -206,6 +212,21 @@ public class ZenProviderTests
             _promptCacheMock.Object,
             _loggerMock.Object,
             _desktopContextServiceMock.Object,
+            null!,
+            _cliAppDetectorMock.Object));
+    }
+
+    [Fact]
+    public void Constructor_ThrowsOnNullCliAppDetector()
+    {
+        // Arrange & Act & Assert
+        Assert.Throws<ArgumentNullException>(() => new ZenProvider(
+            new HttpClient(),
+            _optionsMock.Object,
+            _promptCacheMock.Object,
+            _loggerMock.Object,
+            _desktopContextServiceMock.Object,
+            _queryProcessorMock.Object,
             null!));
     }
 }

@@ -5,6 +5,7 @@ using Microsoft.Extensions.Options;
 using Olbrasoft.Data.Cqrs;
 using Olbrasoft.VirtualAssistant.Core.Models;
 using Olbrasoft.VirtualAssistant.Core.Services;
+using Olbrasoft.VirtualAssistant.Core.WindowManagement;
 using Olbrasoft.VirtualAssistant.Voice.Configuration;
 
 namespace Olbrasoft.VirtualAssistant.Voice.Services;
@@ -29,8 +30,9 @@ public class MistralProvider : LlmProviderBase
         IPromptCache promptCache,
         ILogger<MistralProvider> logger,
         IDesktopContextService desktopContextService,
-        IQueryProcessor queryProcessor)
-        : base(httpClient, promptCache, logger, desktopContextService, queryProcessor, options.Value.Enabled)
+        IQueryProcessor queryProcessor,
+        ICliAppDetector cliAppDetector)
+        : base(httpClient, promptCache, logger, desktopContextService, queryProcessor, cliAppDetector, options.Value.Enabled)
     {
         _options = options.Value;
 

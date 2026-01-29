@@ -2,6 +2,7 @@ using Microsoft.Extensions.Logging;
 using Olbrasoft.Data.Cqrs;
 using Olbrasoft.VirtualAssistant.Core.Models;
 using Olbrasoft.VirtualAssistant.Core.Services;
+using Olbrasoft.VirtualAssistant.Core.WindowManagement;
 using Olbrasoft.VirtualAssistant.Data.Queries.LlmModelQueries;
 using Olbrasoft.VirtualAssistant.Data.Queries.PromptQueries;
 using Olbrasoft.VirtualAssistant.Voice.Configuration;
@@ -18,6 +19,7 @@ public abstract class LlmProviderBase : ILlmProvider
     protected readonly IPromptCache PromptCache;
     protected readonly IDesktopContextService DesktopContextService;
     protected readonly IQueryProcessor QueryProcessor;
+    protected readonly ICliAppDetector CliAppDetector;
 
     private Dictionary<string, string> _lastRateLimitHeaders = new();
     private bool _runtimeEnabled;
@@ -59,6 +61,7 @@ public abstract class LlmProviderBase : ILlmProvider
         ILogger logger,
         IDesktopContextService desktopContextService,
         IQueryProcessor queryProcessor,
+        ICliAppDetector cliAppDetector,
         bool initialEnabled)
     {
         HttpClient = httpClient;
@@ -66,11 +69,13 @@ public abstract class LlmProviderBase : ILlmProvider
         Logger = logger;
         DesktopContextService = desktopContextService ?? throw new ArgumentNullException(nameof(desktopContextService));
         QueryProcessor = queryProcessor ?? throw new ArgumentNullException(nameof(queryProcessor));
+        CliAppDetector = cliAppDetector ?? throw new ArgumentNullException(nameof(cliAppDetector));
         _runtimeEnabled = initialEnabled;
     }
 
     /// <summary>
     /// Gets the system prompt based on current desktop context.
+    /// Priority: 1) CLI app detection (Claude Code, OpenCode), 2) Window title/app pattern, 3) Default prompt.
     /// Returns (promptText, promptId) tuple.
     /// </summary>
     protected async Task<(string PromptText, int PromptId)> GetSystemPromptAsync(CancellationToken ct)
@@ -79,12 +84,39 @@ public abstract class LlmProviderBase : ILlmProvider
         {
             var context = await DesktopContextService.GetCurrentContextAsync(ct);
 
+            // Priority 1: Check for CLI apps running in terminals (e.g., Claude Code, OpenCode)
+            // This handles cases where CLI apps run in terminal but don't change window title
+            var cliApp = await CliAppDetector.DetectCliAppAsync(ct);
+            if (cliApp != null)
+            {
+                Logger.LogDebug("CLI app detected: {AppName} → using prompt '{Prompt}'",
+                    cliApp.AppName, cliApp.PromptFileName);
+
+                // Get prompt ID from database by file name
+                var cliPrompt = await QueryProcessor.ProcessAsync(
+                    new GetPromptByFileNameQuery(cliApp.PromptFileName), ct);
+
+                if (cliPrompt != null)
+                {
+                    var cliPromptText = PromptCache.GetPrompt(cliPrompt.PromptFileName);
+                    Logger.LogDebug("Using prompt '{Prompt}' (ID: {Id}) for CLI app '{App}'",
+                        cliPrompt.PromptFileName, cliPrompt.Id, cliApp.AppName);
+                    return (cliPromptText, cliPrompt.Id);
+                }
+
+                // CLI app detected but no matching prompt in DB - use prompt file directly with ID 0
+                Logger.LogWarning("CLI app '{App}' detected but prompt '{Prompt}' not found in database",
+                    cliApp.AppName, cliApp.PromptFileName);
+            }
+
+            // Priority 2: Match by window title or application pattern
             Logger.LogDebug("Active window: '{Title}', app: '{App}', looking for matching prompt pattern",
                 context.ActiveWindowTitle, context.ActiveApplication);
 
             var prompt = await QueryProcessor.ProcessAsync(
                 new GetPromptByAppIdPatternQuery(context.ActiveWindowTitle, context.ActiveApplication), ct);
 
+            // Priority 3: Default prompt
             prompt ??= await QueryProcessor.ProcessAsync(new GetDefaultPromptQuery(), ct);
 
             if (prompt == null)

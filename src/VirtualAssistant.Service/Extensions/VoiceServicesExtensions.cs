@@ -255,7 +255,8 @@ public static class VoiceServicesExtensions
             var logger = sp.GetRequiredService<ILogger<MistralProvider>>();
             var desktopContextService = sp.GetRequiredService<IDesktopContextService>();
             var queryProcessor = sp.GetRequiredService<IQueryProcessor>();
-            return new MistralProvider(httpClient, options, promptCache, logger, desktopContextService, queryProcessor);
+            var cliAppDetector = sp.GetRequiredService<ICliAppDetector>();
+            return new MistralProvider(httpClient, options, promptCache, logger, desktopContextService, queryProcessor, cliAppDetector);
         });
 
         // Register ZenProvider
@@ -268,7 +269,8 @@ public static class VoiceServicesExtensions
             var logger = sp.GetRequiredService<ILogger<ZenProvider>>();
             var desktopContextService = sp.GetRequiredService<IDesktopContextService>();
             var queryProcessor = sp.GetRequiredService<IQueryProcessor>();
-            return new ZenProvider(httpClient, options, promptCache, logger, desktopContextService, queryProcessor);
+            var cliAppDetector = sp.GetRequiredService<ICliAppDetector>();
+            return new ZenProvider(httpClient, options, promptCache, logger, desktopContextService, queryProcessor, cliAppDetector);
         });
 
         // Register LlmProviderFactory
