@@ -6,7 +6,6 @@ using Olbrasoft.VirtualAssistant.Core.Configuration;
 using Olbrasoft.VirtualAssistant.Core.Speech;
 using Olbrasoft.VirtualAssistant.Data.Entities;
 using Olbrasoft.VirtualAssistant.Data.Queries.ProviderQueries;
-using Olbrasoft.VirtualAssistant.Voice.Configuration;
 using Olbrasoft.VirtualAssistant.Voice.Services;
 
 namespace Olbrasoft.VirtualAssistant.Voice.Tests.Services;

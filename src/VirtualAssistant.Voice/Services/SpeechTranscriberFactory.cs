@@ -66,8 +66,13 @@ public class SpeechTranscriberFactory : ISpeechTranscriberFactory
     /// Gets a specific provider by name.
     /// Returns the explicitly injected provider instance - no service locator pattern.
     /// </summary>
+    /// <param name="providerName">The provider name ("whisper" or "google").</param>
+    /// <returns>The provider instance, or null if not found.</returns>
     public ISpeechTranscriber? GetProvider(string providerName)
     {
+        if (string.IsNullOrEmpty(providerName))
+            return null;
+
         var provider = providerName.ToLowerInvariant() switch
         {
             "whisper" => (ISpeechTranscriber)_whisperProvider,
