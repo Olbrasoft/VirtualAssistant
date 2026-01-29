@@ -14,8 +14,8 @@ public class LlmErrorConfiguration : IEntityTypeConfiguration<LlmError>
         builder.Property(e => e.Id)
             .HasColumnName("id");
 
-        builder.Property(e => e.WhisperTranscriptionId)
-            .HasColumnName("whisper_transcription_id")
+        builder.Property(e => e.VoiceTranscriptionId)
+            .HasColumnName("voice_transcription_id")
             .IsRequired();
 
         builder.Property(e => e.ErrorMessage)
@@ -33,12 +33,12 @@ public class LlmErrorConfiguration : IEntityTypeConfiguration<LlmError>
             .HasDefaultValueSql("NOW()");
 
         // Foreign key relationship
-        builder.HasOne(e => e.WhisperTranscription)
+        builder.HasOne(e => e.VoiceTranscription)
             .WithMany()
-            .HasForeignKey(e => e.WhisperTranscriptionId)
+            .HasForeignKey(e => e.VoiceTranscriptionId)
             .OnDelete(DeleteBehavior.Cascade);
 
-        builder.HasIndex(e => e.WhisperTranscriptionId);
+        builder.HasIndex(e => e.VoiceTranscriptionId);
         builder.HasIndex(e => e.CreatedAt);
     }
 }

@@ -11,13 +11,13 @@ public class SaveLlmCorrectionCommandHandler(VirtualAssistantDbContext context)
 {
     protected override async Task<LlmCorrection> GetResultToHandleAsync(SaveLlmCorrectionCommand command, CancellationToken token)
     {
-        ArgumentOutOfRangeException.ThrowIfNegativeOrZero(command.WhisperTranscriptionId, nameof(command.WhisperTranscriptionId));
+        ArgumentOutOfRangeException.ThrowIfNegativeOrZero(command.VoiceTranscriptionId, nameof(command.VoiceTranscriptionId));
         ArgumentOutOfRangeException.ThrowIfNegativeOrZero(command.DurationMs, nameof(command.DurationMs));
         ArgumentException.ThrowIfNullOrWhiteSpace(command.CorrectedText, nameof(command.CorrectedText));
 
         var correction = new LlmCorrection
         {
-            WhisperTranscriptionId = command.WhisperTranscriptionId,
+            VoiceTranscriptionId = command.VoiceTranscriptionId,
             CorrectedText = command.CorrectedText,
             DurationMs = command.DurationMs,
             PromptId = command.PromptId, // NULL indicates no prompt tracking (e.g., legacy code or system without desktop monitoring)

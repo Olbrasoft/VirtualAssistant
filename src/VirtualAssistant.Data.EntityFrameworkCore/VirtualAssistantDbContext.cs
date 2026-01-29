@@ -45,9 +45,9 @@ public class VirtualAssistantDbContext : DbContext
     public DbSet<NotificationGitHubIssue> NotificationGitHubIssues => Set<NotificationGitHubIssue>();
 
     /// <summary>
-    /// Gets or sets the WhisperTranscriptions DbSet.
+    /// Gets or sets the VoiceTranscriptions DbSet.
     /// </summary>
-    public DbSet<WhisperTranscription> WhisperTranscriptions => Set<WhisperTranscription>();
+    public DbSet<VoiceTranscription> VoiceTranscriptions => Set<VoiceTranscription>();
 
     /// <summary>
     /// Gets or sets the LlmCorrections DbSet.

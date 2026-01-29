@@ -14,8 +14,18 @@ public class LlmCorrectionConfigurationTests
         return new VirtualAssistantDbContext(options);
     }
 
-    private async Task<(LlmModel model, Prompt prompt, WhisperTranscription transcription)> SetupDependencies(VirtualAssistantDbContext context)
+    private async Task<(LlmModel model, Prompt prompt, VoiceTranscription transcription, Provider provider)> SetupDependencies(VirtualAssistantDbContext context)
     {
+        var provider = new Provider
+        {
+            Name = "Test STT Provider",
+            Type = "stt",
+            Enabled = true,
+            Priority = 1
+        };
+        context.Providers.Add(provider);
+        await context.SaveChangesAsync();
+
         var model = new LlmModel
         {
             Name = "Test Model",
@@ -32,16 +42,17 @@ public class LlmCorrectionConfigurationTests
         };
         context.Prompts.Add(prompt);
 
-        var transcription = new WhisperTranscription
+        var transcription = new VoiceTranscription
         {
             TranscribedText = "Test transcription",
-            AudioDurationMs = 1000
+            AudioDurationMs = 1000,
+            ProviderId = provider.Id
         };
-        context.WhisperTranscriptions.Add(transcription);
+        context.VoiceTranscriptions.Add(transcription);
 
         await context.SaveChangesAsync();
 
-        return (model, prompt, transcription);
+        return (model, prompt, transcription, provider);
     }
 
     [Fact]
@@ -49,11 +60,11 @@ public class LlmCorrectionConfigurationTests
     {
         // Arrange
         using var context = CreateInMemoryContext();
-        var (model, prompt, transcription) = await SetupDependencies(context);
+        var (model, prompt, transcription, _) = await SetupDependencies(context);
 
         var correction = new LlmCorrection
         {
-            WhisperTranscriptionId = transcription.Id,
+            VoiceTranscriptionId = transcription.Id,
             CorrectedText = "Corrected text",
             DurationMs = 50,
             PromptId = prompt.Id,
@@ -75,11 +86,11 @@ public class LlmCorrectionConfigurationTests
     {
         // Arrange
         using var context = CreateInMemoryContext();
-        var (model, prompt, transcription) = await SetupDependencies(context);
+        var (model, prompt, transcription, _) = await SetupDependencies(context);
 
         var correction = new LlmCorrection
         {
-            WhisperTranscriptionId = transcription.Id,
+            VoiceTranscriptionId = transcription.Id,
             CorrectedText = "Corrected text",
             DurationMs = 50,
             PromptId = prompt.Id,
@@ -104,7 +115,7 @@ public class LlmCorrectionConfigurationTests
     {
         // Arrange
         using var context = CreateInMemoryContext();
-        var (model1, prompt, transcription) = await SetupDependencies(context);
+        var (model1, prompt, transcription, provider) = await SetupDependencies(context);
 
         var model2 = new LlmModel
         {
@@ -114,18 +125,19 @@ public class LlmCorrectionConfigurationTests
         context.LlmModels.Add(model2);
         await context.SaveChangesAsync();
 
-        var transcription2 = new WhisperTranscription
+        var transcription2 = new VoiceTranscription
         {
             TranscribedText = "Another transcription",
-            AudioDurationMs = 1000
+            AudioDurationMs = 1000,
+            ProviderId = provider.Id
         };
-        context.WhisperTranscriptions.Add(transcription2);
+        context.VoiceTranscriptions.Add(transcription2);
         await context.SaveChangesAsync();
 
         context.LlmCorrections.AddRange(
             new LlmCorrection
             {
-                WhisperTranscriptionId = transcription.Id,
+                VoiceTranscriptionId = transcription.Id,
                 CorrectedText = "By Model 1",
                 DurationMs = 50,
                 PromptId = prompt.Id,
@@ -133,7 +145,7 @@ public class LlmCorrectionConfigurationTests
             },
             new LlmCorrection
             {
-                WhisperTranscriptionId = transcription2.Id,
+                VoiceTranscriptionId = transcription2.Id,
                 CorrectedText = "By Model 2",
                 DurationMs = 60,
                 PromptId = prompt.Id,
@@ -157,12 +169,12 @@ public class LlmCorrectionConfigurationTests
     {
         // Arrange
         using var context = CreateInMemoryContext();
-        var (model, prompt, transcription) = await SetupDependencies(context);
+        var (model, prompt, transcription, _) = await SetupDependencies(context);
 
         context.LlmCorrections.AddRange(
             new LlmCorrection
             {
-                WhisperTranscriptionId = transcription.Id,
+                VoiceTranscriptionId = transcription.Id,
                 CorrectedText = "Correction 1",
                 DurationMs = 50,
                 PromptId = prompt.Id,
@@ -170,7 +182,7 @@ public class LlmCorrectionConfigurationTests
             },
             new LlmCorrection
             {
-                WhisperTranscriptionId = transcription.Id,
+                VoiceTranscriptionId = transcription.Id,
                 CorrectedText = "Correction 2",
                 DurationMs = 60,
                 PromptId = prompt.Id,

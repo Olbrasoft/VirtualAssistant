@@ -3,7 +3,7 @@ using Olbrasoft.Data.Cqrs;
 using Olbrasoft.VirtualAssistant.Core.Models;
 using Olbrasoft.VirtualAssistant.Core.Services;
 using Olbrasoft.VirtualAssistant.Data.Commands.LlmCorrectionCommands;
-using Olbrasoft.VirtualAssistant.Data.Commands.WhisperTranscriptionCommands;
+using Olbrasoft.VirtualAssistant.Data.Commands.VoiceTranscriptionCommands;
 using Olbrasoft.VirtualAssistant.Voice.Configuration;
 using Olbrasoft.VirtualAssistant.Data.Entities;
 
@@ -18,6 +18,9 @@ public class DictationPersistenceService : IDictationPersistenceService
     private readonly ILogger<DictationPersistenceService> _logger;
     private readonly ICommandExecutor _commandExecutor;
     private readonly AudioRecordingOptions _options;
+
+    // TODO: Issue #821 - Replace with SttProviderFactory.GetProviderId() when implemented
+    private const int WhisperLocalProviderId = 13;
 
     public DictationPersistenceService(
         ILogger<DictationPersistenceService> logger,
@@ -62,21 +65,23 @@ public class DictationPersistenceService : IDictationPersistenceService
         var sampleCount = audioData.Length / _options.BytesPerSample;
         var audioDurationMs = (int)((double)sampleCount / _options.SampleRate * AudioRecordingOptions.MillisecondsPerSecond);
 
-        // Save original Whisper transcription (before LLM correction)
-        WhisperTranscription transcription;
+        // Save original voice transcription (before LLM correction)
+        VoiceTranscription transcription;
         try
         {
-            var command = new SaveWhisperTranscriptionCommand(
+            // TODO: Issue #821 - Get ProviderId from SttProviderFactory when implemented
+            var command = new SaveVoiceTranscriptionCommand(
                 Text: originalText,
-                DurationMs: audioDurationMs
+                DurationMs: audioDurationMs,
+                ProviderId: WhisperLocalProviderId
             );
             transcription = await _commandExecutor.ExecuteAsync(command, cancellationToken);
 
-            _logger.LogDebug("Saved Whisper transcription to database with ID {Id}", transcription.Id);
+            _logger.LogDebug("Saved voice transcription to database with ID {Id}", transcription.Id);
         }
         catch (Exception ex)
         {
-            _logger.LogError(ex, "Failed to save Whisper transcription to database");
+            _logger.LogError(ex, "Failed to save voice transcription to database");
             return null; // Cannot continue without transcription ID
         }
 
@@ -96,7 +101,7 @@ public class DictationPersistenceService : IDictationPersistenceService
             try
             {
                 var command = new SaveLlmCorrectionCommand(
-                    WhisperTranscriptionId: transcription.Id,
+                    VoiceTranscriptionId: transcription.Id,
                     CorrectedText: correctionResult.CorrectedText,
                     DurationMs: correctionResult.DurationMs,
                     PromptId: correctionResult.PromptId,

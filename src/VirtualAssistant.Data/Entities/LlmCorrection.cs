@@ -1,7 +1,7 @@
 namespace Olbrasoft.VirtualAssistant.Data.Entities;
 
 /// <summary>
-/// Represents an LLM correction attempt for a Whisper transcription.
+/// Represents an LLM correction attempt for a voice transcription.
 /// </summary>
 public class LlmCorrection
 {
@@ -11,9 +11,9 @@ public class LlmCorrection
     public int Id { get; set; }
 
     /// <summary>
-    /// Foreign key to WhisperTranscription (original text is stored there - normalization).
+    /// Foreign key to VoiceTranscription (original text is stored there - normalization).
     /// </summary>
-    public int WhisperTranscriptionId { get; set; }
+    public int VoiceTranscriptionId { get; set; }
 
     /// <summary>
     /// Corrected text returned by LLM (NEVER NULL - successful corrections only).
@@ -43,9 +43,9 @@ public class LlmCorrection
     public int ModelId { get; set; }
 
     /// <summary>
-    /// Navigation property to the original Whisper transcription.
+    /// Navigation property to the original voice transcription.
     /// </summary>
-    public WhisperTranscription WhisperTranscription { get; set; } = null!;
+    public VoiceTranscription VoiceTranscription { get; set; } = null!;
 
     /// <summary>
     /// Navigation property to the prompt that was used for this correction.

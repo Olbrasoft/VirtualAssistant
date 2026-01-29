@@ -11,9 +11,9 @@ public class LlmError
     public int Id { get; set; }
 
     /// <summary>
-    /// Foreign key to WhisperTranscription that failed to correct.
+    /// Foreign key to VoiceTranscription that failed to correct.
     /// </summary>
-    public int WhisperTranscriptionId { get; set; }
+    public int VoiceTranscriptionId { get; set; }
 
     /// <summary>
     /// Error message describing why correction failed (NEVER NULL).
@@ -31,7 +31,7 @@ public class LlmError
     public DateTime CreatedAt { get; set; } = DateTime.UtcNow;
 
     /// <summary>
-    /// Navigation property to the original Whisper transcription.
+    /// Navigation property to the original voice transcription.
     /// </summary>
-    public WhisperTranscription WhisperTranscription { get; set; } = null!;
+    public VoiceTranscription VoiceTranscription { get; set; } = null!;
 }

@@ -68,13 +68,13 @@ public class TranscriptionsModel : PageModel
         Items = result.Select(c => new TranscriptionViewModel
         {
             Id = c.Id,
-            OriginalText = c.WhisperTranscription.TranscribedText,
+            OriginalText = c.VoiceTranscription.TranscribedText,
             CorrectedText = c.CorrectedText,
             CreatedAt = c.CreatedAt,
             PromptName = c.Prompt != null ? c.Prompt.Name : "N/A",
             ProcessDurationMs = c.DurationMs,
-            AudioDurationMs = c.WhisperTranscription.AudioDurationMs,
-            WhisperId = c.WhisperTranscriptionId
+            AudioDurationMs = c.VoiceTranscription.AudioDurationMs,
+            WhisperId = c.VoiceTranscriptionId
         }).ToList();
     }
 }

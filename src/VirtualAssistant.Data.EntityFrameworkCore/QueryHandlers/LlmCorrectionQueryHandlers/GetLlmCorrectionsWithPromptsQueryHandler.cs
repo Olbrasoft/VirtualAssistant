@@ -14,7 +14,7 @@ public class GetLlmCorrectionsWithPromptsQueryHandler(VirtualAssistantDbContext 
     protected override async Task<IPagedEnumerable<LlmCorrection>> GetResultToHandleAsync(GetLlmCorrectionsWithPromptsQuery query, CancellationToken token)
     {
         var dbSet = Context.Set<LlmCorrection>()
-            .Include(c => c.WhisperTranscription)
+            .Include(c => c.VoiceTranscription)
             .Include(c => c.Prompt)
             .AsNoTracking();
 
@@ -23,9 +23,9 @@ public class GetLlmCorrectionsWithPromptsQueryHandler(VirtualAssistantDbContext 
         if (!string.IsNullOrWhiteSpace(query.SearchString))
         {
             var search = query.SearchString.Trim();
-            q = q.Where(c => 
-                c.CorrectedText.Contains(search) || 
-                c.WhisperTranscription.TranscribedText.Contains(search));
+            q = q.Where(c =>
+                c.CorrectedText.Contains(search) ||
+                c.VoiceTranscription.TranscribedText.Contains(search));
         }
 
         if (query.StartDate.HasValue)

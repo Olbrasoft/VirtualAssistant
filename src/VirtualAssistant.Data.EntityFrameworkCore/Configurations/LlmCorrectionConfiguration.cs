@@ -14,8 +14,8 @@ public class LlmCorrectionConfiguration : IEntityTypeConfiguration<LlmCorrection
         builder.Property(l => l.Id)
             .HasColumnName("id");
 
-        builder.Property(l => l.WhisperTranscriptionId)
-            .HasColumnName("whisper_transcription_id")
+        builder.Property(l => l.VoiceTranscriptionId)
+            .HasColumnName("voice_transcription_id")
             .IsRequired();
 
         builder.Property(l => l.CorrectedText)
@@ -41,9 +41,9 @@ public class LlmCorrectionConfiguration : IEntityTypeConfiguration<LlmCorrection
             .IsRequired(); // Required - every correction must be associated with a model
 
         // Foreign key relationships
-        builder.HasOne(l => l.WhisperTranscription)
+        builder.HasOne(l => l.VoiceTranscription)
             .WithMany()
-            .HasForeignKey(l => l.WhisperTranscriptionId)
+            .HasForeignKey(l => l.VoiceTranscriptionId)
             .OnDelete(DeleteBehavior.Cascade);
 
         builder.HasOne(l => l.Prompt)
@@ -56,7 +56,7 @@ public class LlmCorrectionConfiguration : IEntityTypeConfiguration<LlmCorrection
             .HasForeignKey(l => l.ModelId)
             .OnDelete(DeleteBehavior.Restrict);
 
-        builder.HasIndex(l => l.WhisperTranscriptionId);
+        builder.HasIndex(l => l.VoiceTranscriptionId);
         builder.HasIndex(l => l.PromptId);
         builder.HasIndex(l => l.ModelId);
         builder.HasIndex(l => l.CreatedAt);

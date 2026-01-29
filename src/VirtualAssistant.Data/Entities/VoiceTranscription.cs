@@ -3,12 +3,12 @@ using Olbrasoft.Data.Entities.Abstractions;
 namespace Olbrasoft.VirtualAssistant.Data.Entities;
 
 /// <summary>
-/// Represents a Whisper AI transcription from voice input.
+/// Represents a voice transcription from speech-to-text provider.
 /// </summary>
-public class WhisperTranscription : BaseEnity
+public class VoiceTranscription : BaseEnity
 {
     /// <summary>
-    /// Gets or sets the transcribed text from Whisper AI.
+    /// Gets or sets the transcribed text from STT provider.
     /// </summary>
     public required string TranscribedText { get; set; }
 
@@ -21,4 +21,14 @@ public class WhisperTranscription : BaseEnity
     /// Gets or sets when the transcription was created (UTC).
     /// </summary>
     public DateTime CreatedAt { get; set; } = DateTime.UtcNow;
+
+    /// <summary>
+    /// Gets or sets the ID of the STT provider that created this transcription.
+    /// </summary>
+    public int ProviderId { get; set; }
+
+    /// <summary>
+    /// Navigation property to the STT provider.
+    /// </summary>
+    public Provider Provider { get; set; } = null!;
 }

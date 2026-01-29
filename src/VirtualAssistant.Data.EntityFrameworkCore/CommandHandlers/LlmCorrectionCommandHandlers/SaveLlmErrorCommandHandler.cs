@@ -11,13 +11,13 @@ public class SaveLlmErrorCommandHandler(VirtualAssistantDbContext context)
 {
     protected override async Task<LlmError> GetResultToHandleAsync(SaveLlmErrorCommand command, CancellationToken token)
     {
-        ArgumentOutOfRangeException.ThrowIfNegativeOrZero(command.WhisperTranscriptionId, nameof(command.WhisperTranscriptionId));
+        ArgumentOutOfRangeException.ThrowIfNegativeOrZero(command.VoiceTranscriptionId, nameof(command.VoiceTranscriptionId));
         ArgumentOutOfRangeException.ThrowIfNegativeOrZero(command.DurationMs, nameof(command.DurationMs));
         ArgumentException.ThrowIfNullOrWhiteSpace(command.ErrorMessage, nameof(command.ErrorMessage));
 
         var error = new LlmError
         {
-            WhisperTranscriptionId = command.WhisperTranscriptionId,
+            VoiceTranscriptionId = command.VoiceTranscriptionId,
             ErrorMessage = command.ErrorMessage,
             DurationMs = command.DurationMs,
             CreatedAt = DateTime.UtcNow

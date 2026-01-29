@@ -48,6 +48,7 @@ public class ProviderConfiguration : IEntityTypeConfiguration<Provider>
         // Seed TTS providers in fallback chain order
         var seedCreatedAt = new DateTime(2024, 12, 30, 22, 51, 45, DateTimeKind.Utc);
         var llmSeedCreatedAt = new DateTime(2026, 1, 16, 12, 0, 0, DateTimeKind.Utc);
+        var sttSeedCreatedAt = new DateTime(2026, 1, 29, 12, 0, 0, DateTimeKind.Utc);
         builder.HasData(
             // TTS providers (ID 1-6)
             new Provider { Id = 1, Name = "AzureTTS", Type = "tts", Enabled = true, Priority = 1, CreatedAt = seedCreatedAt },
@@ -58,7 +59,10 @@ public class ProviderConfiguration : IEntityTypeConfiguration<Provider>
             new Provider { Id = 6, Name = "cache", Type = "tts", Enabled = true, Priority = 0, CreatedAt = seedCreatedAt },
             // LLM providers (ID 7-8)
             new Provider { Id = 7, Name = "Mistral AI", Type = "llm", Enabled = true, Priority = 1, CreatedAt = llmSeedCreatedAt },
-            new Provider { Id = 8, Name = "Zen", Type = "llm", Enabled = true, Priority = 2, CreatedAt = llmSeedCreatedAt }
+            new Provider { Id = 8, Name = "Zen", Type = "llm", Enabled = true, Priority = 2, CreatedAt = llmSeedCreatedAt },
+            // STT providers (ID 13-14) - IDs 9-12 may exist in production database
+            new Provider { Id = 13, Name = "Whisper Local", Type = "stt", Enabled = true, Priority = 2, CreatedAt = sttSeedCreatedAt },
+            new Provider { Id = 14, Name = "Google Speech-to-Text", Type = "stt", Enabled = true, Priority = 1, CreatedAt = sttSeedCreatedAt }
         );
     }
 }

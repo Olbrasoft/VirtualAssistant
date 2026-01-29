@@ -11,7 +11,7 @@ namespace Olbrasoft.VirtualAssistant.Service.Tests.Services;
 
 /// <summary>
 /// Unit tests for <see cref="DictationPersistenceService"/>.
-/// Verifies correct database persistence of Whisper transcriptions and LLM corrections,
+/// Verifies correct database persistence of voice transcriptions and LLM corrections,
 /// including error handling, input validation, and audio duration calculations.
 /// </summary>
 public class DictationPersistenceServiceTests
@@ -42,12 +42,12 @@ public class DictationPersistenceServiceTests
     #region SaveTranscriptionAsync - Success Cases
 
     [Fact]
-    public async Task SaveTranscriptionAsync_WithoutLlmCorrection_SavesOnlyWhisperTranscription()
+    public async Task SaveTranscriptionAsync_WithoutLlmCorrection_SavesOnlyVoiceTranscription()
     {
         // Arrange
         var audioData = new byte[32000]; // 1 second of audio (16-bit mono @ 16kHz)
         var originalText = "Hello world";
-        var expectedTranscription = new WhisperTranscription
+        var expectedTranscription = new VoiceTranscription
         {
             Id = 123,
             TranscribedText = originalText,
@@ -55,7 +55,7 @@ public class DictationPersistenceServiceTests
         };
 
         _commandExecutorMock
-            .Setup(x => x.ExecuteAsync(It.IsAny<ICommand<WhisperTranscription>>(), It.IsAny<CancellationToken>()))
+            .Setup(x => x.ExecuteAsync(It.IsAny<ICommand<VoiceTranscription>>(), It.IsAny<CancellationToken>()))
             .ReturnsAsync(expectedTranscription);
 
         // Act
@@ -68,8 +68,8 @@ public class DictationPersistenceServiceTests
         // Assert
         Assert.Equal(123, result);
         _commandExecutorMock.Verify(x => x.ExecuteAsync(
-            It.Is<ICommand<WhisperTranscription>>(cmd =>
-                cmd is Data.Commands.WhisperTranscriptionCommands.SaveWhisperTranscriptionCommand),
+            It.Is<ICommand<VoiceTranscription>>(cmd =>
+                cmd is Data.Commands.VoiceTranscriptionCommands.SaveVoiceTranscriptionCommand),
             It.IsAny<CancellationToken>()), Times.Once);
         _commandExecutorMock.Verify(x => x.ExecuteAsync(
             It.IsAny<ICommand<LlmCorrection>>(), It.IsAny<CancellationToken>()), Times.Never);
@@ -84,7 +84,7 @@ public class DictationPersistenceServiceTests
         var correctedText = "Hello world"; // LLM corrected
         var llmDurationMs = 250;
 
-        var expectedTranscription = new WhisperTranscription
+        var expectedTranscription = new VoiceTranscription
         {
             Id = 456,
             TranscribedText = originalText,
@@ -94,13 +94,13 @@ public class DictationPersistenceServiceTests
         var expectedCorrection = new LlmCorrection
         {
             Id = 789,
-            WhisperTranscriptionId = 456,
+            VoiceTranscriptionId = 456,
             CorrectedText = correctedText,
             DurationMs = llmDurationMs
         };
 
         _commandExecutorMock
-            .Setup(x => x.ExecuteAsync(It.IsAny<ICommand<WhisperTranscription>>(), It.IsAny<CancellationToken>()))
+            .Setup(x => x.ExecuteAsync(It.IsAny<ICommand<VoiceTranscription>>(), It.IsAny<CancellationToken>()))
             .ReturnsAsync(expectedTranscription);
 
         _commandExecutorMock
@@ -118,8 +118,8 @@ public class DictationPersistenceServiceTests
         // Assert
         Assert.Equal(456, result);
         _commandExecutorMock.Verify(x => x.ExecuteAsync(
-            It.Is<ICommand<WhisperTranscription>>(cmd =>
-                cmd is Data.Commands.WhisperTranscriptionCommands.SaveWhisperTranscriptionCommand),
+            It.Is<ICommand<VoiceTranscription>>(cmd =>
+                cmd is Data.Commands.VoiceTranscriptionCommands.SaveVoiceTranscriptionCommand),
             It.IsAny<CancellationToken>()), Times.Once);
         _commandExecutorMock.Verify(x => x.ExecuteAsync(
             It.Is<ICommand<LlmCorrection>>(cmd =>
@@ -135,7 +135,7 @@ public class DictationPersistenceServiceTests
         var originalText = "Hello world";
         var correctedText = "Hello world"; // Same as original
 
-        var expectedTranscription = new WhisperTranscription
+        var expectedTranscription = new VoiceTranscription
         {
             Id = 111,
             TranscribedText = originalText,
@@ -143,7 +143,7 @@ public class DictationPersistenceServiceTests
         };
 
         _commandExecutorMock
-            .Setup(x => x.ExecuteAsync(It.IsAny<ICommand<WhisperTranscription>>(), It.IsAny<CancellationToken>()))
+            .Setup(x => x.ExecuteAsync(It.IsAny<ICommand<VoiceTranscription>>(), It.IsAny<CancellationToken>()))
             .ReturnsAsync(expectedTranscription);
 
         // Act
@@ -168,7 +168,7 @@ public class DictationPersistenceServiceTests
         var originalText = "helo world";
         var correctedText = "Hello world"; // Different from original
 
-        var expectedTranscription = new WhisperTranscription
+        var expectedTranscription = new VoiceTranscription
         {
             Id = 222,
             TranscribedText = originalText,
@@ -176,7 +176,7 @@ public class DictationPersistenceServiceTests
         };
 
         _commandExecutorMock
-            .Setup(x => x.ExecuteAsync(It.IsAny<ICommand<WhisperTranscription>>(), It.IsAny<CancellationToken>()))
+            .Setup(x => x.ExecuteAsync(It.IsAny<ICommand<VoiceTranscription>>(), It.IsAny<CancellationToken>()))
             .ReturnsAsync(expectedTranscription);
 
         // Act - correction without ModelId should not be saved
@@ -209,8 +209,8 @@ public class DictationPersistenceServiceTests
         var text = "test";
 
         _commandExecutorMock
-            .Setup(x => x.ExecuteAsync(It.IsAny<ICommand<WhisperTranscription>>(), It.IsAny<CancellationToken>()))
-            .ReturnsAsync(new WhisperTranscription { Id = 1, TranscribedText = text, AudioDurationMs = expectedDurationMs });
+            .Setup(x => x.ExecuteAsync(It.IsAny<ICommand<VoiceTranscription>>(), It.IsAny<CancellationToken>()))
+            .ReturnsAsync(new VoiceTranscription { Id = 1, TranscribedText = text, AudioDurationMs = expectedDurationMs });
 
         // Act
         await _service.SaveTranscriptionAsync(
@@ -222,8 +222,8 @@ public class DictationPersistenceServiceTests
         // Assert
         _commandExecutorMock.Verify(
             x => x.ExecuteAsync(
-                It.Is<ICommand<WhisperTranscription>>(cmd =>
-                    cmd is Data.Commands.WhisperTranscriptionCommands.SaveWhisperTranscriptionCommand),
+                It.Is<ICommand<VoiceTranscription>>(cmd =>
+                    cmd is Data.Commands.VoiceTranscriptionCommands.SaveVoiceTranscriptionCommand),
                 It.IsAny<CancellationToken>()),
             Times.Once,
             $"Expected duration {expectedDurationMs}ms for {audioBytes} bytes");
@@ -241,7 +241,7 @@ public class DictationPersistenceServiceTests
         var text = "test";
 
         _commandExecutorMock
-            .Setup(x => x.ExecuteAsync(It.IsAny<ICommand<WhisperTranscription>>(), It.IsAny<CancellationToken>()))
+            .Setup(x => x.ExecuteAsync(It.IsAny<ICommand<VoiceTranscription>>(), It.IsAny<CancellationToken>()))
             .ThrowsAsync(new InvalidOperationException("Database error"));
 
         // Act
@@ -264,8 +264,8 @@ public class DictationPersistenceServiceTests
         var correctedText = "corrected";
 
         _commandExecutorMock
-            .Setup(x => x.ExecuteAsync(It.IsAny<ICommand<WhisperTranscription>>(), It.IsAny<CancellationToken>()))
-            .ReturnsAsync(new WhisperTranscription { Id = 999, TranscribedText = originalText, AudioDurationMs = 500 });
+            .Setup(x => x.ExecuteAsync(It.IsAny<ICommand<VoiceTranscription>>(), It.IsAny<CancellationToken>()))
+            .ReturnsAsync(new VoiceTranscription { Id = 999, TranscribedText = originalText, AudioDurationMs = 500 });
 
         _commandExecutorMock
             .Setup(x => x.ExecuteAsync(It.IsAny<ICommand<LlmCorrection>>(), It.IsAny<CancellationToken>()))
@@ -372,8 +372,8 @@ public class DictationPersistenceServiceTests
         var expectedDurationMs = 468; // 15001 / 2 (integer division) = 7500 samples, 7500 / 16000 * 1000 = 468.75ms -> 468ms
 
         _commandExecutorMock
-            .Setup(x => x.ExecuteAsync(It.IsAny<ICommand<WhisperTranscription>>(), It.IsAny<CancellationToken>()))
-            .ReturnsAsync(new WhisperTranscription { Id = 1, TranscribedText = text, AudioDurationMs = expectedDurationMs });
+            .Setup(x => x.ExecuteAsync(It.IsAny<ICommand<VoiceTranscription>>(), It.IsAny<CancellationToken>()))
+            .ReturnsAsync(new VoiceTranscription { Id = 1, TranscribedText = text, AudioDurationMs = expectedDurationMs });
 
         // Act
         var result = await _service.SaveTranscriptionAsync(audioData, text, null, CancellationToken.None);
@@ -382,8 +382,8 @@ public class DictationPersistenceServiceTests
         Assert.Equal(1, result);
         _commandExecutorMock.Verify(
             x => x.ExecuteAsync(
-                It.Is<ICommand<WhisperTranscription>>(cmd =>
-                    cmd is Data.Commands.WhisperTranscriptionCommands.SaveWhisperTranscriptionCommand),
+                It.Is<ICommand<VoiceTranscription>>(cmd =>
+                    cmd is Data.Commands.VoiceTranscriptionCommands.SaveVoiceTranscriptionCommand),
                 It.IsAny<CancellationToken>()),
             Times.Once);
 

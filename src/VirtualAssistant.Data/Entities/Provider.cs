@@ -24,4 +24,9 @@ public class Provider
     /// Navigation property - notifications that used this LLM provider.
     /// </summary>
     public ICollection<Notification> LlmNotifications { get; set; } = [];
+
+    /// <summary>
+    /// Navigation property - voice transcriptions created by this STT provider.
+    /// </summary>
+    public ICollection<VoiceTranscription> VoiceTranscriptions { get; set; } = [];
 }
