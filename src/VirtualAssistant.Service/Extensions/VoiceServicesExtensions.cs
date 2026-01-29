@@ -66,6 +66,9 @@ public static class VoiceServicesExtensions
 
         services.Configure<TtsProfilesOptions>(
             configuration.GetSection(TtsProfilesOptions.SectionName));
+
+        services.Configure<GoogleSpeechToTextOptions>(
+            configuration.GetSection(GoogleSpeechToTextOptions.SectionName));
     }
 
     private static void AddEchoDetectionServices(this IServiceCollection services)
@@ -102,6 +105,17 @@ public static class VoiceServicesExtensions
         services.AddSingleton<IClaudeDispatchService, ClaudeDispatchService>();
 
         services.AddSingleton<ISpeechTranscriber, WhisperSpeechTranscriber>();
+
+        // Register Google Speech-to-Text as keyed service
+        services.AddHttpClient("GoogleSpeech");
+        services.AddKeyedSingleton<ISpeechTranscriber, GoogleSpeechTranscriber>("google", (sp, _) =>
+        {
+            var httpClientFactory = sp.GetRequiredService<IHttpClientFactory>();
+            var httpClient = httpClientFactory.CreateClient("GoogleSpeech");
+            var options = sp.GetRequiredService<IOptions<GoogleSpeechToTextOptions>>();
+            var logger = sp.GetRequiredService<ILogger<GoogleSpeechTranscriber>>();
+            return new GoogleSpeechTranscriber(httpClient, options, logger);
+        });
 
         services.AddSingleton<ITranscriptionService>(sp =>
         {
