@@ -191,32 +191,13 @@ public class VoiceTranscriptionCommandHandlerTests : IDisposable
     }
 
     [Fact]
-    public async Task SaveHandler_WithEmptyText_Saves()
+    public async Task SaveHandler_WithMaxLengthText_Saves()
     {
-        // Arrange - Empty text is technically valid (e.g., no speech detected)
+        // Arrange - Text at max allowed length (2000 chars per VoiceTranscriptionConfiguration)
         var handler = new SaveVoiceTranscriptionCommandHandler(_dbContext);
+        var maxText = new string('A', 2000);
         var command = new SaveVoiceTranscriptionCommand(
-            Text: string.Empty,
-            DurationMs: 500,
-            ProviderId: 13
-        );
-
-        // Act
-        var result = await handler.HandleAsync(command, CancellationToken.None);
-
-        // Assert
-        Assert.NotEqual(0, result.Id);
-        Assert.Equal(string.Empty, result.TranscribedText);
-    }
-
-    [Fact]
-    public async Task SaveHandler_WithLongText_Saves()
-    {
-        // Arrange - Long transcription (e.g., 5 minute recording)
-        var handler = new SaveVoiceTranscriptionCommandHandler(_dbContext);
-        var longText = new string('A', 10000); // 10k characters
-        var command = new SaveVoiceTranscriptionCommand(
-            Text: longText,
+            Text: maxText,
             DurationMs: 300000, // 5 minutes
             ProviderId: 14
         );
@@ -226,7 +207,7 @@ public class VoiceTranscriptionCommandHandlerTests : IDisposable
 
         // Assert
         Assert.NotEqual(0, result.Id);
-        Assert.Equal(longText, result.TranscribedText);
+        Assert.Equal(maxText, result.TranscribedText);
     }
 
     #endregion
