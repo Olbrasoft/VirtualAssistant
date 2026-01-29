@@ -107,11 +107,11 @@ public static class VoiceServicesExtensions
         services.AddSingleton<IClaudeNotificationSender, ClaudeNotificationSender>();
         services.AddSingleton<IClaudeDispatchService, ClaudeDispatchService>();
 
-        // Register STT providers as keyed services for consistent retrieval
-        services.AddKeyedSingleton<ISpeechTranscriber, WhisperSpeechTranscriber>("whisper");
+        // Register STT providers as concrete singletons (no keyed services - they have bugs)
+        services.AddSingleton<WhisperSpeechTranscriber>();
 
         services.AddHttpClient("GoogleSpeech");
-        services.AddKeyedSingleton<ISpeechTranscriber, GoogleSpeechTranscriber>("google", (sp, _) =>
+        services.AddSingleton<GoogleSpeechTranscriber>(sp =>
         {
             var httpClientFactory = sp.GetRequiredService<IHttpClientFactory>();
             var httpClient = httpClientFactory.CreateClient("GoogleSpeech");
@@ -120,8 +120,17 @@ public static class VoiceServicesExtensions
             return new GoogleSpeechTranscriber(httpClient, options, logger);
         });
 
-        // Register STT provider factory
-        services.AddSingleton<ISpeechTranscriberFactory, SpeechTranscriberFactory>();
+        // Register STT provider factory with explicit provider injection (no service locator)
+        // Cast to ISpeechTranscriber to match factory constructor signature
+        services.AddSingleton<ISpeechTranscriberFactory>(sp =>
+        {
+            ISpeechTranscriber whisper = sp.GetRequiredService<WhisperSpeechTranscriber>();
+            ISpeechTranscriber google = sp.GetRequiredService<GoogleSpeechTranscriber>();
+            var queryProcessor = sp.GetRequiredService<IQueryProcessor>();
+            var settings = sp.GetRequiredService<IOptions<SpeechProviderSettings>>();
+            var logger = sp.GetRequiredService<ILogger<SpeechTranscriberFactory>>();
+            return new SpeechTranscriberFactory(whisper, google, queryProcessor, settings, logger);
+        });
 
         // Register FallbackSpeechTranscriber or single provider based on settings.
         // Note: When FallbackSpeechTranscriber is used, LastUsedProviderId tracks which provider
