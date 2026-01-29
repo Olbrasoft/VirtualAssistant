@@ -123,9 +123,25 @@ public static class VoiceServicesExtensions
         // Register STT provider factory
         services.AddSingleton<ISpeechTranscriberFactory, SpeechTranscriberFactory>();
 
-        // Register active provider via factory (for backward compatibility)
+        // Register FallbackSpeechTranscriber or single provider based on settings
         services.AddSingleton<ISpeechTranscriber>(sp =>
-            sp.GetRequiredService<ISpeechTranscriberFactory>().GetActiveProvider());
+        {
+            var factory = sp.GetRequiredService<ISpeechTranscriberFactory>();
+            var settings = sp.GetRequiredService<IOptions<SpeechProviderSettings>>().Value;
+            var logger = sp.GetRequiredService<ILogger<FallbackSpeechTranscriber>>();
+
+            var primary = factory.GetProvider(settings.PrimaryProvider);
+            var fallback = factory.GetProvider(settings.FallbackProvider);
+
+            // If fallback is disabled or not available, return primary provider
+            if (!settings.EnableFallback || primary == null || fallback == null)
+            {
+                return primary ?? fallback ?? throw new InvalidOperationException("No STT provider available");
+            }
+
+            // Return FallbackSpeechTranscriber with both providers
+            return new FallbackSpeechTranscriber(primary, fallback, factory, logger, settings);
+        });
 
         services.AddSingleton<ITranscriptionService>(sp =>
         {
