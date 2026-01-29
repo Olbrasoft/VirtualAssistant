@@ -1,4 +1,3 @@
-using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
 using Olbrasoft.Data.Cqrs;
@@ -10,11 +9,13 @@ namespace Olbrasoft.VirtualAssistant.Voice.Services;
 
 /// <summary>
 /// Factory for creating and managing speech transcriber instances.
+/// Uses explicit provider injection instead of keyed services to avoid DI container bugs.
 /// Caches provider IDs from database for efficient tracking.
 /// </summary>
 public class SpeechTranscriberFactory : ISpeechTranscriberFactory
 {
-    private readonly IServiceProvider _serviceProvider;
+    private readonly ISpeechTranscriber _whisperProvider;
+    private readonly ISpeechTranscriber _googleProvider;
     private readonly IQueryProcessor _queryProcessor;
     private readonly SpeechProviderSettings _settings;
     private readonly ILogger<SpeechTranscriberFactory> _logger;
@@ -25,17 +26,30 @@ public class SpeechTranscriberFactory : ISpeechTranscriberFactory
 
     /// <summary>
     /// Initializes a new instance of <see cref="SpeechTranscriberFactory"/>.
+    /// Providers are injected explicitly to avoid .NET keyed services bugs.
     /// </summary>
+    /// <param name="whisperProvider">The Whisper speech transcriber instance.</param>
+    /// <param name="googleProvider">The Google speech transcriber instance.</param>
+    /// <param name="queryProcessor">Query processor for database access.</param>
+    /// <param name="settings">Speech provider configuration settings.</param>
+    /// <param name="logger">Logger instance.</param>
     public SpeechTranscriberFactory(
-        IServiceProvider serviceProvider,
+        ISpeechTranscriber whisperProvider,
+        ISpeechTranscriber googleProvider,
         IQueryProcessor queryProcessor,
         IOptions<SpeechProviderSettings> settings,
         ILogger<SpeechTranscriberFactory> logger)
     {
-        _serviceProvider = serviceProvider ?? throw new ArgumentNullException(nameof(serviceProvider));
+        _whisperProvider = whisperProvider ?? throw new ArgumentNullException(nameof(whisperProvider));
+        _googleProvider = googleProvider ?? throw new ArgumentNullException(nameof(googleProvider));
         _queryProcessor = queryProcessor ?? throw new ArgumentNullException(nameof(queryProcessor));
         _settings = settings?.Value ?? throw new ArgumentNullException(nameof(settings));
         _logger = logger ?? throw new ArgumentNullException(nameof(logger));
+
+        _logger.LogInformation(
+            "SpeechTranscriberFactory initialized with Whisper={Whisper}, Google={Google}",
+            _whisperProvider.GetType().Name,
+            _googleProvider.GetType().Name);
     }
 
     /// <summary>
@@ -50,15 +64,31 @@ public class SpeechTranscriberFactory : ISpeechTranscriberFactory
 
     /// <summary>
     /// Gets a specific provider by name.
+    /// Returns the explicitly injected provider instance - no service locator pattern.
     /// </summary>
+    /// <param name="providerName">The provider name ("whisper" or "google").</param>
+    /// <returns>The provider instance, or null if not found.</returns>
     public ISpeechTranscriber? GetProvider(string providerName)
     {
-        return providerName.ToLowerInvariant() switch
+        if (string.IsNullOrEmpty(providerName))
+            return null;
+
+        var provider = providerName.ToLowerInvariant() switch
         {
-            "google" => _serviceProvider.GetKeyedService<ISpeechTranscriber>("google"),
-            "whisper" => _serviceProvider.GetKeyedService<ISpeechTranscriber>("whisper"),
+            "whisper" => (ISpeechTranscriber)_whisperProvider,
+            "google" => _googleProvider,
             _ => null
         };
+
+        if (provider != null)
+        {
+            _logger.LogDebug(
+                "GetProvider({ProviderName}) returning {ProviderType}",
+                providerName,
+                provider.GetType().Name);
+        }
+
+        return provider;
     }
 
     /// <summary>
