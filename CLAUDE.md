@@ -176,6 +176,35 @@ Query handler and command handler implementations are in the **VirtualAssistant.
 - Thread-safe concurrent transcription
 - Models: ggml-medium.bin (continuous listening), ggml-large-v3-turbo.bin (dictation)
 
+**Google Speech-to-Text:**
+- `GoogleSpeechTranscriber` - Google Chromium Speech API v2 endpoint
+- Used as primary provider with Whisper as fallback
+- Configuration in `appsettings.json` section `GoogleSpeechToText`
+
+**STT Provider Configuration:**
+```json
+{
+  "SpeechProvider": {
+    "PrimaryProvider": "google",    // or "whisper"
+    "FallbackProvider": "whisper",
+    "EnableFallback": true
+  },
+  "GoogleSpeechToText": {
+    "ApiKey": "",                   // Store in SecureStore!
+    "Language": "cs-CZ",
+    "TimeoutMs": 30000,
+    "Enabled": true
+  }
+}
+```
+
+**Adding Google STT API Key to SecureStore:**
+```bash
+SecureStore set -s ~/.config/virtual-assistant/secrets/secrets.json \
+  -k ~/.config/virtual-assistant/keys/secrets.key \
+  "GoogleSpeechToText:ApiKey=YOUR_API_KEY"
+```
+
 ## Agent Support
 
 VirtualAssistant supports multiple AI agents with agent-specific voice differentiation via TTS profiles.
@@ -477,6 +506,7 @@ systemctl --user restart virtual-assistant.service
 | `TTS:AzureTTS:SubscriptionKey` | Azure Speech Service key |
 | `TTS:VoiceRSS:ApiKey` | VoiceRSS API key |
 | `GoogleTTS:ApiKey1`, `GoogleTTS:ApiKey2`, `GoogleTTS:ApiKey3` | Google Cloud TTS keys |
+| `GoogleSpeechToText:ApiKey` | Google Speech-to-Text API key |
 | `LlmChain:Mistral:ApiKey` | Mistral AI key |
 | `LlmChain:Cerebras:ApiKeys` | Cerebras keys (comma-separated) |
 | `LlmChain:Groq:ApiKeys` | Groq keys (comma-separated) |
