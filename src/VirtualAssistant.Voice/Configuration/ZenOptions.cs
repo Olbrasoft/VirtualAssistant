@@ -1,7 +1,8 @@
 namespace Olbrasoft.VirtualAssistant.Voice.Configuration;
 
 /// <summary>
-/// Configuration options for OpenCode Zen API (alpha-glm-4.7 model).
+/// Configuration options for OpenCode Zen API gateway.
+/// Supports models: kimi-k2, glm-4.7 (with reasoning_effort), claude-3-5-haiku, etc.
 /// </summary>
 public class ZenOptions : ILlmProviderOptions
 {
@@ -22,8 +23,17 @@ public class ZenOptions : ILlmProviderOptions
 
     /// <summary>
     /// Model name to use for corrections.
+    /// Supported: kimi-k2, glm-4.7, claude-3-5-haiku, claude-haiku-4-5, big-pickle.
     /// </summary>
-    public string Model { get; set; } = "alpha-glm-4.7";
+    public string Model { get; set; } = "glm-4.7";
+
+    /// <summary>
+    /// Controls reasoning/thinking mode for models that support it.
+    /// Set to "none" to disable reasoning (required for glm-4.7 to get clean output).
+    /// Leave null/empty for models that don't need it (e.g. kimi-k2).
+    /// Supported values: "none", "low", "medium", "high", or null.
+    /// </summary>
+    public string? ReasoningEffort { get; set; } = "none";
 
     /// <summary>
     /// API timeout in seconds.

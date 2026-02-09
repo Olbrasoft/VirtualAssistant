@@ -1,10 +1,16 @@
+using System.Net;
+using System.Text.Json;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
 using Moq;
+using Moq.Protected;
 using Olbrasoft.Data.Cqrs;
 using Olbrasoft.VirtualAssistant.Core.Models;
 using Olbrasoft.VirtualAssistant.Core.Services;
 using Olbrasoft.VirtualAssistant.Core.WindowManagement;
+using Olbrasoft.VirtualAssistant.Data.Entities;
+using Olbrasoft.VirtualAssistant.Data.Queries.LlmModelQueries;
+using Olbrasoft.VirtualAssistant.Data.Queries.PromptQueries;
 using Olbrasoft.VirtualAssistant.Voice.Configuration;
 using Olbrasoft.VirtualAssistant.Voice.Services;
 
@@ -26,7 +32,7 @@ public class ZenProviderTests
         {
             ApiKey = "test-api-key",
             BaseUrl = "https://opencode.ai/zen/v1",
-            Model = "alpha-glm-4.7",
+            Model = "glm-4.7",
             TimeoutSeconds = 30,
             MaxTokens = 1000,
             Temperature = 0.3,
@@ -80,7 +86,7 @@ public class ZenProviderTests
         var modelName = sut.ModelName;
 
         // Assert
-        Assert.Equal("alpha-glm-4.7", modelName);
+        Assert.Equal("glm-4.7", modelName);
     }
 
     [Fact]
@@ -172,6 +178,130 @@ public class ZenProviderTests
         // Assert
         Assert.NotNull(headers);
         Assert.Empty(headers);
+    }
+
+    private (ZenProvider Sut, Mock<HttpMessageHandler> HandlerMock) CreateSutWithMockHttp()
+    {
+        var handlerMock = new Mock<HttpMessageHandler>();
+        var httpClient = new HttpClient(handlerMock.Object);
+
+        var sut = new ZenProvider(
+            httpClient,
+            _optionsMock.Object,
+            _promptCacheMock.Object,
+            _loggerMock.Object,
+            _desktopContextServiceMock.Object,
+            _queryProcessorMock.Object,
+            _cliAppDetectorMock.Object);
+
+        return (sut, handlerMock);
+    }
+
+    private void SetupMocksForCorrection(Mock<HttpMessageHandler> handlerMock, string responseText = "Corrected text")
+    {
+        _desktopContextServiceMock
+            .Setup(x => x.GetCurrentContextAsync(It.IsAny<CancellationToken>()))
+            .ReturnsAsync(new DesktopContext(0, 1, "test", "test", "test", DateTime.UtcNow));
+
+        _cliAppDetectorMock
+            .Setup(x => x.DetectCliAppAsync(It.IsAny<CancellationToken>()))
+            .ReturnsAsync((CliAppDetectionResult?)null);
+
+        _queryProcessorMock
+            .Setup(x => x.ProcessAsync(It.IsAny<GetPromptByAppIdPatternQuery>(), It.IsAny<CancellationToken>()))
+            .ReturnsAsync(new Prompt { Id = 1, PromptFileName = "Test.md" });
+
+        _promptCacheMock
+            .Setup(x => x.GetPrompt("Test.md"))
+            .Returns("System prompt");
+
+        _queryProcessorMock
+            .Setup(x => x.ProcessAsync(It.IsAny<GetLlmModelByIdentifierQuery>(), It.IsAny<CancellationToken>()))
+            .ReturnsAsync(new LlmModel { Id = 13, Name = "glm-4.7", ModelIdentifier = "glm-4.7" });
+
+        var json = JsonSerializer.Serialize(new
+        {
+            choices = new[] { new { message = new { content = responseText } } }
+        });
+
+        handlerMock.Protected()
+            .Setup<Task<HttpResponseMessage>>("SendAsync",
+                ItExpr.IsAny<HttpRequestMessage>(),
+                ItExpr.IsAny<CancellationToken>())
+            .ReturnsAsync(new HttpResponseMessage
+            {
+                StatusCode = HttpStatusCode.OK,
+                Content = new StringContent(json, System.Text.Encoding.UTF8, "application/json")
+            });
+    }
+
+    [Fact]
+    public async Task CorrectTextAsync_WhenReasoningEffortSet_IncludesItInRequest()
+    {
+        // Arrange
+        _options.ReasoningEffort = "none";
+        var (sut, handlerMock) = CreateSutWithMockHttp();
+        SetupMocksForCorrection(handlerMock);
+        string? capturedBody = null;
+
+        handlerMock.Protected()
+            .Setup<Task<HttpResponseMessage>>("SendAsync",
+                ItExpr.IsAny<HttpRequestMessage>(),
+                ItExpr.IsAny<CancellationToken>())
+            .Callback<HttpRequestMessage, CancellationToken>(async (req, _) =>
+            {
+                capturedBody = await req.Content!.ReadAsStringAsync();
+            })
+            .ReturnsAsync(new HttpResponseMessage
+            {
+                StatusCode = HttpStatusCode.OK,
+                Content = new StringContent(
+                    JsonSerializer.Serialize(new { choices = new[] { new { message = new { content = "Corrected" } } } }),
+                    System.Text.Encoding.UTF8, "application/json")
+            });
+
+        // Act
+        await sut.CorrectTextAsync("This is a test transcription that needs correction.");
+
+        // Assert
+        Assert.NotNull(capturedBody);
+        using var doc = JsonDocument.Parse(capturedBody);
+        Assert.True(doc.RootElement.TryGetProperty("reasoning_effort", out var reasoningEffort));
+        Assert.Equal("none", reasoningEffort.GetString());
+    }
+
+    [Fact]
+    public async Task CorrectTextAsync_WhenReasoningEffortNull_OmitsItFromRequest()
+    {
+        // Arrange
+        _options.ReasoningEffort = null;
+        var (sut, handlerMock) = CreateSutWithMockHttp();
+        SetupMocksForCorrection(handlerMock);
+        string? capturedBody = null;
+
+        handlerMock.Protected()
+            .Setup<Task<HttpResponseMessage>>("SendAsync",
+                ItExpr.IsAny<HttpRequestMessage>(),
+                ItExpr.IsAny<CancellationToken>())
+            .Callback<HttpRequestMessage, CancellationToken>(async (req, _) =>
+            {
+                capturedBody = await req.Content!.ReadAsStringAsync();
+            })
+            .ReturnsAsync(new HttpResponseMessage
+            {
+                StatusCode = HttpStatusCode.OK,
+                Content = new StringContent(
+                    JsonSerializer.Serialize(new { choices = new[] { new { message = new { content = "Corrected" } } } }),
+                    System.Text.Encoding.UTF8, "application/json")
+            });
+
+        // Act
+        await sut.CorrectTextAsync("This is a test transcription that needs correction.");
+
+        // Assert
+        Assert.NotNull(capturedBody);
+        using var doc = JsonDocument.Parse(capturedBody);
+        Assert.False(doc.RootElement.TryGetProperty("reasoning_effort", out _));
     }
 
     [Fact]
