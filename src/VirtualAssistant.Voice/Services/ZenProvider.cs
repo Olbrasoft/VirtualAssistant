@@ -11,7 +11,8 @@ using Olbrasoft.VirtualAssistant.Voice.Configuration;
 namespace Olbrasoft.VirtualAssistant.Voice.Services;
 
 /// <summary>
-/// OpenCode Zen API provider for correcting Czech ASR transcriptions using alpha-glm-4.7 model.
+/// OpenCode Zen API provider for correcting Czech ASR transcriptions.
+/// Supports models: kimi-k2, glm-4.7 (with reasoning_effort), claude-3-5-haiku, etc.
 /// </summary>
 public class ZenProvider : LlmProviderBase
 {
@@ -54,17 +55,22 @@ public class ZenProvider : LlmProviderBase
             var (promptText, promptId) = await GetSystemPromptAsync(cancellationToken);
             var modelId = await GetModelIdAsync(cancellationToken);
 
-            var request = new
+            var request = new Dictionary<string, object>
             {
-                model = _options.Model,
-                messages = new[]
+                ["model"] = _options.Model,
+                ["messages"] = new[]
                 {
                     new { role = "system", content = promptText },
                     new { role = "user", content = text }
                 },
-                temperature = _options.Temperature,
-                max_tokens = _options.MaxTokens
+                ["temperature"] = _options.Temperature,
+                ["max_tokens"] = _options.MaxTokens
             };
+
+            if (!string.IsNullOrEmpty(_options.ReasoningEffort))
+            {
+                request["reasoning_effort"] = _options.ReasoningEffort;
+            }
 
             var response = await HttpClient.PostAsJsonAsync(ChatCompletionsEndpoint, request, cancellationToken);
 

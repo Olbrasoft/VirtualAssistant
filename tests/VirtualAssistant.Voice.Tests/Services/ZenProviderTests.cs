@@ -26,7 +26,7 @@ public class ZenProviderTests
         {
             ApiKey = "test-api-key",
             BaseUrl = "https://opencode.ai/zen/v1",
-            Model = "alpha-glm-4.7",
+            Model = "glm-4.7",
             TimeoutSeconds = 30,
             MaxTokens = 1000,
             Temperature = 0.3,
@@ -80,7 +80,7 @@ public class ZenProviderTests
         var modelName = sut.ModelName;
 
         // Assert
-        Assert.Equal("alpha-glm-4.7", modelName);
+        Assert.Equal("glm-4.7", modelName);
     }
 
     [Fact]
