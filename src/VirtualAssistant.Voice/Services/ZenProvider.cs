@@ -67,9 +67,9 @@ public class ZenProvider : LlmProviderBase
                 ["max_tokens"] = _options.MaxTokens
             };
 
-            if (!string.IsNullOrEmpty(_options.ReasoningEffort))
+            if (!string.IsNullOrWhiteSpace(_options.ReasoningEffort))
             {
-                request["reasoning_effort"] = _options.ReasoningEffort;
+                request["reasoning_effort"] = _options.ReasoningEffort.Trim();
             }
 
             var response = await HttpClient.PostAsJsonAsync(ChatCompletionsEndpoint, request, cancellationToken);

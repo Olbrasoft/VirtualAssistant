@@ -33,7 +33,7 @@ public class ZenOptions : ILlmProviderOptions
     /// Leave null/empty for models that don't need it (e.g. kimi-k2).
     /// Supported values: "none", "low", "medium", "high", or null.
     /// </summary>
-    public string? ReasoningEffort { get; set; }
+    public string? ReasoningEffort { get; set; } = "none";
 
     /// <summary>
     /// API timeout in seconds.
