@@ -209,6 +209,10 @@ public static class EndpointExtensions
 
     /// <summary>
     /// Maps Dictation remote control SignalR hub endpoint.
+    /// WARNING: No authentication configured. This endpoint allows remote dictation control
+    /// and key simulation (Enter, Ctrl+U) from any client on the network.
+    /// Intended for trusted LAN use only. For untrusted networks, add authentication
+    /// or restrict the remote control port via firewall.
     /// </summary>
     public static WebApplication MapDictationHub(this WebApplication app)
     {

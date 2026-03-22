@@ -71,7 +71,7 @@ function handleDictationEvent(event) {
 }
 
 function setConnectionStatus(connected) {
-    elements.connectionStatus.textContent = connected ? 'Pripojeno' : 'Odpojeno';
+    elements.connectionStatus.textContent = connected ? 'Připojeno' : 'Odpojeno';
     elements.connectionStatus.className = 'connection-status ' + (connected ? 'connected' : 'disconnected');
 
     elements.btnToggle.disabled = !connected;
@@ -95,7 +95,7 @@ function setRecordingState(recording, transcribing) {
         elements.btnToggle.classList.remove('recording');
         elements.btnToggle.classList.add('transcribing');
         elements.toggleIcon.textContent = '\u2715';
-        elements.toggleText.textContent = 'Zrusit';
+        elements.toggleText.textContent = 'Zrušit';
         elements.btnToggle.disabled = false;
         stopDurationTimer();
     } else {
@@ -119,9 +119,9 @@ function startDurationTimer() {
             const elapsed = Math.floor((Date.now() - recordingStartTime) / 1000);
             const minutes = Math.floor(elapsed / 60).toString().padStart(2, '0');
             const seconds = (elapsed % 60).toString().padStart(2, '0');
-            elements.toggleText.textContent = 'Nahravani ' + minutes + ':' + seconds;
+            elements.toggleText.textContent = 'Nahrávání ' + minutes + ':' + seconds;
         }
-    }, 100);
+    }, 1000);
 }
 
 function stopDurationTimer() {

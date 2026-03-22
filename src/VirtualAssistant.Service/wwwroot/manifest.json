@@ -1,6 +1,6 @@
 {
-  "name": "VirtualAssistant Diktovani",
-  "short_name": "Diktovani",
+  "name": "VirtualAssistant Diktování",
+  "short_name": "Diktování",
   "start_url": "/remote.html",
   "display": "standalone",
   "background_color": "#1a1a2e",

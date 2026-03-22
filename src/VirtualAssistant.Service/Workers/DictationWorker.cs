@@ -89,6 +89,12 @@ public class DictationWorker : BackgroundService, IDictationControl, IDictationS
     /// <inheritdoc/>
     public async Task StartDictationAsync()
     {
+        if (!_dictationEnabled)
+        {
+            _logger.LogInformation("Dictation is disabled, ignoring start request");
+            return;
+        }
+
         if (_stateMachine.CurrentState == DictationState.Idle)
         {
             await StartRecordingAsync();
@@ -223,7 +229,7 @@ public class DictationWorker : BackgroundService, IDictationControl, IDictationS
         }
     }
 
-    private async void OnStateChangedBroadcast(object? sender, DictationState state)
+    private void OnStateChangedBroadcast(object? sender, DictationState state)
     {
         var eventType = state switch
         {
@@ -232,33 +238,27 @@ public class DictationWorker : BackgroundService, IDictationControl, IDictationS
             _ => DictationEventType.RecordingStopped
         };
 
-        try
-        {
-            await _hubContext.Clients.All.SendAsync("DictationEvent", new DictationEvent
-            {
-                EventType = eventType,
-                Text = null
-            });
-        }
-        catch (Exception ex)
-        {
-            _logger.LogDebug(ex, "Failed to broadcast state change to SignalR clients");
-        }
+        _ = BroadcastDictationEventAsync(eventType, null);
     }
 
-    private async void OnTranscriptionCompletedBroadcast(object? sender, string text)
+    private void OnTranscriptionCompletedBroadcast(object? sender, string text)
+    {
+        _ = BroadcastDictationEventAsync(DictationEventType.TranscriptionCompleted, text);
+    }
+
+    private async Task BroadcastDictationEventAsync(DictationEventType eventType, string? text)
     {
         try
         {
             await _hubContext.Clients.All.SendAsync("DictationEvent", new DictationEvent
             {
-                EventType = DictationEventType.TranscriptionCompleted,
+                EventType = eventType,
                 Text = text
             });
         }
         catch (Exception ex)
         {
-            _logger.LogDebug(ex, "Failed to broadcast transcription completed to SignalR clients");
+            _logger.LogDebug(ex, "Failed to broadcast dictation event to SignalR clients");
         }
     }
 
@@ -293,6 +293,9 @@ public class DictationWorker : BackgroundService, IDictationControl, IDictationS
             if (transcriptionResult == null) return;
 
             await SaveTranscriptionToDatabaseAsync(audioData, transcriptionResult);
+
+            // Raise TranscriptionCompleted before typing so remote UI gets the text immediately
+            TranscriptionCompleted?.Invoke(this, transcriptionResult.Text);
 
             await TypeTextAndFinishAsync(transcriptionResult.Text);
         }
@@ -412,7 +415,6 @@ public class DictationWorker : BackgroundService, IDictationControl, IDictationS
         }
 
         _logger.LogInformation("Text typed successfully into active window");
-        TranscriptionCompleted?.Invoke(this, text);
         _stateMachine.TransitionTo(DictationState.Idle);
     }
 

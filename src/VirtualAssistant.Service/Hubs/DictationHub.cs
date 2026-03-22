@@ -45,25 +45,18 @@ public class DictationHub : Hub
     /// <summary>
     /// Toggles dictation state (idle -> recording, recording -> transcribing).
     /// </summary>
-    public Task ToggleRecording()
+    public async Task ToggleRecording()
     {
         if (_dictationService.State == DictationState.Idle)
         {
-            _ = Task.Run(async () =>
-            {
-                try { await _dictationService.StartDictationAsync(); }
-                catch (Exception ex) { _logger.LogError(ex, "StartDictation failed"); }
-            });
+            try { await _dictationService.StartDictationAsync(); }
+            catch (Exception ex) { _logger.LogError(ex, "StartDictation failed"); }
         }
         else if (_dictationService.State == DictationState.Recording)
         {
-            _ = Task.Run(async () =>
-            {
-                try { await _dictationService.StopDictationAsync(); }
-                catch (Exception ex) { _logger.LogError(ex, "StopDictation failed"); }
-            });
+            try { await _dictationService.StopDictationAsync(); }
+            catch (Exception ex) { _logger.LogError(ex, "StopDictation failed"); }
         }
-        return Task.CompletedTask;
     }
 
     /// <summary>
@@ -79,29 +72,21 @@ public class DictationHub : Hub
     /// <summary>
     /// Sends Enter key press to active window.
     /// </summary>
-    public Task PressEnter()
+    public async Task PressEnter()
     {
         _logger.LogInformation("PressEnter called from client {ConnectionId}", Context.ConnectionId);
-        _ = Task.Run(async () =>
-        {
-            try { await _keyboardSimulation.SendKeyAsync("enter"); }
-            catch (Exception ex) { _logger.LogError(ex, "PressEnter failed"); }
-        });
-        return Task.CompletedTask;
+        try { await _keyboardSimulation.SendKeyAsync("enter"); }
+        catch (Exception ex) { _logger.LogError(ex, "PressEnter failed"); }
     }
 
     /// <summary>
     /// Sends Ctrl+U key press to clear current line in terminal.
     /// </summary>
-    public Task ClearText()
+    public async Task ClearText()
     {
         _logger.LogInformation("ClearText called from client {ConnectionId}", Context.ConnectionId);
-        _ = Task.Run(async () =>
-        {
-            try { await _keyboardSimulation.SendKeyAsync("ctrl+u"); }
-            catch (Exception ex) { _logger.LogError(ex, "ClearText failed"); }
-        });
-        return Task.CompletedTask;
+        try { await _keyboardSimulation.SendKeyAsync("ctrl+u"); }
+        catch (Exception ex) { _logger.LogError(ex, "ClearText failed"); }
     }
 }
 

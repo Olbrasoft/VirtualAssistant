@@ -133,6 +133,11 @@ public class XDoToolKeyboardService : IKeyboardSimulationService
         }
     }
 
+    private static readonly HashSet<string> AllowedKeys = new(StringComparer.OrdinalIgnoreCase)
+    {
+        "enter", "ctrl+u", "ctrl+v", "ctrl+shift+v", "escape", "tab", "backspace", "delete"
+    };
+
     /// <inheritdoc/>
     public async Task SendKeyAsync(string key, CancellationToken cancellationToken = default)
     {
@@ -142,16 +147,22 @@ public class XDoToolKeyboardService : IKeyboardSimulationService
             return;
         }
 
+        if (!AllowedKeys.Contains(key))
+        {
+            _logger.LogWarning("Key '{Key}' is not in the allowlist, rejecting", key);
+            return;
+        }
+
         try
         {
             _logger.LogInformation("Sending key: {Key}", key);
 
-            var dotoolProcess = new Process
+            using var dotoolProcess = new Process
             {
                 StartInfo = new ProcessStartInfo
                 {
-                    FileName = "/bin/bash",
-                    Arguments = $"-c \"echo 'key {key}' | dotool\"",
+                    FileName = "dotool",
+                    RedirectStandardInput = true,
                     RedirectStandardOutput = true,
                     RedirectStandardError = true,
                     UseShellExecute = false,
@@ -160,7 +171,19 @@ public class XDoToolKeyboardService : IKeyboardSimulationService
             };
 
             dotoolProcess.Start();
-            await dotoolProcess.WaitForExitAsync(cancellationToken);
+            await dotoolProcess.StandardInput.WriteLineAsync($"key {key}");
+            dotoolProcess.StandardInput.Close();
+
+            var dotoolTask = dotoolProcess.WaitForExitAsync(cancellationToken);
+            var timeoutTask = Task.Delay(TimeSpan.FromSeconds(5), cancellationToken);
+            var completedTask = await Task.WhenAny(dotoolTask, timeoutTask);
+
+            if (completedTask == timeoutTask)
+            {
+                _logger.LogError("dotool SendKey timeout after 5 seconds, killing process");
+                try { dotoolProcess.Kill(); } catch { /* best effort */ }
+                return;
+            }
 
             if (dotoolProcess.ExitCode != 0)
             {
