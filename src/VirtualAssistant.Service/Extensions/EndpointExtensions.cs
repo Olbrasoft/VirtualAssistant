@@ -55,6 +55,7 @@ public static class EndpointExtensions
         app.MapTtsEndpoints();
         app.MapMuteEndpoints();
         app.MapDesktopMonitorHub();
+        app.MapDictationHub();
         app.MapGet("/health", () => Results.Ok("OK"));
 
         return app;
@@ -203,6 +204,19 @@ public static class EndpointExtensions
             return Results.Ok(new { muted = muteService.IsMuted });
         });
 
+        return app;
+    }
+
+    /// <summary>
+    /// Maps Dictation remote control SignalR hub endpoint.
+    /// WARNING: No authentication configured. This endpoint allows remote dictation control
+    /// and key simulation (Enter, Ctrl+U) from any client on the network.
+    /// Intended for trusted LAN use only. For untrusted networks, add authentication
+    /// or restrict the remote control port via firewall.
+    /// </summary>
+    public static WebApplication MapDictationHub(this WebApplication app)
+    {
+        app.MapHub<DictationHub>("/hubs/dictation");
         return app;
     }
 

@@ -13,4 +13,11 @@ public interface IKeyboardSimulationService
     /// <param name="cancellationToken">Cancellation token.</param>
     /// <returns>True if text was typed successfully, false otherwise.</returns>
     Task<bool> TypeIntoActiveWindowAsync(string text, CancellationToken cancellationToken = default);
+
+    /// <summary>
+    /// Sends a key press to the active window using dotool.
+    /// </summary>
+    /// <param name="key">Key to send (e.g. "enter", "ctrl+u").</param>
+    /// <param name="cancellationToken">Cancellation token.</param>
+    Task SendKeyAsync(string key, CancellationToken cancellationToken = default);
 }

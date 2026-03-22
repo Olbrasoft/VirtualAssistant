@@ -133,6 +133,79 @@ public class XDoToolKeyboardService : IKeyboardSimulationService
         }
     }
 
+    private static readonly HashSet<string> AllowedKeys = new(StringComparer.OrdinalIgnoreCase)
+    {
+        "enter", "ctrl+u", "ctrl+v", "ctrl+shift+v", "escape", "tab", "backspace", "delete"
+    };
+
+    /// <inheritdoc/>
+    public async Task SendKeyAsync(string key, CancellationToken cancellationToken = default)
+    {
+        if (string.IsNullOrWhiteSpace(key))
+        {
+            _logger.LogWarning("Attempted to send empty key");
+            return;
+        }
+
+        if (!AllowedKeys.Contains(key))
+        {
+            _logger.LogWarning("Key '{Key}' is not in the allowlist, rejecting", key);
+            return;
+        }
+
+        try
+        {
+            _logger.LogInformation("Sending key: {Key}", key);
+
+            using var dotoolProcess = new Process
+            {
+                StartInfo = new ProcessStartInfo
+                {
+                    FileName = "dotool",
+                    RedirectStandardInput = true,
+                    RedirectStandardOutput = true,
+                    RedirectStandardError = true,
+                    UseShellExecute = false,
+                    CreateNoWindow = true
+                }
+            };
+
+            dotoolProcess.Start();
+            await dotoolProcess.StandardInput.WriteLineAsync($"key {key}");
+            dotoolProcess.StandardInput.Close();
+
+            var dotoolTask = dotoolProcess.WaitForExitAsync(cancellationToken);
+            var timeoutTask = Task.Delay(TimeSpan.FromSeconds(5), cancellationToken);
+            var completedTask = await Task.WhenAny(dotoolTask, timeoutTask);
+
+            if (completedTask == timeoutTask)
+            {
+                _logger.LogError("dotool SendKey timeout after 5 seconds, killing process");
+                try { dotoolProcess.Kill(); } catch { /* best effort */ }
+                return;
+            }
+
+            if (dotoolProcess.ExitCode != 0)
+            {
+                var error = await dotoolProcess.StandardError.ReadToEndAsync(cancellationToken);
+                _logger.LogError("dotool SendKey failed with exit code {ExitCode}: {Error}", dotoolProcess.ExitCode, error);
+            }
+            else
+            {
+                _logger.LogDebug("Successfully sent key: {Key}", key);
+            }
+        }
+        catch (OperationCanceledException)
+        {
+            _logger.LogInformation("Key send was cancelled");
+            throw;
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Failed to send key: {Key}", key);
+        }
+    }
+
     /// <summary>
     /// Gets the appropriate paste shortcut based on the active window type.
     /// Terminals use Ctrl+Shift+V, other applications use Ctrl+V.
