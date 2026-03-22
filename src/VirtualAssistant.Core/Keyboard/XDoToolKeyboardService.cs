@@ -133,6 +133,56 @@ public class XDoToolKeyboardService : IKeyboardSimulationService
         }
     }
 
+    /// <inheritdoc/>
+    public async Task SendKeyAsync(string key, CancellationToken cancellationToken = default)
+    {
+        if (string.IsNullOrWhiteSpace(key))
+        {
+            _logger.LogWarning("Attempted to send empty key");
+            return;
+        }
+
+        try
+        {
+            _logger.LogInformation("Sending key: {Key}", key);
+
+            var dotoolProcess = new Process
+            {
+                StartInfo = new ProcessStartInfo
+                {
+                    FileName = "/bin/bash",
+                    Arguments = $"-c \"echo 'key {key}' | dotool\"",
+                    RedirectStandardOutput = true,
+                    RedirectStandardError = true,
+                    UseShellExecute = false,
+                    CreateNoWindow = true
+                }
+            };
+
+            dotoolProcess.Start();
+            await dotoolProcess.WaitForExitAsync(cancellationToken);
+
+            if (dotoolProcess.ExitCode != 0)
+            {
+                var error = await dotoolProcess.StandardError.ReadToEndAsync(cancellationToken);
+                _logger.LogError("dotool SendKey failed with exit code {ExitCode}: {Error}", dotoolProcess.ExitCode, error);
+            }
+            else
+            {
+                _logger.LogDebug("Successfully sent key: {Key}", key);
+            }
+        }
+        catch (OperationCanceledException)
+        {
+            _logger.LogInformation("Key send was cancelled");
+            throw;
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Failed to send key: {Key}", key);
+        }
+    }
+
     /// <summary>
     /// Gets the appropriate paste shortcut based on the active window type.
     /// Terminals use Ctrl+Shift+V, other applications use Ctrl+V.

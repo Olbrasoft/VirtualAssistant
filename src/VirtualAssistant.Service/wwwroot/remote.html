@@ -1,0 +1,209 @@
+<!DOCTYPE html>
+<html lang="cs">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
+    <meta name="theme-color" content="#007bff">
+    <meta name="apple-mobile-web-app-capable" content="yes">
+    <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+    <meta name="apple-mobile-web-app-title" content="Diktovani">
+    <title>VirtualAssistant Remote</title>
+    <link rel="manifest" href="/manifest.json">
+    <style>
+        * {
+            box-sizing: border-box;
+            margin: 0;
+            padding: 0;
+        }
+
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, sans-serif;
+            background: linear-gradient(135deg, #1a1a2e 0%, #16213e 100%);
+            min-height: 100vh;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: flex-start;
+            padding: 20px;
+            padding-top: 50px;
+            color: #e0e0e0;
+        }
+
+        .container {
+            width: 100%;
+            max-width: 400px;
+            text-align: center;
+        }
+
+        .controls {
+            display: flex;
+            flex-direction: column;
+            gap: 25px;
+            margin-bottom: 30px;
+        }
+
+        .btn {
+            padding: 20px 40px;
+            font-size: 1.2rem;
+            font-weight: 600;
+            border: none;
+            border-radius: 15px;
+            cursor: pointer;
+            transition: all 0.2s ease;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            gap: 10px;
+        }
+
+        .btn:active {
+            transform: scale(0.95);
+        }
+
+        .btn:disabled {
+            opacity: 0.5;
+            cursor: not-allowed;
+        }
+
+        .btn-toggle {
+            background: linear-gradient(135deg, #2196f3 0%, #1976d2 100%);
+            color: white;
+            padding: 70px 40px;
+            font-size: 1.6rem;
+        }
+
+        .btn-toggle:hover:not(:disabled) {
+            background: linear-gradient(135deg, #1976d2 0%, #1565c0 100%);
+        }
+
+        .btn-toggle.recording {
+            background: linear-gradient(135deg, #f44336 0%, #d32f2f 100%);
+        }
+
+        .btn-toggle.recording:hover:not(:disabled) {
+            background: linear-gradient(135deg, #d32f2f 0%, #c62828 100%);
+        }
+
+        .btn-toggle.transcribing {
+            background: linear-gradient(135deg, #ffd700 0%, #ffb900 100%);
+            color: #000;
+        }
+
+        .btn-toggle.transcribing:hover:not(:disabled) {
+            background: linear-gradient(135deg, #ffb900 0%, #ff9800 100%);
+        }
+
+        .btn-enter {
+            background: linear-gradient(135deg, #4caf50 0%, #45a049 100%);
+            color: white;
+            padding: 50px 40px;
+            font-size: 1.3rem;
+        }
+
+        .btn-enter:hover:not(:disabled) {
+            background: linear-gradient(135deg, #45a049 0%, #3d9142 100%);
+        }
+
+        .btn-clear {
+            background: linear-gradient(135deg, #ff9800 0%, #f57c00 100%);
+            color: white;
+            padding: 25px 40px;
+            font-size: 1.1rem;
+        }
+
+        .btn-clear:hover:not(:disabled) {
+            background: linear-gradient(135deg, #f57c00 0%, #ef6c00 100%);
+        }
+
+        .transcription-box {
+            background: rgba(255,255,255,0.05);
+            border: 1px solid rgba(255,255,255,0.1);
+            border-radius: 15px;
+            padding: 20px;
+            min-height: 100px;
+            text-align: left;
+        }
+
+        .transcription-box h3 {
+            font-size: 0.8rem;
+            color: #888;
+            margin-bottom: 10px;
+            text-transform: uppercase;
+            letter-spacing: 1px;
+        }
+
+        .transcription-text {
+            font-size: 1rem;
+            line-height: 1.5;
+            color: #fff;
+            word-wrap: break-word;
+        }
+
+        .transcription-text.empty {
+            color: #666;
+            font-style: italic;
+        }
+
+        .connection-status {
+            position: fixed;
+            top: 10px;
+            right: 10px;
+            padding: 5px 10px;
+            border-radius: 10px;
+            font-size: 0.7rem;
+            background: rgba(0,0,0,0.5);
+        }
+
+        .connection-status.connected {
+            color: #4caf50;
+        }
+
+        .connection-status.disconnected {
+            color: #f44336;
+        }
+
+        .icon {
+            font-size: 1.2em;
+            font-weight: bold;
+            vertical-align: middle;
+        }
+    </style>
+</head>
+<body>
+    <div class="connection-status disconnected" id="connectionStatus">Odpojeno</div>
+
+    <div class="container">
+        <div class="controls">
+            <button class="btn btn-toggle" id="btnToggle" disabled>
+                <span class="icon" id="toggleIcon">&#x25CF;</span>
+                <span id="toggleText">Diktovat</span>
+            </button>
+
+            <button class="btn btn-enter" id="btnEnter" disabled>
+                <span class="icon">&#x21B5;</span>
+                Enter
+            </button>
+
+            <button class="btn btn-clear" id="btnClear" disabled>
+                <span class="icon">&#x2715;</span>
+                Ctrl+U
+            </button>
+        </div>
+
+        <div class="transcription-box">
+            <h3>Posledni prepis</h3>
+            <div class="transcription-text empty" id="transcriptionText">Zadny prepis</div>
+        </div>
+    </div>
+
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/microsoft-signalr/8.0.0/signalr.min.js"></script>
+    <script src="remote.js"></script>
+    <script>
+        if ('serviceWorker' in navigator) {
+            navigator.serviceWorker.register('/service-worker.js')
+                .then(reg => console.log('Service Worker registered:', reg))
+                .catch(err => console.error('Service Worker registration failed:', err));
+        }
+    </script>
+</body>
+</html>

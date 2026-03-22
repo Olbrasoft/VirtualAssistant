@@ -4,6 +4,8 @@ using Olbrasoft.VirtualAssistant.Core.Configuration;
 using Olbrasoft.VirtualAssistant.Core.Keyboard;
 using Olbrasoft.VirtualAssistant.Core.Services;
 using Olbrasoft.VirtualAssistant.Core.Speech;
+using Microsoft.AspNetCore.SignalR;
+using Olbrasoft.VirtualAssistant.Service.Hubs;
 using Olbrasoft.VirtualAssistant.Service.Infrastructure;
 using Olbrasoft.VirtualAssistant.Service.Workers;
 using Olbrasoft.VirtualAssistant.Voice.Filters;
@@ -111,6 +113,8 @@ public static class WorkerServicesExtensions
                 textFilter,
                 llmProviderFactory);
 
+            var hubContext = sp.GetRequiredService<IHubContext<DictationHub>>();
+
             return new DictationWorker(
                 logger,
                 keyboardMonitor,
@@ -121,12 +125,17 @@ public static class WorkerServicesExtensions
                 typingSound,
                 cancelSound,
                 scopeFactory,
+                hubContext,
                 dictationOptionsService);
         });
 
         // Register the same instance as IDictationControl interface (issue #466)
         // This allows MenuEventDispatcher to control dictation functionality
         services.AddSingleton<IDictationControl>(sp => sp.GetRequiredService<DictationWorker>());
+
+        // Register the same instance as IDictationService interface (issue #846)
+        // This allows DictationHub to control dictation from web remote
+        services.AddSingleton<IDictationService>(sp => sp.GetRequiredService<DictationWorker>());
 
         // Register the same singleton instance as hosted service
         services.AddHostedService(sp => sp.GetRequiredService<DictationWorker>());

@@ -55,6 +55,7 @@ public static class EndpointExtensions
         app.MapTtsEndpoints();
         app.MapMuteEndpoints();
         app.MapDesktopMonitorHub();
+        app.MapDictationHub();
         app.MapGet("/health", () => Results.Ok("OK"));
 
         return app;
@@ -203,6 +204,15 @@ public static class EndpointExtensions
             return Results.Ok(new { muted = muteService.IsMuted });
         });
 
+        return app;
+    }
+
+    /// <summary>
+    /// Maps Dictation remote control SignalR hub endpoint.
+    /// </summary>
+    public static WebApplication MapDictationHub(this WebApplication app)
+    {
+        app.MapHub<DictationHub>("/hubs/dictation");
         return app;
     }
 

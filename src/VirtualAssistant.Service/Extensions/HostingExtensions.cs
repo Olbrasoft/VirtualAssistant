@@ -56,7 +56,8 @@ public static class HostingExtensions
         // 2. Adding authentication middleware (API keys, OAuth, etc.)
         // 3. Using a reverse proxy (nginx) with access control
         // 4. Configuring firewall rules to restrict access
-        builder.WebHost.UseUrls($"http://0.0.0.0:{listenerPort}");
+        var remotePort = builder.Configuration.GetValue("RemoteControlPort", 5050);
+        builder.WebHost.UseUrls($"http://0.0.0.0:{listenerPort}", $"http://0.0.0.0:{remotePort}");
     }
 
     /// <summary>

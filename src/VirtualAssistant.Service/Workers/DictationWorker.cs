@@ -1,3 +1,4 @@
+using Microsoft.AspNetCore.SignalR;
 using Microsoft.Extensions.Options;
 using Olbrasoft.VirtualAssistant.Core.Audio;
 using Olbrasoft.VirtualAssistant.Core.Configuration;
@@ -8,6 +9,7 @@ using Olbrasoft.VirtualAssistant.Core.Speech;
 using Olbrasoft.VirtualAssistant.Voice.Services;
 using Olbrasoft.VirtualAssistant.Core.StateMachine;
 using Olbrasoft.VirtualAssistant.Voice.StateMachine;
+using Olbrasoft.VirtualAssistant.Service.Hubs;
 
 namespace Olbrasoft.VirtualAssistant.Service.Workers;
 
@@ -16,7 +18,7 @@ namespace Olbrasoft.VirtualAssistant.Service.Workers;
 /// Manages audio recording, transcription, and text insertion based on CapsLock state.
 /// Uses dedicated audio capture instance (independent from continuous listening).
 /// </summary>
-public class DictationWorker : BackgroundService, IDictationControl
+public class DictationWorker : BackgroundService, IDictationControl, IDictationService
 {
     private readonly ILogger<DictationWorker> _logger;
     private readonly IKeyboardMonitor _keyboardMonitor;
@@ -27,10 +29,17 @@ public class DictationWorker : BackgroundService, IDictationControl
     private readonly ISoundEffectPlayer _typingSound;
     private readonly ISoundEffectPlayer _cancelSound;
     private readonly IServiceScopeFactory _scopeFactory;
+    private readonly IHubContext<DictationHub> _hubContext;
     private readonly DictationOptions _options;
 
     private CancellationTokenSource? _transcriptionCts;
     private bool _dictationEnabled = true;
+
+    /// <inheritdoc/>
+    public DictationState State => _stateMachine.CurrentState;
+
+    /// <inheritdoc/>
+    public event EventHandler<string>? TranscriptionCompleted;
 
     public DictationWorker(
         ILogger<DictationWorker> logger,
@@ -42,6 +51,7 @@ public class DictationWorker : BackgroundService, IDictationControl
         ISoundEffectPlayer typingSound,
         ISoundEffectPlayer cancelSound,
         IServiceScopeFactory scopeFactory,
+        IHubContext<DictationHub> hubContext,
         IOptions<DictationOptions> options)
     {
         _logger = logger ?? throw new ArgumentNullException(nameof(logger));
@@ -53,6 +63,7 @@ public class DictationWorker : BackgroundService, IDictationControl
         _typingSound = typingSound ?? throw new ArgumentNullException(nameof(typingSound));
         _cancelSound = cancelSound ?? throw new ArgumentNullException(nameof(cancelSound));
         _scopeFactory = scopeFactory ?? throw new ArgumentNullException(nameof(scopeFactory));
+        _hubContext = hubContext ?? throw new ArgumentNullException(nameof(hubContext));
         ArgumentNullException.ThrowIfNull(options);
         _options = options.Value;
     }
@@ -75,6 +86,30 @@ public class DictationWorker : BackgroundService, IDictationControl
         }
     }
 
+    /// <inheritdoc/>
+    public async Task StartDictationAsync()
+    {
+        if (_stateMachine.CurrentState == DictationState.Idle)
+        {
+            await StartRecordingAsync();
+        }
+    }
+
+    /// <inheritdoc/>
+    public async Task StopDictationAsync()
+    {
+        if (_stateMachine.CurrentState == DictationState.Recording)
+        {
+            await StopAndTranscribeAsync();
+        }
+    }
+
+    /// <inheritdoc/>
+    void IDictationService.CancelTranscription()
+    {
+        CancelTranscription();
+    }
+
     protected override async Task ExecuteAsync(CancellationToken stoppingToken)
     {
         _logger.LogInformation("Dictation worker starting - ScrollLock to record, Pause to cancel");
@@ -83,6 +118,10 @@ public class DictationWorker : BackgroundService, IDictationControl
         {
             // Subscribe to keyboard events
             _keyboardMonitor.KeyReleased += OnKeyReleased;
+
+            // Subscribe to state changes for SignalR broadcasting
+            _stateMachine.StateChanged += OnStateChangedBroadcast;
+            TranscriptionCompleted += OnTranscriptionCompletedBroadcast;
 
             // Wait for cancellation
             await Task.Delay(Timeout.Infinite, stoppingToken);
@@ -99,6 +138,8 @@ public class DictationWorker : BackgroundService, IDictationControl
         finally
         {
             _keyboardMonitor.KeyReleased -= OnKeyReleased;
+            _stateMachine.StateChanged -= OnStateChangedBroadcast;
+            TranscriptionCompleted -= OnTranscriptionCompletedBroadcast;
 
             // Stop recording if active
             if (_stateMachine.CurrentState == DictationState.Recording)
@@ -179,6 +220,45 @@ public class DictationWorker : BackgroundService, IDictationControl
         catch (Exception ex)
         {
             _logger.LogError(ex, "Error handling key release");
+        }
+    }
+
+    private async void OnStateChangedBroadcast(object? sender, DictationState state)
+    {
+        var eventType = state switch
+        {
+            DictationState.Recording => DictationEventType.RecordingStarted,
+            DictationState.Transcribing => DictationEventType.TranscriptionStarted,
+            _ => DictationEventType.RecordingStopped
+        };
+
+        try
+        {
+            await _hubContext.Clients.All.SendAsync("DictationEvent", new DictationEvent
+            {
+                EventType = eventType,
+                Text = null
+            });
+        }
+        catch (Exception ex)
+        {
+            _logger.LogDebug(ex, "Failed to broadcast state change to SignalR clients");
+        }
+    }
+
+    private async void OnTranscriptionCompletedBroadcast(object? sender, string text)
+    {
+        try
+        {
+            await _hubContext.Clients.All.SendAsync("DictationEvent", new DictationEvent
+            {
+                EventType = DictationEventType.TranscriptionCompleted,
+                Text = text
+            });
+        }
+        catch (Exception ex)
+        {
+            _logger.LogDebug(ex, "Failed to broadcast transcription completed to SignalR clients");
         }
     }
 
@@ -332,6 +412,7 @@ public class DictationWorker : BackgroundService, IDictationControl
         }
 
         _logger.LogInformation("Text typed successfully into active window");
+        TranscriptionCompleted?.Invoke(this, text);
         _stateMachine.TransitionTo(DictationState.Idle);
     }
 
