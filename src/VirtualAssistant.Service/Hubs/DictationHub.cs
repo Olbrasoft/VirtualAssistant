@@ -1,4 +1,5 @@
 using Microsoft.AspNetCore.SignalR;
+using Olbrasoft.LinuxDesktop.Core.Services;
 using Olbrasoft.VirtualAssistant.Core.Keyboard;
 using Olbrasoft.VirtualAssistant.Core.Services;
 using Olbrasoft.VirtualAssistant.Core.StateMachine;
@@ -10,17 +11,28 @@ namespace Olbrasoft.VirtualAssistant.Service.Hubs;
 /// </summary>
 public class DictationHub : Hub
 {
+    private static readonly HashSet<string> AllowedApps = new(StringComparer.OrdinalIgnoreCase)
+    {
+        "discord", "ferdium"
+    };
+
     private readonly IDictationService _dictationService;
     private readonly IKeyboardSimulationService _keyboardSimulation;
+    private readonly IWindowQueryService _windowQuery;
+    private readonly IWindowActionService _windowAction;
     private readonly ILogger<DictationHub> _logger;
 
     public DictationHub(
         IDictationService dictationService,
         IKeyboardSimulationService keyboardSimulation,
+        IWindowQueryService windowQuery,
+        IWindowActionService windowAction,
         ILogger<DictationHub> logger)
     {
         _dictationService = dictationService;
         _keyboardSimulation = keyboardSimulation;
+        _windowQuery = windowQuery;
+        _windowAction = windowAction;
         _logger = logger;
     }
 
@@ -87,6 +99,42 @@ public class DictationHub : Hub
         _logger.LogInformation("ClearText called from client {ConnectionId}", Context.ConnectionId);
         try { await _keyboardSimulation.SendKeyAsync("ctrl+u"); }
         catch (Exception ex) { _logger.LogError(ex, "ClearText failed"); }
+    }
+
+    /// <summary>
+    /// Activates a desktop application window by WM class name.
+    /// </summary>
+    public async Task<bool> ActivateApp(string wmClass)
+    {
+        if (string.IsNullOrWhiteSpace(wmClass) || !AllowedApps.Contains(wmClass))
+        {
+            _logger.LogWarning("ActivateApp rejected: '{WmClass}' is not in allowlist", wmClass);
+            return false;
+        }
+
+        try
+        {
+            _logger.LogInformation("ActivateApp '{WmClass}' from client {ConnectionId}", wmClass, Context.ConnectionId);
+
+            var windows = await _windowQuery.GetWindowsAsync();
+            var window = windows.FirstOrDefault(w =>
+                string.Equals(w.WmClass, wmClass, StringComparison.OrdinalIgnoreCase));
+
+            if (window == null)
+            {
+                _logger.LogWarning("No window found with WM class '{WmClass}'", wmClass);
+                return false;
+            }
+
+            await _windowAction.ActivateWindowAsync(window.Id);
+            _logger.LogInformation("Activated window '{Title}' (ID: {Id})", window.Title, window.Id);
+            return true;
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "ActivateApp '{WmClass}' failed", wmClass);
+            return false;
+        }
     }
 }
 

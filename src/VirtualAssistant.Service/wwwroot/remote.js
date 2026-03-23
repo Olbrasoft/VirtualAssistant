@@ -8,7 +8,9 @@ const elements = {
     btnClear: document.getElementById('btnClear'),
     toggleIcon: document.getElementById('toggleIcon'),
     toggleText: document.getElementById('toggleText'),
-    transcriptionText: document.getElementById('transcriptionText')
+    transcriptionText: document.getElementById('transcriptionText'),
+    btnDiscord: document.getElementById('btnDiscord'),
+    btnFerdium: document.getElementById('btnFerdium')
 };
 
 let connection = null;
@@ -77,6 +79,8 @@ function setConnectionStatus(connected) {
     elements.btnToggle.disabled = !connected;
     elements.btnEnter.disabled = !connected;
     elements.btnClear.disabled = !connected;
+    elements.btnDiscord.disabled = !connected;
+    elements.btnFerdium.disabled = !connected;
 }
 
 function setRecordingState(recording, transcribing) {
@@ -200,6 +204,40 @@ elements.btnClear.addEventListener('click', async () => {
         console.error('Clear failed:', error);
     } finally {
         elements.btnClear.disabled = false;
+    }
+});
+
+// App launcher haptic feedback
+elements.btnDiscord.addEventListener('pointerdown', () => {
+    if (elements.btnDiscord.disabled) return;
+    if ('vibrate' in navigator) navigator.vibrate(50);
+});
+
+elements.btnFerdium.addEventListener('pointerdown', () => {
+    if (elements.btnFerdium.disabled) return;
+    if ('vibrate' in navigator) navigator.vibrate(50);
+});
+
+// App launcher handlers
+elements.btnDiscord.addEventListener('click', async () => {
+    try {
+        elements.btnDiscord.disabled = true;
+        await connection.invoke('ActivateApp', 'discord');
+    } catch (error) {
+        console.error('Discord activation failed:', error);
+    } finally {
+        elements.btnDiscord.disabled = false;
+    }
+});
+
+elements.btnFerdium.addEventListener('click', async () => {
+    try {
+        elements.btnFerdium.disabled = true;
+        await connection.invoke('ActivateApp', 'ferdium');
+    } catch (error) {
+        console.error('Ferdium activation failed:', error);
+    } finally {
+        elements.btnFerdium.disabled = false;
     }
 });
 
