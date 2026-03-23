@@ -17,6 +17,7 @@ public class DesktopMonitorBroadcastWorker : BackgroundService
     private readonly ILogger<DesktopMonitorBroadcastWorker> _logger;
     private readonly IDesktopContextService _desktopContextService;
     private readonly IHubContext<DesktopMonitorHub> _hubContext;
+    private readonly IHubContext<DictationHub> _dictationHubContext;
     private readonly IQueryProcessor _queryProcessor;
     private readonly ICliAppDetector _cliAppDetector;
     private readonly object _subscriptionLock = new();
@@ -30,12 +31,14 @@ public class DesktopMonitorBroadcastWorker : BackgroundService
         ILogger<DesktopMonitorBroadcastWorker> logger,
         IDesktopContextService desktopContextService,
         IHubContext<DesktopMonitorHub> hubContext,
+        IHubContext<DictationHub> dictationHubContext,
         IQueryProcessor queryProcessor,
         ICliAppDetector cliAppDetector)
     {
         _logger = logger;
         _desktopContextService = desktopContextService;
         _hubContext = hubContext;
+        _dictationHubContext = dictationHubContext;
         _queryProcessor = queryProcessor;
         _cliAppDetector = cliAppDetector;
     }
@@ -110,6 +113,12 @@ public class DesktopMonitorBroadcastWorker : BackgroundService
             context.ActiveWindowTitle,
             context.ActiveApplication,
             context.ActiveWindowClass
+        );
+
+        // Also broadcast to DictationHub for app launcher button state
+        await _dictationHubContext.Clients.All.SendAsync(
+            "AppFocusChanged",
+            context.ActiveWindowClass ?? ""
         );
     }
 

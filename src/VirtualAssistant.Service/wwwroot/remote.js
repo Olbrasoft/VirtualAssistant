@@ -8,12 +8,15 @@ const elements = {
     btnClear: document.getElementById('btnClear'),
     toggleIcon: document.getElementById('toggleIcon'),
     toggleText: document.getElementById('toggleText'),
-    transcriptionText: document.getElementById('transcriptionText')
+    transcriptionText: document.getElementById('transcriptionText'),
+    btnDiscord: document.getElementById('btnDiscord'),
+    btnFerdium: document.getElementById('btnFerdium')
 };
 
 let connection = null;
 let isRecording = false;
 let isTranscribing = false;
+let focusedApp = '';
 let durationInterval = null;
 let recordingStartTime = null;
 
@@ -43,6 +46,7 @@ function buildConnection() {
     });
 
     connection.on('DictationEvent', handleDictationEvent);
+    connection.on('AppFocusChanged', handleAppFocusChanged);
     connection.on('Connected', (connectionId) => {
         console.log('Connected with ID:', connectionId);
     });
@@ -77,6 +81,8 @@ function setConnectionStatus(connected) {
     elements.btnToggle.disabled = !connected;
     elements.btnEnter.disabled = !connected;
     elements.btnClear.disabled = !connected;
+    elements.btnDiscord.disabled = !connected;
+    elements.btnFerdium.disabled = !connected;
 }
 
 function setRecordingState(recording, transcribing) {
@@ -112,6 +118,23 @@ function setTranscriptionText(text) {
     elements.transcriptionText.classList.remove('empty');
 }
 
+function handleAppFocusChanged(wmClass) {
+    focusedApp = (wmClass || '').toLowerCase();
+    updateAppButton(elements.btnDiscord, 'discord', 'Discord');
+    updateAppButton(elements.btnFerdium, 'ferdium', 'Ferdium');
+}
+
+function updateAppButton(btn, wmClass, label) {
+    const isActive = focusedApp === wmClass;
+    if (isActive) {
+        btn.style.borderBottom = '4px solid #f44336';
+        btn.querySelector('.app-label').textContent = 'Close ' + label;
+    } else {
+        btn.style.borderBottom = 'none';
+        btn.querySelector('.app-label').textContent = label;
+    }
+}
+
 function startDurationTimer() {
     stopDurationTimer();
     durationInterval = setInterval(() => {
@@ -136,6 +159,9 @@ async function refreshStatus() {
         const status = await connection.invoke('GetStatus');
         console.log('Status:', status);
         setRecordingState(status.isRecording, status.isTranscribing);
+
+        const focused = await connection.invoke('GetFocusedApp');
+        handleAppFocusChanged(focused);
     } catch (error) {
         console.error('Failed to get status:', error);
     }
@@ -200,6 +226,52 @@ elements.btnClear.addEventListener('click', async () => {
         console.error('Clear failed:', error);
     } finally {
         elements.btnClear.disabled = false;
+    }
+});
+
+// App launcher haptic feedback
+elements.btnDiscord.addEventListener('pointerdown', () => {
+    if (elements.btnDiscord.disabled) return;
+    if ('vibrate' in navigator) navigator.vibrate(50);
+});
+
+elements.btnFerdium.addEventListener('pointerdown', () => {
+    if (elements.btnFerdium.disabled) return;
+    if ('vibrate' in navigator) navigator.vibrate(50);
+});
+
+// App launcher handlers
+elements.btnDiscord.addEventListener('click', async () => {
+    try {
+        elements.btnDiscord.disabled = true;
+        if (focusedApp === 'discord') {
+            await connection.invoke('CloseApp', 'discord');
+        } else {
+            await connection.invoke('ActivateApp', 'discord');
+        }
+    } catch (error) {
+        console.error('Discord action failed:', error);
+    } finally {
+        if (connection.state === signalR.HubConnectionState.Connected) {
+            elements.btnDiscord.disabled = false;
+        }
+    }
+});
+
+elements.btnFerdium.addEventListener('click', async () => {
+    try {
+        elements.btnFerdium.disabled = true;
+        if (focusedApp === 'ferdium') {
+            await connection.invoke('CloseApp', 'ferdium');
+        } else {
+            await connection.invoke('ActivateApp', 'ferdium');
+        }
+    } catch (error) {
+        console.error('Ferdium action failed:', error);
+    } finally {
+        if (connection.state === signalR.HubConnectionState.Connected) {
+            elements.btnFerdium.disabled = false;
+        }
     }
 });
 

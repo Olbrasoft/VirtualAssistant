@@ -32,6 +32,10 @@ public static class DesktopServiceExtensions
 
         if (!options.Enabled)
         {
+            // Register null window services so DictationHub can still be constructed
+            services.AddSingleton<IWindowService>(new NullWindowService());
+            services.AddSingleton<IWindowQueryService>(sp => sp.GetRequiredService<IWindowService>());
+            services.AddSingleton<IWindowActionService>(sp => sp.GetRequiredService<IWindowService>());
             return services;
         }
 
@@ -80,7 +84,51 @@ public static class DesktopServiceExtensions
         // Register NotificationFilter
         services.AddSingleton<Core.Services.INotificationFilter, Services.ContextAwareNotificationFilter>();
 
+        // Register WindowService for remote window activation (issue #854)
+        // Uses D-Bus via window-calls GNOME extension (Wayland compatible)
+        services.AddSingleton<IWindowService>(sp =>
+        {
+            var logger = sp.GetRequiredService<ILogger<WindowService>>();
+            try
+            {
+                return WindowService.CreateAsync(logger).GetAwaiter().GetResult();
+            }
+            catch (Exception ex)
+            {
+                if (options.GracefulDegradation)
+                {
+                    logger.LogWarning(ex,
+                        "Failed to initialize WindowService. Window activation will be unavailable.");
+                    return new NullWindowService();
+                }
+                throw;
+            }
+        });
+        services.AddSingleton<IWindowQueryService>(sp => sp.GetRequiredService<IWindowService>());
+        services.AddSingleton<IWindowActionService>(sp => sp.GetRequiredService<IWindowService>());
+
         return services;
+    }
+
+    /// <summary>
+    /// Null object pattern implementation for IWindowService when D-Bus/GNOME extension is unavailable.
+    /// </summary>
+    private class NullWindowService : IWindowService
+    {
+        private static readonly IReadOnlyList<LinuxDesktop.Core.Models.WindowInfo> Empty = [];
+        public Task<IReadOnlyList<LinuxDesktop.Core.Models.WindowInfo>> GetWindowsAsync(CancellationToken ct = default) => Task.FromResult(Empty);
+        public Task<LinuxDesktop.Core.Models.WindowDetails?> GetWindowDetailsAsync(uint windowId, CancellationToken ct = default) => Task.FromResult<LinuxDesktop.Core.Models.WindowDetails?>(null);
+        public Task<LinuxDesktop.Core.Models.WindowInfo?> GetFocusedWindowAsync(CancellationToken ct = default) => Task.FromResult<LinuxDesktop.Core.Models.WindowInfo?>(null);
+        public Task<string?> GetWindowTitleAsync(uint windowId, CancellationToken ct = default) => Task.FromResult<string?>(null);
+        public Task ActivateWindowAsync(uint windowId, CancellationToken ct = default) => Task.CompletedTask;
+        public Task CloseWindowAsync(uint windowId, CancellationToken ct = default) => Task.CompletedTask;
+        public Task MaximizeWindowAsync(uint windowId, CancellationToken ct = default) => Task.CompletedTask;
+        public Task MinimizeWindowAsync(uint windowId, CancellationToken ct = default) => Task.CompletedTask;
+        public Task UnmaximizeWindowAsync(uint windowId, CancellationToken ct = default) => Task.CompletedTask;
+        public Task UnminimizeWindowAsync(uint windowId, CancellationToken ct = default) => Task.CompletedTask;
+        public Task MoveWindowAsync(uint windowId, int x, int y, CancellationToken ct = default) => Task.CompletedTask;
+        public Task ResizeWindowAsync(uint windowId, int width, int height, CancellationToken ct = default) => Task.CompletedTask;
+        public Task MoveWindowToWorkspaceAsync(uint windowId, int workspaceIndex, CancellationToken ct = default) => Task.CompletedTask;
     }
 
     /// <summary>

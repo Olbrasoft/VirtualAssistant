@@ -135,7 +135,7 @@ public class XDoToolKeyboardService : IKeyboardSimulationService
 
     private static readonly HashSet<string> AllowedKeys = new(StringComparer.OrdinalIgnoreCase)
     {
-        "enter", "ctrl+u", "ctrl+v", "ctrl+shift+v", "escape", "tab", "backspace", "delete"
+        "enter", "ctrl+u", "ctrl+v", "ctrl+shift+v", "escape", "tab", "backspace", "delete", "alt+F4"
     };
 
     /// <inheritdoc/>
