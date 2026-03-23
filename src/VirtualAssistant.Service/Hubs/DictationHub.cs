@@ -101,8 +101,17 @@ public class DictationHub : Hub
         catch (Exception ex) { _logger.LogError(ex, "ClearText failed"); }
     }
 
+    private static readonly Dictionary<string, string> AppDesktopFiles = new(StringComparer.OrdinalIgnoreCase)
+    {
+        ["discord"] = "com.discordapp.Discord",
+        ["ferdium"] = "org.ferdium.Ferdium"
+    };
+
+    private const string MoveWindowRightScript = "/home/jirka/.local/bin/move-window-right.sh";
+
     /// <summary>
-    /// Activates a desktop application window by WM class name.
+    /// Activates a desktop application window by WM class name and snaps it to the right half.
+    /// First tries D-Bus window activation, falls back to gtk-launch for tray-only apps.
     /// </summary>
     public async Task<bool> ActivateApp(string wmClass)
     {
@@ -116,24 +125,72 @@ public class DictationHub : Hub
         {
             _logger.LogInformation("ActivateApp '{WmClass}' from client {ConnectionId}", wmClass, Context.ConnectionId);
 
+            // Try D-Bus window activation first (for already-visible windows)
             var windows = await _windowQuery.GetWindowsAsync();
             var window = windows.FirstOrDefault(w =>
                 string.Equals(w.WmClass, wmClass, StringComparison.OrdinalIgnoreCase));
 
-            if (window == null)
+            if (window != null)
             {
-                _logger.LogWarning("No window found with WM class '{WmClass}'", wmClass);
-                return false;
+                await _windowAction.ActivateWindowAsync(window.Id);
+                _logger.LogInformation("Activated existing window '{Title}' (ID: {Id})", window.Title, window.Id);
+                await SnapFocusedWindowRightAsync();
+                return true;
             }
 
-            await _windowAction.ActivateWindowAsync(window.Id);
-            _logger.LogInformation("Activated window '{Title}' (ID: {Id})", window.Title, window.Id);
-            return true;
+            // Window not found — app is likely minimized to tray, use gtk-launch
+            if (AppDesktopFiles.TryGetValue(wmClass, out var desktopFile))
+            {
+                _logger.LogInformation("No window found, launching via gtk-launch {DesktopFile}", desktopFile);
+                using var process = new System.Diagnostics.Process
+                {
+                    StartInfo = new System.Diagnostics.ProcessStartInfo
+                    {
+                        FileName = "gtk-launch",
+                        Arguments = desktopFile,
+                        UseShellExecute = false,
+                        CreateNoWindow = true
+                    }
+                };
+                process.Start();
+
+                // Wait for window to appear, then snap right
+                await Task.Delay(1500);
+                await SnapFocusedWindowRightAsync();
+                return true;
+            }
+
+            _logger.LogWarning("No window and no desktop file for '{WmClass}'", wmClass);
+            return false;
         }
         catch (Exception ex)
         {
             _logger.LogError(ex, "ActivateApp '{WmClass}' failed", wmClass);
             return false;
+        }
+    }
+
+    private async Task SnapFocusedWindowRightAsync()
+    {
+        try
+        {
+            using var process = new System.Diagnostics.Process
+            {
+                StartInfo = new System.Diagnostics.ProcessStartInfo
+                {
+                    FileName = "/bin/bash",
+                    Arguments = MoveWindowRightScript,
+                    UseShellExecute = false,
+                    CreateNoWindow = true
+                }
+            };
+            process.Start();
+            await process.WaitForExitAsync();
+            _logger.LogInformation("Snapped focused window to right half");
+        }
+        catch (Exception ex)
+        {
+            _logger.LogWarning(ex, "Failed to snap window to right half");
         }
     }
 }
