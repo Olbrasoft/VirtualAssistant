@@ -376,7 +376,7 @@ public class DictationWorker : BackgroundService, IDictationControl, IDictationS
 
         // Construct LlmCorrectionResult if LLM correction was applied
         LlmCorrectionResult? correctionResult = null;
-        if (correctedText != null && result.LlmDurationMs.HasValue)
+        if (correctedText != null && result.ModelId.HasValue && result.LlmDurationMs.GetValueOrDefault() > 0)
         {
             correctionResult = new LlmCorrectionResult(
                 CorrectedText: correctedText,

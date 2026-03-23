@@ -565,7 +565,8 @@ public class DictationWorkerTests : IDisposable
         {
             OriginalText = "hello world",
             LlmDurationMs = 150,
-            PromptId = 42
+            PromptId = 42,
+            ModelId = 1
         };
 
         _stateMachineMock.SetupGet(x => x.CurrentState).Returns(DictationState.Recording);

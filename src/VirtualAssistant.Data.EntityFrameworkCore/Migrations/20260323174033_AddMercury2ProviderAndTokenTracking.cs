@@ -30,7 +30,7 @@ namespace Olbrasoft.VirtualAssistant.Data.EntityFrameworkCore.Migrations
                 nullable: true);
 
             // Seed Inception Labs provider and Mercury 2 model using raw SQL.
-            // Uses INSERT ... ON CONFLICT to be idempotent (safe to re-run).
+            // Uses INSERT ... SELECT ... WHERE NOT EXISTS to be idempotent (safe to re-run).
             // Does not hardcode IDs - uses sequences for auto-increment.
             migrationBuilder.Sql(@"
                 INSERT INTO providers (name, type, enabled, priority, created_at)
@@ -54,12 +54,20 @@ namespace Olbrasoft.VirtualAssistant.Data.EntityFrameworkCore.Migrations
         /// <inheritdoc />
         protected override void Down(MigrationBuilder migrationBuilder)
         {
+            // Only delete if both provider and model exist together (created by this migration).
+            // Avoids deleting data that existed before migration was applied.
             migrationBuilder.Sql(@"
                 DELETE FROM model_provider_mappings
-                WHERE model_id = (SELECT id FROM llm_models WHERE model_identifier = 'mercury-2')
-                  AND provider_id = (SELECT id FROM providers WHERE name = 'Inception Labs' AND type = 'llm');
-                DELETE FROM llm_models WHERE model_identifier = 'mercury-2';
-                DELETE FROM providers WHERE name = 'Inception Labs' AND type = 'llm';
+                WHERE model_id IN (SELECT id FROM llm_models WHERE model_identifier = 'mercury-2')
+                  AND provider_id IN (SELECT id FROM providers WHERE name = 'Inception Labs' AND type = 'llm');
+
+                DELETE FROM llm_models
+                WHERE model_identifier = 'mercury-2'
+                  AND NOT EXISTS (SELECT 1 FROM llm_corrections WHERE model_id = llm_models.id);
+
+                DELETE FROM providers
+                WHERE name = 'Inception Labs' AND type = 'llm'
+                  AND NOT EXISTS (SELECT 1 FROM model_provider_mappings WHERE provider_id = providers.id);
             ");
 
             migrationBuilder.DropColumn(
