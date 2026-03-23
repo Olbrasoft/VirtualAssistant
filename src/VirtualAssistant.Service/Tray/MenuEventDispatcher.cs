@@ -204,6 +204,31 @@ public class MenuEventDispatcher : IMenuEventDispatcher
     }
 
     /// <inheritdoc/>
+    public void HandleMercuryBilling()
+    {
+        try
+        {
+            var billingUrl = "https://platform.inceptionlabs.ai/dashboard/billing";
+            using var process = new Process
+            {
+                StartInfo = new ProcessStartInfo
+                {
+                    FileName = "xdg-open",
+                    Arguments = billingUrl,
+                    UseShellExecute = false,
+                    CreateNoWindow = true
+                }
+            };
+            process.Start();
+            _logger.LogInformation("Opened Mercury billing dashboard at {Url}", billingUrl);
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Failed to open Mercury billing dashboard");
+        }
+    }
+
+    /// <inheritdoc/>
     public void HandleDictationToggle(bool enabled)
     {
         try

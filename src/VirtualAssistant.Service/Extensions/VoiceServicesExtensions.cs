@@ -61,6 +61,9 @@ public static class VoiceServicesExtensions
         services.Configure<ZenOptions>(
             configuration.GetSection(ZenOptions.SectionName));
 
+        services.Configure<MercuryOptions>(
+            configuration.GetSection(MercuryOptions.SectionName));
+
         services.Configure<LlmProviderOptions>(
             configuration.GetSection(LlmProviderOptions.SectionName));
 
@@ -253,6 +256,7 @@ public static class VoiceServicesExtensions
         // Register HTTP clients for LLM providers
         services.AddHttpClient("Mistral");
         services.AddHttpClient("Zen");
+        services.AddHttpClient("Mercury");
 
         // Register MistralProvider
         services.AddSingleton<ILlmProvider, MistralProvider>(sp =>
@@ -280,6 +284,20 @@ public static class VoiceServicesExtensions
             var queryProcessor = sp.GetRequiredService<IQueryProcessor>();
             var cliAppDetector = sp.GetRequiredService<ICliAppDetector>();
             return new ZenProvider(httpClient, options, promptCache, logger, desktopContextService, queryProcessor, cliAppDetector);
+        });
+
+        // Register MercuryProvider
+        services.AddSingleton<ILlmProvider, MercuryProvider>(sp =>
+        {
+            var httpClientFactory = sp.GetRequiredService<IHttpClientFactory>();
+            var httpClient = httpClientFactory.CreateClient("Mercury");
+            var options = sp.GetRequiredService<IOptions<MercuryOptions>>();
+            var promptCache = sp.GetRequiredService<IPromptCache>();
+            var logger = sp.GetRequiredService<ILogger<MercuryProvider>>();
+            var desktopContextService = sp.GetRequiredService<IDesktopContextService>();
+            var queryProcessor = sp.GetRequiredService<IQueryProcessor>();
+            var cliAppDetector = sp.GetRequiredService<ICliAppDetector>();
+            return new MercuryProvider(httpClient, options, promptCache, logger, desktopContextService, queryProcessor, cliAppDetector);
         });
 
         // Register LlmProviderFactory

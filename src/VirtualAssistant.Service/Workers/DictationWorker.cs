@@ -376,13 +376,16 @@ public class DictationWorker : BackgroundService, IDictationControl, IDictationS
 
         // Construct LlmCorrectionResult if LLM correction was applied
         LlmCorrectionResult? correctionResult = null;
-        if (correctedText != null && result.LlmDurationMs.HasValue)
+        if (correctedText != null && result.ModelId.HasValue && result.LlmDurationMs.GetValueOrDefault() > 0)
         {
             correctionResult = new LlmCorrectionResult(
                 CorrectedText: correctedText,
                 PromptId: result.PromptId,  // PromptId from TranscriptionService (context-aware prompt selection)
                 DurationMs: result.LlmDurationMs.Value,
-                ModelId: result.ModelId  // ModelId from LLM provider
+                ModelId: result.ModelId,  // ModelId from LLM provider
+                InputTokens: result.InputTokens,
+                OutputTokens: result.OutputTokens,
+                ReasoningTokens: result.ReasoningTokens
             );
         }
 

@@ -69,6 +69,9 @@ public class TranscriptionService : ITranscriptionService
         int? llmDurationMs = null;
         int? promptId = null;
         int? modelId = null;
+        int? inputTokens = null;
+        int? outputTokens = null;
+        int? reasoningTokens = null;
 
         // 1. Apply text filtering (database corrections, file replacements, remove patterns, whitespace normalization)
         if (_textFilter != null && _textFilter.IsEnabled)
@@ -96,6 +99,9 @@ public class TranscriptionService : ITranscriptionService
                 llmDurationMs = correctionResult.DurationMs;
                 promptId = correctionResult.PromptId;
                 modelId = correctionResult.ModelId;
+                inputTokens = correctionResult.InputTokens;
+                outputTokens = correctionResult.OutputTokens;
+                reasoningTokens = correctionResult.ReasoningTokens;
 
                 if (beforeLlm != processedText)
                 {
@@ -120,7 +126,10 @@ public class TranscriptionService : ITranscriptionService
                 LlmDurationMs = llmDurationMs, // LLM correction duration in ms (null if no LLM correction)
                 PromptId = promptId,          // Prompt ID used for LLM correction (null if no LLM correction)
                 ModelId = modelId,            // Model ID used for LLM correction (null if no LLM correction)
-                SttProviderId = result.SttProviderId  // Preserve STT provider ID from transcriber
+                SttProviderId = result.SttProviderId,  // Preserve STT provider ID from transcriber
+                InputTokens = inputTokens,
+                OutputTokens = outputTokens,
+                ReasoningTokens = reasoningTokens
             };
         }
 

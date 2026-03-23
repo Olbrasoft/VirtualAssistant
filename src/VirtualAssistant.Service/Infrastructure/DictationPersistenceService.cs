@@ -102,7 +102,10 @@ public class DictationPersistenceService : IDictationPersistenceService
                     CorrectedText: correctionResult.CorrectedText,
                     DurationMs: correctionResult.DurationMs,
                     PromptId: correctionResult.PromptId,
-                    ModelId: correctionResult.ModelId.Value  // Required - every correction must have a model
+                    ModelId: correctionResult.ModelId.Value,  // Required - every correction must have a model
+                    InputTokens: correctionResult.InputTokens,
+                    OutputTokens: correctionResult.OutputTokens,
+                    ReasoningTokens: correctionResult.ReasoningTokens
                 );
                 var correction = await _commandExecutor.ExecuteAsync(command, cancellationToken);
 

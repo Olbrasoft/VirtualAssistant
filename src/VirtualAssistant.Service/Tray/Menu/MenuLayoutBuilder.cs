@@ -93,6 +93,12 @@ public class MenuLayoutBuilder : IMenuLayoutBuilder
                 ["enabled"] = VariantValue.Bool(true),
                 ["visible"] = VariantValue.Bool(true)
             }),
+            MenuItemIds.MercuryBillingId => (id, new Dictionary<string, VariantValue>
+            {
+                ["label"] = VariantValue.String("🪙 Mercury Billing"),
+                ["enabled"] = VariantValue.Bool(true),
+                ["visible"] = VariantValue.Bool(true)
+            }),
             MenuItemIds.QuitId => (id, new Dictionary<string, VariantValue>
             {
                 ["label"] = VariantValue.String("Ukončit"),
@@ -136,6 +142,7 @@ public class MenuLayoutBuilder : IMenuLayoutBuilder
                 CreateChildVariant(MenuItemIds.MuteToggleId, muteLabel, false),
                 CreateChildVariant(MenuItemIds.TtsMuteToggleId, ttsMuteLabel, false),
                 CreateChildVariant(MenuItemIds.DashboardId, "📊 Dashboard", false),
+                CreateChildVariant(MenuItemIds.MercuryBillingId, "🪙 Mercury Billing", false),
                 CreateChildVariant(MenuItemIds.AboutId, "ℹ️ O aplikaci", false),
                 CreateChildVariant(MenuItemIds.Separator4Id, "", true),
                 CreateChildVariant(MenuItemIds.QuitId, "Ukončit", false)

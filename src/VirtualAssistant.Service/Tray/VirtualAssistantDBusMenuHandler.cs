@@ -29,6 +29,7 @@ internal class VirtualAssistantDBusMenuHandler : ComCanonicalDbusmenuHandler, Sy
     private readonly Action _reloadPromptHandler;
     private readonly Action<bool> _dictationToggleHandler;
     private readonly Action<bool> _ttsMuteToggleHandler;
+    private readonly Action _mercuryBillingHandler;
 
     /// <summary>
     /// Event fired when user selects Quit from the menu.
@@ -70,6 +71,11 @@ internal class VirtualAssistantDBusMenuHandler : ComCanonicalDbusmenuHandler, Sy
     /// </summary>
     public event Action<bool>? OnTtsMuteToggleRequested;
 
+    /// <summary>
+    /// Event fired when user selects Mercury Billing menu item.
+    /// </summary>
+    public event Action? OnMercuryBillingRequested;
+
     public VirtualAssistantDBusMenuHandler(
         ILogger<VirtualAssistantDBusMenuHandler> logger,
         IMenuStateManager stateManager,
@@ -96,6 +102,7 @@ internal class VirtualAssistantDBusMenuHandler : ComCanonicalDbusmenuHandler, Sy
         _reloadPromptHandler = () => OnReloadPromptRequested?.Invoke();
         _dictationToggleHandler = (enabled) => OnDictationToggleRequested?.Invoke(enabled);
         _ttsMuteToggleHandler = (muted) => OnTtsMuteToggleRequested?.Invoke(muted);
+        _mercuryBillingHandler = () => OnMercuryBillingRequested?.Invoke();
 
         // Subscribe to state changes to emit layout updates
         _stateManager.StateChanged += OnStateChanged;
@@ -109,6 +116,7 @@ internal class VirtualAssistantDBusMenuHandler : ComCanonicalDbusmenuHandler, Sy
         _eventRouter.OnReloadPromptRequested += _reloadPromptHandler;
         _eventRouter.OnDictationToggleRequested += _dictationToggleHandler;
         _eventRouter.OnTtsMuteToggleRequested += _ttsMuteToggleHandler;
+        _eventRouter.OnMercuryBillingRequested += _mercuryBillingHandler;
     }
 
     public override Connection Connection => _connection ?? throw new InvalidOperationException("Connection not set. Call RegisterWithDbus first.");
@@ -317,6 +325,7 @@ internal class VirtualAssistantDBusMenuHandler : ComCanonicalDbusmenuHandler, Sy
         _eventRouter.OnReloadPromptRequested -= _reloadPromptHandler;
         _eventRouter.OnDictationToggleRequested -= _dictationToggleHandler;
         _eventRouter.OnTtsMuteToggleRequested -= _ttsMuteToggleHandler;
+        _eventRouter.OnMercuryBillingRequested -= _mercuryBillingHandler;
     }
 
     protected override ValueTask<bool> OnAboutToShowAsync(Message request, int id)

@@ -49,4 +49,10 @@ public interface IMenuEventDispatcher
     /// </summary>
     /// <param name="enabled">True to enable dictation, false to disable.</param>
     void HandleDictationToggle(bool enabled);
+
+    /// <summary>
+    /// Handles Mercury Billing request from menu.
+    /// Opens browser to Inception Labs billing dashboard.
+    /// </summary>
+    void HandleMercuryBilling();
 }
