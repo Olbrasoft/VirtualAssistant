@@ -39,6 +39,11 @@ public class MenuEventRouter : IMenuEventRouter
     public event Action? OnAboutRequested;
 
     /// <summary>
+    /// Event fired when user selects Mercury Billing menu item.
+    /// </summary>
+    public event Action? OnMercuryBillingRequested;
+
+    /// <summary>
     /// Event fired when user toggles LLM correction.
     /// </summary>
     public event Action<bool>? OnLlmCorrectionToggled;
@@ -88,6 +93,7 @@ public class MenuEventRouter : IMenuEventRouter
         [MenuItemIds.TtsMuteToggleId] = HandleTtsMuteToggle,
         [MenuItemIds.DashboardId] = HandleDashboard,
         [MenuItemIds.AboutId] = HandleAbout,
+        [MenuItemIds.MercuryBillingId] = HandleMercuryBilling,
         [MenuItemIds.LlmCorrectionId] = HandleLlmCorrection,
         [MenuItemIds.ReloadPromptId] = HandleReloadPrompt,
         [MenuItemIds.DictationToggleId] = HandleDictationToggle
@@ -123,6 +129,12 @@ public class MenuEventRouter : IMenuEventRouter
     {
         _logger.LogInformation("About menu item clicked");
         OnAboutRequested?.Invoke();
+    }
+
+    private void HandleMercuryBilling()
+    {
+        _logger.LogInformation("Mercury Billing menu item clicked");
+        OnMercuryBillingRequested?.Invoke();
     }
 
     private void HandleLlmCorrection()

@@ -60,5 +60,14 @@ public class LlmCorrectionConfiguration : IEntityTypeConfiguration<LlmCorrection
         builder.HasIndex(l => l.PromptId);
         builder.HasIndex(l => l.ModelId);
         builder.HasIndex(l => l.CreatedAt);
+
+        builder.Property(l => l.InputTokens)
+            .HasColumnName("input_tokens");
+
+        builder.Property(l => l.OutputTokens)
+            .HasColumnName("output_tokens");
+
+        builder.Property(l => l.ReasoningTokens)
+            .HasColumnName("reasoning_tokens");
     }
 }

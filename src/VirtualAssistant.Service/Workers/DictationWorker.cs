@@ -382,7 +382,10 @@ public class DictationWorker : BackgroundService, IDictationControl, IDictationS
                 CorrectedText: correctedText,
                 PromptId: result.PromptId,  // PromptId from TranscriptionService (context-aware prompt selection)
                 DurationMs: result.LlmDurationMs.Value,
-                ModelId: result.ModelId  // ModelId from LLM provider
+                ModelId: result.ModelId,  // ModelId from LLM provider
+                InputTokens: result.InputTokens,
+                OutputTokens: result.OutputTokens,
+                ReasoningTokens: result.ReasoningTokens
             );
         }
 

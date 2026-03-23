@@ -87,6 +87,7 @@ public class TrayCoordinatorService : IDisposable
             handler.OnLlmCorrectionToggled += _menuDispatcher.HandleLlmCorrectionToggle;
             handler.OnReloadPromptRequested += _menuDispatcher.HandleReloadPrompt;
             handler.OnDictationToggleRequested += _menuDispatcher.HandleDictationToggle;
+            handler.OnMercuryBillingRequested += _menuDispatcher.HandleMercuryBilling;
 
             _logger.LogDebug("Menu handler events wired up successfully");
         }

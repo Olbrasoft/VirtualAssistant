@@ -27,6 +27,11 @@ public interface IMenuEventRouter
     event Action? OnAboutRequested;
 
     /// <summary>
+    /// Event fired when user selects Mercury Billing menu item.
+    /// </summary>
+    event Action? OnMercuryBillingRequested;
+
+    /// <summary>
     /// Event fired when user toggles LLM correction.
     /// </summary>
     event Action<bool>? OnLlmCorrectionToggled;
