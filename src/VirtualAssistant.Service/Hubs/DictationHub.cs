@@ -3,6 +3,7 @@ using Olbrasoft.LinuxDesktop.Core.Services;
 using Olbrasoft.VirtualAssistant.Core.Keyboard;
 using Olbrasoft.VirtualAssistant.Core.Services;
 using Olbrasoft.VirtualAssistant.Core.StateMachine;
+using IDesktopContextService = Olbrasoft.VirtualAssistant.Core.Services.IDesktopContextService;
 
 namespace Olbrasoft.VirtualAssistant.Service.Hubs;
 
@@ -20,6 +21,7 @@ public class DictationHub : Hub
     private readonly IKeyboardSimulationService _keyboardSimulation;
     private readonly IWindowQueryService _windowQuery;
     private readonly IWindowActionService _windowAction;
+    private readonly IDesktopContextService _desktopContext;
     private readonly ILogger<DictationHub> _logger;
 
     public DictationHub(
@@ -27,12 +29,14 @@ public class DictationHub : Hub
         IKeyboardSimulationService keyboardSimulation,
         IWindowQueryService windowQuery,
         IWindowActionService windowAction,
+        IDesktopContextService desktopContext,
         ILogger<DictationHub> logger)
     {
         _dictationService = dictationService;
         _keyboardSimulation = keyboardSimulation;
         _windowQuery = windowQuery;
         _windowAction = windowAction;
+        _desktopContext = desktopContext;
         _logger = logger;
     }
 
@@ -40,6 +44,48 @@ public class DictationHub : Hub
     {
         await Clients.Caller.SendAsync("Connected", Context.ConnectionId);
         await base.OnConnectedAsync();
+    }
+
+    /// <summary>
+    /// Gets the WM class of the currently focused window.
+    /// </summary>
+    public async Task<string> GetFocusedApp()
+    {
+        var context = await _desktopContext.GetCurrentContextAsync();
+        return context.ActiveWindowClass ?? "";
+    }
+
+    /// <summary>
+    /// Closes the focused window if it matches the given WM class (sends Alt+F4).
+    /// </summary>
+    public async Task<bool> CloseApp(string wmClass)
+    {
+        if (string.IsNullOrWhiteSpace(wmClass) || !AllowedApps.Contains(wmClass))
+        {
+            _logger.LogWarning("CloseApp rejected: '{WmClass}' is not in allowlist", wmClass);
+            return false;
+        }
+
+        try
+        {
+            // Verify the focused window matches the requested app
+            var context = await _desktopContext.GetCurrentContextAsync();
+            if (!string.Equals(context.ActiveWindowClass, wmClass, StringComparison.OrdinalIgnoreCase))
+            {
+                _logger.LogWarning("CloseApp '{WmClass}' rejected: focused window is '{Focused}'",
+                    wmClass, context.ActiveWindowClass);
+                return false;
+            }
+
+            _logger.LogInformation("CloseApp '{WmClass}' from client {ConnectionId}", wmClass, Context.ConnectionId);
+            await _keyboardSimulation.SendKeyAsync("alt+F4");
+            return true;
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "CloseApp '{WmClass}' failed", wmClass);
+            return false;
+        }
     }
 
     /// <summary>

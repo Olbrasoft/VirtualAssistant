@@ -21,6 +21,7 @@ public class DesktopMonitorBroadcastWorkerTests : IDisposable
     private readonly Mock<ILogger<DesktopMonitorBroadcastWorker>> _loggerMock;
     private readonly Mock<IDesktopContextService> _desktopContextServiceMock;
     private readonly Mock<IHubContext<DesktopMonitorHub>> _hubContextMock;
+    private readonly Mock<IHubContext<DictationHub>> _dictationHubContextMock;
     private readonly Mock<IHubClients> _hubClientsMock;
     private readonly Mock<IClientProxy> _clientProxyMock;
     private readonly Mock<IQueryProcessor> _queryProcessorMock;
@@ -33,6 +34,8 @@ public class DesktopMonitorBroadcastWorkerTests : IDisposable
         _loggerMock = new Mock<ILogger<DesktopMonitorBroadcastWorker>>();
         _desktopContextServiceMock = new Mock<IDesktopContextService>();
         _hubContextMock = new Mock<IHubContext<DesktopMonitorHub>>();
+        _dictationHubContextMock = new Mock<IHubContext<DictationHub>>();
+        _dictationHubContextMock.Setup(x => x.Clients).Returns(Mock.Of<IHubClients>());
         _hubClientsMock = new Mock<IHubClients>();
         _clientProxyMock = new Mock<IClientProxy>();
         _queryProcessorMock = new Mock<IQueryProcessor>();
@@ -59,6 +62,7 @@ public class DesktopMonitorBroadcastWorkerTests : IDisposable
             _loggerMock.Object,
             _desktopContextServiceMock.Object,
             _hubContextMock.Object,
+            _dictationHubContextMock.Object,
             _queryProcessorMock.Object,
             _cliAppDetectorMock.Object
         );

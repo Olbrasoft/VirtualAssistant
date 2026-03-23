@@ -16,6 +16,7 @@ const elements = {
 let connection = null;
 let isRecording = false;
 let isTranscribing = false;
+let focusedApp = '';
 let durationInterval = null;
 let recordingStartTime = null;
 
@@ -45,6 +46,7 @@ function buildConnection() {
     });
 
     connection.on('DictationEvent', handleDictationEvent);
+    connection.on('AppFocusChanged', handleAppFocusChanged);
     connection.on('Connected', (connectionId) => {
         console.log('Connected with ID:', connectionId);
     });
@@ -116,6 +118,23 @@ function setTranscriptionText(text) {
     elements.transcriptionText.classList.remove('empty');
 }
 
+function handleAppFocusChanged(wmClass) {
+    focusedApp = (wmClass || '').toLowerCase();
+    updateAppButton(elements.btnDiscord, 'discord', 'Discord');
+    updateAppButton(elements.btnFerdium, 'ferdium', 'Ferdium');
+}
+
+function updateAppButton(btn, wmClass, label) {
+    const isActive = focusedApp === wmClass;
+    if (isActive) {
+        btn.style.borderBottom = '4px solid #f44336';
+        btn.querySelector('.app-label').textContent = 'Close ' + label;
+    } else {
+        btn.style.borderBottom = 'none';
+        btn.querySelector('.app-label').textContent = label;
+    }
+}
+
 function startDurationTimer() {
     stopDurationTimer();
     durationInterval = setInterval(() => {
@@ -140,6 +159,9 @@ async function refreshStatus() {
         const status = await connection.invoke('GetStatus');
         console.log('Status:', status);
         setRecordingState(status.isRecording, status.isTranscribing);
+
+        const focused = await connection.invoke('GetFocusedApp');
+        handleAppFocusChanged(focused);
     } catch (error) {
         console.error('Failed to get status:', error);
     }
@@ -222,9 +244,13 @@ elements.btnFerdium.addEventListener('pointerdown', () => {
 elements.btnDiscord.addEventListener('click', async () => {
     try {
         elements.btnDiscord.disabled = true;
-        await connection.invoke('ActivateApp', 'discord');
+        if (focusedApp === 'discord') {
+            await connection.invoke('CloseApp', 'discord');
+        } else {
+            await connection.invoke('ActivateApp', 'discord');
+        }
     } catch (error) {
-        console.error('Discord activation failed:', error);
+        console.error('Discord action failed:', error);
     } finally {
         elements.btnDiscord.disabled = false;
     }
@@ -233,9 +259,13 @@ elements.btnDiscord.addEventListener('click', async () => {
 elements.btnFerdium.addEventListener('click', async () => {
     try {
         elements.btnFerdium.disabled = true;
-        await connection.invoke('ActivateApp', 'ferdium');
+        if (focusedApp === 'ferdium') {
+            await connection.invoke('CloseApp', 'ferdium');
+        } else {
+            await connection.invoke('ActivateApp', 'ferdium');
+        }
     } catch (error) {
-        console.error('Ferdium activation failed:', error);
+        console.error('Ferdium action failed:', error);
     } finally {
         elements.btnFerdium.disabled = false;
     }
