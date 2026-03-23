@@ -32,6 +32,10 @@ public static class DesktopServiceExtensions
 
         if (!options.Enabled)
         {
+            // Register null window services so DictationHub can still be constructed
+            services.AddSingleton<IWindowService>(new NullWindowService());
+            services.AddSingleton<IWindowQueryService>(sp => sp.GetRequiredService<IWindowService>());
+            services.AddSingleton<IWindowActionService>(sp => sp.GetRequiredService<IWindowService>());
             return services;
         }
 

@@ -252,7 +252,9 @@ elements.btnDiscord.addEventListener('click', async () => {
     } catch (error) {
         console.error('Discord action failed:', error);
     } finally {
-        elements.btnDiscord.disabled = false;
+        if (connection.state === signalR.HubConnectionState.Connected) {
+            elements.btnDiscord.disabled = false;
+        }
     }
 });
 
@@ -267,7 +269,9 @@ elements.btnFerdium.addEventListener('click', async () => {
     } catch (error) {
         console.error('Ferdium action failed:', error);
     } finally {
-        elements.btnFerdium.disabled = false;
+        if (connection.state === signalR.HubConnectionState.Connected) {
+            elements.btnFerdium.disabled = false;
+        }
     }
 });
 

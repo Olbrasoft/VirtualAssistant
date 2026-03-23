@@ -60,7 +60,8 @@ public class DictationHub : Hub
     /// </summary>
     public async Task<bool> CloseApp(string wmClass)
     {
-        if (string.IsNullOrWhiteSpace(wmClass) || !AllowedApps.Contains(wmClass))
+        wmClass = wmClass?.Trim() ?? "";
+        if (wmClass.Length == 0 || !AllowedApps.Contains(wmClass))
         {
             _logger.LogWarning("CloseApp rejected: '{WmClass}' is not in allowlist", wmClass);
             return false;
@@ -161,7 +162,8 @@ public class DictationHub : Hub
     /// </summary>
     public async Task<bool> ActivateApp(string wmClass)
     {
-        if (string.IsNullOrWhiteSpace(wmClass) || !AllowedApps.Contains(wmClass))
+        wmClass = wmClass?.Trim() ?? "";
+        if (wmClass.Length == 0 || !AllowedApps.Contains(wmClass))
         {
             _logger.LogWarning("ActivateApp rejected: '{WmClass}' is not in allowlist", wmClass);
             return false;
