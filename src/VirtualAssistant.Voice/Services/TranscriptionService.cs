@@ -43,6 +43,18 @@ public class TranscriptionService : ITranscriptionService
         _racingOptions = llmProviderOptions?.Value.Racing ?? new RacingOptions();
         _options = new ContinuousListenerOptions();
         configuration.GetSection(ContinuousListenerOptions.SectionName).Bind(_options);
+
+        _logger.LogInformation("TranscriptionService racing config: Enabled={Enabled}, Providers=[{Providers}], RacingProvider={HasRacing}, ActiveProvider={Active}",
+            _racingOptions.Enabled,
+            string.Join(", ", _racingOptions.Providers),
+            _racingLlmProvider != null,
+            llmProviderOptions?.Value.ActiveProvider ?? "null");
+
+        // Also check raw config
+        var rawEnabled = configuration["LlmProvider:Racing:Enabled"];
+        var rawProviders = configuration["LlmProvider:Racing:Providers"];
+        _logger.LogInformation("TranscriptionService racing RAW config: Enabled={RawEnabled}, Providers={RawProviders}",
+            rawEnabled ?? "null", rawProviders ?? "null");
     }
 
     /// <summary>

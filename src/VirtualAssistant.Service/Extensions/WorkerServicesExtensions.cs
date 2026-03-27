@@ -8,6 +8,7 @@ using Microsoft.AspNetCore.SignalR;
 using Olbrasoft.VirtualAssistant.Service.Hubs;
 using Olbrasoft.VirtualAssistant.Service.Infrastructure;
 using Olbrasoft.VirtualAssistant.Service.Workers;
+using Olbrasoft.VirtualAssistant.Voice.Configuration;
 using Olbrasoft.VirtualAssistant.Voice.Filters;
 using Olbrasoft.VirtualAssistant.Voice.Services;
 
@@ -105,13 +106,17 @@ public static class WorkerServicesExtensions
             var transcriptionLogger = sp.GetRequiredService<ILogger<TranscriptionService>>();
             var textFilter = sp.GetRequiredService<ITextFilter>();
             var llmProviderFactory = sp.GetRequiredService<ILlmProviderFactory>();
+            var racingLlmProvider = sp.GetRequiredService<IRacingLlmProvider>();
+            var llmProviderOptions = sp.GetRequiredService<IOptions<LlmProviderOptions>>();
 
             var dictationTranscriptionService = new TranscriptionService(
                 transcriptionLogger,
                 dictationTranscriber,
                 configuration,
                 textFilter,
-                llmProviderFactory);
+                llmProviderFactory,
+                racingLlmProvider,
+                llmProviderOptions);
 
             var hubContext = sp.GetRequiredService<IHubContext<DictationHub>>();
 
