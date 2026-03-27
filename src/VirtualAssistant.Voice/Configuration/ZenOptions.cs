@@ -23,7 +23,7 @@ public class ZenOptions : ILlmProviderOptions
 
     /// <summary>
     /// Model name to use for corrections.
-    /// Supported: gpt-5.4-nano, kimi-k2, glm-4.7, claude-3-5-haiku, claude-haiku-4-5, big-pickle.
+    /// Supported: gpt-5.4-nano, kimi-k2, claude-3-5-haiku, claude-haiku-4-5, minimax-m2.5.
     /// </summary>
     public string Model { get; set; } = "gpt-5.4-nano";
 

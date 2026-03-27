@@ -239,16 +239,20 @@ public class DictationPersistenceService : IDictationPersistenceService
                         IsWinner: false,
                         RaceGroupId: raceGroupId
                     );
-                    await commandExecutor.ExecuteAsync(command, CancellationToken.None);
+                    await commandExecutor.ExecuteAsync(command, cancellationToken);
 
                     _logger.LogInformation("Saved racing loser correction in {Duration}ms for transcription {TranscriptionId} (RaceGroupId: {RaceGroupId})",
                         loserResult.DurationMs, transcriptionId, raceGroupId);
+                }
+                catch (OperationCanceledException)
+                {
+                    _logger.LogDebug("Racing loser save cancelled for transcription {TranscriptionId}", transcriptionId);
                 }
                 catch (Exception ex)
                 {
                     _logger.LogWarning(ex, "Failed to save racing loser correction for transcription {TranscriptionId}", transcriptionId);
                 }
-            }, CancellationToken.None);
+            }, cancellationToken);
         }
 
         return transcription.Id;

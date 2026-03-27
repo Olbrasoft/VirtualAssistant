@@ -50,22 +50,20 @@ public class RacingLlmProviderTests
     [Fact]
     public async Task BothSucceed_MercuryFaster_ReturnsMercuryAsWinner()
     {
-        _mercuryMock.Setup(p => p.CorrectTextAsync(It.IsAny<string>(), It.IsAny<CancellationToken>()))
-            .Returns(async (string _, CancellationToken _) =>
-            {
-                await Task.Delay(50);
-                return MakeResult("Mercury result", 50, modelId: 18);
-            });
+        var mercuryTcs = new TaskCompletionSource<LlmCorrectionResult>();
+        var zenTcs = new TaskCompletionSource<LlmCorrectionResult>();
 
+        _mercuryMock.Setup(p => p.CorrectTextAsync(It.IsAny<string>(), It.IsAny<CancellationToken>()))
+            .Returns(mercuryTcs.Task);
         _zenMock.Setup(p => p.CorrectTextAsync(It.IsAny<string>(), It.IsAny<CancellationToken>()))
-            .Returns(async (string _, CancellationToken _) =>
-            {
-                await Task.Delay(300);
-                return MakeResult("Zen result", 300, modelId: 20);
-            });
+            .Returns(zenTcs.Task);
 
         var provider = CreateProvider();
-        var result = await provider.CorrectTextAsync("test text");
+        var task = provider.CorrectTextAsync("test text");
+
+        // Mercury completes first
+        mercuryTcs.SetResult(MakeResult("Mercury result", 50, modelId: 18));
+        var result = await task;
 
         Assert.NotNull(result);
         Assert.Equal("mercury", result.WinnerProviderName);
@@ -74,31 +72,35 @@ public class RacingLlmProviderTests
         Assert.NotEqual(Guid.Empty, result.RaceGroupId);
         Assert.NotNull(result.LoserTask);
         Assert.Equal("zen", result.LoserProviderName);
+
+        // Complete zen for cleanup
+        zenTcs.SetResult(MakeResult("Zen result", 300, modelId: 20));
     }
 
     [Fact]
     public async Task BothSucceed_ZenFaster_ReturnsZenAsWinner()
     {
-        _mercuryMock.Setup(p => p.CorrectTextAsync(It.IsAny<string>(), It.IsAny<CancellationToken>()))
-            .Returns(async (string _, CancellationToken _) =>
-            {
-                await Task.Delay(300);
-                return MakeResult("Mercury result", 300, modelId: 18);
-            });
+        var mercuryTcs = new TaskCompletionSource<LlmCorrectionResult>();
+        var zenTcs = new TaskCompletionSource<LlmCorrectionResult>();
 
+        _mercuryMock.Setup(p => p.CorrectTextAsync(It.IsAny<string>(), It.IsAny<CancellationToken>()))
+            .Returns(mercuryTcs.Task);
         _zenMock.Setup(p => p.CorrectTextAsync(It.IsAny<string>(), It.IsAny<CancellationToken>()))
-            .Returns(async (string _, CancellationToken _) =>
-            {
-                await Task.Delay(50);
-                return MakeResult("Zen result", 50, modelId: 20);
-            });
+            .Returns(zenTcs.Task);
 
         var provider = CreateProvider();
-        var result = await provider.CorrectTextAsync("test text");
+        var task = provider.CorrectTextAsync("test text");
+
+        // Zen completes first
+        zenTcs.SetResult(MakeResult("Zen result", 50, modelId: 20));
+        var result = await task;
 
         Assert.NotNull(result);
         Assert.Equal("zen", result.WinnerProviderName);
         Assert.Equal("Zen result", result.WinnerResult.CorrectedText);
+
+        // Complete mercury for cleanup
+        mercuryTcs.SetResult(MakeResult("Mercury result", 300, modelId: 18));
     }
 
     [Fact]
@@ -108,11 +110,7 @@ public class RacingLlmProviderTests
             .ThrowsAsync(new HttpRequestException("Mercury timeout"));
 
         _zenMock.Setup(p => p.CorrectTextAsync(It.IsAny<string>(), It.IsAny<CancellationToken>()))
-            .Returns(async (string _, CancellationToken _) =>
-            {
-                await Task.Delay(100);
-                return MakeResult("Zen result", 100, modelId: 20);
-            });
+            .ReturnsAsync(MakeResult("Zen result", 100, modelId: 20));
 
         var provider = CreateProvider();
         var result = await provider.CorrectTextAsync("test text");
@@ -126,11 +124,7 @@ public class RacingLlmProviderTests
     public async Task ZenFails_MercurySucceeds_ReturnsMercuryAsFallback()
     {
         _mercuryMock.Setup(p => p.CorrectTextAsync(It.IsAny<string>(), It.IsAny<CancellationToken>()))
-            .Returns(async (string _, CancellationToken _) =>
-            {
-                await Task.Delay(100);
-                return MakeResult("Mercury result", 100, modelId: 18);
-            });
+            .ReturnsAsync(MakeResult("Mercury result", 100, modelId: 18));
 
         _zenMock.Setup(p => p.CorrectTextAsync(It.IsAny<string>(), It.IsAny<CancellationToken>()))
             .ThrowsAsync(new HttpRequestException("Zen error"));
@@ -196,28 +190,28 @@ public class RacingLlmProviderTests
     [Fact]
     public async Task LoserTaskCompletesWithResult()
     {
-        _mercuryMock.Setup(p => p.CorrectTextAsync(It.IsAny<string>(), It.IsAny<CancellationToken>()))
-            .Returns(async (string _, CancellationToken _) =>
-            {
-                await Task.Delay(50);
-                return MakeResult("Mercury result", 50, modelId: 18);
-            });
+        var mercuryTcs = new TaskCompletionSource<LlmCorrectionResult>();
+        var zenTcs = new TaskCompletionSource<LlmCorrectionResult>();
 
+        _mercuryMock.Setup(p => p.CorrectTextAsync(It.IsAny<string>(), It.IsAny<CancellationToken>()))
+            .Returns(mercuryTcs.Task);
         _zenMock.Setup(p => p.CorrectTextAsync(It.IsAny<string>(), It.IsAny<CancellationToken>()))
-            .Returns(async (string _, CancellationToken _) =>
-            {
-                await Task.Delay(200);
-                return MakeResult("Zen result", 200, modelId: 20);
-            });
+            .Returns(zenTcs.Task);
 
         var provider = CreateProvider();
-        var result = await provider.CorrectTextAsync("test text");
+        var task = provider.CorrectTextAsync("test text");
+
+        // Mercury wins
+        mercuryTcs.SetResult(MakeResult("Mercury result", 50, modelId: 18));
+        var result = await task;
 
         Assert.NotNull(result);
         Assert.NotNull(result.LoserTask);
 
-        // Wait for loser
+        // Zen completes later
+        zenTcs.SetResult(MakeResult("Zen result", 200, modelId: 20));
         var loserResult = await result.LoserTask;
+
         Assert.NotNull(loserResult);
         Assert.Equal("Zen result", loserResult.CorrectedText);
         Assert.Equal(200, loserResult.DurationMs);
@@ -230,11 +224,7 @@ public class RacingLlmProviderTests
             .ReturnsAsync(MakeResult("Mercury result", 50, modelId: 18));
 
         _zenMock.Setup(p => p.CorrectTextAsync(It.IsAny<string>(), It.IsAny<CancellationToken>()))
-            .Returns(async (string _, CancellationToken _) =>
-            {
-                await Task.Delay(100);
-                return MakeResult("Zen result", 100, modelId: 20);
-            });
+            .ReturnsAsync(MakeResult("Zen result", 100, modelId: 20));
 
         var provider = CreateProvider();
         var result = await provider.CorrectTextAsync("test text");

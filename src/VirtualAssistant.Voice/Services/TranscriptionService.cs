@@ -119,9 +119,14 @@ public class TranscriptionService : ITranscriptionService
                         inputTokens = racingResult.WinnerResult.InputTokens;
                         outputTokens = racingResult.WinnerResult.OutputTokens;
                         reasoningTokens = racingResult.WinnerResult.ReasoningTokens;
-                        raceGroupId = racingResult.RaceGroupId;
-                        racingLoserTask = racingResult.LoserTask;
-                        racingLoserProviderName = racingResult.LoserProviderName;
+
+                        // Only set race metadata when a real race occurred (i.e., a loser exists)
+                        if (racingResult.LoserTask != null)
+                        {
+                            raceGroupId = racingResult.RaceGroupId;
+                            racingLoserTask = racingResult.LoserTask;
+                            racingLoserProviderName = racingResult.LoserProviderName;
+                        }
 
                         if (beforeLlm != processedText)
                         {

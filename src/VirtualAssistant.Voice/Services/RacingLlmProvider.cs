@@ -40,6 +40,13 @@ public class RacingLlmProvider : IRacingLlmProvider
             return await RunSingleProviderAsync(providers[0].Provider, providers[0].Name, text, cancellationToken);
         }
 
+        if (providers.Count > 2)
+        {
+            _logger.LogWarning("Racing supports max 2 providers, using first 2 of {Count}: {Names}",
+                providers.Count, string.Join(", ", providers.Select(p => p.Name)));
+            providers = providers.Take(2).ToList();
+        }
+
         return await RunRaceAsync(providers, text, cancellationToken);
     }
 
