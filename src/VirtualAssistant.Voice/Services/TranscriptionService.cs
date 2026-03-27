@@ -1,7 +1,10 @@
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.Logging;
+using Microsoft.Extensions.Options;
 using Olbrasoft.VirtualAssistant.Core.Configuration;
+using Olbrasoft.VirtualAssistant.Core.Models;
 using Olbrasoft.VirtualAssistant.Core.Speech;
+using Olbrasoft.VirtualAssistant.Voice.Configuration;
 using Olbrasoft.VirtualAssistant.Voice.Filters;
 
 namespace Olbrasoft.VirtualAssistant.Voice.Services;
@@ -10,7 +13,7 @@ namespace Olbrasoft.VirtualAssistant.Voice.Services;
 /// Service for transcribing audio using SpeechToText gRPC microservice.
 /// Wrapper that delegates to ISpeechTranscriber (SpeechToTextGrpcClient).
 /// After transcription, applies text filtering and optionally LLM correction.
-/// Pipeline: Whisper → Text Filtering → LLM (via factory)
+/// Pipeline: Whisper → Text Filtering → LLM (via factory or racing)
 /// </summary>
 public class TranscriptionService : ITranscriptionService
 {
@@ -18,6 +21,8 @@ public class TranscriptionService : ITranscriptionService
     private readonly ISpeechTranscriber _transcriber;
     private readonly ITextFilter? _textFilter;
     private readonly ILlmProviderFactory? _llmProviderFactory;
+    private readonly IRacingLlmProvider? _racingLlmProvider;
+    private readonly RacingOptions _racingOptions;
     private readonly ContinuousListenerOptions _options;
     private bool _disposed;
 
@@ -26,12 +31,16 @@ public class TranscriptionService : ITranscriptionService
         ISpeechTranscriber transcriber,
         IConfiguration configuration,
         ITextFilter? textFilter = null,
-        ILlmProviderFactory? llmProviderFactory = null)
+        ILlmProviderFactory? llmProviderFactory = null,
+        IRacingLlmProvider? racingLlmProvider = null,
+        IOptions<LlmProviderOptions>? llmProviderOptions = null)
     {
         _logger = logger;
         _transcriber = transcriber ?? throw new ArgumentNullException(nameof(transcriber));
-        _textFilter = textFilter; // Optional text filtering (Phase 3)
-        _llmProviderFactory = llmProviderFactory; // Optional LLM factory for ASR correction
+        _textFilter = textFilter;
+        _llmProviderFactory = llmProviderFactory;
+        _racingLlmProvider = racingLlmProvider;
+        _racingOptions = llmProviderOptions?.Value.Racing ?? new RacingOptions();
         _options = new ContinuousListenerOptions();
         configuration.GetSection(ContinuousListenerOptions.SectionName).Bind(_options);
     }
@@ -87,32 +96,71 @@ public class TranscriptionService : ITranscriptionService
             }
         }
 
-        // 2. Apply LLM correction if available (via factory for runtime provider switching)
-        if (_llmProviderFactory != null && !string.IsNullOrWhiteSpace(processedText))
-        {
-            try
-            {
-                var llmProvider = _llmProviderFactory.GetActiveProvider();
-                var beforeLlm = processedText;
-                var correctionResult = await llmProvider.CorrectTextAsync(processedText, cancellationToken);
-                processedText = correctionResult.CorrectedText;
-                llmDurationMs = correctionResult.DurationMs;
-                promptId = correctionResult.PromptId;
-                modelId = correctionResult.ModelId;
-                inputTokens = correctionResult.InputTokens;
-                outputTokens = correctionResult.OutputTokens;
-                reasoningTokens = correctionResult.ReasoningTokens;
+        // 2. Apply LLM correction
+        Guid? raceGroupId = null;
+        Task<LlmCorrectionResult?>? racingLoserTask = null;
+        string? racingLoserProviderName = null;
 
-                if (beforeLlm != processedText)
+        if (!string.IsNullOrWhiteSpace(processedText))
+        {
+            // Racing mode: call multiple providers in parallel, use first response
+            if (_racingOptions.Enabled && _racingLlmProvider != null)
+            {
+                try
                 {
-                    _logger.LogInformation("LLM correction applied in {Duration}ms: '{Before}' → '{After}'",
-                        llmDurationMs, beforeLlm, processedText);
+                    var racingResult = await _racingLlmProvider.CorrectTextAsync(processedText, cancellationToken);
+                    if (racingResult != null)
+                    {
+                        var beforeLlm = processedText;
+                        processedText = racingResult.WinnerResult.CorrectedText;
+                        llmDurationMs = racingResult.WinnerResult.DurationMs;
+                        promptId = racingResult.WinnerResult.PromptId;
+                        modelId = racingResult.WinnerResult.ModelId;
+                        inputTokens = racingResult.WinnerResult.InputTokens;
+                        outputTokens = racingResult.WinnerResult.OutputTokens;
+                        reasoningTokens = racingResult.WinnerResult.ReasoningTokens;
+                        raceGroupId = racingResult.RaceGroupId;
+                        racingLoserTask = racingResult.LoserTask;
+                        racingLoserProviderName = racingResult.LoserProviderName;
+
+                        if (beforeLlm != processedText)
+                        {
+                            _logger.LogInformation("LLM racing correction by {Winner} in {Duration}ms: '{Before}' → '{After}'",
+                                racingResult.WinnerProviderName, llmDurationMs, beforeLlm, processedText);
+                        }
+                    }
+                }
+                catch (Exception ex)
+                {
+                    _logger.LogError(ex, "LLM racing correction failed, using filtered text: {Error}", ex.Message);
                 }
             }
-            catch (Exception ex)
+            // Single provider mode: call active provider only
+            else if (_llmProviderFactory != null)
             {
-                _logger.LogError(ex, "LLM correction failed, using filtered text: {Error}", ex.Message);
-                // Continue with filtered text
+                try
+                {
+                    var llmProvider = _llmProviderFactory.GetActiveProvider();
+                    var beforeLlm = processedText;
+                    var correctionResult = await llmProvider.CorrectTextAsync(processedText, cancellationToken);
+                    processedText = correctionResult.CorrectedText;
+                    llmDurationMs = correctionResult.DurationMs;
+                    promptId = correctionResult.PromptId;
+                    modelId = correctionResult.ModelId;
+                    inputTokens = correctionResult.InputTokens;
+                    outputTokens = correctionResult.OutputTokens;
+                    reasoningTokens = correctionResult.ReasoningTokens;
+
+                    if (beforeLlm != processedText)
+                    {
+                        _logger.LogInformation("LLM correction applied in {Duration}ms: '{Before}' → '{After}'",
+                            llmDurationMs, beforeLlm, processedText);
+                    }
+                }
+                catch (Exception ex)
+                {
+                    _logger.LogError(ex, "LLM correction failed, using filtered text: {Error}", ex.Message);
+                }
             }
         }
 
@@ -121,15 +169,18 @@ public class TranscriptionService : ITranscriptionService
         {
             return new TranscriptionResult(processedText, result.Confidence)
             {
-                OriginalText = originalText,  // Whisper output before processing
-                FilteredText = filteredText,  // Text after filtering but before LLM (null if no filtering)
-                LlmDurationMs = llmDurationMs, // LLM correction duration in ms (null if no LLM correction)
-                PromptId = promptId,          // Prompt ID used for LLM correction (null if no LLM correction)
-                ModelId = modelId,            // Model ID used for LLM correction (null if no LLM correction)
-                SttProviderId = result.SttProviderId,  // Preserve STT provider ID from transcriber
+                OriginalText = originalText,
+                FilteredText = filteredText,
+                LlmDurationMs = llmDurationMs,
+                PromptId = promptId,
+                ModelId = modelId,
+                SttProviderId = result.SttProviderId,
                 InputTokens = inputTokens,
                 OutputTokens = outputTokens,
-                ReasoningTokens = reasoningTokens
+                ReasoningTokens = reasoningTokens,
+                RaceGroupId = raceGroupId,
+                RacingLoserTask = racingLoserTask,
+                RacingLoserProviderName = racingLoserProviderName
             };
         }
 

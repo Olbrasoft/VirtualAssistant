@@ -13,6 +13,8 @@ namespace Olbrasoft.VirtualAssistant.Data.Commands.LlmCorrectionCommands;
 /// <param name="InputTokens">Number of input/prompt tokens consumed. NULL if not tracked.</param>
 /// <param name="OutputTokens">Number of output/completion tokens generated. NULL if not tracked.</param>
 /// <param name="ReasoningTokens">Number of reasoning tokens used. NULL if not applicable.</param>
+/// <param name="IsWinner">Whether this correction won an LLM race. NULL if no race.</param>
+/// <param name="RaceGroupId">Groups corrections from the same race. NULL if no race.</param>
 public record SaveLlmCorrectionCommand(
     int VoiceTranscriptionId,
     string CorrectedText,
@@ -21,5 +23,7 @@ public record SaveLlmCorrectionCommand(
     int ModelId,
     int? InputTokens = null,
     int? OutputTokens = null,
-    int? ReasoningTokens = null
+    int? ReasoningTokens = null,
+    bool? IsWinner = null,
+    Guid? RaceGroupId = null
 ) : ICommand<LlmCorrection>;

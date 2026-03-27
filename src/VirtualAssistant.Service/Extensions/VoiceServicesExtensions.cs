@@ -167,7 +167,9 @@ public static class VoiceServicesExtensions
             var config = sp.GetRequiredService<IConfiguration>();
             var textFilter = sp.GetRequiredService<ITextFilter>();
             var llmProviderFactory = sp.GetRequiredService<ILlmProviderFactory>();
-            return new TranscriptionService(logger, transcriber, config, textFilter, llmProviderFactory);
+            var racingLlmProvider = sp.GetRequiredService<IRacingLlmProvider>();
+            var llmProviderOptions = sp.GetRequiredService<IOptions<LlmProviderOptions>>();
+            return new TranscriptionService(logger, transcriber, config, textFilter, llmProviderFactory, racingLlmProvider, llmProviderOptions);
         });
 
         var openCodeUrl = configuration["OpenCodeUrl"] ?? "http://localhost:4096";
@@ -302,6 +304,9 @@ public static class VoiceServicesExtensions
 
         // Register LlmProviderFactory
         services.AddSingleton<ILlmProviderFactory, LlmProviderFactory>();
+
+        // Register RacingLlmProvider
+        services.AddSingleton<IRacingLlmProvider, RacingLlmProvider>();
     }
 
     private static void AddTextFilterServices(this IServiceCollection services)

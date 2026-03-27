@@ -78,6 +78,25 @@ public class TranscriptionResult
     public int? ReasoningTokens { get; init; }
 
     /// <summary>
+    /// Race group identifier when LLM racing is enabled. Links winner and loser corrections.
+    /// Null when racing is disabled or no LLM correction was applied.
+    /// </summary>
+    public Guid? RaceGroupId { get; init; }
+
+    /// <summary>
+    /// Deferred task for the losing provider's result in a racing scenario.
+    /// Should be awaited by the persistence layer to save the loser's correction to database.
+    /// Null when racing is disabled or only one provider was available.
+    /// </summary>
+    public Task<Olbrasoft.VirtualAssistant.Core.Models.LlmCorrectionResult?>? RacingLoserTask { get; init; }
+
+    /// <summary>
+    /// Name of the losing provider in a racing scenario (e.g., "zen", "mercury").
+    /// Null when racing is disabled.
+    /// </summary>
+    public string? RacingLoserProviderName { get; init; }
+
+    /// <summary>
     /// Initializes a new instance for successful transcription.
     /// </summary>
     public TranscriptionResult(string text, float confidence)

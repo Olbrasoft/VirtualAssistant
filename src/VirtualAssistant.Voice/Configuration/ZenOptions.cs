@@ -23,17 +23,17 @@ public class ZenOptions : ILlmProviderOptions
 
     /// <summary>
     /// Model name to use for corrections.
-    /// Supported: kimi-k2, glm-4.7, claude-3-5-haiku, claude-haiku-4-5, big-pickle.
+    /// Supported: gpt-5.4-nano, kimi-k2, glm-4.7, claude-3-5-haiku, claude-haiku-4-5, big-pickle.
     /// </summary>
-    public string Model { get; set; } = "glm-4.7";
+    public string Model { get; set; } = "gpt-5.4-nano";
 
     /// <summary>
     /// Controls reasoning/thinking mode for models that support it.
     /// Set to "none" to disable reasoning (required for glm-4.7 to get clean output).
-    /// Leave null/empty for models that don't need it (e.g. kimi-k2).
+    /// Leave null/empty for models that don't need it (e.g. kimi-k2, gpt-5.4-nano).
     /// Supported values: "none", "low", "medium", "high", or null.
     /// </summary>
-    public string? ReasoningEffort { get; set; } = "none";
+    public string? ReasoningEffort { get; set; }
 
     /// <summary>
     /// API timeout in seconds.

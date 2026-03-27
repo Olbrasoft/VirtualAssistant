@@ -1,3 +1,4 @@
+using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
 using Moq;
@@ -18,6 +19,7 @@ public class DictationPersistenceServiceTests
 {
     private readonly Mock<ILogger<DictationPersistenceService>> _loggerMock;
     private readonly Mock<ICommandExecutor> _commandExecutorMock;
+    private readonly Mock<IServiceScopeFactory> _scopeFactoryMock;
     private readonly IOptions<AudioRecordingOptions> _defaultOptions;
     private readonly DictationPersistenceService _service;
 
@@ -25,6 +27,7 @@ public class DictationPersistenceServiceTests
     {
         _loggerMock = new Mock<ILogger<DictationPersistenceService>>();
         _commandExecutorMock = new Mock<ICommandExecutor>();
+        _scopeFactoryMock = new Mock<IServiceScopeFactory>();
         _defaultOptions = Options.Create(new AudioRecordingOptions
         {
             SampleRate = 16000,
@@ -36,6 +39,7 @@ public class DictationPersistenceServiceTests
         _service = new DictationPersistenceService(
             _loggerMock.Object,
             _commandExecutorMock.Object,
+            _scopeFactoryMock.Object,
             _defaultOptions);
     }
 
