@@ -25,6 +25,8 @@ public class SaveLlmCorrectionCommandHandler(VirtualAssistantDbContext context)
             InputTokens = command.InputTokens,
             OutputTokens = command.OutputTokens,
             ReasoningTokens = command.ReasoningTokens,
+            IsWinner = command.IsWinner,
+            RaceGroupId = command.RaceGroupId,
             CreatedAt = System.DateTime.UtcNow
         };
 

@@ -69,5 +69,13 @@ public class LlmCorrectionConfiguration : IEntityTypeConfiguration<LlmCorrection
 
         builder.Property(l => l.ReasoningTokens)
             .HasColumnName("reasoning_tokens");
+
+        builder.Property(l => l.IsWinner)
+            .HasColumnName("is_winner");
+
+        builder.Property(l => l.RaceGroupId)
+            .HasColumnName("race_group_id");
+
+        builder.HasIndex(l => l.RaceGroupId);
     }
 }

@@ -393,12 +393,27 @@ public class DictationWorker : BackgroundService, IDictationControl, IDictationS
         // Falls back to Whisper (13) if not set - required because provider_id has FK constraint
         var sttProviderId = result.SttProviderId.GetValueOrDefault(13);
 
-        await persistenceService.SaveTranscriptionAsync(
-            audioData,
-            originalText,
-            correctionResult,
-            sttProviderId,
-            _transcriptionCts!.Token);
+        // Use racing-aware save if race data is present
+        if (result.RaceGroupId.HasValue)
+        {
+            await persistenceService.SaveTranscriptionWithRacingAsync(
+                audioData,
+                originalText,
+                correctionResult,
+                sttProviderId,
+                result.RaceGroupId.Value,
+                result.RacingLoserTask,
+                _transcriptionCts!.Token);
+        }
+        else
+        {
+            await persistenceService.SaveTranscriptionAsync(
+                audioData,
+                originalText,
+                correctionResult,
+                sttProviderId,
+                _transcriptionCts!.Token);
+        }
     }
 
     /// <summary>

@@ -21,4 +21,28 @@ public class LlmProviderOptions
         get => string.IsNullOrWhiteSpace(_activeProvider) ? "mistral" : _activeProvider;
         set => _activeProvider = string.IsNullOrWhiteSpace(value) ? "mistral" : value;
     }
+
+    /// <summary>
+    /// Racing configuration for parallel LLM provider calls.
+    /// </summary>
+    public RacingOptions Racing { get; set; } = new();
+}
+
+/// <summary>
+/// Configuration for LLM racing pattern - calling multiple providers in parallel
+/// and using whichever responds first.
+/// </summary>
+public class RacingOptions
+{
+    /// <summary>
+    /// Enable or disable racing mode. When enabled, multiple providers are called
+    /// simultaneously and the first successful response is used.
+    /// </summary>
+    public bool Enabled { get; set; }
+
+    /// <summary>
+    /// List of provider names to race (e.g., ["mercury", "zen"]).
+    /// Must contain at least 2 providers when racing is enabled.
+    /// </summary>
+    public List<string> Providers { get; set; } = [];
 }

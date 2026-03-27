@@ -61,6 +61,18 @@ public class LlmCorrection
     public int? ReasoningTokens { get; set; }
 
     /// <summary>
+    /// Whether this correction was the winner of an LLM race.
+    /// True = winner (first to respond), False = loser (second to respond), NULL = no race (single provider).
+    /// </summary>
+    public bool? IsWinner { get; set; }
+
+    /// <summary>
+    /// Groups corrections from the same race together.
+    /// Both winner and loser share the same RaceGroupId. NULL = no race.
+    /// </summary>
+    public Guid? RaceGroupId { get; set; }
+
+    /// <summary>
     /// Navigation property to the original voice transcription.
     /// </summary>
     public VoiceTranscription VoiceTranscription { get; set; } = null!;
