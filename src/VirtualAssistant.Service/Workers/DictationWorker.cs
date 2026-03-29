@@ -102,12 +102,14 @@ public class DictationWorker : BackgroundService, IDictationControl, IDictationS
     }
 
     /// <inheritdoc/>
-    public async Task StopDictationAsync()
+    public Task StopDictationAsync()
     {
         if (_stateMachine.CurrentState == DictationState.Recording)
         {
-            await StopAndTranscribeAsync();
+            _ = Task.Run(async () => await StopAndTranscribeAsync());
         }
+
+        return Task.CompletedTask;
     }
 
     /// <inheritdoc/>
