@@ -219,8 +219,9 @@ public class CreateNotificationCommandHandler(VirtualAssistantDbContext context)
             "claude" or "claude-code" => AgentType.ClaudeCode,
             "gemini" => AgentType.Gemini,
             "antigravity" => AgentType.Antigravity,
+            "ci-pipeline" or "ci" => AgentType.CiPipeline,
             _ => throw new ArgumentException(
-                $"Invalid agent name '{agentName}'. Allowed values: opencode, claude, claude-code, gemini, antigravity",
+                $"Invalid agent name '{agentName}'. Allowed values: opencode, claude, claude-code, gemini, antigravity, ci-pipeline",
                 nameof(agentName))
         };
     }

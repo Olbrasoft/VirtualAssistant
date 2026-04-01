@@ -24,5 +24,10 @@ public enum AgentType
     /// <summary>
     /// Antigravity IDE agent (ID: 20)
     /// </summary>
-    Antigravity = 20
+    Antigravity = 20,
+
+    /// <summary>
+    /// CI/CD pipeline agent (ID: 30)
+    /// </summary>
+    CiPipeline = 30
 }

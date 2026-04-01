@@ -76,6 +76,14 @@ public class AgentConfiguration : IEntityTypeConfiguration<Agent>
                 Label = "agent:antigravity",
                 IsActive = true,
                 CreatedAt = new DateTime(2026, 1, 15, 12, 40, 0, DateTimeKind.Utc)
+            },
+            new Agent
+            {
+                Id = 30,
+                Name = "ci-pipeline",
+                Label = "agent:ci-pipeline",
+                IsActive = true,
+                CreatedAt = new DateTime(2026, 4, 1, 10, 0, 0, DateTimeKind.Utc)
             }
         );
     }
