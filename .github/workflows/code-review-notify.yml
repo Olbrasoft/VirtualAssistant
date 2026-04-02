@@ -1,8 +1,9 @@
 name: Code Review Notification
 
 on:
-  pull_request_review:
-    types: [submitted]
+  workflow_run:
+    workflows: ["Copilot code review"]
+    types: [completed]
 
 jobs:
   notify:
@@ -16,36 +17,41 @@ jobs:
           EVENTS_DIR="$HOME/.config/claude-channels/deploy-events"
           mkdir -p "$EVENTS_DIR"
 
-          PR_NUM="${{ github.event.pull_request.number }}"
-          REVIEW_ID="${{ github.event.review.id }}"
-          REVIEWER="${{ github.event.review.user.login }}"
-          REVIEW_STATE="${{ github.event.review.state }}"
           REPO="${{ github.repository }}"
           REPO_FILE=$(echo "$REPO" | tr '/' '-')
 
-          # Use payload data directly instead of gh pr view calls
-          COMMIT_SHA="${{ github.event.pull_request.head.sha }}"
-          COMMIT_SHA="${COMMIT_SHA:0:7}"
-          PR_TITLE="${{ github.event.pull_request.title }}"
-          PR_URL="${{ github.event.pull_request.html_url }}"
+          # Get the PR number from the workflow run
+          # The Copilot code review workflow runs on a PR branch
+          HEAD_BRANCH="${{ github.event.workflow_run.head_branch }}"
+          HEAD_SHA="${{ github.event.workflow_run.head_sha }}"
+          CONCLUSION="${{ github.event.workflow_run.conclusion }}"
 
-          # Get inline comment count for this specific review
-          COMMENT_COUNT=$(gh api "repos/${REPO}/pulls/${PR_NUM}/reviews/${REVIEW_ID}/comments" --jq 'length' 2>/dev/null || echo "0")
+          # Find the PR for this branch
+          PR_NUM=$(gh pr list --repo "$REPO" --head "$HEAD_BRANCH" --state open --json number --jq '.[0].number' 2>/dev/null || echo "")
 
-          # Use unique filename: event type + PR number (avoids overwriting deploy events)
+          if [ -z "$PR_NUM" ]; then
+            echo "No open PR found for branch $HEAD_BRANCH, skipping notification"
+            exit 0
+          fi
+
+          PR_TITLE=$(gh pr view "$PR_NUM" --repo "$REPO" --json title --jq '.title' 2>/dev/null || echo "unknown")
+          PR_URL=$(gh pr view "$PR_NUM" --repo "$REPO" --json url --jq '.url' 2>/dev/null || echo "")
+          COMMENT_COUNT=$(gh api "repos/${REPO}/pulls/${PR_NUM}/comments" --jq 'length' 2>/dev/null || echo "0")
+          REVIEWER=$(gh api "repos/${REPO}/pulls/${PR_NUM}/reviews" --jq '.[-1].user.login // "Copilot"' 2>/dev/null || echo "Copilot")
+
           cat > "$EVENTS_DIR/${REPO_FILE}-review-${PR_NUM}.json" << REVIEW_EOF
           {
             "event": "code-review-complete",
-            "status": "${REVIEW_STATE}",
+            "status": "${CONCLUSION}",
             "repository": "${REPO}",
             "prNumber": ${PR_NUM},
             "prTitle": $(echo "${PR_TITLE}" | jq -Rs .),
             "prUrl": "${PR_URL}",
-            "commit": "${COMMIT_SHA}",
+            "commit": "${HEAD_SHA:0:7}",
             "reviewer": "${REVIEWER}",
             "reviewComments": ${COMMENT_COUNT},
             "timestamp": "$(date -u +%Y-%m-%dT%H:%M:%SZ)"
           }
           REVIEW_EOF
 
-          echo "Code review notification written (reviewer: ${REVIEWER}, state: ${REVIEW_STATE}, comments: ${COMMENT_COUNT})"
+          echo "Code review notification written for PR #${PR_NUM} (reviewer: ${REVIEWER}, conclusion: ${CONCLUSION}, comments: ${COMMENT_COUNT})"
