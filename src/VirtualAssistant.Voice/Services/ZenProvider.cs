@@ -44,10 +44,6 @@ public class ZenProvider : LlmProviderBase
 
     public override async Task<LlmCorrectionResult> CorrectTextAsync(string text, CancellationToken cancellationToken = default)
     {
-        var skipResult = CheckShouldSkip(text);
-        if (skipResult != null)
-            return skipResult;
-
         var (promptText, promptId) = await GetSystemPromptAsync(cancellationToken);
         return await CorrectTextAsync(text, promptText, promptId, cancellationToken);
     }
