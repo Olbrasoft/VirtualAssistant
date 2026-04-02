@@ -97,23 +97,26 @@ Example (WRONG):
 
 **Deployment is FULLY AUTOMATED** - no manual steps required after merge!
 
-### Post-Deploy Verification (Channel MCP Push)
+### Post-Deploy Verification (Hook-Based Push)
 
-**Claude Code receives a Channel push event from GitHub Actions when deployment completes.** No polling needed — the notification arrives within seconds of service restart.
+**GitHub Actions writes deploy result to `~/.config/claude-channels/deploy-events/`. A `UserPromptSubmit` hook automatically reads and injects it into Claude Code context on next prompt.** No polling, no flags, no Channels needed.
 
-**Channel MCP configuration:**
-- Port: **9878** (from `~/.config/claude-channels/ports.json`)
-- MCP server: `ci-channel` (configured via `claude mcp add --scope local`)
-- Source: `Olbrasoft/GitHub.Actions.Notify/channel-server/`
+**How it works:**
+1. GitHub Actions deploys → writes `Olbrasoft-VirtualAssistant.json` to deploy-events directory
+2. On next user prompt, hook script reads the file and injects deploy status into context
+3. Claude Code sees `<deploy-complete>` tag and reacts:
+   - Verify service is running: `systemctl --user status virtual-assistant.service`
+   - Verify new content deployed (e.g., `grep` for changes in `/opt/olbrasoft/virtual-assistant/app/`)
+   - Check logs for errors: `journalctl --user -u virtual-assistant.service --since "2 min ago"`
+   - Send notification via `mcp__notify__notify` with deployment result
+4. Hook deletes the file so it's only shown once
 
-**When Claude Code receives a Channel `deploy-complete` event:**
-1. Verify service is running: `systemctl --user status virtual-assistant.service`
-2. Verify new content deployed (e.g., `grep` for changes in `/opt/olbrasoft/virtual-assistant/app/`)
-3. Check logs for errors: `journalctl --user -u virtual-assistant.service --since "2 min ago"`
-4. Send notification via `mcp__notify__notify` with deployment result
-5. Report to user that deployment is complete and ready for testing
+**Configuration:**
+- Hook: `~/.claude/hooks/check-deploy-status.sh` (global, works for all projects)
+- Events dir: `~/.config/claude-channels/deploy-events/`
+- Deploy.yml writes the event file after health check
 
-**If Channel is not available** (Claude Code not running during deploy): use `gh run list --limit 1` to check deploy status manually when session starts.
+**If Claude Code is not running during deploy:** the event file persists until next session starts and user sends a prompt.
 
 **Monitor deployment:**
 ```bash

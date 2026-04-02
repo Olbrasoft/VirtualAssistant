@@ -103,11 +103,28 @@ jobs:
             sleep 2
           done
 
-      - name: Notify Claude Code via Channel
+      - name: Notify Claude Code
         if: always()
-        uses: Olbrasoft/GitHub.Actions.Notify/actions/channel-notify@main
-        with:
-          port: 9878
-          status: ${{ job.status }}
-          repository: ${{ github.repository }}
-          environment: production
+        run: |
+          EVENTS_DIR="$HOME/.config/claude-channels/deploy-events"
+          mkdir -p "$EVENTS_DIR"
+
+          COMMIT_SHA="${GITHUB_SHA:0:7}"
+          COMMIT_MSG=$(git -C VirtualAssistant log -1 --pretty=%s 2>/dev/null || echo "unknown")
+          RUN_URL="${GITHUB_SERVER_URL}/${GITHUB_REPOSITORY}/actions/runs/${GITHUB_RUN_ID}"
+          REPO_FILE=$(echo "$GITHUB_REPOSITORY" | tr '/' '-')
+
+          cat > "$EVENTS_DIR/${REPO_FILE}.json" << DEPLOY_EOF
+          {
+            "event": "deploy-complete",
+            "status": "${{ job.status }}",
+            "repository": "${GITHUB_REPOSITORY}",
+            "commit": "${COMMIT_SHA}",
+            "commitMessage": $(echo "${COMMIT_MSG}" | jq -Rs .),
+            "runUrl": "${RUN_URL}",
+            "environment": "production",
+            "timestamp": "$(date -u +%Y-%m-%dT%H:%M:%SZ)"
+          }
+          DEPLOY_EOF
+
+          echo "Deploy notification written for Claude Code"
