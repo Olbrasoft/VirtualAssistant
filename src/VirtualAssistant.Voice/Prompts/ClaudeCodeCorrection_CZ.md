@@ -210,6 +210,7 @@ Příklady:
 - olbrasoft, olbra soft → Olbrasoft (když jde o adresář/repozitář)
 - engineering handbook → engineering-handbook (s pomlčkou)
 - ola, olla → Ollama
+- rytmí, rytmu, rýtmu, ridmi → README (soubor README.md)
 
 ### 3. Časté chyby češtiny
 

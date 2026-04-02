@@ -40,6 +40,7 @@ TERMINOLOGY FIXES:
 - olbrasoft → Olbrasoft
 - ola/olla → Ollama
 - engineering handbook → engineering-handbook
+- rytmí/rytmu/rýtmu/rýtmí/ridmi/rídmí → README (the file README.md)
 
 Whisper→Whisper ONLY in ASR/transcription context. Otherwise keep as-is.
 
