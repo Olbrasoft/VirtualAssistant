@@ -93,26 +93,28 @@ Example (WRONG):
 6. ✅ Copy assets (icons, sounds) to deployment directory
 7. ✅ Restart `virtual-assistant.service`
 8. ✅ Health check (verifies service responds on `/health`)
-9. ✅ Channel notification to Claude Code (port 9878) — pushes deploy result to active session
+9. ✅ Write deploy event to `~/.config/claude-channels/deploy-events/` — triggers asyncRewake hook in Claude Code
 
 **Deployment is FULLY AUTOMATED** - no manual steps required after merge!
 
 ### Post-Deploy Verification (Hook-Based Push)
 
-**GitHub Actions writes deploy result to `~/.config/claude-channels/deploy-events/`. A `UserPromptSubmit` hook automatically reads and injects it into Claude Code context on next prompt.** No polling, no flags, no Channels needed.
+**GitHub Actions writes deploy result to `~/.config/claude-channels/deploy-events/`. A `SessionStart` hook with `asyncRewake: true` watches the directory and automatically wakes Claude Code when a deploy event arrives.** No polling, no flags, no Channels needed.
 
 **How it works:**
 1. GitHub Actions deploys → writes `Olbrasoft-VirtualAssistant.json` to deploy-events directory
-2. On next user prompt, hook script reads the file and injects deploy status into context
-3. Claude Code sees `<deploy-complete>` tag and reacts:
+2. `asyncRewake` hook (inotifywait) detects the file → exits with code 2 → wakes Claude Code
+3. `UserPromptSubmit` hook reads the file and injects deploy status into context
+4. Claude Code sees `<deploy-complete>` tag and reacts:
    - Verify service is running: `systemctl --user status virtual-assistant.service`
    - Verify new content deployed (e.g., `grep` for changes in `/opt/olbrasoft/virtual-assistant/app/`)
    - Check logs for errors: `journalctl --user -u virtual-assistant.service --since "2 min ago"`
    - Send notification via `mcp__notify__notify` with deployment result
-4. Hook deletes the file so it's only shown once
+5. Hook deletes the file so it's only shown once
 
 **Configuration:**
-- Hook: `~/.claude/hooks/check-deploy-status.sh` (global, works for all projects)
+- Hook: `~/.claude/hooks/watch-deploy-events.sh` (asyncRewake, watches for new files)
+- Hook: `~/.claude/hooks/check-deploy-status.sh` (UserPromptSubmit, reads and injects)
 - Events dir: `~/.config/claude-channels/deploy-events/`
 - Deploy.yml writes the event file after health check
 
