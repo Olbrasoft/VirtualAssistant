@@ -88,6 +88,10 @@ public class PromptResolver : IPromptResolver
 
             return (promptText, prompt.Id);
         }
+        catch (OperationCanceledException)
+        {
+            throw;
+        }
         catch (Exception ex)
         {
             _logger.LogError(ex, "Error resolving context-aware prompt, falling back to DefaultCorrection (ID 4)");

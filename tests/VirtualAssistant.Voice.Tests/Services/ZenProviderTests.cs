@@ -1,5 +1,6 @@
 using System.Net;
 using System.Text.Json;
+using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
 using Moq;
@@ -24,6 +25,7 @@ public class ZenProviderTests
     private readonly Mock<IDesktopContextService> _desktopContextServiceMock;
     private readonly Mock<IQueryProcessor> _queryProcessorMock;
     private readonly Mock<ICliAppDetector> _cliAppDetectorMock;
+    private readonly Mock<IServiceScopeFactory> _scopeFactoryMock;
     private readonly ZenOptions _options;
 
     public ZenProviderTests()
@@ -48,6 +50,13 @@ public class ZenProviderTests
         _desktopContextServiceMock = new Mock<IDesktopContextService>();
         _queryProcessorMock = new Mock<IQueryProcessor>();
         _cliAppDetectorMock = new Mock<ICliAppDetector>();
+
+        var scopeMock = new Mock<IServiceScope>();
+        var spMock = new Mock<IServiceProvider>();
+        spMock.Setup(sp => sp.GetService(typeof(IQueryProcessor))).Returns(_queryProcessorMock.Object);
+        scopeMock.Setup(s => s.ServiceProvider).Returns(spMock.Object);
+        _scopeFactoryMock = new Mock<IServiceScopeFactory>();
+        _scopeFactoryMock.Setup(f => f.CreateScope()).Returns(scopeMock.Object);
     }
 
     private ZenProvider CreateSut()
@@ -60,7 +69,8 @@ public class ZenProviderTests
             _loggerMock.Object,
             _desktopContextServiceMock.Object,
             _queryProcessorMock.Object,
-            _cliAppDetectorMock.Object);
+            _cliAppDetectorMock.Object,
+            _scopeFactoryMock.Object);
     }
 
     [Fact]
@@ -192,7 +202,8 @@ public class ZenProviderTests
             _loggerMock.Object,
             _desktopContextServiceMock.Object,
             _queryProcessorMock.Object,
-            _cliAppDetectorMock.Object);
+            _cliAppDetectorMock.Object,
+            _scopeFactoryMock.Object);
 
         return (sut, handlerMock);
     }
@@ -315,7 +326,8 @@ public class ZenProviderTests
             _loggerMock.Object,
             _desktopContextServiceMock.Object,
             _queryProcessorMock.Object,
-            _cliAppDetectorMock.Object));
+            _cliAppDetectorMock.Object,
+            _scopeFactoryMock.Object));
     }
 
     [Fact]
@@ -329,7 +341,8 @@ public class ZenProviderTests
             _loggerMock.Object,
             null!,
             _queryProcessorMock.Object,
-            _cliAppDetectorMock.Object));
+            _cliAppDetectorMock.Object,
+            _scopeFactoryMock.Object));
     }
 
     [Fact]
@@ -343,7 +356,8 @@ public class ZenProviderTests
             _loggerMock.Object,
             _desktopContextServiceMock.Object,
             null!,
-            _cliAppDetectorMock.Object));
+            _cliAppDetectorMock.Object,
+            _scopeFactoryMock.Object));
     }
 
     [Fact]
@@ -357,6 +371,7 @@ public class ZenProviderTests
             _loggerMock.Object,
             _desktopContextServiceMock.Object,
             _queryProcessorMock.Object,
-            null!));
+            null!,
+            _scopeFactoryMock.Object));
     }
 }
