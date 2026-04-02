@@ -93,28 +93,27 @@ Example (WRONG):
 6. ✅ Copy assets (icons, sounds) to deployment directory
 7. ✅ Restart `virtual-assistant.service`
 8. ✅ Health check (verifies service responds on `/health`)
+9. ✅ Channel notification to Claude Code (port 9878) — pushes deploy result to active session
 
 **Deployment is FULLY AUTOMATED** - no manual steps required after merge!
 
-### Post-Deploy Verification (MANDATORY for Claude Code)
+### Post-Deploy Verification (Channel MCP Push)
 
-**After every push/merge to main, Claude Code MUST launch a background agent to monitor deployment and verify the new version is running. NEVER say "deployment will run automatically" and stop!**
+**Claude Code receives a Channel push event from GitHub Actions when deployment completes.** No polling needed — the notification arrives within seconds of service restart.
 
-**Background agent workflow:**
-1. Poll `gh run list --limit 1` until status is `completed`
-2. If `conclusion` is `failure` → notify user about failed deployment
-3. If `conclusion` is `success`:
-   - Verify service restarted: `systemctl --user status virtual-assistant.service`
-   - Verify new content deployed (e.g., `grep` for changes in `/opt/olbrasoft/virtual-assistant/app/`)
-   - Check logs for errors: `journalctl --user -u virtual-assistant.service --since "2 min ago"`
+**Channel MCP configuration:**
+- Port: **9878** (from `~/.config/claude-channels/ports.json`)
+- MCP server: `ci-channel` (configured via `claude mcp add --scope local`)
+- Source: `Olbrasoft/GitHub.Actions.Notify/channel-server/`
+
+**When Claude Code receives a Channel `deploy-complete` event:**
+1. Verify service is running: `systemctl --user status virtual-assistant.service`
+2. Verify new content deployed (e.g., `grep` for changes in `/opt/olbrasoft/virtual-assistant/app/`)
+3. Check logs for errors: `journalctl --user -u virtual-assistant.service --since "2 min ago"`
 4. Send notification via `mcp__notify__notify` with deployment result
 5. Report to user that deployment is complete and ready for testing
 
-**Example agent launch (after git push to main):**
-```
-Agent(run_in_background=true, description="Monitor deployment"):
-  "Poll gh run list until deploy completes, then verify service and notify user"
-```
+**If Channel is not available** (Claude Code not running during deploy): use `gh run list --limit 1` to check deploy status manually when session starts.
 
 **Monitor deployment:**
 ```bash

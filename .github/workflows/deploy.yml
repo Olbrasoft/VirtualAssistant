@@ -102,3 +102,12 @@ jobs:
             echo "Waiting for service to start... ($i/10)"
             sleep 2
           done
+
+      - name: Notify Claude Code via Channel
+        if: always()
+        uses: Olbrasoft/GitHub.Actions.Notify/actions/channel-notify@main
+        with:
+          port: 9878
+          status: ${{ job.status }}
+          repository: ${{ github.repository }}
+          environment: production
