@@ -10,24 +10,30 @@ jobs:
 
     steps:
       - name: Notify Claude Code about review
+        env:
+          GH_TOKEN: ${{ github.token }}
         run: |
           EVENTS_DIR="$HOME/.config/claude-channels/deploy-events"
           mkdir -p "$EVENTS_DIR"
 
           PR_NUM="${{ github.event.pull_request.number }}"
+          REVIEW_ID="${{ github.event.review.id }}"
           REVIEWER="${{ github.event.review.user.login }}"
           REVIEW_STATE="${{ github.event.review.state }}"
           REPO="${{ github.repository }}"
           REPO_FILE=$(echo "$REPO" | tr '/' '-')
 
-          # Get review comment count
-          COMMENT_COUNT=$(gh api "repos/${REPO}/pulls/${PR_NUM}/comments" --jq 'length' 2>/dev/null || echo "0")
-
-          COMMIT_SHA=$(gh pr view "$PR_NUM" --repo "$REPO" --json headRefOid --jq '.headRefOid' 2>/dev/null | head -c 7)
-          PR_TITLE=$(gh pr view "$PR_NUM" --repo "$REPO" --json title --jq '.title' 2>/dev/null || echo "unknown")
+          # Use payload data directly instead of gh pr view calls
+          COMMIT_SHA="${{ github.event.pull_request.head.sha }}"
+          COMMIT_SHA="${COMMIT_SHA:0:7}"
+          PR_TITLE="${{ github.event.pull_request.title }}"
           PR_URL="${{ github.event.pull_request.html_url }}"
 
-          cat > "$EVENTS_DIR/${REPO_FILE}.json" << REVIEW_EOF
+          # Get inline comment count for this specific review
+          COMMENT_COUNT=$(gh api "repos/${REPO}/pulls/${PR_NUM}/reviews/${REVIEW_ID}/comments" --jq 'length' 2>/dev/null || echo "0")
+
+          # Use unique filename: event type + PR number (avoids overwriting deploy events)
+          cat > "$EVENTS_DIR/${REPO_FILE}-review-${PR_NUM}.json" << REVIEW_EOF
           {
             "event": "code-review-complete",
             "status": "${REVIEW_STATE}",
