@@ -82,3 +82,4 @@ Pokud najdu takové chyby → secrets CHYBÍ → OPRAVIT PŘED dokončením depl
 ```bash
 [Příkazy pro detekci]
 ```
+
