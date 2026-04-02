@@ -20,14 +20,11 @@ jobs:
           REPO="${{ github.repository }}"
           REPO_FILE=$(echo "$REPO" | tr '/' '-')
 
-          # Get the PR number from the workflow run
-          # The Copilot code review workflow runs on a PR branch
-          HEAD_BRANCH="${{ github.event.workflow_run.head_branch }}"
           HEAD_SHA="${{ github.event.workflow_run.head_sha }}"
           CONCLUSION="${{ github.event.workflow_run.conclusion }}"
 
-          # Find the PR for this branch
-          PR_NUM=$(gh pr list --repo "$REPO" --head "$HEAD_BRANCH" --state open --json number --jq '.[0].number' 2>/dev/null || echo "")
+          # Find PR by commit SHA (head_branch may be refs/pull/N/head which gh pr list doesn't match)
+          PR_NUM=$(gh pr list --repo "$REPO" --state open --json number,headRefOid --jq ".[] | select(.headRefOid == \"${HEAD_SHA}\") | .number" 2>/dev/null || echo "")
 
           if [ -z "$PR_NUM" ]; then
             echo "No open PR found for branch $HEAD_BRANCH, skipping notification"
