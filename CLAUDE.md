@@ -92,21 +92,29 @@ Example (WRONG):
 5. ✅ Publish to `/opt/olbrasoft/virtual-assistant/app/`
 6. ✅ Copy assets (icons, sounds) to deployment directory
 7. ✅ Restart `virtual-assistant.service`
-8. ✅ Health check + deploy notification via `/api/notifications` (source: `ci-pipeline`)
+8. ✅ Health check (verifies service responds on `/health`)
 
 **Deployment is FULLY AUTOMATED** - no manual steps required after merge!
 
 ### Post-Deploy Verification (MANDATORY for Claude Code)
 
-**After every PR merge to main, you MUST verify deployment before reporting task as done:**
+**After every push/merge to main, Claude Code MUST launch a background agent to monitor deployment and verify the new version is running. NEVER say "deployment will run automatically" and stop!**
 
-1. **Wait for GitHub Actions** to complete: `gh run list --limit 1` (poll until `completed success`)
-2. **Verify service is running** with new code: `systemctl --user status virtual-assistant.service`
-3. **Verify deployed content** matches expectations (e.g., `grep` for new content in `/opt/olbrasoft/virtual-assistant/app/`)
-4. **Check logs for errors**: `journalctl --user -u virtual-assistant.service --since "2 min ago" | grep -i error`
-5. **Only then** notify user that deployment is complete and ready for testing
+**Background agent workflow:**
+1. Poll `gh run list --limit 1` until status is `completed`
+2. If `conclusion` is `failure` → notify user about failed deployment
+3. If `conclusion` is `success`:
+   - Verify service restarted: `systemctl --user status virtual-assistant.service`
+   - Verify new content deployed (e.g., `grep` for changes in `/opt/olbrasoft/virtual-assistant/app/`)
+   - Check logs for errors: `journalctl --user -u virtual-assistant.service --since "2 min ago"`
+4. Send notification via `mcp__notify__notify` with deployment result
+5. Report to user that deployment is complete and ready for testing
 
-**NEVER say "deployment will run automatically" and stop — always follow through to verified deployment!**
+**Example agent launch (after git push to main):**
+```
+Agent(run_in_background=true, description="Monitor deployment"):
+  "Poll gh run list until deploy completes, then verify service and notify user"
+```
 
 **Monitor deployment:**
 ```bash
