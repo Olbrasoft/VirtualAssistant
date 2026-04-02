@@ -90,3 +90,26 @@ jobs:
           systemctl --user restart virtual-assistant.service
           sleep 2
           systemctl --user status virtual-assistant.service --no-pager
+
+      - name: Verify health and notify
+        run: |
+          export XDG_RUNTIME_DIR=/run/user/$(id -u)
+          export DBUS_SESSION_BUS_ADDRESS="unix:path=$XDG_RUNTIME_DIR/bus"
+
+          # Wait for service to be ready
+          for i in $(seq 1 10); do
+            if curl -sf http://localhost:5055/health > /dev/null 2>&1; then
+              echo "Health check passed"
+              break
+            fi
+            echo "Waiting for service to start... ($i/10)"
+            sleep 2
+          done
+
+          # Send deploy notification via VirtualAssistant API
+          COMMIT_MSG=$(git -C VirtualAssistant log -1 --pretty=%s)
+          COMMIT_SHA=$(git -C VirtualAssistant log -1 --pretty=%h)
+          curl -sf -X POST http://localhost:5055/api/notifications \
+            -H "Content-Type: application/json" \
+            -d "{\"text\": \"Deploy dokončen: ${COMMIT_MSG} (${COMMIT_SHA}). Služba běží.\", \"source\": \"ci-pipeline\"}" \
+            || echo "Warning: deploy notification failed (service may still be starting)"

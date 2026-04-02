@@ -92,8 +92,21 @@ Example (WRONG):
 5. ✅ Publish to `/opt/olbrasoft/virtual-assistant/app/`
 6. ✅ Copy assets (icons, sounds) to deployment directory
 7. ✅ Restart `virtual-assistant.service`
+8. ✅ Health check + deploy notification via `/api/notifications` (source: `ci-pipeline`)
 
 **Deployment is FULLY AUTOMATED** - no manual steps required after merge!
+
+### Post-Deploy Verification (MANDATORY for Claude Code)
+
+**After every PR merge to main, you MUST verify deployment before reporting task as done:**
+
+1. **Wait for GitHub Actions** to complete: `gh run list --limit 1` (poll until `completed success`)
+2. **Verify service is running** with new code: `systemctl --user status virtual-assistant.service`
+3. **Verify deployed content** matches expectations (e.g., `grep` for new content in `/opt/olbrasoft/virtual-assistant/app/`)
+4. **Check logs for errors**: `journalctl --user -u virtual-assistant.service --since "2 min ago" | grep -i error`
+5. **Only then** notify user that deployment is complete and ready for testing
+
+**NEVER say "deployment will run automatically" and stop — always follow through to verified deployment!**
 
 **Monitor deployment:**
 ```bash
