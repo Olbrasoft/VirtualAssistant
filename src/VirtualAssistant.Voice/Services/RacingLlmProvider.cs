@@ -12,15 +12,18 @@ namespace Olbrasoft.VirtualAssistant.Voice.Services;
 public class RacingLlmProvider : IRacingLlmProvider
 {
     private readonly ILlmProviderFactory _providerFactory;
+    private readonly IPromptResolver _promptResolver;
     private readonly RacingOptions _options;
     private readonly ILogger<RacingLlmProvider> _logger;
 
     public RacingLlmProvider(
         ILlmProviderFactory providerFactory,
+        IPromptResolver promptResolver,
         IOptions<LlmProviderOptions> options,
         ILogger<RacingLlmProvider> logger)
     {
         _providerFactory = providerFactory;
+        _promptResolver = promptResolver;
         _options = options.Value.Racing;
         _logger = logger;
     }
@@ -75,7 +78,8 @@ public class RacingLlmProvider : IRacingLlmProvider
     {
         try
         {
-            var result = await provider.CorrectTextAsync(text, cancellationToken);
+            var (promptText, promptId) = await _promptResolver.ResolvePromptAsync(cancellationToken);
+            var result = await provider.CorrectTextAsync(text, promptText, promptId, cancellationToken);
             var raceGroupId = Guid.NewGuid();
             _logger.LogInformation("Single-provider race: {Provider} completed in {Duration}ms", name, result.DurationMs);
             return new RacingResult(result, name, raceGroupId, LoserTask: null, LoserProviderName: null);
@@ -92,8 +96,12 @@ public class RacingLlmProvider : IRacingLlmProvider
     {
         var raceGroupId = Guid.NewGuid();
 
-        // Start all providers concurrently
-        var tasks = providers.Select(p => RunProviderAsync(p.Provider, p.Name, text, cancellationToken)).ToList();
+        // Resolve prompt ONCE before starting the race to avoid concurrent DbContext access
+        var (promptText, promptId) = await _promptResolver.ResolvePromptAsync(cancellationToken);
+        _logger.LogDebug("Racing prompt resolved: '{PromptId}' - same prompt will be used by all providers", promptId);
+
+        // Start all providers concurrently with pre-resolved prompt
+        var tasks = providers.Select(p => RunProviderAsync(p.Provider, p.Name, text, promptText, promptId, cancellationToken)).ToList();
         var taskToProvider = new Dictionary<Task<(LlmCorrectionResult? Result, string Name, Exception? Error)>, string>();
         for (int i = 0; i < tasks.Count; i++)
         {
@@ -149,11 +157,11 @@ public class RacingLlmProvider : IRacingLlmProvider
     }
 
     private static async Task<(LlmCorrectionResult? Result, string Name, Exception? Error)> RunProviderAsync(
-        ILlmProvider provider, string name, string text, CancellationToken cancellationToken)
+        ILlmProvider provider, string name, string text, string promptText, int promptId, CancellationToken cancellationToken)
     {
         try
         {
-            var result = await provider.CorrectTextAsync(text, cancellationToken);
+            var result = await provider.CorrectTextAsync(text, promptText, promptId, cancellationToken);
             return (result, name, null);
         }
         catch (Exception ex)

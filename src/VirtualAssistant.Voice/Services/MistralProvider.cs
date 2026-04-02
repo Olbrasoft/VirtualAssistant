@@ -47,11 +47,20 @@ public class MistralProvider : LlmProviderBase
         if (skipResult != null)
             return skipResult;
 
+        var (promptText, promptId) = await GetSystemPromptAsync(cancellationToken);
+        return await CorrectTextAsync(text, promptText, promptId, cancellationToken);
+    }
+
+    public override async Task<LlmCorrectionResult> CorrectTextAsync(string text, string promptText, int promptId, CancellationToken cancellationToken = default)
+    {
+        var skipResult = CheckShouldSkip(text);
+        if (skipResult != null)
+            return skipResult;
+
         var startTime = DateTime.UtcNow;
 
         try
         {
-            var (promptText, promptId) = await GetSystemPromptAsync(cancellationToken);
             var modelId = await GetModelIdAsync(cancellationToken);
 
             var request = new

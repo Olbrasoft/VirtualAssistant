@@ -305,6 +305,9 @@ public static class VoiceServicesExtensions
         // Register LlmProviderFactory
         services.AddSingleton<ILlmProviderFactory, LlmProviderFactory>();
 
+        // Register PromptResolver (uses IServiceScopeFactory for thread-safe DbContext access)
+        services.AddSingleton<IPromptResolver, PromptResolver>();
+
         // Register RacingLlmProvider
         services.AddSingleton<IRacingLlmProvider, RacingLlmProvider>();
     }

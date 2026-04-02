@@ -218,9 +218,15 @@ public abstract class LlmProviderBase : ILlmProvider
     }
 
     /// <summary>
-    /// Corrects the given text using the LLM provider.
+    /// Corrects the given text using the LLM provider. Resolves prompt internally.
     /// </summary>
     public abstract Task<LlmCorrectionResult> CorrectTextAsync(string text, CancellationToken cancellationToken = default);
+
+    /// <summary>
+    /// Corrects the given text using a pre-resolved prompt.
+    /// Use this overload in racing mode to avoid concurrent DbContext access.
+    /// </summary>
+    public abstract Task<LlmCorrectionResult> CorrectTextAsync(string text, string promptText, int promptId, CancellationToken cancellationToken = default);
 
     /// <summary>
     /// Checks if correction should be skipped and returns the skip result if so.

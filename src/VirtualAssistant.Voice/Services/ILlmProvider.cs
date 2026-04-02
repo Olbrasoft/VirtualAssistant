@@ -18,12 +18,23 @@ public interface ILlmProvider
     string ModelName { get; }
 
     /// <summary>
-    /// Corrects the given text using the LLM.
+    /// Corrects the given text using the LLM. Resolves prompt internally.
     /// </summary>
     /// <param name="text">Text to correct</param>
     /// <param name="cancellationToken">Cancellation token</param>
     /// <returns>LLM correction result including corrected text, prompt ID, and duration</returns>
     Task<LlmCorrectionResult> CorrectTextAsync(string text, CancellationToken cancellationToken = default);
+
+    /// <summary>
+    /// Corrects the given text using a pre-resolved prompt.
+    /// Use this overload in racing mode to avoid concurrent DbContext access.
+    /// </summary>
+    /// <param name="text">Text to correct</param>
+    /// <param name="promptText">Pre-resolved system prompt text</param>
+    /// <param name="promptId">Pre-resolved prompt database ID</param>
+    /// <param name="cancellationToken">Cancellation token</param>
+    /// <returns>LLM correction result including corrected text, prompt ID, and duration</returns>
+    Task<LlmCorrectionResult> CorrectTextAsync(string text, string promptText, int promptId, CancellationToken cancellationToken = default);
 
     /// <summary>
     /// Gets the API usage information from the last response headers.

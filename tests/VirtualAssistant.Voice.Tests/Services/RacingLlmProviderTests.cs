@@ -10,6 +10,7 @@ namespace Olbrasoft.VirtualAssistant.Voice.Tests.Services;
 public class RacingLlmProviderTests
 {
     private readonly Mock<ILlmProviderFactory> _factoryMock;
+    private readonly Mock<IPromptResolver> _promptResolverMock;
     private readonly Mock<ILlmProvider> _mercuryMock;
     private readonly Mock<ILlmProvider> _zenMock;
     private readonly Mock<ILogger<RacingLlmProvider>> _loggerMock;
@@ -17,6 +18,7 @@ public class RacingLlmProviderTests
     public RacingLlmProviderTests()
     {
         _factoryMock = new Mock<ILlmProviderFactory>();
+        _promptResolverMock = new Mock<IPromptResolver>();
         _mercuryMock = new Mock<ILlmProvider>();
         _zenMock = new Mock<ILlmProvider>();
         _loggerMock = new Mock<ILogger<RacingLlmProvider>>();
@@ -28,6 +30,9 @@ public class RacingLlmProviderTests
 
         _factoryMock.Setup(f => f.GetProvider("mercury")).Returns(_mercuryMock.Object);
         _factoryMock.Setup(f => f.GetProvider("zen")).Returns(_zenMock.Object);
+
+        _promptResolverMock.Setup(r => r.ResolvePromptAsync(It.IsAny<CancellationToken>()))
+            .ReturnsAsync(("Test prompt text", 2));
     }
 
     private RacingLlmProvider CreateProvider(bool enabled = true, List<string>? providers = null)
@@ -41,7 +46,7 @@ public class RacingLlmProviderTests
                 Providers = providers ?? ["mercury", "zen"]
             }
         });
-        return new RacingLlmProvider(_factoryMock.Object, options, _loggerMock.Object);
+        return new RacingLlmProvider(_factoryMock.Object, _promptResolverMock.Object, options, _loggerMock.Object);
     }
 
     private static LlmCorrectionResult MakeResult(string text, int durationMs, int modelId = 1)
@@ -53,9 +58,9 @@ public class RacingLlmProviderTests
         var mercuryTcs = new TaskCompletionSource<LlmCorrectionResult>();
         var zenTcs = new TaskCompletionSource<LlmCorrectionResult>();
 
-        _mercuryMock.Setup(p => p.CorrectTextAsync(It.IsAny<string>(), It.IsAny<CancellationToken>()))
+        _mercuryMock.Setup(p => p.CorrectTextAsync(It.IsAny<string>(), It.IsAny<string>(), It.IsAny<int>(), It.IsAny<CancellationToken>()))
             .Returns(mercuryTcs.Task);
-        _zenMock.Setup(p => p.CorrectTextAsync(It.IsAny<string>(), It.IsAny<CancellationToken>()))
+        _zenMock.Setup(p => p.CorrectTextAsync(It.IsAny<string>(), It.IsAny<string>(), It.IsAny<int>(), It.IsAny<CancellationToken>()))
             .Returns(zenTcs.Task);
 
         var provider = CreateProvider();
@@ -83,9 +88,9 @@ public class RacingLlmProviderTests
         var mercuryTcs = new TaskCompletionSource<LlmCorrectionResult>();
         var zenTcs = new TaskCompletionSource<LlmCorrectionResult>();
 
-        _mercuryMock.Setup(p => p.CorrectTextAsync(It.IsAny<string>(), It.IsAny<CancellationToken>()))
+        _mercuryMock.Setup(p => p.CorrectTextAsync(It.IsAny<string>(), It.IsAny<string>(), It.IsAny<int>(), It.IsAny<CancellationToken>()))
             .Returns(mercuryTcs.Task);
-        _zenMock.Setup(p => p.CorrectTextAsync(It.IsAny<string>(), It.IsAny<CancellationToken>()))
+        _zenMock.Setup(p => p.CorrectTextAsync(It.IsAny<string>(), It.IsAny<string>(), It.IsAny<int>(), It.IsAny<CancellationToken>()))
             .Returns(zenTcs.Task);
 
         var provider = CreateProvider();
@@ -106,10 +111,10 @@ public class RacingLlmProviderTests
     [Fact]
     public async Task MercuryFails_ZenSucceeds_ReturnsZenAsFallback()
     {
-        _mercuryMock.Setup(p => p.CorrectTextAsync(It.IsAny<string>(), It.IsAny<CancellationToken>()))
+        _mercuryMock.Setup(p => p.CorrectTextAsync(It.IsAny<string>(), It.IsAny<string>(), It.IsAny<int>(), It.IsAny<CancellationToken>()))
             .ThrowsAsync(new HttpRequestException("Mercury timeout"));
 
-        _zenMock.Setup(p => p.CorrectTextAsync(It.IsAny<string>(), It.IsAny<CancellationToken>()))
+        _zenMock.Setup(p => p.CorrectTextAsync(It.IsAny<string>(), It.IsAny<string>(), It.IsAny<int>(), It.IsAny<CancellationToken>()))
             .ReturnsAsync(MakeResult("Zen result", 100, modelId: 20));
 
         var provider = CreateProvider();
@@ -123,10 +128,10 @@ public class RacingLlmProviderTests
     [Fact]
     public async Task ZenFails_MercurySucceeds_ReturnsMercuryAsFallback()
     {
-        _mercuryMock.Setup(p => p.CorrectTextAsync(It.IsAny<string>(), It.IsAny<CancellationToken>()))
+        _mercuryMock.Setup(p => p.CorrectTextAsync(It.IsAny<string>(), It.IsAny<string>(), It.IsAny<int>(), It.IsAny<CancellationToken>()))
             .ReturnsAsync(MakeResult("Mercury result", 100, modelId: 18));
 
-        _zenMock.Setup(p => p.CorrectTextAsync(It.IsAny<string>(), It.IsAny<CancellationToken>()))
+        _zenMock.Setup(p => p.CorrectTextAsync(It.IsAny<string>(), It.IsAny<string>(), It.IsAny<int>(), It.IsAny<CancellationToken>()))
             .ThrowsAsync(new HttpRequestException("Zen error"));
 
         var provider = CreateProvider();
@@ -139,10 +144,10 @@ public class RacingLlmProviderTests
     [Fact]
     public async Task BothFail_ReturnsNull()
     {
-        _mercuryMock.Setup(p => p.CorrectTextAsync(It.IsAny<string>(), It.IsAny<CancellationToken>()))
+        _mercuryMock.Setup(p => p.CorrectTextAsync(It.IsAny<string>(), It.IsAny<string>(), It.IsAny<int>(), It.IsAny<CancellationToken>()))
             .ThrowsAsync(new HttpRequestException("Mercury timeout"));
 
-        _zenMock.Setup(p => p.CorrectTextAsync(It.IsAny<string>(), It.IsAny<CancellationToken>()))
+        _zenMock.Setup(p => p.CorrectTextAsync(It.IsAny<string>(), It.IsAny<string>(), It.IsAny<int>(), It.IsAny<CancellationToken>()))
             .ThrowsAsync(new HttpRequestException("Zen timeout"));
 
         var provider = CreateProvider();
@@ -154,7 +159,7 @@ public class RacingLlmProviderTests
     [Fact]
     public async Task SingleProvider_ReturnsResult()
     {
-        _mercuryMock.Setup(p => p.CorrectTextAsync(It.IsAny<string>(), It.IsAny<CancellationToken>()))
+        _mercuryMock.Setup(p => p.CorrectTextAsync(It.IsAny<string>(), It.IsAny<string>(), It.IsAny<int>(), It.IsAny<CancellationToken>()))
             .ReturnsAsync(MakeResult("Mercury result", 100, modelId: 18));
 
         var provider = CreateProvider(providers: ["mercury"]);
@@ -169,7 +174,7 @@ public class RacingLlmProviderTests
     [Fact]
     public async Task SingleProviderFails_ReturnsNull()
     {
-        _mercuryMock.Setup(p => p.CorrectTextAsync(It.IsAny<string>(), It.IsAny<CancellationToken>()))
+        _mercuryMock.Setup(p => p.CorrectTextAsync(It.IsAny<string>(), It.IsAny<string>(), It.IsAny<int>(), It.IsAny<CancellationToken>()))
             .ThrowsAsync(new HttpRequestException("Mercury timeout"));
 
         var provider = CreateProvider(providers: ["mercury"]);
@@ -193,9 +198,9 @@ public class RacingLlmProviderTests
         var mercuryTcs = new TaskCompletionSource<LlmCorrectionResult>();
         var zenTcs = new TaskCompletionSource<LlmCorrectionResult>();
 
-        _mercuryMock.Setup(p => p.CorrectTextAsync(It.IsAny<string>(), It.IsAny<CancellationToken>()))
+        _mercuryMock.Setup(p => p.CorrectTextAsync(It.IsAny<string>(), It.IsAny<string>(), It.IsAny<int>(), It.IsAny<CancellationToken>()))
             .Returns(mercuryTcs.Task);
-        _zenMock.Setup(p => p.CorrectTextAsync(It.IsAny<string>(), It.IsAny<CancellationToken>()))
+        _zenMock.Setup(p => p.CorrectTextAsync(It.IsAny<string>(), It.IsAny<string>(), It.IsAny<int>(), It.IsAny<CancellationToken>()))
             .Returns(zenTcs.Task);
 
         var provider = CreateProvider();
@@ -220,10 +225,10 @@ public class RacingLlmProviderTests
     [Fact]
     public async Task RaceGroupId_IsConsistent()
     {
-        _mercuryMock.Setup(p => p.CorrectTextAsync(It.IsAny<string>(), It.IsAny<CancellationToken>()))
+        _mercuryMock.Setup(p => p.CorrectTextAsync(It.IsAny<string>(), It.IsAny<string>(), It.IsAny<int>(), It.IsAny<CancellationToken>()))
             .ReturnsAsync(MakeResult("Mercury result", 50, modelId: 18));
 
-        _zenMock.Setup(p => p.CorrectTextAsync(It.IsAny<string>(), It.IsAny<CancellationToken>()))
+        _zenMock.Setup(p => p.CorrectTextAsync(It.IsAny<string>(), It.IsAny<string>(), It.IsAny<int>(), It.IsAny<CancellationToken>()))
             .ReturnsAsync(MakeResult("Zen result", 100, modelId: 20));
 
         var provider = CreateProvider();
@@ -243,7 +248,7 @@ public class RacingLlmProviderTests
     {
         _zenMock.Setup(p => p.IsEnabled()).Returns(false);
 
-        _mercuryMock.Setup(p => p.CorrectTextAsync(It.IsAny<string>(), It.IsAny<CancellationToken>()))
+        _mercuryMock.Setup(p => p.CorrectTextAsync(It.IsAny<string>(), It.IsAny<string>(), It.IsAny<int>(), It.IsAny<CancellationToken>()))
             .ReturnsAsync(MakeResult("Mercury result", 100, modelId: 18));
 
         var provider = CreateProvider();
@@ -253,5 +258,27 @@ public class RacingLlmProviderTests
         Assert.Equal("mercury", result.WinnerProviderName);
         // Only one provider available, so no loser
         Assert.Null(result.LoserTask);
+    }
+
+    [Fact]
+    public async Task PromptResolvedOnce_PassedToBothProviders()
+    {
+        _mercuryMock.Setup(p => p.CorrectTextAsync(It.IsAny<string>(), "Test prompt text", 2, It.IsAny<CancellationToken>()))
+            .ReturnsAsync(MakeResult("Mercury result", 50, modelId: 18));
+
+        _zenMock.Setup(p => p.CorrectTextAsync(It.IsAny<string>(), "Test prompt text", 2, It.IsAny<CancellationToken>()))
+            .ReturnsAsync(MakeResult("Zen result", 100, modelId: 20));
+
+        var provider = CreateProvider();
+        var result = await provider.CorrectTextAsync("test text");
+
+        Assert.NotNull(result);
+
+        // Verify prompt was resolved exactly once
+        _promptResolverMock.Verify(r => r.ResolvePromptAsync(It.IsAny<CancellationToken>()), Times.Once);
+
+        // Verify both providers received the same prompt
+        _mercuryMock.Verify(p => p.CorrectTextAsync("test text", "Test prompt text", 2, It.IsAny<CancellationToken>()), Times.Once);
+        _zenMock.Verify(p => p.CorrectTextAsync("test text", "Test prompt text", 2, It.IsAny<CancellationToken>()), Times.Once);
     }
 }
