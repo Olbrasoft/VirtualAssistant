@@ -271,7 +271,8 @@ public static class VoiceServicesExtensions
             var desktopContextService = sp.GetRequiredService<IDesktopContextService>();
             var queryProcessor = sp.GetRequiredService<IQueryProcessor>();
             var cliAppDetector = sp.GetRequiredService<ICliAppDetector>();
-            return new MistralProvider(httpClient, options, promptCache, logger, desktopContextService, queryProcessor, cliAppDetector);
+            var scopeFactory = sp.GetRequiredService<IServiceScopeFactory>();
+            return new MistralProvider(httpClient, options, promptCache, logger, desktopContextService, queryProcessor, cliAppDetector, scopeFactory);
         });
 
         // Register ZenProvider
@@ -285,7 +286,8 @@ public static class VoiceServicesExtensions
             var desktopContextService = sp.GetRequiredService<IDesktopContextService>();
             var queryProcessor = sp.GetRequiredService<IQueryProcessor>();
             var cliAppDetector = sp.GetRequiredService<ICliAppDetector>();
-            return new ZenProvider(httpClient, options, promptCache, logger, desktopContextService, queryProcessor, cliAppDetector);
+            var scopeFactory = sp.GetRequiredService<IServiceScopeFactory>();
+            return new ZenProvider(httpClient, options, promptCache, logger, desktopContextService, queryProcessor, cliAppDetector, scopeFactory);
         });
 
         // Register MercuryProvider
@@ -299,11 +301,15 @@ public static class VoiceServicesExtensions
             var desktopContextService = sp.GetRequiredService<IDesktopContextService>();
             var queryProcessor = sp.GetRequiredService<IQueryProcessor>();
             var cliAppDetector = sp.GetRequiredService<ICliAppDetector>();
-            return new MercuryProvider(httpClient, options, promptCache, logger, desktopContextService, queryProcessor, cliAppDetector);
+            var scopeFactory = sp.GetRequiredService<IServiceScopeFactory>();
+            return new MercuryProvider(httpClient, options, promptCache, logger, desktopContextService, queryProcessor, cliAppDetector, scopeFactory);
         });
 
         // Register LlmProviderFactory
         services.AddSingleton<ILlmProviderFactory, LlmProviderFactory>();
+
+        // Register PromptResolver (uses IServiceScopeFactory for thread-safe DbContext access)
+        services.AddSingleton<IPromptResolver, PromptResolver>();
 
         // Register RacingLlmProvider
         services.AddSingleton<IRacingLlmProvider, RacingLlmProvider>();

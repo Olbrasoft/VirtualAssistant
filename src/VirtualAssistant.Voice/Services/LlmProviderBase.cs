@@ -1,3 +1,4 @@
+using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
 using Olbrasoft.Data.Cqrs;
 using Olbrasoft.VirtualAssistant.Core.Models;
@@ -20,6 +21,7 @@ public abstract class LlmProviderBase : ILlmProvider
     protected readonly IDesktopContextService DesktopContextService;
     protected readonly IQueryProcessor QueryProcessor;
     protected readonly ICliAppDetector CliAppDetector;
+    private readonly IServiceScopeFactory _scopeFactory;
 
     private Dictionary<string, string> _lastRateLimitHeaders = new();
     private bool _runtimeEnabled;
@@ -62,6 +64,7 @@ public abstract class LlmProviderBase : ILlmProvider
         IDesktopContextService desktopContextService,
         IQueryProcessor queryProcessor,
         ICliAppDetector cliAppDetector,
+        IServiceScopeFactory scopeFactory,
         bool initialEnabled)
     {
         HttpClient = httpClient;
@@ -70,6 +73,7 @@ public abstract class LlmProviderBase : ILlmProvider
         DesktopContextService = desktopContextService ?? throw new ArgumentNullException(nameof(desktopContextService));
         QueryProcessor = queryProcessor ?? throw new ArgumentNullException(nameof(queryProcessor));
         CliAppDetector = cliAppDetector ?? throw new ArgumentNullException(nameof(cliAppDetector));
+        _scopeFactory = scopeFactory ?? throw new ArgumentNullException(nameof(scopeFactory));
         _runtimeEnabled = initialEnabled;
     }
 
@@ -150,7 +154,10 @@ public abstract class LlmProviderBase : ILlmProvider
 
         try
         {
-            var model = await QueryProcessor.ProcessAsync(
+            using var scope = _scopeFactory.CreateScope();
+            var queryProcessor = scope.ServiceProvider.GetRequiredService<IQueryProcessor>();
+
+            var model = await queryProcessor.ProcessAsync(
                 new GetLlmModelByIdentifierQuery(ModelName), ct);
 
             if (model != null)
@@ -218,9 +225,15 @@ public abstract class LlmProviderBase : ILlmProvider
     }
 
     /// <summary>
-    /// Corrects the given text using the LLM provider.
+    /// Corrects the given text using the LLM provider. Resolves prompt internally.
     /// </summary>
     public abstract Task<LlmCorrectionResult> CorrectTextAsync(string text, CancellationToken cancellationToken = default);
+
+    /// <summary>
+    /// Corrects the given text using a pre-resolved prompt.
+    /// Use this overload in racing mode to avoid concurrent DbContext access.
+    /// </summary>
+    public abstract Task<LlmCorrectionResult> CorrectTextAsync(string text, string promptText, int promptId, CancellationToken cancellationToken = default);
 
     /// <summary>
     /// Checks if correction should be skipped and returns the skip result if so.

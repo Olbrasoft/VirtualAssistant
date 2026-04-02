@@ -1,6 +1,7 @@
 using System.Net.Http.Headers;
 using System.Net.Http.Json;
 using System.Text.Json.Serialization;
+using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
 using Olbrasoft.Data.Cqrs;
@@ -34,8 +35,9 @@ public class MercuryProvider : LlmProviderBase
         ILogger<MercuryProvider> logger,
         IDesktopContextService desktopContextService,
         IQueryProcessor queryProcessor,
-        ICliAppDetector cliAppDetector)
-        : base(httpClient, promptCache, logger, desktopContextService, queryProcessor, cliAppDetector, options.Value.Enabled)
+        ICliAppDetector cliAppDetector,
+        IServiceScopeFactory scopeFactory)
+        : base(httpClient, promptCache, logger, desktopContextService, queryProcessor, cliAppDetector, scopeFactory, options.Value.Enabled)
     {
         _options = options.Value;
 
@@ -46,6 +48,12 @@ public class MercuryProvider : LlmProviderBase
 
     public override async Task<LlmCorrectionResult> CorrectTextAsync(string text, CancellationToken cancellationToken = default)
     {
+        var (promptText, promptId) = await GetSystemPromptAsync(cancellationToken);
+        return await CorrectTextAsync(text, promptText, promptId, cancellationToken);
+    }
+
+    public override async Task<LlmCorrectionResult> CorrectTextAsync(string text, string promptText, int promptId, CancellationToken cancellationToken = default)
+    {
         var skipResult = CheckShouldSkip(text);
         if (skipResult != null)
             return skipResult;
@@ -54,7 +62,6 @@ public class MercuryProvider : LlmProviderBase
 
         try
         {
-            var (promptText, promptId) = await GetSystemPromptAsync(cancellationToken);
             var modelId = await GetModelIdAsync(cancellationToken);
 
             // Mercury 2 temperature must be in range 0.5-1.0

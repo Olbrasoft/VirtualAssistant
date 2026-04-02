@@ -1,5 +1,6 @@
 using System.Net.Http.Headers;
 using System.Net.Http.Json;
+using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
 using Olbrasoft.Data.Cqrs;
@@ -31,8 +32,9 @@ public class MistralProvider : LlmProviderBase
         ILogger<MistralProvider> logger,
         IDesktopContextService desktopContextService,
         IQueryProcessor queryProcessor,
-        ICliAppDetector cliAppDetector)
-        : base(httpClient, promptCache, logger, desktopContextService, queryProcessor, cliAppDetector, options.Value.Enabled)
+        ICliAppDetector cliAppDetector,
+        IServiceScopeFactory scopeFactory)
+        : base(httpClient, promptCache, logger, desktopContextService, queryProcessor, cliAppDetector, scopeFactory, options.Value.Enabled)
     {
         _options = options.Value;
 
@@ -43,6 +45,12 @@ public class MistralProvider : LlmProviderBase
 
     public override async Task<LlmCorrectionResult> CorrectTextAsync(string text, CancellationToken cancellationToken = default)
     {
+        var (promptText, promptId) = await GetSystemPromptAsync(cancellationToken);
+        return await CorrectTextAsync(text, promptText, promptId, cancellationToken);
+    }
+
+    public override async Task<LlmCorrectionResult> CorrectTextAsync(string text, string promptText, int promptId, CancellationToken cancellationToken = default)
+    {
         var skipResult = CheckShouldSkip(text);
         if (skipResult != null)
             return skipResult;
@@ -51,7 +59,6 @@ public class MistralProvider : LlmProviderBase
 
         try
         {
-            var (promptText, promptId) = await GetSystemPromptAsync(cancellationToken);
             var modelId = await GetModelIdAsync(cancellationToken);
 
             var request = new
