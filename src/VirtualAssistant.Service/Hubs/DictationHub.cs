@@ -184,7 +184,7 @@ public class DictationHub : Hub
         }
 
         _logger.LogInformation("SwitchWorkspace {Number} from client {ConnectionId}", workspaceNumber, Context.ConnectionId);
-        try { await _keyboardSimulation.SendKeyAsync($"super+{workspaceNumber}"); }
+        try { await _keyboardSimulation.SendKeyAsync($"super+kp{workspaceNumber}"); }
         catch (Exception ex) { _logger.LogError(ex, "SwitchWorkspace {Number} failed", workspaceNumber); }
     }
 
