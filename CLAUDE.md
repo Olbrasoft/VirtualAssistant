@@ -17,7 +17,7 @@ cd ~/Olbrasoft/VirtualAssistant && ./deploy/deploy.sh /opt/olbrasoft/virtual-ass
 
 **Production path:** `/opt/olbrasoft/virtual-assistant/` (ONLY deployment target)
 
-## Recent Changes (2026-04-03)
+## Recent Changes (2026-04-03, FIFO wake verified)
 
 **Project cleanup completed:**
 - ✅ Removed `VirtualAssistant.Agent` and `VirtualAssistant.Agent.Tests` (empty placeholder projects)
