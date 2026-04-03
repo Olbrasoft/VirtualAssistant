@@ -146,6 +146,22 @@ public class DictationHub : Hub
     }
 
     /// <summary>
+    /// Pastes the given text at the current cursor position using clipboard + paste simulation.
+    /// </summary>
+    public async Task PasteTranscription(string text)
+    {
+        if (string.IsNullOrWhiteSpace(text))
+        {
+            _logger.LogWarning("PasteTranscription: empty text, ignoring");
+            return;
+        }
+
+        _logger.LogInformation("PasteTranscription from client {ConnectionId}: {Length} chars", Context.ConnectionId, text.Length);
+        try { await _keyboardSimulation.TypeIntoActiveWindowAsync(text); }
+        catch (Exception ex) { _logger.LogError(ex, "PasteTranscription failed"); }
+    }
+
+    /// <summary>
     /// Context-aware text clearing: CLI apps get End×10 + Ctrl+U×10,
     /// GUI apps get Ctrl+A + Delete, regular terminal gets Ctrl+U.
     /// </summary>
