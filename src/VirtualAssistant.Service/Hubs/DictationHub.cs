@@ -3,6 +3,7 @@ using Olbrasoft.LinuxDesktop.Core.Services;
 using Olbrasoft.VirtualAssistant.Core.Keyboard;
 using Olbrasoft.VirtualAssistant.Core.Services;
 using Olbrasoft.VirtualAssistant.Core.StateMachine;
+using Olbrasoft.VirtualAssistant.Core.WindowManagement;
 using IDesktopContextService = Olbrasoft.VirtualAssistant.Core.Services.IDesktopContextService;
 
 namespace Olbrasoft.VirtualAssistant.Service.Hubs;
@@ -22,6 +23,8 @@ public class DictationHub : Hub
     private readonly IWindowQueryService _windowQuery;
     private readonly IWindowActionService _windowAction;
     private readonly IDesktopContextService _desktopContext;
+    private readonly ICliAppDetector _cliAppDetector;
+    private readonly ITerminalDetector _terminalDetector;
     private readonly ILogger<DictationHub> _logger;
 
     public DictationHub(
@@ -30,6 +33,8 @@ public class DictationHub : Hub
         IWindowQueryService windowQuery,
         IWindowActionService windowAction,
         IDesktopContextService desktopContext,
+        ICliAppDetector cliAppDetector,
+        ITerminalDetector terminalDetector,
         ILogger<DictationHub> logger)
     {
         _dictationService = dictationService;
@@ -37,6 +42,8 @@ public class DictationHub : Hub
         _windowQuery = windowQuery;
         _windowAction = windowAction;
         _desktopContext = desktopContext;
+        _cliAppDetector = cliAppDetector;
+        _terminalDetector = terminalDetector;
         _logger = logger;
     }
 
@@ -139,12 +146,36 @@ public class DictationHub : Hub
     }
 
     /// <summary>
-    /// Sends Ctrl+U key press to clear current line in terminal.
+    /// Context-aware text clearing: CLI apps get End×10 + Ctrl+U×10,
+    /// GUI apps get Ctrl+A + Delete, regular terminal gets Ctrl+U.
     /// </summary>
     public async Task ClearText()
     {
         _logger.LogInformation("ClearText called from client {ConnectionId}", Context.ConnectionId);
-        try { await _keyboardSimulation.SendKeyAsync("ctrl+u"); }
+        try
+        {
+            var cliApp = await _cliAppDetector.DetectCliAppAsync();
+            if (cliApp != null)
+            {
+                _logger.LogInformation("ClearText: CLI app '{App}' detected, sending End×10 + Ctrl+U×10", cliApp.AppName);
+                var keys = new List<string>();
+                for (var i = 0; i < 10; i++) keys.Add("end");
+                for (var i = 0; i < 10; i++) keys.Add("ctrl+u");
+                await _keyboardSimulation.SendKeySequenceAsync(keys);
+                return;
+            }
+
+            var isTerminal = await _terminalDetector.IsTerminalActiveAsync();
+            if (isTerminal)
+            {
+                _logger.LogInformation("ClearText: regular terminal, sending Ctrl+U");
+                await _keyboardSimulation.SendKeyAsync("ctrl+u");
+                return;
+            }
+
+            _logger.LogInformation("ClearText: GUI app, sending Ctrl+A + Delete");
+            await _keyboardSimulation.SendKeySequenceAsync(["ctrl+a", "delete"]);
+        }
         catch (Exception ex) { _logger.LogError(ex, "ClearText failed"); }
     }
 

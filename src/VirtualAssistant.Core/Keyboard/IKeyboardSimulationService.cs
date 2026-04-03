@@ -20,4 +20,9 @@ public interface IKeyboardSimulationService
     /// <param name="key">Key to send (e.g. "enter", "ctrl+u").</param>
     /// <param name="cancellationToken">Cancellation token.</param>
     Task SendKeyAsync(string key, CancellationToken cancellationToken = default);
+
+    /// <summary>
+    /// Sends a sequence of key presses via a single dotool process.
+    /// </summary>
+    Task SendKeySequenceAsync(IReadOnlyList<string> keys, CancellationToken cancellationToken = default);
 }
