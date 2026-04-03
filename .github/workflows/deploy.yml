@@ -123,6 +123,7 @@ jobs:
           REPO_FILE=$(echo "$GITHUB_REPOSITORY" | tr '/' '-')
 
           # Determine which step failed (if any)
+          # Note: bracket notation required for hyphenated step IDs
           FAILED_STEP=""
           if [ "${{ steps.restore.outcome }}" = "failure" ]; then
             FAILED_STEP="restore"
@@ -132,12 +133,12 @@ jobs:
             FAILED_STEP="test"
           elif [ "${{ steps.publish.outcome }}" = "failure" ]; then
             FAILED_STEP="publish"
-          elif [ "${{ steps.copy-assets.outcome }}" = "failure" ]; then
+          elif [ "${{ steps['copy-assets'].outcome }}" = "failure" ]; then
             FAILED_STEP="copy-assets"
           elif [ "${{ steps.restart.outcome }}" = "failure" ]; then
             FAILED_STEP="restart"
           elif [ "${{ steps.health.outcome }}" = "failure" ]; then
-            FAILED_STEP="health-check"
+            FAILED_STEP="health"
           fi
 
           jq -n \
