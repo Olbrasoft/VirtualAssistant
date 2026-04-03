@@ -6,6 +6,9 @@ public class Program
 {
     public static async Task Main(string[] args)
     {
+        // DELIBERATE STARTUP CRASH FOR FIFO WAKE TEST (issue #894) — will be reverted immediately
+        throw new InvalidOperationException("FIFO wake test: deliberate startup crash for failedStep verification (#894)");
+
         var configPath = Path.Combine(AppContext.BaseDirectory, "../config/appsettings.json");
 
         using var lockManager = HostingExtensions.TryAcquireSingleInstanceLock(configPath);
