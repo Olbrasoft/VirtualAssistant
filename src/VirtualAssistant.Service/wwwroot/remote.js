@@ -9,6 +9,7 @@ const elements = {
     toggleIcon: document.getElementById('toggleIcon'),
     toggleText: document.getElementById('toggleText'),
     transcriptionText: document.getElementById('transcriptionText'),
+    btnPaste: document.getElementById('btnPaste'),
     btnDiscord: document.getElementById('btnDiscord'),
     btnFerdium: document.getElementById('btnFerdium'),
     workspaceButtons: {
@@ -23,6 +24,7 @@ let connection = null;
 let isRecording = false;
 let isTranscribing = false;
 let focusedApp = '';
+let lastTranscription = '';
 let durationInterval = null;
 let recordingStartTime = null;
 let currentWorkspace = 0;
@@ -92,6 +94,7 @@ function setConnectionStatus(connected) {
     elements.btnClear.disabled = !connected;
     elements.btnDiscord.disabled = !connected;
     elements.btnFerdium.disabled = !connected;
+    elements.btnPaste.disabled = !connected || !lastTranscription;
     for (const btn of Object.values(elements.workspaceButtons)) {
         btn.disabled = !connected;
     }
@@ -128,6 +131,9 @@ function setRecordingState(recording, transcribing) {
 function setTranscriptionText(text) {
     elements.transcriptionText.textContent = text;
     elements.transcriptionText.classList.remove('empty');
+    lastTranscription = text;
+    elements.btnPaste.classList.add('visible');
+    elements.btnPaste.disabled = false;
 }
 
 function handleAppFocusChanged(wmClass) {
@@ -268,6 +274,24 @@ elements.btnClear.addEventListener('click', async () => {
         console.error('Clear failed:', error);
     } finally {
         elements.btnClear.disabled = false;
+    }
+});
+
+// Paste transcription handler
+elements.btnPaste.addEventListener('pointerdown', () => {
+    if (elements.btnPaste.disabled) return;
+    if ('vibrate' in navigator) navigator.vibrate(50);
+});
+
+elements.btnPaste.addEventListener('click', async () => {
+    if (!lastTranscription || connection?.state !== signalR.HubConnectionState.Connected) return;
+    try {
+        elements.btnPaste.disabled = true;
+        await connection.invoke('PasteTranscription', lastTranscription);
+    } catch (error) {
+        console.error('Paste failed:', error);
+    } finally {
+        elements.btnPaste.disabled = false;
     }
 });
 

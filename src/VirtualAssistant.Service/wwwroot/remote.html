@@ -151,6 +151,37 @@
             font-style: italic;
         }
 
+        .btn-paste {
+            margin-top: 12px;
+            padding: 10px 20px;
+            font-size: 0.95rem;
+            font-weight: 600;
+            border: none;
+            border-radius: 10px;
+            cursor: pointer;
+            background: linear-gradient(135deg, #7c4dff 0%, #651fff 100%);
+            color: white;
+            width: 100%;
+            display: none;
+            align-items: center;
+            justify-content: center;
+            gap: 8px;
+            transition: all 0.2s ease;
+        }
+
+        .btn-paste:active {
+            transform: scale(0.95);
+        }
+
+        .btn-paste:disabled {
+            opacity: 0.5;
+            cursor: not-allowed;
+        }
+
+        .btn-paste.visible {
+            display: flex;
+        }
+
         .connection-status {
             position: fixed;
             top: calc(env(safe-area-inset-top) + 2px);
@@ -321,6 +352,9 @@
         <div class="transcription-box">
             <h3>Poslední přepis</h3>
             <div class="transcription-text empty" id="transcriptionText">Žádný přepis</div>
+            <button class="btn-paste" id="btnPaste" disabled>
+                <span>&#x1F4CB;</span> Vložit
+            </button>
         </div>
     </div>
 
