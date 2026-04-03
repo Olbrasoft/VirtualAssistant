@@ -27,21 +27,26 @@ jobs:
 
       # .NET 10 is already installed system-wide on the self-hosted runner
       - name: Verify .NET version
+        id: dotnet-version
         run: dotnet --version
 
       - name: Restore dependencies
+        id: restore
         working-directory: VirtualAssistant
         run: dotnet restore
 
       - name: Build
+        id: build
         working-directory: VirtualAssistant
         run: dotnet build --no-restore --configuration Release
 
       - name: Run tests
+        id: test
         working-directory: VirtualAssistant
         run: dotnet test --no-build --configuration Release --filter "FullyQualifiedName!~IntegrationTests"
 
       - name: Publish
+        id: publish
         working-directory: VirtualAssistant
         run: |
           # Read deploy path from systemd service WorkingDirectory (SINGLE SOURCE OF TRUTH)
@@ -54,6 +59,7 @@ jobs:
             --no-self-contained
 
       - name: Copy assets (icons and sounds)
+        id: copy-assets
         run: |
           # Read deploy path from systemd service
           DEPLOY_PATH=$(grep "^WorkingDirectory=" VirtualAssistant/deploy/virtual-assistant.service | cut -d'=' -f2)
@@ -83,6 +89,7 @@ jobs:
           echo "Assets copied successfully from working directory"
 
       - name: Restart service
+        id: restart
         run: |
           # GitHub Actions runner doesn't have D-Bus session, so we need to set it up
           export XDG_RUNTIME_DIR=/run/user/$(id -u)
@@ -92,6 +99,7 @@ jobs:
           systemctl --user status virtual-assistant.service --no-pager
 
       - name: Verify health
+        id: health
         run: |
           # Wait for service to be ready
           for i in $(seq 1 10); do
@@ -114,6 +122,25 @@ jobs:
           RUN_URL="${GITHUB_SERVER_URL}/${GITHUB_REPOSITORY}/actions/runs/${GITHUB_RUN_ID}"
           REPO_FILE=$(echo "$GITHUB_REPOSITORY" | tr '/' '-')
 
+          # Determine which step failed (if any)
+          # Note: bracket notation required for hyphenated step IDs
+          FAILED_STEP=""
+          if [ "${{ steps.restore.outcome }}" = "failure" ]; then
+            FAILED_STEP="restore"
+          elif [ "${{ steps.build.outcome }}" = "failure" ]; then
+            FAILED_STEP="build"
+          elif [ "${{ steps.test.outcome }}" = "failure" ]; then
+            FAILED_STEP="test"
+          elif [ "${{ steps.publish.outcome }}" = "failure" ]; then
+            FAILED_STEP="publish"
+          elif [ "${{ steps['copy-assets'].outcome }}" = "failure" ]; then
+            FAILED_STEP="copy-assets"
+          elif [ "${{ steps.restart.outcome }}" = "failure" ]; then
+            FAILED_STEP="restart"
+          elif [ "${{ steps.health.outcome }}" = "failure" ]; then
+            FAILED_STEP="health"
+          fi
+
           jq -n \
             --arg event "deploy-complete" \
             --arg status "${{ job.status }}" \
@@ -122,8 +149,12 @@ jobs:
             --arg commitMessage "${COMMIT_MSG}" \
             --arg runUrl "${RUN_URL}" \
             --arg environment "production" \
+            --arg failedStep "${FAILED_STEP}" \
             --arg timestamp "$(date -u +%Y-%m-%dT%H:%M:%SZ)" \
-            '{event: $event, status: $status, repository: $repository, commit: $commit, commitMessage: $commitMessage, runUrl: $runUrl, environment: $environment, timestamp: $timestamp}' \
+            '{event: $event, status: $status, repository: $repository, commit: $commit, commitMessage: $commitMessage, runUrl: $runUrl, environment: $environment, failedStep: $failedStep, timestamp: $timestamp}' \
             > "$EVENTS_DIR/${REPO_FILE}.json"
 
           echo "Deploy event written to ${EVENTS_DIR}/${REPO_FILE}.json"
+          if [ -n "$FAILED_STEP" ]; then
+            echo "Failed step: $FAILED_STEP"
+          fi
