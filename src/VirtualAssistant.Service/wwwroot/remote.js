@@ -94,6 +94,7 @@ function setConnectionStatus(connected) {
     elements.btnClear.disabled = !connected;
     elements.btnDiscord.disabled = !connected;
     elements.btnFerdium.disabled = !connected;
+    elements.btnPaste.disabled = !connected || !lastTranscription;
     for (const btn of Object.values(elements.workspaceButtons)) {
         btn.disabled = !connected;
     }
@@ -283,16 +284,14 @@ elements.btnPaste.addEventListener('pointerdown', () => {
 });
 
 elements.btnPaste.addEventListener('click', async () => {
-    if (!lastTranscription) return;
+    if (!lastTranscription || connection?.state !== signalR.HubConnectionState.Connected) return;
     try {
         elements.btnPaste.disabled = true;
         await connection.invoke('PasteTranscription', lastTranscription);
     } catch (error) {
         console.error('Paste failed:', error);
     } finally {
-        if (connection.state === signalR.HubConnectionState.Connected) {
-            elements.btnPaste.disabled = false;
-        }
+        elements.btnPaste.disabled = false;
     }
 });
 

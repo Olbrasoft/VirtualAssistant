@@ -148,17 +148,33 @@ public class DictationHub : Hub
     /// <summary>
     /// Pastes the given text at the current cursor position using clipboard + paste simulation.
     /// </summary>
-    public async Task PasteTranscription(string text)
+    public async Task<bool> PasteTranscription(string text)
     {
+        const int maxPasteLength = 10000;
+
         if (string.IsNullOrWhiteSpace(text))
         {
             _logger.LogWarning("PasteTranscription: empty text, ignoring");
-            return;
+            return false;
+        }
+
+        if (text.Length > maxPasteLength)
+        {
+            _logger.LogWarning("PasteTranscription rejected: text length {Length} exceeds max {Max}", text.Length, maxPasteLength);
+            return false;
         }
 
         _logger.LogInformation("PasteTranscription from client {ConnectionId}: {Length} chars", Context.ConnectionId, text.Length);
-        try { await _keyboardSimulation.TypeIntoActiveWindowAsync(text); }
-        catch (Exception ex) { _logger.LogError(ex, "PasteTranscription failed"); }
+        try
+        {
+            await _keyboardSimulation.TypeIntoActiveWindowAsync(text);
+            return true;
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "PasteTranscription failed");
+            return false;
+        }
     }
 
     /// <summary>
