@@ -163,4 +163,6 @@ jobs:
           WAKE_SCRIPT="$HOME/.claude/hooks/wake-claude.sh"
           if [ -x "$WAKE_SCRIPT" ]; then
             "$WAKE_SCRIPT" "${GITHUB_REPOSITORY}" || true
+          else
+            echo "Claude wake script not found or not executable: $WAKE_SCRIPT" >&2
           fi

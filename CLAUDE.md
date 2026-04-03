@@ -93,7 +93,7 @@ Example (WRONG):
 6. ✅ Copy assets (icons, sounds) to deployment directory
 7. ✅ Restart `virtual-assistant.service`
 8. ✅ Health check (verifies service responds on `/health`)
-9. ✅ Write deploy event to `~/.config/claude-channels/deploy-events/` — triggers asyncRewake hook in Claude Code
+9. ✅ Write deploy event to `~/.config/claude-channels/deploy-events/` + call `wake-claude.sh` → FIFO wakes Claude Code
 
 **Deployment is FULLY AUTOMATED** - no manual steps required after merge!
 
@@ -112,7 +112,7 @@ Example (WRONG):
 5. Fallback: `check-deploy-status.sh` (UserPromptSubmit hook) reads event on next prompt if FIFO wake missed
 
 **Configuration:**
-- FIFO hook: `~/.claude/hooks/wake-on-event.sh` (asyncRewake, creates FIFO at `/tmp/claude-wake/{REPO}/{PID}.fifo`)
+- FIFO hook: `~/.claude/hooks/wake-on-event.sh` (Claude Code asyncRewake hook type, uses FIFO at `/tmp/claude-wake/{REPO}/{PID}.fifo`)
 - Wake script: `~/.claude/hooks/wake-claude.sh` (writes to FIFOs to wake sessions)
 - Fallback: `~/.claude/hooks/check-deploy-status.sh` (UserPromptSubmit hook)
 - Events dir: `~/.config/claude-channels/deploy-events/`
