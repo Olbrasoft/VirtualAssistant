@@ -97,44 +97,45 @@ Example (WRONG):
 
 **Deployment is FULLY AUTOMATED** - no manual steps required after merge!
 
-### Post-Deploy Verification (Hook-Based Push)
+### Post-Deploy Verification (FIFO-Based Push Wake)
 
-**GitHub Actions writes deploy result to `~/.config/claude-channels/deploy-events/`. A `UserPromptSubmit` hook automatically reads and injects it into Claude Code context on next prompt.** No polling, no flags, no Channels needed.
+**GitHub Actions writes deploy result to `~/.config/claude-channels/deploy-events/` and calls `wake-claude.sh` to wake Claude Code via FIFO pipe.** No polling, no inotifywait, no flock.
 
 **How it works:**
 1. GitHub Actions deploys → writes `Olbrasoft-VirtualAssistant.json` to deploy-events directory
-2. On next user prompt, hook script reads the file and injects deploy status into context
-3. Claude Code sees `<deploy-complete>` tag and reacts:
+2. Calls `wake-claude.sh Olbrasoft/VirtualAssistant` → wakes ALL Claude Code sessions for this repo
+3. `wake-on-event.sh` (asyncRewake hook) reads event file and outputs instructions via stderr
+4. Claude Code reacts:
    - Verify service is running: `systemctl --user status virtual-assistant.service`
-   - Verify new content deployed (e.g., `grep` for changes in `/opt/olbrasoft/virtual-assistant/app/`)
    - Check logs for errors: `journalctl --user -u virtual-assistant.service --since "2 min ago"`
    - Send notification via `mcp__notify__notify` with deployment result
-4. Hook deletes the file so it's only shown once
+5. Fallback: `check-deploy-status.sh` (UserPromptSubmit hook) reads event on next prompt if FIFO wake missed
 
 **Configuration:**
-- Hook: `~/.claude/hooks/check-deploy-status.sh` (global, works for all projects)
+- FIFO hook: `~/.claude/hooks/wake-on-event.sh` (asyncRewake, creates FIFO at `/tmp/claude-wake/{REPO}/{PID}.fifo`)
+- Wake script: `~/.claude/hooks/wake-claude.sh` (writes to FIFOs to wake sessions)
+- Fallback: `~/.claude/hooks/check-deploy-status.sh` (UserPromptSubmit hook)
 - Events dir: `~/.config/claude-channels/deploy-events/`
-- Deploy.yml writes the event file after health check
 
-**If Claude Code is not running during deploy:** the event file persists until next session starts and user sends a prompt.
+**If Claude Code is not running during deploy:** the event file persists until next session starts and user sends a prompt (fallback hook reads it).
 
-### Code Review Notification (Push-Based via gh webhook forward)
+### Code Review Notification (FIFO-Based Push Wake via gh webhook forward)
 
-**`gh webhook forward` service receives GitHub `pull_request_review` events via WebSocket and forwards them to a local webhook receiver, which writes event files. asyncRewake hook wakes Claude Code automatically.**
+**`gh webhook forward` service receives GitHub `pull_request_review` events via WebSocket. `webhook-receiver.py` writes event files and calls `wake-claude.sh` with the PR branch — only the session on that branch wakes up.**
 
 **How it works:**
 1. Copilot completes code review → GitHub emits `pull_request_review` event
 2. `gh webhook forward` (systemd service) receives event via WebSocket → forwards to localhost:9877
 3. `webhook-receiver.py` parses event → writes `{repo}-review-{pr}.json` to deploy-events
-4. `asyncRewake` hook (inotifywait) detects file → wakes Claude Code
-5. `check-deploy-status.sh` reads event → injects instructions into context
+4. Calls `wake-claude.sh {REPO} {BRANCH}` → wakes ONLY the session working on that PR's branch
+5. `wake-on-event.sh` reads event file → outputs instructions via stderr
 6. Claude Code reads review comments, fixes issues, pushes, notifies user
 
 **Configuration:**
 - Service: `systemctl --user status gh-webhook-forward.service`
 - Receiver: `~/.claude/hooks/webhook-receiver.py` (port 9877)
 - Repos: VirtualAssistant, cr, HandbookSearch, GitHub.Actions.Notify, Blog
-- Hook: `~/.claude/hooks/watch-deploy-events.sh` (asyncRewake, per-repo filtered)
+- FIFO registrations: `/tmp/claude-wake/{REPO}/{PID}.json` (branch info for routing)
 
 **Monitor deployment:**
 ```bash
