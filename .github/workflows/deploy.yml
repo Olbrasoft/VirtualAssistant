@@ -126,4 +126,4 @@ jobs:
             '{event: $event, status: $status, repository: $repository, commit: $commit, commitMessage: $commitMessage, runUrl: $runUrl, environment: $environment, timestamp: $timestamp}' \
             > "$EVENTS_DIR/${REPO_FILE}.json"
 
-          echo "Deploy notification written for Claude Code"
+          echo "Deploy event written to $(basename $EVENTS_DIR)"
