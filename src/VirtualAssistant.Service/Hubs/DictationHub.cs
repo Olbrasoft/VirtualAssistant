@@ -148,6 +148,53 @@ public class DictationHub : Hub
         catch (Exception ex) { _logger.LogError(ex, "ClearText failed"); }
     }
 
+    private static readonly HashSet<int> AllowedWorkspaces = [1, 4, 5, 6];
+
+    /// <summary>
+    /// Gets current workspace info (1-indexed workspace number and total count).
+    /// </summary>
+    public async Task<WorkspaceInfo> GetWorkspaceInfo()
+    {
+        var context = await _desktopContext.GetCurrentContextAsync();
+        return new WorkspaceInfo
+        {
+            CurrentWorkspace = context.CurrentWorkspace + 1,
+            TotalWorkspaces = context.TotalWorkspaces
+        };
+    }
+
+    /// <summary>
+    /// Switches to the specified workspace by simulating Super+N key press.
+    /// </summary>
+    public async Task<bool> SwitchWorkspace(int workspaceNumber)
+    {
+        if (!AllowedWorkspaces.Contains(workspaceNumber))
+        {
+            _logger.LogWarning("SwitchWorkspace rejected: workspace {Number} is not allowed", workspaceNumber);
+            return false;
+        }
+
+        var context = await _desktopContext.GetCurrentContextAsync();
+        if (workspaceNumber > context.TotalWorkspaces)
+        {
+            _logger.LogWarning("SwitchWorkspace rejected: workspace {Number} exceeds total {Total}",
+                workspaceNumber, context.TotalWorkspaces);
+            return false;
+        }
+
+        try
+        {
+            _logger.LogInformation("SwitchWorkspace {Number} from client {ConnectionId}", workspaceNumber, Context.ConnectionId);
+            await _keyboardSimulation.SendKeyAsync($"super+{workspaceNumber}");
+            return true;
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "SwitchWorkspace {Number} failed", workspaceNumber);
+            return false;
+        }
+    }
+
     private static readonly Dictionary<string, string> AppDesktopFiles = new(StringComparer.OrdinalIgnoreCase)
     {
         ["discord"] = "com.discordapp.Discord",
@@ -270,4 +317,13 @@ public class DictationEvent
 {
     public DictationEventType EventType { get; set; }
     public string? Text { get; set; }
+}
+
+/// <summary>
+/// Response model for workspace info queries.
+/// </summary>
+public class WorkspaceInfo
+{
+    public int CurrentWorkspace { get; set; }
+    public int TotalWorkspaces { get; set; }
 }

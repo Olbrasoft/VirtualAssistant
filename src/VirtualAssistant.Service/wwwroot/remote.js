@@ -10,7 +10,13 @@ const elements = {
     toggleText: document.getElementById('toggleText'),
     transcriptionText: document.getElementById('transcriptionText'),
     btnDiscord: document.getElementById('btnDiscord'),
-    btnFerdium: document.getElementById('btnFerdium')
+    btnFerdium: document.getElementById('btnFerdium'),
+    workspaceButtons: {
+        1: document.getElementById('btnWorkspace1'),
+        4: document.getElementById('btnWorkspace4'),
+        5: document.getElementById('btnWorkspace5'),
+        6: document.getElementById('btnWorkspace6')
+    }
 };
 
 let connection = null;
@@ -19,6 +25,8 @@ let isTranscribing = false;
 let focusedApp = '';
 let durationInterval = null;
 let recordingStartTime = null;
+let currentWorkspace = 0;
+let totalWorkspaces = 0;
 
 function buildConnection() {
     const hubUrl = window.location.origin + '/hubs/dictation';
@@ -47,6 +55,7 @@ function buildConnection() {
 
     connection.on('DictationEvent', handleDictationEvent);
     connection.on('AppFocusChanged', handleAppFocusChanged);
+    connection.on('WorkspaceChanged', handleWorkspaceChanged);
     connection.on('Connected', (connectionId) => {
         console.log('Connected with ID:', connectionId);
     });
@@ -83,6 +92,9 @@ function setConnectionStatus(connected) {
     elements.btnClear.disabled = !connected;
     elements.btnDiscord.disabled = !connected;
     elements.btnFerdium.disabled = !connected;
+    for (const btn of Object.values(elements.workspaceButtons)) {
+        btn.disabled = !connected;
+    }
 }
 
 function setRecordingState(recording, transcribing) {
@@ -124,6 +136,33 @@ function handleAppFocusChanged(wmClass) {
     updateAppButton(elements.btnFerdium, 'ferdium', 'Ferdium');
 }
 
+function handleWorkspaceChanged(workspace, total) {
+    console.log('WorkspaceChanged:', workspace, '/', total);
+    currentWorkspace = workspace;
+    totalWorkspaces = total;
+    updateWorkspaceButtons();
+}
+
+function updateWorkspaceButtons() {
+    for (const [num, btn] of Object.entries(elements.workspaceButtons)) {
+        const wsNum = parseInt(num);
+        // Workspace 1 always visible, others based on totalWorkspaces
+        if (wsNum === 1) {
+            btn.classList.remove('hidden');
+        } else if (totalWorkspaces >= wsNum) {
+            btn.classList.remove('hidden');
+        } else {
+            btn.classList.add('hidden');
+        }
+        // Highlight active workspace
+        if (wsNum === currentWorkspace) {
+            btn.classList.add('active');
+        } else {
+            btn.classList.remove('active');
+        }
+    }
+}
+
 function updateAppButton(btn, wmClass, label) {
     const isActive = focusedApp === wmClass;
     if (isActive) {
@@ -162,6 +201,9 @@ async function refreshStatus() {
 
         const focused = await connection.invoke('GetFocusedApp');
         handleAppFocusChanged(focused);
+
+        const wsInfo = await connection.invoke('GetWorkspaceInfo');
+        handleWorkspaceChanged(wsInfo.currentWorkspace, wsInfo.totalWorkspaces);
     } catch (error) {
         console.error('Failed to get status:', error);
     }
@@ -274,6 +316,29 @@ elements.btnFerdium.addEventListener('click', async () => {
         }
     }
 });
+
+// Workspace button handlers
+for (const [num, btn] of Object.entries(elements.workspaceButtons)) {
+    const wsNum = parseInt(num);
+
+    btn.addEventListener('pointerdown', () => {
+        if (btn.disabled) return;
+        if ('vibrate' in navigator) navigator.vibrate(50);
+    });
+
+    btn.addEventListener('click', async () => {
+        try {
+            btn.disabled = true;
+            await connection.invoke('SwitchWorkspace', wsNum);
+        } catch (error) {
+            console.error('SwitchWorkspace failed:', error);
+        } finally {
+            if (connection.state === signalR.HubConnectionState.Connected) {
+                btn.disabled = false;
+            }
+        }
+    });
+}
 
 // Initialize
 async function initialize() {
