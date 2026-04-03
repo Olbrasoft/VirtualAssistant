@@ -114,17 +114,16 @@ jobs:
           RUN_URL="${GITHUB_SERVER_URL}/${GITHUB_REPOSITORY}/actions/runs/${GITHUB_RUN_ID}"
           REPO_FILE=$(echo "$GITHUB_REPOSITORY" | tr '/' '-')
 
-          cat > "$EVENTS_DIR/${REPO_FILE}.json" << DEPLOY_EOF
-          {
-            "event": "deploy-complete",
-            "status": "${{ job.status }}",
-            "repository": "${GITHUB_REPOSITORY}",
-            "commit": "${COMMIT_SHA}",
-            "commitMessage": $(echo "${COMMIT_MSG}" | jq -Rs .),
-            "runUrl": "${RUN_URL}",
-            "environment": "production",
-            "timestamp": "$(date -u +%Y-%m-%dT%H:%M:%SZ)"
-          }
-          DEPLOY_EOF
+          jq -n \
+            --arg event "deploy-complete" \
+            --arg status "${{ job.status }}" \
+            --arg repository "${GITHUB_REPOSITORY}" \
+            --arg commit "${COMMIT_SHA}" \
+            --arg commitMessage "${COMMIT_MSG}" \
+            --arg runUrl "${RUN_URL}" \
+            --arg environment "production" \
+            --arg timestamp "$(date -u +%Y-%m-%dT%H:%M:%SZ)" \
+            '{event: $event, status: $status, repository: $repository, commit: $commit, commitMessage: $commitMessage, runUrl: $runUrl, environment: $environment, timestamp: $timestamp}' \
+            > "$EVENTS_DIR/${REPO_FILE}.json"
 
           echo "Deploy notification written for Claude Code"
