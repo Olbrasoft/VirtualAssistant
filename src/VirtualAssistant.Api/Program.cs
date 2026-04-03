@@ -39,6 +39,3 @@ record WeatherForecast(DateOnly Date, int TemperatureC, string? Summary)
 {
     public int TemperatureF => 32 + (int)(TemperatureC / 0.5556);
 }
-
-// DELIBERATE BUILD ERROR FOR FIFO WAKE TEST (issue #892) — will be reverted immediately
-THIS_IS_NOT_VALID_CSHARP;
