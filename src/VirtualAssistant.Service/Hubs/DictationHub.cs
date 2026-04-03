@@ -165,13 +165,14 @@ public class DictationHub : Hub
 
     /// <summary>
     /// Switches to the specified workspace by simulating Super+N key press.
+    /// Does not return success/failure — clients should rely on WorkspaceChanged SignalR event.
     /// </summary>
-    public async Task<bool> SwitchWorkspace(int workspaceNumber)
+    public async Task SwitchWorkspace(int workspaceNumber)
     {
         if (!AllowedWorkspaces.Contains(workspaceNumber))
         {
             _logger.LogWarning("SwitchWorkspace rejected: workspace {Number} is not allowed", workspaceNumber);
-            return false;
+            return;
         }
 
         var context = await _desktopContext.GetCurrentContextAsync();
@@ -179,20 +180,12 @@ public class DictationHub : Hub
         {
             _logger.LogWarning("SwitchWorkspace rejected: workspace {Number} exceeds total {Total}",
                 workspaceNumber, context.TotalWorkspaces);
-            return false;
+            return;
         }
 
-        try
-        {
-            _logger.LogInformation("SwitchWorkspace {Number} from client {ConnectionId}", workspaceNumber, Context.ConnectionId);
-            await _keyboardSimulation.SendKeyAsync($"super+{workspaceNumber}");
-            return true;
-        }
-        catch (Exception ex)
-        {
-            _logger.LogError(ex, "SwitchWorkspace {Number} failed", workspaceNumber);
-            return false;
-        }
+        _logger.LogInformation("SwitchWorkspace {Number} from client {ConnectionId}", workspaceNumber, Context.ConnectionId);
+        try { await _keyboardSimulation.SendKeyAsync($"super+{workspaceNumber}"); }
+        catch (Exception ex) { _logger.LogError(ex, "SwitchWorkspace {Number} failed", workspaceNumber); }
     }
 
     private static readonly Dictionary<string, string> AppDesktopFiles = new(StringComparer.OrdinalIgnoreCase)

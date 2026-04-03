@@ -115,6 +115,33 @@ public class DesktopMonitorBroadcastWorkerTests : IDisposable
         );
     }
 
+    [Fact]
+    public async Task WorkspaceChanged_BroadcastsToDictationHub()
+    {
+        // Arrange
+        using var cts = new CancellationTokenSource();
+        await _sut.StartAsync(cts.Token);
+        await Task.Delay(100);
+
+        var oldContext = new DesktopContext(0, 4, "Old Window", "old-class", "old-app", DateTime.UtcNow);
+        var newContext = new DesktopContext(1, 4, "New Window", "new-class", "new-app", DateTime.UtcNow);
+        var change = new DesktopContextChange(oldContext, newContext, ChangeType.WorkspaceChanged);
+
+        // Act
+        _contextChangesSubject.OnNext(change);
+        await Task.Delay(200);
+
+        // Assert - DictationHub clients should also receive WorkspaceChanged
+        _dictationClientProxyMock.Verify(
+            x => x.SendCoreAsync(
+                "WorkspaceChanged",
+                It.Is<object[]>(args => (int)args[0] == 2 && (int)args[1] == 4),
+                It.IsAny<CancellationToken>()
+            ),
+            Times.Once
+        );
+    }
+
     [SkipOnCIFact]
     public async Task ApplicationChanged_BroadcastsFocusChangedEvent()
     {
