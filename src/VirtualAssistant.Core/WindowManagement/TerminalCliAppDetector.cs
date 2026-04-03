@@ -20,7 +20,8 @@ public class TerminalCliAppDetector : ICliAppDetector
     private static readonly Dictionary<string, (string AppName, string PromptFileName)> KnownCliApps = new(StringComparer.OrdinalIgnoreCase)
     {
         ["claude"] = ("Claude Code", "ClaudeCodeCorrection"),
-        ["opencode"] = ("OpenCode", "OpenCodeCorrection")
+        ["opencode"] = ("OpenCode", "OpenCodeCorrection"),
+        ["gemini"] = ("Gemini CLI", "GeminiCorrection")
     };
 
     /// <summary>

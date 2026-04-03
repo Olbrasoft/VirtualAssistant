@@ -246,10 +246,15 @@ public class XDoToolKeyboardService : IKeyboardSimulationService
 
             dotoolProcess.StandardInput.Close();
 
+            using var timeoutCts = new CancellationTokenSource(TimeSpan.FromSeconds(10));
             var dotoolTask = dotoolProcess.WaitForExitAsync(cancellationToken);
-            var timeoutTask = Task.Delay(TimeSpan.FromSeconds(10), cancellationToken);
+            var timeoutTask = Task.Delay(Timeout.InfiniteTimeSpan, timeoutCts.Token);
 
-            if (await Task.WhenAny(dotoolTask, timeoutTask) == timeoutTask)
+            var completedTask = await Task.WhenAny(dotoolTask, timeoutTask);
+
+            cancellationToken.ThrowIfCancellationRequested();
+
+            if (completedTask != dotoolTask)
             {
                 _logger.LogError("dotool key sequence timeout, killing process");
                 try { dotoolProcess.Kill(); } catch { /* best effort */ }
