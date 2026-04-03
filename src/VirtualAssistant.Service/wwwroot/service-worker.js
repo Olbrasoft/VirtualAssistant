@@ -1,4 +1,4 @@
-const CACHE_NAME = 'va-dictation-v5';
+const CACHE_NAME = 'va-dictation-v6';
 
 const SAME_ORIGIN_URLS = [
     '/remote.html',
@@ -10,7 +10,15 @@ const CDN_URLS = [
     'https://cdnjs.cloudflare.com/ajax/libs/microsoft-signalr/8.0.0/signalr.min.js'
 ];
 
+const CACHEABLE_URLS = new Set([...SAME_ORIGIN_URLS, ...CDN_URLS]);
+
+function isCacheable(request) {
+    const url = new URL(request.url);
+    return CACHEABLE_URLS.has(url.pathname) || CDN_URLS.some(cdn => request.url.startsWith(cdn));
+}
+
 self.addEventListener('install', event => {
+    self.skipWaiting();
     event.waitUntil(
         caches.open(CACHE_NAME)
             .then(cache => {
@@ -29,20 +37,30 @@ self.addEventListener('fetch', event => {
     }
 
     event.respondWith(
-        fetch(event.request).catch(() =>
-            caches.match(event.request).then(cachedResponse => {
-                if (cachedResponse) {
-                    return cachedResponse;
+        fetch(event.request)
+            .then(response => {
+                if (response.ok && response.status === 200 && !response.redirected && isCacheable(event.request)) {
+                    const responseClone = response.clone();
+                    const cachePromise = caches.open(CACHE_NAME)
+                        .then(cache => cache.put(event.request, responseClone));
+                    event.waitUntil(cachePromise);
                 }
-                if (event.request.mode === 'navigate') {
-                    return caches.match('/remote.html');
-                }
-                return new Response('', {
-                    status: 503,
-                    statusText: 'Service Unavailable'
-                });
+                return response;
             })
-        )
+            .catch(() =>
+                caches.match(event.request).then(cachedResponse => {
+                    if (cachedResponse) {
+                        return cachedResponse;
+                    }
+                    if (event.request.mode === 'navigate') {
+                        return caches.match('/remote.html');
+                    }
+                    return new Response('', {
+                        status: 503,
+                        statusText: 'Service Unavailable'
+                    });
+                })
+            )
     );
 });
 
@@ -54,6 +72,6 @@ self.addEventListener('activate', event => {
                     .filter(name => name !== CACHE_NAME)
                     .map(name => caches.delete(name))
             );
-        })
+        }).then(() => self.clients.claim())
     );
 });
