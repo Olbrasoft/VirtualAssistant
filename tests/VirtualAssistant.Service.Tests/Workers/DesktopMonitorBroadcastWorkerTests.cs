@@ -22,6 +22,8 @@ public class DesktopMonitorBroadcastWorkerTests : IDisposable
     private readonly Mock<IDesktopContextService> _desktopContextServiceMock;
     private readonly Mock<IHubContext<DesktopMonitorHub>> _hubContextMock;
     private readonly Mock<IHubContext<DictationHub>> _dictationHubContextMock;
+    private readonly Mock<IHubClients> _dictationHubClientsMock;
+    private readonly Mock<IClientProxy> _dictationClientProxyMock;
     private readonly Mock<IHubClients> _hubClientsMock;
     private readonly Mock<IClientProxy> _clientProxyMock;
     private readonly Mock<IQueryProcessor> _queryProcessorMock;
@@ -35,7 +37,10 @@ public class DesktopMonitorBroadcastWorkerTests : IDisposable
         _desktopContextServiceMock = new Mock<IDesktopContextService>();
         _hubContextMock = new Mock<IHubContext<DesktopMonitorHub>>();
         _dictationHubContextMock = new Mock<IHubContext<DictationHub>>();
-        _dictationHubContextMock.Setup(x => x.Clients).Returns(Mock.Of<IHubClients>());
+        _dictationHubClientsMock = new Mock<IHubClients>();
+        _dictationClientProxyMock = new Mock<IClientProxy>();
+        _dictationHubClientsMock.Setup(x => x.All).Returns(_dictationClientProxyMock.Object);
+        _dictationHubContextMock.Setup(x => x.Clients).Returns(_dictationHubClientsMock.Object);
         _hubClientsMock = new Mock<IHubClients>();
         _clientProxyMock = new Mock<IClientProxy>();
         _queryProcessorMock = new Mock<IQueryProcessor>();
@@ -101,6 +106,33 @@ public class DesktopMonitorBroadcastWorkerTests : IDisposable
         // Assert - workspace indices converted from 0-based (internal) to 1-based (UI display)
         // Example: internal index 1 displays as 2 in UI
         _clientProxyMock.Verify(
+            x => x.SendCoreAsync(
+                "WorkspaceChanged",
+                It.Is<object[]>(args => (int)args[0] == 2 && (int)args[1] == 4),
+                It.IsAny<CancellationToken>()
+            ),
+            Times.Once
+        );
+    }
+
+    [Fact]
+    public async Task WorkspaceChanged_BroadcastsToDictationHub()
+    {
+        // Arrange
+        using var cts = new CancellationTokenSource();
+        await _sut.StartAsync(cts.Token);
+        await Task.Delay(100);
+
+        var oldContext = new DesktopContext(0, 4, "Old Window", "old-class", "old-app", DateTime.UtcNow);
+        var newContext = new DesktopContext(1, 4, "New Window", "new-class", "new-app", DateTime.UtcNow);
+        var change = new DesktopContextChange(oldContext, newContext, ChangeType.WorkspaceChanged);
+
+        // Act
+        _contextChangesSubject.OnNext(change);
+        await Task.Delay(200);
+
+        // Assert - DictationHub clients should also receive WorkspaceChanged
+        _dictationClientProxyMock.Verify(
             x => x.SendCoreAsync(
                 "WorkspaceChanged",
                 It.Is<object[]>(args => (int)args[0] == 2 && (int)args[1] == 4),

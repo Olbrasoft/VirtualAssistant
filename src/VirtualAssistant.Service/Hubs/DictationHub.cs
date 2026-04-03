@@ -148,6 +148,46 @@ public class DictationHub : Hub
         catch (Exception ex) { _logger.LogError(ex, "ClearText failed"); }
     }
 
+    private static readonly HashSet<int> AllowedWorkspaces = [1, 4, 5, 6];
+
+    /// <summary>
+    /// Gets current workspace info (1-indexed workspace number and total count).
+    /// </summary>
+    public async Task<WorkspaceInfo> GetWorkspaceInfo()
+    {
+        var context = await _desktopContext.GetCurrentContextAsync();
+        return new WorkspaceInfo
+        {
+            CurrentWorkspace = context.CurrentWorkspace + 1,
+            TotalWorkspaces = context.TotalWorkspaces
+        };
+    }
+
+    /// <summary>
+    /// Switches to the specified workspace by simulating Super+N key press.
+    /// Does not return success/failure — clients should rely on WorkspaceChanged SignalR event.
+    /// </summary>
+    public async Task SwitchWorkspace(int workspaceNumber)
+    {
+        if (!AllowedWorkspaces.Contains(workspaceNumber))
+        {
+            _logger.LogWarning("SwitchWorkspace rejected: workspace {Number} is not allowed", workspaceNumber);
+            return;
+        }
+
+        var context = await _desktopContext.GetCurrentContextAsync();
+        if (workspaceNumber > context.TotalWorkspaces)
+        {
+            _logger.LogWarning("SwitchWorkspace rejected: workspace {Number} exceeds total {Total}",
+                workspaceNumber, context.TotalWorkspaces);
+            return;
+        }
+
+        _logger.LogInformation("SwitchWorkspace {Number} from client {ConnectionId}", workspaceNumber, Context.ConnectionId);
+        try { await _keyboardSimulation.SendKeyAsync($"super+{workspaceNumber}"); }
+        catch (Exception ex) { _logger.LogError(ex, "SwitchWorkspace {Number} failed", workspaceNumber); }
+    }
+
     private static readonly Dictionary<string, string> AppDesktopFiles = new(StringComparer.OrdinalIgnoreCase)
     {
         ["discord"] = "com.discordapp.Discord",
@@ -270,4 +310,13 @@ public class DictationEvent
 {
     public DictationEventType EventType { get; set; }
     public string? Text { get; set; }
+}
+
+/// <summary>
+/// Response model for workspace info queries.
+/// </summary>
+public class WorkspaceInfo
+{
+    public int CurrentWorkspace { get; set; }
+    public int TotalWorkspaces { get; set; }
 }

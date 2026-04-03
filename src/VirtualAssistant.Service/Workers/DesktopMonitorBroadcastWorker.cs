@@ -103,6 +103,9 @@ public class DesktopMonitorBroadcastWorker : BackgroundService
     {
         _logger.LogDebug("Broadcasting workspace change: {Index}/{Total}", context.CurrentWorkspace + 1, context.TotalWorkspaces);
         await _hubContext.Clients.All.SendAsync("WorkspaceChanged", context.CurrentWorkspace + 1, context.TotalWorkspaces);
+
+        // Also broadcast to DictationHub for remote control workspace buttons
+        await _dictationHubContext.Clients.All.SendAsync("WorkspaceChanged", context.CurrentWorkspace + 1, context.TotalWorkspaces);
     }
 
     private async Task BroadcastFocusChanged(DesktopContext context)

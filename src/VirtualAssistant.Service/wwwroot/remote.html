@@ -209,6 +209,63 @@
             width: 32px;
             height: 32px;
         }
+
+        .workspace-section {
+            margin-bottom: 30px;
+        }
+
+        .workspace-section h3 {
+            font-size: 0.8rem;
+            color: #888;
+            margin-bottom: 10px;
+            text-transform: uppercase;
+            letter-spacing: 1px;
+        }
+
+        .workspace-buttons {
+            display: flex;
+            gap: 12px;
+            justify-content: center;
+        }
+
+        .btn-workspace {
+            width: 60px;
+            height: 60px;
+            font-size: 1.4rem;
+            font-weight: 700;
+            border: 2px solid rgba(255,255,255,0.15);
+            border-radius: 12px;
+            cursor: pointer;
+            transition: all 0.2s ease;
+            background: linear-gradient(135deg, #37474f 0%, #263238 100%);
+            color: #e0e0e0;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+        }
+
+        .btn-workspace:active {
+            transform: scale(0.95);
+        }
+
+        .btn-workspace:disabled {
+            opacity: 0.5;
+            cursor: not-allowed;
+        }
+
+        .btn-workspace:hover:not(:disabled) {
+            background: linear-gradient(135deg, #455a64 0%, #37474f 100%);
+        }
+
+        .btn-workspace.active {
+            background: linear-gradient(135deg, #2196f3 0%, #1976d2 100%);
+            border-color: #64b5f6;
+            color: white;
+        }
+
+        .btn-workspace.hidden {
+            display: none;
+        }
     </style>
 </head>
 <body>
@@ -230,6 +287,16 @@
                 <span class="icon">&#x2715;</span>
                 Ctrl+U
             </button>
+        </div>
+
+        <div class="workspace-section" id="workspaceSection">
+            <h3>Workspace</h3>
+            <div class="workspace-buttons">
+                <button class="btn-workspace" id="btnWorkspace1" data-workspace="1" disabled>1</button>
+                <button class="btn-workspace hidden" id="btnWorkspace4" data-workspace="4" disabled>4</button>
+                <button class="btn-workspace hidden" id="btnWorkspace5" data-workspace="5" disabled>5</button>
+                <button class="btn-workspace hidden" id="btnWorkspace6" data-workspace="6" disabled>6</button>
+            </div>
         </div>
 
         <div class="app-launchers">
