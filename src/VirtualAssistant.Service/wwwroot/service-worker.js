@@ -10,6 +10,13 @@ const CDN_URLS = [
     'https://cdnjs.cloudflare.com/ajax/libs/microsoft-signalr/8.0.0/signalr.min.js'
 ];
 
+const CACHEABLE_URLS = new Set([...SAME_ORIGIN_URLS, ...CDN_URLS]);
+
+function isCacheable(request) {
+    const url = new URL(request.url);
+    return CACHEABLE_URLS.has(url.pathname) || CDN_URLS.some(cdn => request.url.startsWith(cdn));
+}
+
 self.addEventListener('install', event => {
     self.skipWaiting();
     event.waitUntil(
@@ -32,9 +39,12 @@ self.addEventListener('fetch', event => {
     event.respondWith(
         fetch(event.request)
             .then(response => {
-                // Update cache with fresh response
-                const responseClone = response.clone();
-                caches.open(CACHE_NAME).then(cache => cache.put(event.request, responseClone));
+                if (response.ok && response.status === 200 && !response.redirected && isCacheable(event.request)) {
+                    const responseClone = response.clone();
+                    const cachePromise = caches.open(CACHE_NAME)
+                        .then(cache => cache.put(event.request, responseClone));
+                    event.waitUntil(cachePromise);
+                }
                 return response;
             })
             .catch(() =>
