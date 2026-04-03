@@ -136,7 +136,8 @@ public class XDoToolKeyboardService : IKeyboardSimulationService
     private static readonly HashSet<string> AllowedKeys = new(StringComparer.OrdinalIgnoreCase)
     {
         "enter", "ctrl+u", "ctrl+v", "ctrl+shift+v", "escape", "tab", "backspace", "delete", "alt+F4",
-        "super+kp1", "super+kp4", "super+kp5", "super+kp6"
+        "super+kp1", "super+kp4", "super+kp5", "super+kp6",
+        "end", "ctrl+a"
     };
 
     /// <inheritdoc/>
@@ -204,6 +205,67 @@ public class XDoToolKeyboardService : IKeyboardSimulationService
         catch (Exception ex)
         {
             _logger.LogError(ex, "Failed to send key: {Key}", key);
+        }
+    }
+
+    /// <inheritdoc/>
+    public async Task SendKeySequenceAsync(IReadOnlyList<string> keys, CancellationToken cancellationToken = default)
+    {
+        if (keys == null || keys.Count == 0) return;
+
+        foreach (var key in keys)
+        {
+            if (!AllowedKeys.Contains(key))
+            {
+                _logger.LogWarning("Key '{Key}' in sequence is not in the allowlist, rejecting", key);
+                return;
+            }
+        }
+
+        try
+        {
+            _logger.LogInformation("Sending key sequence: {Count} keys", keys.Count);
+
+            using var dotoolProcess = new Process
+            {
+                StartInfo = new ProcessStartInfo
+                {
+                    FileName = "dotool",
+                    RedirectStandardInput = true,
+                    RedirectStandardOutput = true,
+                    RedirectStandardError = true,
+                    UseShellExecute = false,
+                    CreateNoWindow = true
+                }
+            };
+
+            dotoolProcess.Start();
+
+            foreach (var key in keys)
+                await dotoolProcess.StandardInput.WriteLineAsync($"key {key}");
+
+            dotoolProcess.StandardInput.Close();
+
+            var dotoolTask = dotoolProcess.WaitForExitAsync(cancellationToken);
+            var timeoutTask = Task.Delay(TimeSpan.FromSeconds(10), cancellationToken);
+
+            if (await Task.WhenAny(dotoolTask, timeoutTask) == timeoutTask)
+            {
+                _logger.LogError("dotool key sequence timeout, killing process");
+                try { dotoolProcess.Kill(); } catch { /* best effort */ }
+                return;
+            }
+
+            if (dotoolProcess.ExitCode != 0)
+            {
+                var error = await dotoolProcess.StandardError.ReadToEndAsync(cancellationToken);
+                _logger.LogError("dotool sequence failed: {Error}", error);
+            }
+        }
+        catch (OperationCanceledException) { throw; }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Failed to send key sequence");
         }
     }
 
