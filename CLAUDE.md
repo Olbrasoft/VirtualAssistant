@@ -99,26 +99,42 @@ Example (WRONG):
 
 ### Post-Deploy Verification (Hook-Based Push)
 
-**GitHub Actions writes deploy result to `~/.config/claude-channels/deploy-events/`. A `SessionStart` hook with `asyncRewake: true` watches the directory and automatically wakes Claude Code when a deploy event arrives.** No polling, no flags, no Channels needed.
+**GitHub Actions writes deploy result to `~/.config/claude-channels/deploy-events/`. A `UserPromptSubmit` hook automatically reads and injects it into Claude Code context on next prompt.** No polling, no flags, no Channels needed.
 
 **How it works:**
 1. GitHub Actions deploys → writes `Olbrasoft-VirtualAssistant.json` to deploy-events directory
-2. `asyncRewake` hook (inotifywait) detects the file → exits with code 2 → wakes Claude Code
-3. `UserPromptSubmit` hook reads the file and injects deploy status into context
-4. Claude Code sees `<deploy-complete>` tag and reacts:
+2. On next user prompt, hook script reads the file and injects deploy status into context
+3. Claude Code sees `<deploy-complete>` tag and reacts:
    - Verify service is running: `systemctl --user status virtual-assistant.service`
    - Verify new content deployed (e.g., `grep` for changes in `/opt/olbrasoft/virtual-assistant/app/`)
    - Check logs for errors: `journalctl --user -u virtual-assistant.service --since "2 min ago"`
    - Send notification via `mcp__notify__notify` with deployment result
-5. Hook deletes the file so it's only shown once
+4. Hook deletes the file so it's only shown once
 
 **Configuration:**
-- Hook: `~/.claude/hooks/watch-deploy-events.sh` (asyncRewake, watches for new files)
-- Hook: `~/.claude/hooks/check-deploy-status.sh` (UserPromptSubmit, reads and injects)
+- Hook: `~/.claude/hooks/check-deploy-status.sh` (global, works for all projects)
 - Events dir: `~/.config/claude-channels/deploy-events/`
 - Deploy.yml writes the event file after health check
 
 **If Claude Code is not running during deploy:** the event file persists until next session starts and user sends a prompt.
+
+### Code Review Notification (Push-Based via gh webhook forward)
+
+**`gh webhook forward` service receives GitHub `pull_request_review` events via WebSocket and forwards them to a local webhook receiver, which writes event files. asyncRewake hook wakes Claude Code automatically.**
+
+**How it works:**
+1. Copilot completes code review → GitHub emits `pull_request_review` event
+2. `gh webhook forward` (systemd service) receives event via WebSocket → forwards to localhost:9877
+3. `webhook-receiver.py` parses event → writes `{repo}-review-{pr}.json` to deploy-events
+4. `asyncRewake` hook (inotifywait) detects file → wakes Claude Code
+5. `check-deploy-status.sh` reads event → injects instructions into context
+6. Claude Code reads review comments, fixes issues, pushes, notifies user
+
+**Configuration:**
+- Service: `systemctl --user status gh-webhook-forward.service`
+- Receiver: `~/.claude/hooks/webhook-receiver.py` (port 9877)
+- Repos: VirtualAssistant, cr, HandbookSearch, GitHub.Actions.Notify, Blog
+- Hook: `~/.claude/hooks/watch-deploy-events.sh` (asyncRewake, per-repo filtered)
 
 **Monitor deployment:**
 ```bash
