@@ -25,8 +25,15 @@
             align-items: center;
             justify-content: flex-start;
             padding: 20px;
-            padding-top: 50px;
+            padding-top: 30px;
             color: #e0e0e0;
+        }
+
+        @media (max-width: 480px) {
+            body {
+                padding: 12px;
+                padding-top: 8px;
+            }
         }
 
         .container {
@@ -38,8 +45,8 @@
         .controls {
             display: flex;
             flex-direction: column;
-            gap: 25px;
-            margin-bottom: 30px;
+            gap: 12px;
+            margin-bottom: 12px;
         }
 
         .btn {
@@ -68,7 +75,7 @@
         .btn-toggle {
             background: linear-gradient(135deg, #2196f3 0%, #1976d2 100%);
             color: white;
-            padding: 70px 40px;
+            padding: 50px 40px;
             font-size: 1.6rem;
         }
 
@@ -96,7 +103,7 @@
         .btn-enter {
             background: linear-gradient(135deg, #4caf50 0%, #45a049 100%);
             color: white;
-            padding: 50px 40px;
+            padding: 35px 40px;
             font-size: 1.3rem;
         }
 
@@ -146,11 +153,11 @@
 
         .connection-status {
             position: fixed;
-            top: 10px;
-            right: 10px;
-            padding: 5px 10px;
-            border-radius: 10px;
-            font-size: 0.7rem;
+            top: calc(env(safe-area-inset-top) + 2px);
+            right: 8px;
+            padding: 2px 8px;
+            border-radius: 8px;
+            font-size: 0.65rem;
             background: rgba(0,0,0,0.5);
         }
 
@@ -170,8 +177,8 @@
 
         .app-launchers {
             display: flex;
-            gap: 15px;
-            margin-bottom: 30px;
+            gap: 10px;
+            margin-bottom: 12px;
         }
 
         .btn-app {
@@ -211,7 +218,7 @@
         }
 
         .workspace-section {
-            margin-bottom: 25px;
+            margin-bottom: 12px;
         }
 
         .workspace-buttons {
