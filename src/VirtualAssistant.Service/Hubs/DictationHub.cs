@@ -164,7 +164,7 @@ public class DictationHub : Hub
     }
 
     /// <summary>
-    /// Switches to the specified workspace by simulating Super+N key press.
+    /// Switches to the specified workspace by simulating Super+KP_N (numpad) key press.
     /// Does not return success/failure — clients should rely on WorkspaceChanged SignalR event.
     /// </summary>
     public async Task SwitchWorkspace(int workspaceNumber)
