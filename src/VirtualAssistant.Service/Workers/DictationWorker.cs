@@ -130,6 +130,7 @@ public class DictationWorker : BackgroundService, IDictationControl, IDictationS
             // Subscribe to state changes for SignalR broadcasting
             _stateMachine.StateChanged += OnStateChangedBroadcast;
             TranscriptionCompleted += OnTranscriptionCompletedBroadcast;
+            _transcriptionService.RawTranscriptionReady += OnRawTranscriptionReadyBroadcast;
 
             // Wait for cancellation
             await Task.Delay(Timeout.Infinite, stoppingToken);
@@ -148,6 +149,7 @@ public class DictationWorker : BackgroundService, IDictationControl, IDictationS
             _keyboardMonitor.KeyReleased -= OnKeyReleased;
             _stateMachine.StateChanged -= OnStateChangedBroadcast;
             TranscriptionCompleted -= OnTranscriptionCompletedBroadcast;
+            _transcriptionService.RawTranscriptionReady -= OnRawTranscriptionReadyBroadcast;
 
             // Stop recording if active
             if (_stateMachine.CurrentState == DictationState.Recording)
@@ -246,6 +248,11 @@ public class DictationWorker : BackgroundService, IDictationControl, IDictationS
     private void OnTranscriptionCompletedBroadcast(object? sender, string text)
     {
         _ = BroadcastDictationEventAsync(DictationEventType.TranscriptionCompleted, text);
+    }
+
+    private void OnRawTranscriptionReadyBroadcast(string text)
+    {
+        _ = BroadcastDictationEventAsync(DictationEventType.WhisperCompleted, text);
     }
 
     private async Task BroadcastDictationEventAsync(DictationEventType eventType, string? text)

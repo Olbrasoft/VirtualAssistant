@@ -8,6 +8,11 @@ namespace Olbrasoft.VirtualAssistant.Voice.Services;
 public interface ITranscriptionService : IDisposable
 {
     /// <summary>
+    /// Raised when raw Whisper transcription is ready, before LLM correction.
+    /// </summary>
+    event Action<string>? RawTranscriptionReady;
+
+    /// <summary>
     /// Initializes transcriber (no-op for gRPC client, kept for backwards compatibility).
     /// </summary>
     void Initialize();

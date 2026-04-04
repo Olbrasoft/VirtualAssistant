@@ -26,6 +26,9 @@ public class TranscriptionService : ITranscriptionService
     private readonly ContinuousListenerOptions _options;
     private bool _disposed;
 
+    /// <inheritdoc/>
+    public event Action<string>? RawTranscriptionReady;
+
     public TranscriptionService(
         ILogger<TranscriptionService> logger,
         ISpeechTranscriber transcriber,
@@ -86,6 +89,9 @@ public class TranscriptionService : ITranscriptionService
 
         var originalText = result.Text;  // Whisper raw output
         var processedText = result.Text;
+
+        // Notify listeners that raw Whisper transcription is ready (before LLM correction)
+        RawTranscriptionReady?.Invoke(originalText);
         string? filteredText = null;
         int? llmDurationMs = null;
         int? promptId = null;
