@@ -363,7 +363,8 @@ public enum DictationEventType
     RecordingStarted = 0,
     RecordingStopped = 1,
     TranscriptionStarted = 2,
-    TranscriptionCompleted = 3
+    TranscriptionCompleted = 3,
+    RawTranscriptionCompleted = 4
 }
 
 /// <summary>

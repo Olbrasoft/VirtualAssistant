@@ -66,6 +66,87 @@ public class TranscriptionServiceTests
     }
 
     [Fact]
+    public async Task TranscribeAsync_SuccessfulTranscription_RaisesRawTranscriptionReadyEvent()
+    {
+        // Arrange
+        var audioData = new byte[1000];
+        var expectedText = "raw transcription";
+        string? receivedText = null;
+
+        _transcriberMock
+            .Setup(x => x.TranscribeAsync(It.IsAny<byte[]>(), It.IsAny<CancellationToken>()))
+            .ReturnsAsync(new TranscriptionResult(expectedText, 0.95f));
+
+        _sut.RawTranscriptionReady += text => receivedText = text;
+
+        // Act
+        await _sut.TranscribeAsync(audioData);
+
+        // Assert
+        Assert.Equal(expectedText, receivedText);
+    }
+
+    [Fact]
+    public async Task TranscribeAsync_FailedTranscription_DoesNotRaiseRawTranscriptionReadyEvent()
+    {
+        // Arrange
+        var audioData = new byte[1000];
+        var called = false;
+
+        _transcriberMock
+            .Setup(x => x.TranscribeAsync(It.IsAny<byte[]>(), It.IsAny<CancellationToken>()))
+            .ReturnsAsync(new TranscriptionResult("error"));
+
+        _sut.RawTranscriptionReady += _ => called = true;
+
+        // Act
+        await _sut.TranscribeAsync(audioData);
+
+        // Assert
+        Assert.False(called);
+    }
+
+    [Fact]
+    public async Task TranscribeAsync_EmptyTranscription_DoesNotRaiseRawTranscriptionReadyEvent()
+    {
+        // Arrange
+        var audioData = new byte[1000];
+        var called = false;
+
+        _transcriberMock
+            .Setup(x => x.TranscribeAsync(It.IsAny<byte[]>(), It.IsAny<CancellationToken>()))
+            .ReturnsAsync(new TranscriptionResult("", 0.0f));
+
+        _sut.RawTranscriptionReady += _ => called = true;
+
+        // Act
+        await _sut.TranscribeAsync(audioData);
+
+        // Assert
+        Assert.False(called);
+    }
+
+    [Fact]
+    public async Task TranscribeAsync_RawTranscriptionReadyHandlerThrows_DoesNotFailTranscription()
+    {
+        // Arrange
+        var audioData = new byte[1000];
+        var expectedText = "test transcription";
+
+        _transcriberMock
+            .Setup(x => x.TranscribeAsync(It.IsAny<byte[]>(), It.IsAny<CancellationToken>()))
+            .ReturnsAsync(new TranscriptionResult(expectedText, 0.95f));
+
+        _sut.RawTranscriptionReady += _ => throw new InvalidOperationException("Handler error");
+
+        // Act
+        var result = await _sut.TranscribeAsync(audioData);
+
+        // Assert - transcription should succeed despite handler exception
+        Assert.Equal(expectedText, result.Text);
+    }
+
+    [Fact]
     public void Dispose_CalledMultipleTimes_DoesNotThrow()
     {
         // Act & Assert

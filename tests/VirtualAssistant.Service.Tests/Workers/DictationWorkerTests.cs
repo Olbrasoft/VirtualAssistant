@@ -297,6 +297,29 @@ public class DictationWorkerTests : IDisposable
         _keyboardMonitorMock.VerifyRemove(x => x.KeyReleased -= It.IsAny<EventHandler<KeyEventArgs>>(), Times.Once);
     }
 
+    [Fact]
+    public async Task ExecuteAsync_SubscribesToRawTranscriptionReadyEvent()
+    {
+        using var cts = new CancellationTokenSource();
+
+        _ = _sut.StartAsync(cts.Token);
+        await Task.Delay(50);
+
+        _transcriptionServiceMock.VerifyAdd(x => x.RawTranscriptionReady += It.IsAny<Action<string>>(), Times.Once);
+    }
+
+    [Fact]
+    public async Task StopAsync_UnsubscribesFromRawTranscriptionReadyEvent()
+    {
+        using var cts = new CancellationTokenSource();
+        await _sut.StartAsync(cts.Token);
+        await Task.Delay(50);
+
+        await _sut.StopAsync(CancellationToken.None);
+
+        _transcriptionServiceMock.VerifyRemove(x => x.RawTranscriptionReady -= It.IsAny<Action<string>>(), Times.Once);
+    }
+
     #endregion
 
     #region SetDictationEnabled Tests
