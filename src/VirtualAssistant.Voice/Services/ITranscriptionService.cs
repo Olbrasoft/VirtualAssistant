@@ -3,7 +3,8 @@ using Olbrasoft.VirtualAssistant.Core.Speech;
 namespace Olbrasoft.VirtualAssistant.Voice.Services;
 
 /// <summary>
-/// Service for transcribing audio using SpeechToText gRPC microservice.
+/// Service for transcribing audio with optional LLM correction.
+/// Pipeline: STT → Text Filtering → LLM correction.
 /// </summary>
 public interface ITranscriptionService : IDisposable
 {
