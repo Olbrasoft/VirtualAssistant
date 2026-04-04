@@ -1,4 +1,4 @@
-const CACHE_NAME = 'va-dictation-v12';
+const CACHE_NAME = 'va-dictation-v13';
 
 const SAME_ORIGIN_URLS = [
     '/remote.html',
@@ -36,8 +36,11 @@ self.addEventListener('fetch', event => {
         return;
     }
 
+    const isSameOrigin = new URL(event.request.url).origin === self.location.origin;
+    const fetchOptions = isSameOrigin ? { cache: 'no-cache' } : {};
+
     event.respondWith(
-        fetch(event.request)
+        fetch(event.request, fetchOptions)
             .then(response => {
                 if (response.ok && response.status === 200 && !response.redirected && isCacheable(event.request)) {
                     const responseClone = response.clone();
@@ -69,7 +72,7 @@ self.addEventListener('activate', event => {
         caches.keys().then(cacheNames => {
             return Promise.all(
                 cacheNames
-                    .filter(name => name !== CACHE_NAME)
+                    .filter(name => name.startsWith('va-dictation-') && name !== CACHE_NAME)
                     .map(name => caches.delete(name))
             );
         }).then(() => self.clients.claim())
