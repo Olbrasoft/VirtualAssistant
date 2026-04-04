@@ -9,17 +9,17 @@ namespace Olbrasoft.VirtualAssistant.Voice.Services;
 public interface ITranscriptionService : IDisposable
 {
     /// <summary>
-    /// Raised when raw Whisper transcription is ready, before LLM correction.
+    /// Raised when raw STT transcription is ready, before LLM correction.
     /// </summary>
     event Action<string>? RawTranscriptionReady;
 
     /// <summary>
-    /// Initializes transcriber (no-op for gRPC client, kept for backwards compatibility).
+    /// Initializes the transcription service.
     /// </summary>
     void Initialize();
 
     /// <summary>
-    /// Transcribes audio data using SpeechToText gRPC microservice.
+    /// Transcribes audio data through the STT → filtering → LLM pipeline.
     /// If audio is too large, it will be truncated to meet service limits.
     /// </summary>
     /// <param name="audioData">16-bit PCM audio data at 16kHz.</param>
