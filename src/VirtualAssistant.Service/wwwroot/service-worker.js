@@ -1,4 +1,4 @@
-const CACHE_NAME = 'va-dictation-v12';
+const CACHE_NAME = 'va-dictation-v13';
 
 const SAME_ORIGIN_URLS = [
     '/remote.html',
@@ -37,7 +37,7 @@ self.addEventListener('fetch', event => {
     }
 
     event.respondWith(
-        fetch(event.request)
+        fetch(event.request, { cache: 'no-cache' })
             .then(response => {
                 if (response.ok && response.status === 200 && !response.redirected && isCacheable(event.request)) {
                     const responseClone = response.clone();
