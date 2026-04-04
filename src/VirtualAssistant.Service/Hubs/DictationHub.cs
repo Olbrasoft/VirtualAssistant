@@ -364,7 +364,7 @@ public enum DictationEventType
     RecordingStopped = 1,
     TranscriptionStarted = 2,
     TranscriptionCompleted = 3,
-    WhisperCompleted = 4
+    RawTranscriptionCompleted = 4
 }
 
 /// <summary>

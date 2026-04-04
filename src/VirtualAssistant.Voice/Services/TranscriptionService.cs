@@ -90,8 +90,15 @@ public class TranscriptionService : ITranscriptionService
         var originalText = result.Text;  // Whisper raw output
         var processedText = result.Text;
 
-        // Notify listeners that raw Whisper transcription is ready (before LLM correction)
-        RawTranscriptionReady?.Invoke(originalText);
+        // Notify listeners that raw transcription is ready (before LLM correction)
+        try
+        {
+            RawTranscriptionReady?.Invoke(originalText);
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "RawTranscriptionReady handler failed");
+        }
         string? filteredText = null;
         int? llmDurationMs = null;
         int? promptId = null;

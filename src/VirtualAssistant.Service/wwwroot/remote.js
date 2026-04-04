@@ -82,7 +82,7 @@ function handleDictationEvent(event) {
                 setTranscriptionText(event.text);
             }
             break;
-        case 4: // WhisperCompleted (raw transcription before LLM)
+        case 4: // RawTranscriptionCompleted (raw STT before LLM correction)
             if (event.text) {
                 setTranscriptionText(event.text);
             }

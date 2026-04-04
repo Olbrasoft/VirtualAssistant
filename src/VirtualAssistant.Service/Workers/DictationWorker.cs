@@ -252,7 +252,7 @@ public class DictationWorker : BackgroundService, IDictationControl, IDictationS
 
     private void OnRawTranscriptionReadyBroadcast(string text)
     {
-        _ = BroadcastDictationEventAsync(DictationEventType.WhisperCompleted, text);
+        _ = BroadcastDictationEventAsync(DictationEventType.RawTranscriptionCompleted, text);
     }
 
     private async Task BroadcastDictationEventAsync(DictationEventType eventType, string? text)
