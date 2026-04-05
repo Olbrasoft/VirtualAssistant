@@ -34,6 +34,7 @@ public class DictationWorker : BackgroundService, IDictationControl, IDictationS
 
     private CancellationTokenSource? _transcriptionCts;
     private bool _dictationEnabled = true;
+    private bool _quickDictationMode;
 
     /// <inheritdoc/>
     public DictationState State => _stateMachine.CurrentState;
@@ -97,6 +98,23 @@ public class DictationWorker : BackgroundService, IDictationControl, IDictationS
 
         if (_stateMachine.CurrentState == DictationState.Idle)
         {
+            _quickDictationMode = false;
+            await StartRecordingAsync();
+        }
+    }
+
+    /// <inheritdoc/>
+    public async Task StartQuickDictationAsync()
+    {
+        if (!_dictationEnabled)
+        {
+            _logger.LogInformation("Dictation is disabled, ignoring quick start request");
+            return;
+        }
+
+        if (_stateMachine.CurrentState == DictationState.Idle)
+        {
+            _quickDictationMode = true;
             await StartRecordingAsync();
         }
     }
@@ -290,6 +308,7 @@ public class DictationWorker : BackgroundService, IDictationControl, IDictationS
 
     /// <summary>
     /// Orchestrates the dictation workflow: stop recording, transcribe, save, and type text.
+    /// In quick mode: raw STT only (no LLM), auto-paste + auto-Enter.
     /// </summary>
     private async Task StopAndTranscribeAsync()
     {
@@ -298,7 +317,17 @@ public class DictationWorker : BackgroundService, IDictationControl, IDictationS
             var audioData = await ValidateAndPrepareAudioAsync();
             if (audioData == null) return;
 
-            var transcriptionResult = await TranscribeAudioWithSoundAsync(audioData);
+            TranscriptionResult? transcriptionResult;
+
+            if (_quickDictationMode)
+            {
+                transcriptionResult = await TranscribeRawWithSoundAsync(audioData);
+            }
+            else
+            {
+                transcriptionResult = await TranscribeAudioWithSoundAsync(audioData);
+            }
+
             if (transcriptionResult == null) return;
 
             await SaveTranscriptionToDatabaseAsync(audioData, transcriptionResult);
@@ -306,7 +335,19 @@ public class DictationWorker : BackgroundService, IDictationControl, IDictationS
             // Raise TranscriptionCompleted before typing so remote UI gets the text immediately
             TranscriptionCompleted?.Invoke(this, transcriptionResult.Text);
 
-            await TypeTextAndFinishAsync(transcriptionResult.Text);
+            if (_quickDictationMode)
+            {
+                // Quick mode: fast paste without clipboard save/restore
+                var textToType = transcriptionResult.Text + " ";
+                await _keyboardSimulation.FastPasteAsync(textToType, _transcriptionCts!.Token);
+                _typingSound.StopLoop();
+                _stateMachine.TransitionTo(DictationState.Idle);
+                _logger.LogInformation("Quick dictation: text pasted, waiting for client Enter");
+            }
+            else
+            {
+                await TypeTextAndFinishAsync(transcriptionResult.Text);
+            }
         }
         catch (OperationCanceledException)
         {
@@ -346,6 +387,29 @@ public class DictationWorker : BackgroundService, IDictationControl, IDictationS
         _stateMachine.TransitionTo(DictationState.Transcribing);
 
         return audioData;
+    }
+
+    /// <summary>
+    /// Transcribes audio using raw STT only (no LLM correction) with typing sound effect.
+    /// Used for quick dictation mode.
+    /// </summary>
+    private async Task<TranscriptionResult?> TranscribeRawWithSoundAsync(byte[] audioData)
+    {
+        _typingSound.StartLoop();
+        _transcriptionCts = new CancellationTokenSource();
+
+        var result = await _transcriptionService.TranscribeRawAsync(audioData, _transcriptionCts.Token);
+
+        if (!result.Success || string.IsNullOrWhiteSpace(result.Text))
+        {
+            _logger.LogWarning("Quick transcription failed or empty");
+            _typingSound.StopLoop();
+            _stateMachine.TransitionTo(DictationState.Idle);
+            return null;
+        }
+
+        _logger.LogInformation("Quick transcription: '{Text}'", result.Text);
+        return result;
     }
 
     /// <summary>

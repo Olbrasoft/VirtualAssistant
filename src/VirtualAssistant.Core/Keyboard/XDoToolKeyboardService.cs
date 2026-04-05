@@ -274,6 +274,72 @@ public class XDoToolKeyboardService : IKeyboardSimulationService
         }
     }
 
+    /// <inheritdoc/>
+    public async Task<bool> FastPasteAsync(string text, CancellationToken cancellationToken = default)
+    {
+        if (string.IsNullOrWhiteSpace(text))
+        {
+            _logger.LogWarning("FastPaste: empty text");
+            return false;
+        }
+
+        try
+        {
+            // 1. Set clipboard (skip save/restore for speed)
+            await _clipboardManager.SetClipboardAsync(text, cancellationToken);
+            await Task.Delay(30, cancellationToken);
+
+            // 2. Detect paste shortcut and send via dotool
+            var pasteShortcut = await GetPasteShortcutAsync(cancellationToken);
+
+            var dotoolProcess = new Process
+            {
+                StartInfo = new ProcessStartInfo
+                {
+                    FileName = "/bin/bash",
+                    Arguments = $"-c \"echo 'key {pasteShortcut}' | dotool\"",
+                    RedirectStandardOutput = true,
+                    RedirectStandardError = true,
+                    UseShellExecute = false,
+                    CreateNoWindow = true
+                }
+            };
+
+            dotoolProcess.Start();
+
+            var dotoolTask = dotoolProcess.WaitForExitAsync(cancellationToken);
+            var timeoutTask = Task.Delay(TimeSpan.FromSeconds(5), cancellationToken);
+            var completedTask = await Task.WhenAny(dotoolTask, timeoutTask);
+
+            if (completedTask == timeoutTask)
+            {
+                _logger.LogError("FastPaste: dotool timeout");
+                try { dotoolProcess.Kill(); } catch { /* best effort */ }
+                return false;
+            }
+
+            if (dotoolProcess.ExitCode != 0)
+            {
+                var error = await dotoolProcess.StandardError.ReadToEndAsync(cancellationToken);
+                _logger.LogError("FastPaste failed: {Error}", error);
+                return false;
+            }
+
+            _logger.LogInformation("FastPaste: {Length} chars pasted", text.Length);
+            return true;
+        }
+        catch (OperationCanceledException)
+        {
+            _logger.LogInformation("FastPaste cancelled");
+            return false;
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "FastPaste failed");
+            return false;
+        }
+    }
+
     /// <summary>
     /// Gets the appropriate paste shortcut based on the active window type.
     /// Terminals use Ctrl+Shift+V, other applications use Ctrl+V.
