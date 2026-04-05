@@ -259,15 +259,18 @@ public class DictationWorker : BackgroundService, IDictationControl, IDictationS
     {
         try
         {
+            _logger.LogInformation("Broadcasting DictationEvent: {EventType}, text length: {Length}",
+                eventType, text?.Length ?? 0);
             await _hubContext.Clients.All.SendAsync("DictationEvent", new DictationEvent
             {
                 EventType = eventType,
                 Text = text
             });
+            _logger.LogInformation("Broadcast complete: {EventType}", eventType);
         }
         catch (Exception ex)
         {
-            _logger.LogDebug(ex, "Failed to broadcast dictation event to SignalR clients");
+            _logger.LogWarning(ex, "Failed to broadcast dictation event {EventType} to SignalR clients", eventType);
         }
     }
 
