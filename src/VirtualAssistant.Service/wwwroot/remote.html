@@ -365,9 +365,9 @@
             navigator.serviceWorker.register('/service-worker.js')
                 .then(reg => {
                     console.log('Service Worker registered:', reg);
-                    reg.update();
+                    return reg.update();
                 })
-                .catch(err => console.error('Service Worker registration failed:', err));
+                .catch(err => console.error('Service Worker error:', err));
         }
     </script>
 </body>
