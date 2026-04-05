@@ -231,6 +231,7 @@ public class DictationWorker : BackgroundService, IDictationControl, IDictationS
             if (currentState == DictationState.Idle)
             {
                 _logger.LogInformation("ScrollLock pressed - starting dictation");
+                _quickDictationMode = false;
                 _ = Task.Run(async () => await StartRecordingAsync());
             }
             // Recording → Stop and transcribe
@@ -332,20 +333,28 @@ public class DictationWorker : BackgroundService, IDictationControl, IDictationS
 
             await SaveTranscriptionToDatabaseAsync(audioData, transcriptionResult);
 
-            // Raise TranscriptionCompleted before typing so remote UI gets the text immediately
-            TranscriptionCompleted?.Invoke(this, transcriptionResult.Text);
-
             if (_quickDictationMode)
             {
                 // Quick mode: fast paste without clipboard save/restore
-                var textToType = transcriptionResult.Text + " ";
-                await _keyboardSimulation.FastPasteAsync(textToType, _transcriptionCts!.Token);
+                var pasteSucceeded = await _keyboardSimulation.FastPasteAsync(transcriptionResult.Text, _transcriptionCts!.Token);
                 _typingSound.StopLoop();
+
+                if (!pasteSucceeded)
+                {
+                    _logger.LogWarning("Quick dictation: fast paste failed");
+                    _stateMachine.TransitionTo(DictationState.Idle);
+                    return;
+                }
+
+                // Broadcast QuickTranscriptionCompleted BEFORE idle transition so client sets pending flag first
+                await BroadcastDictationEventAsync(DictationEventType.QuickTranscriptionCompleted, transcriptionResult.Text);
                 _stateMachine.TransitionTo(DictationState.Idle);
-                _logger.LogInformation("Quick dictation: text pasted, waiting for client Enter");
+                _logger.LogInformation("Quick dictation: text pasted, QuickTranscriptionCompleted sent");
             }
             else
             {
+                // Raise TranscriptionCompleted before typing so remote UI gets the text immediately
+                TranscriptionCompleted?.Invoke(this, transcriptionResult.Text);
                 await TypeTextAndFinishAsync(transcriptionResult.Text);
             }
         }

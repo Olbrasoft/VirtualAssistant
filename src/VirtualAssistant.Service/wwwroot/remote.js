@@ -77,7 +77,7 @@ function handleDictationEvent(event) {
             break;
         case 1: // RecordingStopped
             setRecordingState(false, false);
-            // Quick mode: text was pasted, state is idle → send Enter
+            // Quick mode: server sent QuickTranscriptionCompleted first, now idle → send Enter
             if (quickEnterPending) {
                 quickEnterPending = false;
                 console.log('Quick dictation: sending auto-Enter via PressEnter');
@@ -94,16 +94,18 @@ function handleDictationEvent(event) {
             if (event.text) {
                 setTranscriptionText(event.text);
             }
-            // Quick mode: transcription done, set flag for Enter on idle
-            if (quickMode) {
-                quickEnterPending = true;
-                console.log('Quick dictation: transcription done, Enter pending');
-            }
             break;
         case 4: // RawTranscriptionCompleted (raw STT before LLM correction)
             if (event.text) {
                 setTranscriptionText(event.text);
             }
+            break;
+        case 5: // QuickTranscriptionCompleted (server-sent, indicates quick mode)
+            if (event.text) {
+                setTranscriptionText(event.text);
+            }
+            quickEnterPending = true;
+            console.log('Quick dictation: QuickTranscriptionCompleted received, Enter pending');
             break;
     }
 }
@@ -302,6 +304,7 @@ elements.btnQuick.addEventListener('click', async () => {
         }
     } catch (error) {
         console.error('Quick toggle failed:', error);
+        quickMode = false;
         elements.btnQuick.disabled = false;
     }
 });

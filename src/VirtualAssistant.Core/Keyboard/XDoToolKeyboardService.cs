@@ -283,6 +283,8 @@ public class XDoToolKeyboardService : IKeyboardSimulationService
             return false;
         }
 
+        Process? dotoolProcess = null;
+
         try
         {
             // 1. Set clipboard (skip save/restore for speed)
@@ -292,12 +294,12 @@ public class XDoToolKeyboardService : IKeyboardSimulationService
             // 2. Detect paste shortcut and send via dotool
             var pasteShortcut = await GetPasteShortcutAsync(cancellationToken);
 
-            var dotoolProcess = new Process
+            dotoolProcess = new Process
             {
                 StartInfo = new ProcessStartInfo
                 {
-                    FileName = "/bin/bash",
-                    Arguments = $"-c \"echo 'key {pasteShortcut}' | dotool\"",
+                    FileName = "dotool",
+                    RedirectStandardInput = true,
                     RedirectStandardOutput = true,
                     RedirectStandardError = true,
                     UseShellExecute = false,
@@ -306,17 +308,21 @@ public class XDoToolKeyboardService : IKeyboardSimulationService
             };
 
             dotoolProcess.Start();
+            await dotoolProcess.StandardInput.WriteLineAsync($"key {pasteShortcut}");
+            dotoolProcess.StandardInput.Close();
 
             var dotoolTask = dotoolProcess.WaitForExitAsync(cancellationToken);
-            var timeoutTask = Task.Delay(TimeSpan.FromSeconds(5), cancellationToken);
+            var timeoutTask = Task.Delay(TimeSpan.FromSeconds(5));
             var completedTask = await Task.WhenAny(dotoolTask, timeoutTask);
 
             if (completedTask == timeoutTask)
             {
                 _logger.LogError("FastPaste: dotool timeout");
-                try { dotoolProcess.Kill(); } catch { /* best effort */ }
+                TryKillProcess(dotoolProcess);
                 return false;
             }
+
+            await dotoolTask;
 
             if (dotoolProcess.ExitCode != 0)
             {
@@ -330,14 +336,30 @@ public class XDoToolKeyboardService : IKeyboardSimulationService
         }
         catch (OperationCanceledException)
         {
+            TryKillProcess(dotoolProcess);
             _logger.LogInformation("FastPaste cancelled");
             return false;
         }
         catch (Exception ex)
         {
+            TryKillProcess(dotoolProcess);
             _logger.LogError(ex, "FastPaste failed");
             return false;
         }
+        finally
+        {
+            dotoolProcess?.Dispose();
+        }
+    }
+
+    private static void TryKillProcess(Process? process)
+    {
+        if (process == null) return;
+        try
+        {
+            if (!process.HasExited) process.Kill();
+        }
+        catch { /* best effort */ }
     }
 
     /// <summary>
