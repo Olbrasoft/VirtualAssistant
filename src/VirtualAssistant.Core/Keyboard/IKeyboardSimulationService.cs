@@ -25,4 +25,10 @@ public interface IKeyboardSimulationService
     /// Sends a sequence of key presses via a single dotool process.
     /// </summary>
     Task SendKeySequenceAsync(IReadOnlyList<string> keys, CancellationToken cancellationToken = default);
+
+    /// <summary>
+    /// Fast paste without clipboard save/restore. Sets clipboard and sends paste shortcut.
+    /// Used for quick dictation where latency matters more than clipboard preservation.
+    /// </summary>
+    Task<bool> FastPasteAsync(string text, CancellationToken cancellationToken = default);
 }

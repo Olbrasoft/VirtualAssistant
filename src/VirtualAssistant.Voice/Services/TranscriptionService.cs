@@ -217,6 +217,27 @@ public class TranscriptionService : ITranscriptionService
         return result;
     }
 
+    /// <inheritdoc/>
+    public async Task<TranscriptionResult> TranscribeRawAsync(byte[] audioData, CancellationToken cancellationToken = default)
+    {
+        var safeAudio = TruncateIfTooLarge(audioData);
+        var result = await _transcriber.TranscribeAsync(safeAudio, cancellationToken);
+
+        if (result.Success && !string.IsNullOrWhiteSpace(result.Text))
+        {
+            try
+            {
+                RawTranscriptionReady?.Invoke(result.Text);
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(ex, "RawTranscriptionReady handler failed");
+            }
+        }
+
+        return result;
+    }
+
     /// <summary>
     /// Truncates audio data if it exceeds the maximum segment size.
     /// Takes the last MaxSegmentBytes to preserve the most recent speech.

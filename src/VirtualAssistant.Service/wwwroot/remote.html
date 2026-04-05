@@ -72,31 +72,55 @@
             cursor: not-allowed;
         }
 
+        .dictation-row {
+            display: flex;
+            gap: 12px;
+        }
+
+        .dictation-row .btn {
+            flex: 1;
+        }
+
         .btn-toggle {
             background: linear-gradient(135deg, #2196f3 0%, #1976d2 100%);
             color: white;
-            padding: 50px 40px;
-            font-size: 1.6rem;
+            padding: 50px 20px;
+            font-size: 1.4rem;
         }
 
         .btn-toggle:hover:not(:disabled) {
             background: linear-gradient(135deg, #1976d2 0%, #1565c0 100%);
         }
 
-        .btn-toggle.recording {
+        .btn-quick {
+            background: linear-gradient(135deg, #00bcd4 0%, #0097a7 100%);
+            color: white;
+            padding: 50px 20px;
+            font-size: 1.4rem;
+        }
+
+        .btn-quick:hover:not(:disabled) {
+            background: linear-gradient(135deg, #0097a7 0%, #00838f 100%);
+        }
+
+        .btn-toggle.recording,
+        .btn-quick.recording {
             background: linear-gradient(135deg, #f44336 0%, #d32f2f 100%);
         }
 
-        .btn-toggle.recording:hover:not(:disabled) {
+        .btn-toggle.recording:hover:not(:disabled),
+        .btn-quick.recording:hover:not(:disabled) {
             background: linear-gradient(135deg, #d32f2f 0%, #c62828 100%);
         }
 
-        .btn-toggle.transcribing {
+        .btn-toggle.transcribing,
+        .btn-quick.transcribing {
             background: linear-gradient(135deg, #ffd700 0%, #ffb900 100%);
             color: #000;
         }
 
-        .btn-toggle.transcribing:hover:not(:disabled) {
+        .btn-toggle.transcribing:hover:not(:disabled),
+        .btn-quick.transcribing:hover:not(:disabled) {
             background: linear-gradient(135deg, #ffb900 0%, #ff9800 100%);
         }
 
@@ -302,10 +326,16 @@
 
     <div class="container">
         <div class="controls">
-            <button class="btn btn-toggle" id="btnToggle" disabled>
-                <span class="icon" id="toggleIcon">&#x25CF;</span>
-                <span id="toggleText">Diktovat</span>
-            </button>
+            <div class="dictation-row">
+                <button class="btn btn-quick" id="btnQuick" disabled>
+                    <span class="icon" id="quickIcon">&#x26A1;</span>
+                    <span id="quickText">Rychlé</span>
+                </button>
+                <button class="btn btn-toggle" id="btnToggle" disabled>
+                    <span class="icon" id="toggleIcon">&#x25CF;</span>
+                    <span id="toggleText">Diktovat</span>
+                </button>
+            </div>
 
             <button class="btn btn-enter" id="btnEnter" disabled>
                 <span class="icon">&#x21B5;</span>

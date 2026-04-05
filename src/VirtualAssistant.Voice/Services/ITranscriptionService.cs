@@ -26,4 +26,13 @@ public interface ITranscriptionService : IDisposable
     /// <param name="cancellationToken">Cancellation token to abort transcription.</param>
     /// <returns>Transcription result.</returns>
     Task<TranscriptionResult> TranscribeAsync(byte[] audioData, CancellationToken cancellationToken = default);
+
+    /// <summary>
+    /// Transcribes audio data using STT only (no text filtering, no LLM correction).
+    /// Used for quick dictation mode where speed is prioritized over accuracy.
+    /// </summary>
+    /// <param name="audioData">16-bit PCM audio data at 16kHz.</param>
+    /// <param name="cancellationToken">Cancellation token to abort transcription.</param>
+    /// <returns>Transcription result with raw STT text.</returns>
+    Task<TranscriptionResult> TranscribeRawAsync(byte[] audioData, CancellationToken cancellationToken = default);
 }

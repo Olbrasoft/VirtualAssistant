@@ -3,9 +3,12 @@
 
 const elements = {
     connectionStatus: document.getElementById('connectionStatus'),
+    btnQuick: document.getElementById('btnQuick'),
     btnToggle: document.getElementById('btnToggle'),
     btnEnter: document.getElementById('btnEnter'),
     btnClear: document.getElementById('btnClear'),
+    quickIcon: document.getElementById('quickIcon'),
+    quickText: document.getElementById('quickText'),
     toggleIcon: document.getElementById('toggleIcon'),
     toggleText: document.getElementById('toggleText'),
     transcriptionText: document.getElementById('transcriptionText'),
@@ -23,6 +26,8 @@ const elements = {
 let connection = null;
 let isRecording = false;
 let isTranscribing = false;
+let quickMode = false;
+let quickEnterPending = false;
 let focusedApp = '';
 let lastTranscription = '';
 let durationInterval = null;
@@ -72,6 +77,14 @@ function handleDictationEvent(event) {
             break;
         case 1: // RecordingStopped
             setRecordingState(false, false);
+            // Quick mode: server sent QuickTranscriptionCompleted first, now idle → send Enter
+            if (quickEnterPending) {
+                quickEnterPending = false;
+                console.log('Quick dictation: sending auto-Enter via PressEnter');
+                connection.invoke('PressEnter').catch(function(err) {
+                    console.error('Quick auto-Enter failed:', err);
+                });
+            }
             break;
         case 2: // TranscriptionStarted
             setRecordingState(false, true);
@@ -87,6 +100,13 @@ function handleDictationEvent(event) {
                 setTranscriptionText(event.text);
             }
             break;
+        case 5: // QuickTranscriptionCompleted (server-sent, indicates quick mode)
+            if (event.text) {
+                setTranscriptionText(event.text);
+            }
+            quickEnterPending = true;
+            console.log('Quick dictation: QuickTranscriptionCompleted received, Enter pending');
+            break;
     }
 }
 
@@ -94,6 +114,7 @@ function setConnectionStatus(connected) {
     elements.connectionStatus.textContent = connected ? 'Připojeno' : 'Odpojeno';
     elements.connectionStatus.className = 'connection-status ' + (connected ? 'connected' : 'disconnected');
 
+    elements.btnQuick.disabled = !connected;
     elements.btnToggle.disabled = !connected;
     elements.btnEnter.disabled = !connected;
     elements.btnClear.disabled = !connected;
@@ -109,26 +130,40 @@ function setRecordingState(recording, transcribing) {
     isRecording = recording;
     isTranscribing = transcribing;
 
+    var activeBtn = quickMode ? elements.btnQuick : elements.btnToggle;
+    var activeIcon = quickMode ? elements.quickIcon : elements.toggleIcon;
+    var activeText = quickMode ? elements.quickText : elements.toggleText;
+    var inactiveBtn = quickMode ? elements.btnToggle : elements.btnQuick;
+
     if (recording) {
-        elements.btnToggle.classList.remove('transcribing');
-        elements.btnToggle.classList.add('recording');
-        elements.toggleIcon.textContent = '\u25A0';
-        elements.toggleText.textContent = 'Stop';
-        elements.btnToggle.disabled = false;
+        activeBtn.classList.remove('transcribing');
+        activeBtn.classList.add('recording');
+        activeIcon.textContent = '\u25A0';
+        activeText.textContent = 'Stop';
+        activeBtn.disabled = false;
+        inactiveBtn.disabled = true;
         recordingStartTime = Date.now();
-        startDurationTimer();
+        startDurationTimer(activeText);
     } else if (transcribing) {
-        elements.btnToggle.classList.remove('recording');
-        elements.btnToggle.classList.add('transcribing');
-        elements.toggleIcon.textContent = '\u2715';
-        elements.toggleText.textContent = 'Zrušit';
-        elements.btnToggle.disabled = false;
+        activeBtn.classList.remove('recording');
+        activeBtn.classList.add('transcribing');
+        activeIcon.textContent = '\u2715';
+        activeText.textContent = 'Zrušit';
+        activeBtn.disabled = false;
+        inactiveBtn.disabled = true;
         stopDurationTimer();
     } else {
+        // Reset both buttons to idle state
         elements.btnToggle.classList.remove('recording', 'transcribing');
         elements.toggleIcon.textContent = '\u25CF';
         elements.toggleText.textContent = 'Diktovat';
         elements.btnToggle.disabled = false;
+
+        elements.btnQuick.classList.remove('recording', 'transcribing');
+        elements.quickIcon.textContent = '\u26A1';
+        elements.quickText.textContent = 'Rychlé';
+        elements.btnQuick.disabled = false;
+
         stopDurationTimer();
     }
 }
@@ -185,14 +220,15 @@ function updateAppButton(btn, wmClass, label) {
     }
 }
 
-function startDurationTimer() {
+function startDurationTimer(textElement) {
     stopDurationTimer();
+    var target = textElement || elements.toggleText;
     durationInterval = setInterval(() => {
         if (recordingStartTime && isRecording) {
             const elapsed = Math.floor((Date.now() - recordingStartTime) / 1000);
             const minutes = Math.floor(elapsed / 60).toString().padStart(2, '0');
             const seconds = (elapsed % 60).toString().padStart(2, '0');
-            elements.toggleText.textContent = 'Nahrávání ' + minutes + ':' + seconds;
+            target.textContent = 'Nahrávání ' + minutes + ':' + seconds;
         }
     }, 1000);
 }
@@ -221,8 +257,7 @@ async function refreshStatus() {
 }
 
 // Haptic feedback
-elements.btnToggle.addEventListener('pointerdown', () => {
-    if (elements.btnToggle.disabled) return;
+function dictationHaptic() {
     if ('vibrate' in navigator) {
         let pattern;
         if (isTranscribing) {
@@ -234,6 +269,16 @@ elements.btnToggle.addEventListener('pointerdown', () => {
         }
         navigator.vibrate(pattern);
     }
+}
+
+elements.btnQuick.addEventListener('pointerdown', () => {
+    if (elements.btnQuick.disabled) return;
+    dictationHaptic();
+});
+
+elements.btnToggle.addEventListener('pointerdown', () => {
+    if (elements.btnToggle.disabled) return;
+    dictationHaptic();
 });
 
 elements.btnEnter.addEventListener('pointerdown', () => {
@@ -247,11 +292,31 @@ elements.btnClear.addEventListener('pointerdown', () => {
 });
 
 // Button handlers
+elements.btnQuick.addEventListener('click', async () => {
+    try {
+        if (isTranscribing && quickMode) {
+            await connection.invoke('CancelTranscription');
+        } else if (!isRecording && !isTranscribing) {
+            quickMode = true;
+            await connection.invoke('ToggleQuickRecording');
+        } else if (isRecording && quickMode) {
+            await connection.invoke('ToggleQuickRecording');
+        }
+    } catch (error) {
+        console.error('Quick toggle failed:', error);
+        quickMode = false;
+        elements.btnQuick.disabled = false;
+    }
+});
+
 elements.btnToggle.addEventListener('click', async () => {
     try {
-        if (isTranscribing) {
+        if (isTranscribing && !quickMode) {
             await connection.invoke('CancelTranscription');
-        } else {
+        } else if (!isRecording && !isTranscribing) {
+            quickMode = false;
+            await connection.invoke('ToggleRecording');
+        } else if (isRecording && !quickMode) {
             await connection.invoke('ToggleRecording');
         }
     } catch (error) {

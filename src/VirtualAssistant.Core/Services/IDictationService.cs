@@ -18,6 +18,11 @@ public interface IDictationService
     Task StartDictationAsync();
 
     /// <summary>
+    /// Starts quick dictation recording (raw STT only, no LLM, auto-paste + auto-Enter).
+    /// </summary>
+    Task StartQuickDictationAsync();
+
+    /// <summary>
     /// Stops recording and starts transcription.
     /// </summary>
     Task StopDictationAsync();

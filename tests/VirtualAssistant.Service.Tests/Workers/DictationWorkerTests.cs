@@ -686,6 +686,127 @@ public class DictationWorkerTests : IDisposable
 
     #endregion
 
+    #region Quick Dictation Tests
+
+    [Fact]
+    public async Task StartQuickDictationAsync_SetsQuickModeAndStartsRecording()
+    {
+        _stateMachineMock.SetupGet(x => x.CurrentState).Returns(DictationState.Idle);
+
+        await _sut.StartQuickDictationAsync();
+
+        _stateMachineMock.Verify(x => x.TransitionTo(DictationState.Recording), Times.Once);
+        _recordingCoordinatorMock.Verify(x => x.StartRecordingAsync(It.IsAny<CancellationToken>()), Times.Once);
+    }
+
+    [SkipOnCIFact]
+    public async Task QuickDictation_UsesTranscribeRawAndFastPaste()
+    {
+        using var cts = new CancellationTokenSource();
+        await _sut.StartAsync(cts.Token);
+        await Task.Delay(50);
+
+        var audioData = new byte[] { 1, 2, 3, 4 };
+        var transcriptionResult = new TranscriptionResult("Quick test", 0.95f);
+
+        // Start quick dictation
+        _stateMachineMock.SetupGet(x => x.CurrentState).Returns(DictationState.Idle);
+        await _sut.StartQuickDictationAsync();
+
+        // Stop and transcribe
+        _stateMachineMock.SetupGet(x => x.CurrentState).Returns(DictationState.Recording);
+        _recordingCoordinatorMock.Setup(x => x.StopRecordingAsync(It.IsAny<CancellationToken>()))
+            .ReturnsAsync(audioData);
+        _transcriptionServiceMock.Setup(x => x.TranscribeRawAsync(audioData, It.IsAny<CancellationToken>()))
+            .ReturnsAsync(transcriptionResult);
+        _keyboardSimulationMock.Setup(x => x.FastPasteAsync(It.IsAny<string>(), It.IsAny<CancellationToken>()))
+            .ReturnsAsync(true);
+
+        await _sut.StopDictationAsync();
+        await Task.Delay(400);
+
+        // Verify raw transcription used (not full pipeline)
+        _transcriptionServiceMock.Verify(x => x.TranscribeRawAsync(audioData, It.IsAny<CancellationToken>()), Times.Once);
+        _transcriptionServiceMock.Verify(x => x.TranscribeAsync(It.IsAny<byte[]>(), It.IsAny<CancellationToken>()), Times.Never);
+
+        // Verify FastPaste used (not TypeIntoActiveWindow)
+        _keyboardSimulationMock.Verify(x => x.FastPasteAsync("Quick test", It.IsAny<CancellationToken>()), Times.Once);
+        _keyboardSimulationMock.Verify(x => x.TypeIntoActiveWindowAsync(It.IsAny<string>(), It.IsAny<CancellationToken>()), Times.Never);
+    }
+
+    [SkipOnCIFact]
+    public async Task QuickDictation_WhenFastPasteFails_DoesNotBroadcastQuickTranscriptionCompleted()
+    {
+        using var cts = new CancellationTokenSource();
+        await _sut.StartAsync(cts.Token);
+        await Task.Delay(50);
+
+        var audioData = new byte[] { 1, 2, 3, 4 };
+        var transcriptionResult = new TranscriptionResult("Quick test", 0.95f);
+
+        _stateMachineMock.SetupGet(x => x.CurrentState).Returns(DictationState.Idle);
+        await _sut.StartQuickDictationAsync();
+
+        _stateMachineMock.SetupGet(x => x.CurrentState).Returns(DictationState.Recording);
+        _recordingCoordinatorMock.Setup(x => x.StopRecordingAsync(It.IsAny<CancellationToken>()))
+            .ReturnsAsync(audioData);
+        _transcriptionServiceMock.Setup(x => x.TranscribeRawAsync(audioData, It.IsAny<CancellationToken>()))
+            .ReturnsAsync(transcriptionResult);
+        _keyboardSimulationMock.Setup(x => x.FastPasteAsync(It.IsAny<string>(), It.IsAny<CancellationToken>()))
+            .ReturnsAsync(false);
+
+        await _sut.StopDictationAsync();
+        await Task.Delay(400);
+
+        // Should still transition to Idle on failure
+        _stateMachineMock.Verify(x => x.TransitionTo(DictationState.Idle), Times.AtLeastOnce);
+    }
+
+    [SkipOnCIFact]
+    public async Task KeyboardDictation_AfterQuickMode_ResetsToNormalMode()
+    {
+        using var cts = new CancellationTokenSource();
+        await _sut.StartAsync(cts.Token);
+        await Task.Delay(50);
+
+        // First: start quick dictation via hub
+        _stateMachineMock.SetupGet(x => x.CurrentState).Returns(DictationState.Idle);
+        await _sut.StartQuickDictationAsync();
+
+        // Cancel it
+        _stateMachineMock.SetupGet(x => x.CurrentState).Returns(DictationState.Recording);
+        ((IDictationService)_sut).CancelTranscription();
+        await Task.Delay(50);
+
+        // Then: keyboard dictation via ScrollLock should use normal mode
+        _stateMachineMock.SetupGet(x => x.CurrentState).Returns(DictationState.Idle);
+        _recordingCoordinatorMock.Setup(x => x.StartRecordingAsync(It.IsAny<CancellationToken>()))
+            .Returns(Task.CompletedTask);
+
+        var audioData = new byte[] { 1, 2, 3 };
+        var result = new TranscriptionResult("Normal test", 0.9f);
+
+        _capturedKeyReleasedHandler?.Invoke(this, new KeyEventArgs { Key = KeyCode.ScrollLock, IsPressed = false });
+        await Task.Delay(100);
+
+        _stateMachineMock.SetupGet(x => x.CurrentState).Returns(DictationState.Recording);
+        _recordingCoordinatorMock.Setup(x => x.StopRecordingAsync(It.IsAny<CancellationToken>()))
+            .ReturnsAsync(audioData);
+        _transcriptionServiceMock.Setup(x => x.TranscribeAsync(audioData, It.IsAny<CancellationToken>()))
+            .ReturnsAsync(result);
+        _keyboardSimulationMock.Setup(x => x.TypeIntoActiveWindowAsync(It.IsAny<string>(), It.IsAny<CancellationToken>()))
+            .ReturnsAsync(true);
+
+        _capturedKeyReleasedHandler?.Invoke(this, new KeyEventArgs { Key = KeyCode.ScrollLock, IsPressed = false });
+        await Task.Delay(400);
+
+        // Verify normal transcription used (not raw)
+        _transcriptionServiceMock.Verify(x => x.TranscribeAsync(audioData, It.IsAny<CancellationToken>()), Times.Once);
+        _transcriptionServiceMock.Verify(x => x.TranscribeRawAsync(It.IsAny<byte[]>(), It.IsAny<CancellationToken>()), Times.Never);
+    }
+
+    #endregion
+
     public void Dispose()
     {
         _sut?.StopAsync(CancellationToken.None).GetAwaiter().GetResult();

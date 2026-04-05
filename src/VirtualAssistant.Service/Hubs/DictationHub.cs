@@ -126,6 +126,23 @@ public class DictationHub : Hub
     }
 
     /// <summary>
+    /// Toggles quick dictation (idle -> recording, recording -> raw STT + auto-paste + auto-Enter).
+    /// </summary>
+    public async Task ToggleQuickRecording()
+    {
+        if (_dictationService.State == DictationState.Idle)
+        {
+            try { await _dictationService.StartQuickDictationAsync(); }
+            catch (Exception ex) { _logger.LogError(ex, "StartQuickDictation failed"); }
+        }
+        else if (_dictationService.State == DictationState.Recording)
+        {
+            try { await _dictationService.StopDictationAsync(); }
+            catch (Exception ex) { _logger.LogError(ex, "StopDictation (quick) failed"); }
+        }
+    }
+
+    /// <summary>
     /// Cancels ongoing transcription.
     /// </summary>
     public Task CancelTranscription()
@@ -364,7 +381,8 @@ public enum DictationEventType
     RecordingStopped = 1,
     TranscriptionStarted = 2,
     TranscriptionCompleted = 3,
-    RawTranscriptionCompleted = 4
+    RawTranscriptionCompleted = 4,
+    QuickTranscriptionCompleted = 5
 }
 
 /// <summary>
