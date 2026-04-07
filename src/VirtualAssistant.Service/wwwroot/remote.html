@@ -72,56 +72,71 @@
             cursor: not-allowed;
         }
 
+        /* Dictation control: one big button in idle, splits into two
+           release zones (fast + slow) while recording. */
         .dictation-row {
             display: flex;
-            gap: 12px;
         }
 
-        .dictation-row .btn {
+        .btn-dictate {
             flex: 1;
-        }
-
-        .btn-toggle {
             background: linear-gradient(135deg, #2196f3 0%, #1976d2 100%);
             color: white;
             padding: 50px 20px;
             font-size: 1.4rem;
         }
 
-        .btn-toggle:hover:not(:disabled) {
+        .btn-dictate:hover:not(:disabled) {
             background: linear-gradient(135deg, #1976d2 0%, #1565c0 100%);
         }
 
-        .btn-quick {
-            background: linear-gradient(135deg, #00bcd4 0%, #0097a7 100%);
-            color: white;
-            padding: 50px 20px;
-            font-size: 1.4rem;
-        }
-
-        .btn-quick:hover:not(:disabled) {
-            background: linear-gradient(135deg, #0097a7 0%, #00838f 100%);
-        }
-
-        .btn-toggle.recording,
-        .btn-quick.recording {
-            background: linear-gradient(135deg, #f44336 0%, #d32f2f 100%);
-        }
-
-        .btn-toggle.recording:hover:not(:disabled),
-        .btn-quick.recording:hover:not(:disabled) {
-            background: linear-gradient(135deg, #d32f2f 0%, #c62828 100%);
-        }
-
-        .btn-toggle.transcribing,
-        .btn-quick.transcribing {
+        .btn-dictate.transcribing {
             background: linear-gradient(135deg, #ffd700 0%, #ffb900 100%);
             color: #000;
         }
 
-        .btn-toggle.transcribing:hover:not(:disabled),
-        .btn-quick.transcribing:hover:not(:disabled) {
+        .btn-dictate.transcribing:hover:not(:disabled) {
             background: linear-gradient(135deg, #ffb900 0%, #ff9800 100%);
+        }
+
+        /* While recording, the single button is hidden and replaced by a
+           two-zone split: left half = fast (no LLM), right half = slow (LLM
+           corrected). The user releases on whichever zone they want. */
+        .dictation-zones {
+            display: none;
+            gap: 12px;
+        }
+
+        .dictation-zones .btn {
+            flex: 1;
+            padding: 50px 20px;
+            font-size: 1.4rem;
+            color: white;
+        }
+
+        .btn-zone-fast {
+            background: linear-gradient(135deg, #f44336 0%, #d32f2f 100%);
+        }
+
+        .btn-zone-fast:hover:not(:disabled) {
+            background: linear-gradient(135deg, #d32f2f 0%, #c62828 100%);
+        }
+
+        .btn-zone-slow {
+            background: linear-gradient(135deg, #d32f2f 0%, #b71c1c 100%);
+        }
+
+        .btn-zone-slow:hover:not(:disabled) {
+            background: linear-gradient(135deg, #b71c1c 0%, #a01919 100%);
+        }
+
+        /* Show the two zones (and hide the single button) while recording. */
+        .controls.recording .dictation-row {
+            display: none;
+        }
+
+        .controls.recording .dictation-zones {
+            display: flex;
         }
 
         .btn-enter {
@@ -325,15 +340,28 @@
     <div class="connection-status disconnected" id="connectionStatus">Odpojeno</div>
 
     <div class="container">
-        <div class="controls">
+        <div class="controls" id="controls">
+            <!-- Idle: single dictation button. Pressed → start recording.
+                 Once recording is in progress this row is hidden via the
+                 .recording class on #controls. -->
             <div class="dictation-row">
-                <button class="btn btn-quick" id="btnQuick" disabled>
-                    <span class="icon" id="quickIcon">&#x26A1;</span>
-                    <span id="quickText">Rychlé</span>
+                <button class="btn btn-dictate" id="btnDictate" disabled>
+                    <span class="icon" id="dictateIcon">&#x25CF;</span>
+                    <span id="dictateText">Diktovat</span>
                 </button>
-                <button class="btn btn-toggle" id="btnToggle" disabled>
-                    <span class="icon" id="toggleIcon">&#x25CF;</span>
-                    <span id="toggleText">Diktovat</span>
+            </div>
+
+            <!-- Recording: two release zones. Left = fast (no LLM, auto-paste
+                 + Enter). Right = slow (LLM corrected). The user picks the
+                 processing speed by releasing on the chosen half. -->
+            <div class="dictation-zones">
+                <button class="btn btn-zone-fast" id="btnZoneFast">
+                    <span class="icon">&#x26A1;</span>
+                    <span id="fastText">Rychle</span>
+                </button>
+                <button class="btn btn-zone-slow" id="btnZoneSlow">
+                    <span class="icon">&#x1F40C;</span>
+                    <span id="slowText">Pomalu</span>
                 </button>
             </div>
 

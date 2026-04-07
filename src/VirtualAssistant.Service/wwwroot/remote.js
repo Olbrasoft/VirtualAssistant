@@ -3,14 +3,16 @@
 
 const elements = {
     connectionStatus: document.getElementById('connectionStatus'),
-    btnQuick: document.getElementById('btnQuick'),
-    btnToggle: document.getElementById('btnToggle'),
+    controls: document.getElementById('controls'),
+    btnDictate: document.getElementById('btnDictate'),
+    btnZoneFast: document.getElementById('btnZoneFast'),
+    btnZoneSlow: document.getElementById('btnZoneSlow'),
     btnEnter: document.getElementById('btnEnter'),
     btnClear: document.getElementById('btnClear'),
-    quickIcon: document.getElementById('quickIcon'),
-    quickText: document.getElementById('quickText'),
-    toggleIcon: document.getElementById('toggleIcon'),
-    toggleText: document.getElementById('toggleText'),
+    dictateIcon: document.getElementById('dictateIcon'),
+    dictateText: document.getElementById('dictateText'),
+    fastText: document.getElementById('fastText'),
+    slowText: document.getElementById('slowText'),
     transcriptionText: document.getElementById('transcriptionText'),
     btnPaste: document.getElementById('btnPaste'),
     btnDiscord: document.getElementById('btnDiscord'),
@@ -26,7 +28,9 @@ const elements = {
 let connection = null;
 let isRecording = false;
 let isTranscribing = false;
-let quickMode = false;
+// Tracks whether the LAST dictation was stopped via the fast (quick) zone.
+// Used to drive the auto-Enter on QuickTranscriptionCompleted.
+let lastStopWasQuick = false;
 let quickEnterPending = false;
 let focusedApp = '';
 let lastTranscription = '';
@@ -114,8 +118,7 @@ function setConnectionStatus(connected) {
     elements.connectionStatus.textContent = connected ? 'Připojeno' : 'Odpojeno';
     elements.connectionStatus.className = 'connection-status ' + (connected ? 'connected' : 'disconnected');
 
-    elements.btnQuick.disabled = !connected;
-    elements.btnToggle.disabled = !connected;
+    elements.btnDictate.disabled = !connected;
     elements.btnEnter.disabled = !connected;
     elements.btnClear.disabled = !connected;
     elements.btnDiscord.disabled = !connected;
@@ -130,40 +133,34 @@ function setRecordingState(recording, transcribing) {
     isRecording = recording;
     isTranscribing = transcribing;
 
-    var activeBtn = quickMode ? elements.btnQuick : elements.btnToggle;
-    var activeIcon = quickMode ? elements.quickIcon : elements.toggleIcon;
-    var activeText = quickMode ? elements.quickText : elements.toggleText;
-    var inactiveBtn = quickMode ? elements.btnToggle : elements.btnQuick;
-
     if (recording) {
-        activeBtn.classList.remove('transcribing');
-        activeBtn.classList.add('recording');
-        activeIcon.textContent = '\u25A0';
-        activeText.textContent = 'Stop';
-        activeBtn.disabled = false;
-        inactiveBtn.disabled = true;
+        // Show the two release zones (.controls.recording hides the single
+        // dictate button and reveals .dictation-zones via CSS).
+        elements.controls.classList.add('recording');
+        elements.btnDictate.classList.remove('transcribing');
+        elements.btnZoneFast.disabled = false;
+        elements.btnZoneSlow.disabled = false;
         recordingStartTime = Date.now();
-        startDurationTimer(activeText);
+        startDurationTimer(elements.fastText, elements.slowText);
     } else if (transcribing) {
-        activeBtn.classList.remove('recording');
-        activeBtn.classList.add('transcribing');
-        activeIcon.textContent = '\u2715';
-        activeText.textContent = 'Zrušit';
-        activeBtn.disabled = false;
-        inactiveBtn.disabled = true;
+        // Recording stopped, transcription in progress. Hide the two zones,
+        // show the single button in transcribing (yellow) state. The user
+        // can tap it to cancel.
+        elements.controls.classList.remove('recording');
+        elements.btnDictate.classList.add('transcribing');
+        elements.dictateIcon.textContent = '\u2715';
+        elements.dictateText.textContent = 'Zrušit';
+        elements.btnDictate.disabled = false;
         stopDurationTimer();
     } else {
-        // Reset both buttons to idle state
-        elements.btnToggle.classList.remove('recording', 'transcribing');
-        elements.toggleIcon.textContent = '\u25CF';
-        elements.toggleText.textContent = 'Diktovat';
-        elements.btnToggle.disabled = false;
-
-        elements.btnQuick.classList.remove('recording', 'transcribing');
-        elements.quickIcon.textContent = '\u26A1';
-        elements.quickText.textContent = 'Rychlé';
-        elements.btnQuick.disabled = false;
-
+        // Idle: single button, default label.
+        elements.controls.classList.remove('recording');
+        elements.btnDictate.classList.remove('transcribing');
+        elements.dictateIcon.textContent = '\u25CF';
+        elements.dictateText.textContent = 'Diktovat';
+        elements.btnDictate.disabled = false;
+        elements.fastText.textContent = 'Rychle';
+        elements.slowText.textContent = 'Pomalu';
         stopDurationTimer();
     }
 }
@@ -220,15 +217,20 @@ function updateAppButton(btn, wmClass, label) {
     }
 }
 
-function startDurationTimer(textElement) {
+function startDurationTimer(...textElements) {
     stopDurationTimer();
-    var target = textElement || elements.toggleText;
+    const targets = textElements.length > 0 ? textElements : [elements.dictateText];
     durationInterval = setInterval(() => {
         if (recordingStartTime && isRecording) {
             const elapsed = Math.floor((Date.now() - recordingStartTime) / 1000);
             const minutes = Math.floor(elapsed / 60).toString().padStart(2, '0');
             const seconds = (elapsed % 60).toString().padStart(2, '0');
-            target.textContent = 'Nahrávání ' + minutes + ':' + seconds;
+            // Show elapsed time on every target. The two zone buttons each
+            // get the same string so the user sees the running counter on
+            // whichever side they're hovering.
+            for (const t of targets) {
+                t.textContent = minutes + ':' + seconds;
+            }
         }
     }, 1000);
 }
@@ -271,13 +273,18 @@ function dictationHaptic() {
     }
 }
 
-elements.btnQuick.addEventListener('pointerdown', () => {
-    if (elements.btnQuick.disabled) return;
+elements.btnDictate.addEventListener('pointerdown', () => {
+    if (elements.btnDictate.disabled) return;
     dictationHaptic();
 });
 
-elements.btnToggle.addEventListener('pointerdown', () => {
-    if (elements.btnToggle.disabled) return;
+elements.btnZoneFast.addEventListener('pointerdown', () => {
+    if (elements.btnZoneFast.disabled) return;
+    dictationHaptic();
+});
+
+elements.btnZoneSlow.addEventListener('pointerdown', () => {
+    if (elements.btnZoneSlow.disabled) return;
     dictationHaptic();
 });
 
@@ -291,37 +298,50 @@ elements.btnClear.addEventListener('pointerdown', () => {
     if ('vibrate' in navigator) navigator.vibrate(50);
 });
 
-// Button handlers
-elements.btnQuick.addEventListener('click', async () => {
+// Single dictate button — idle starts recording, transcribing cancels.
+elements.btnDictate.addEventListener('click', async () => {
     try {
-        if (isTranscribing && quickMode) {
+        if (isTranscribing) {
             await connection.invoke('CancelTranscription');
-        } else if (!isRecording && !isTranscribing) {
-            quickMode = true;
-            await connection.invoke('ToggleQuickRecording');
-        } else if (isRecording && quickMode) {
-            await connection.invoke('ToggleQuickRecording');
+        } else if (!isRecording) {
+            // Always start in normal mode. The user picks fast vs slow at
+            // STOP time by releasing on one of the two zones below.
+            lastStopWasQuick = false;
+            await connection.invoke('StartDictation');
         }
     } catch (error) {
-        console.error('Quick toggle failed:', error);
-        quickMode = false;
-        elements.btnQuick.disabled = false;
+        console.error('StartDictation failed:', error);
+        elements.btnDictate.disabled = false;
     }
 });
 
-elements.btnToggle.addEventListener('click', async () => {
+// Fast zone — release here = quick processing (no LLM, auto-Enter).
+elements.btnZoneFast.addEventListener('click', async () => {
+    if (!isRecording) return;
     try {
-        if (isTranscribing && !quickMode) {
-            await connection.invoke('CancelTranscription');
-        } else if (!isRecording && !isTranscribing) {
-            quickMode = false;
-            await connection.invoke('ToggleRecording');
-        } else if (isRecording && !quickMode) {
-            await connection.invoke('ToggleRecording');
-        }
+        elements.btnZoneFast.disabled = true;
+        elements.btnZoneSlow.disabled = true;
+        lastStopWasQuick = true;
+        await connection.invoke('StopDictationWithMode', true);
     } catch (error) {
-        console.error('Toggle failed:', error);
-        elements.btnToggle.disabled = false;
+        console.error('StopDictationWithMode(true) failed:', error);
+        elements.btnZoneFast.disabled = false;
+        elements.btnZoneSlow.disabled = false;
+    }
+});
+
+// Slow zone — release here = LLM-corrected processing.
+elements.btnZoneSlow.addEventListener('click', async () => {
+    if (!isRecording) return;
+    try {
+        elements.btnZoneFast.disabled = true;
+        elements.btnZoneSlow.disabled = true;
+        lastStopWasQuick = false;
+        await connection.invoke('StopDictationWithMode', false);
+    } catch (error) {
+        console.error('StopDictationWithMode(false) failed:', error);
+        elements.btnZoneFast.disabled = false;
+        elements.btnZoneSlow.disabled = false;
     }
 });
 

@@ -131,6 +131,25 @@ public class DictationWorker : BackgroundService, IDictationControl, IDictationS
     }
 
     /// <inheritdoc/>
+    public Task StopDictationAsync(bool quickMode)
+    {
+        if (_stateMachine.CurrentState == DictationState.Recording)
+        {
+            // Override the mode that was chosen at start time. This is the
+            // path used by the Remote Control's unified dictation button:
+            // recording starts in normal mode by default, the user picks
+            // fast vs slow only when releasing the button.
+            _quickDictationMode = quickMode;
+            _logger.LogInformation(
+                "StopDictationAsync(quickMode={QuickMode}) - overriding start-time mode",
+                quickMode);
+            _ = Task.Run(async () => await StopAndTranscribeAsync());
+        }
+
+        return Task.CompletedTask;
+    }
+
+    /// <inheritdoc/>
     void IDictationService.CancelTranscription()
     {
         CancelTranscription();
