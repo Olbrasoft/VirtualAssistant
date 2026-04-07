@@ -4,11 +4,11 @@
 // Bumped on every script change. Rendered next to the connection status so
 // the user can verify the phone is actually running the latest JS and not a
 // stale cached copy. MUST match the ?v= query string in remote.html.
-const SCRIPT_VERSION = 'v21';
+const SCRIPT_VERSION = 'v23';
 
 const elements = {
     connectionStatus: document.getElementById('connectionStatus'),
-    debugLog: document.getElementById('debugLog'),
+    debugLogContent: document.getElementById('debugLogContent'),
     controls: document.getElementById('controls'),
     btnDictate: document.getElementById('btnDictate'),
     btnZoneFast: document.getElementById('btnZoneFast'),
@@ -62,8 +62,8 @@ function debugLog(message) {
     if (debugLogLines.length > DEBUG_LOG_MAX) {
         debugLogLines.shift();
     }
-    if (elements.debugLog) {
-        elements.debugLog.textContent = debugLogLines.join('\n');
+    if (elements.debugLogContent) {
+        elements.debugLogContent.textContent = debugLogLines.join('\n');
     }
     console.log('[debug]', message);
 }
