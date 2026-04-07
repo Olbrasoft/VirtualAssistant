@@ -1,6 +1,7 @@
 using Microsoft.Extensions.Logging;
 using Moq;
 using Olbrasoft.NotificationAudio.Abstractions;
+using Olbrasoft.Testing.Xunit.Attributes;
 using Olbrasoft.VirtualAssistant.Voice.Services;
 
 namespace Olbrasoft.VirtualAssistant.Voice.Tests.Services;
@@ -237,7 +238,11 @@ public class AudioPlaybackServiceTests : IDisposable
         _playerMock.Verify(x => x.Stop(), Times.Once);
     }
 
-    [Fact]
+    // Timing-sensitive: asserts that a 50 ms polling loop tickled at least
+    // 3 times during a 200 ms simulated playback. Loaded CI runners can drift
+    // enough on Task.Delay scheduling that this fails sporadically. Skip in
+    // CI per the project guideline for timing-dependent tests.
+    [SkipOnCIFact]
     public async Task PlayAsync_MonitorsSpeechLockEvery50Ms()
     {
         // Arrange
