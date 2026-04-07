@@ -21,6 +21,7 @@
     "Konec"
   ],
   "removeSuffixRegex": [
-    "\\s*Titulky vytvořil[^.]*\\.?\\s*$"
+    "\\s*Titulky vytvořil[^.]*\\.?\\s*$",
+    "\\s*(?-i:Konec\\.)\\s*$"
   ]
 }
