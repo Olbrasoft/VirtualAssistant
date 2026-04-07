@@ -1,6 +1,6 @@
 # VirtualAssistant
 
-Linux virtuální asistent pro ovládání desktopu a integraci s AI coding agenty Claude Code a Gemini.
+Linux virtuální asistent pro ovládání desktopu a integraci s AI coding agenty Claude Code, OpenCode a Gemini.
 
 ## Funkce
 
