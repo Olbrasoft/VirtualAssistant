@@ -1,8 +1,14 @@
 // VirtualAssistant Remote Dictation Control
 // Connects to SignalR hub and provides remote recording control
 
+// Bumped on every script change. Rendered next to the connection status so
+// the user can verify the phone is actually running the latest JS and not a
+// stale cached copy. MUST match the ?v= query string in remote.html.
+const SCRIPT_VERSION = 'v21';
+
 const elements = {
     connectionStatus: document.getElementById('connectionStatus'),
+    debugLog: document.getElementById('debugLog'),
     controls: document.getElementById('controls'),
     btnDictate: document.getElementById('btnDictate'),
     btnZoneFast: document.getElementById('btnZoneFast'),
@@ -13,6 +19,7 @@ const elements = {
     dictateText: document.getElementById('dictateText'),
     fastText: document.getElementById('fastText'),
     slowText: document.getElementById('slowText'),
+    recordTimer: document.getElementById('recordTimer'),
     transcriptionText: document.getElementById('transcriptionText'),
     btnPaste: document.getElementById('btnPaste'),
     btnDiscord: document.getElementById('btnDiscord'),
@@ -28,10 +35,38 @@ const elements = {
 let connection = null;
 let isRecording = false;
 let isTranscribing = false;
-// Tracks whether the LAST dictation was stopped via the fast (quick) zone.
-// Used to drive the auto-Enter on QuickTranscriptionCompleted.
-let lastStopWasQuick = false;
+// Set when the server emits QuickTranscriptionCompleted (event 5). After
+// the recording fully stops we then send PressEnter on the user's behalf.
 let quickEnterPending = false;
+// Tracks the zone the user is hovering over while dragging from the
+// dictate button to a release zone — used by the press-and-release
+// gesture handler. null while no drag is in progress.
+let dragHoveredZone = null;
+// Coordinates of the most recent pointerdown that started a dictate
+// gesture. Used by the global pointerup handler to decide whether the
+// user actually slid (press-and-release UX) or just tapped (tap-to-start).
+// Without this distinction, the immediate UI swap to Rychle/Pomalu makes
+// every tap end on a zone — instantly stopping the recording with 0 bytes.
+let dictateGestureStartX = 0;
+let dictateGestureStartY = 0;
+// Pixel distance threshold above which we treat the gesture as a slide.
+// Below this, the user merely tapped — keep recording, do not select a zone.
+const SLIDE_THRESHOLD_PX = 40;
+// Maximum number of debug log lines kept on screen.
+const DEBUG_LOG_MAX = 8;
+const debugLogLines = [];
+
+function debugLog(message) {
+    const timestamp = new Date().toLocaleTimeString('cs-CZ', { hour12: false });
+    debugLogLines.push(timestamp + ' ' + message);
+    if (debugLogLines.length > DEBUG_LOG_MAX) {
+        debugLogLines.shift();
+    }
+    if (elements.debugLog) {
+        elements.debugLog.textContent = debugLogLines.join('\n');
+    }
+    console.log('[debug]', message);
+}
 let focusedApp = '';
 let lastTranscription = '';
 let durationInterval = null;
@@ -73,7 +108,7 @@ function buildConnection() {
 }
 
 function handleDictationEvent(event) {
-    console.log('DictationEvent:', event);
+    debugLog('SR event ' + event.eventType + (event.text ? ' "' + event.text.slice(0, 20) + '"' : ''));
 
     switch (event.eventType) {
         case 0: // RecordingStarted
@@ -115,7 +150,10 @@ function handleDictationEvent(event) {
 }
 
 function setConnectionStatus(connected) {
-    elements.connectionStatus.textContent = connected ? 'Připojeno' : 'Odpojeno';
+    // Always include the script version so we can tell at a glance whether
+    // a stale cached copy of remote.js is being used.
+    const label = connected ? 'Připojeno' : 'Odpojeno';
+    elements.connectionStatus.textContent = label + ' · ' + SCRIPT_VERSION;
     elements.connectionStatus.className = 'connection-status ' + (connected ? 'connected' : 'disconnected');
 
     elements.btnDictate.disabled = !connected;
@@ -130,6 +168,12 @@ function setConnectionStatus(connected) {
 }
 
 function setRecordingState(recording, transcribing) {
+    // Idempotent: skip if state already matches. Prevents the timer from
+    // resetting when a duplicate event arrives (e.g. invoke success path
+    // and SignalR broadcast both call this with the same state).
+    if (isRecording === recording && isTranscribing === transcribing) return;
+
+    debugLog('setRecordingState rec=' + recording + ' tx=' + transcribing);
     isRecording = recording;
     isTranscribing = transcribing;
 
@@ -141,7 +185,10 @@ function setRecordingState(recording, transcribing) {
         elements.btnZoneFast.disabled = false;
         elements.btnZoneSlow.disabled = false;
         recordingStartTime = Date.now();
-        startDurationTimer(elements.fastText, elements.slowText);
+        // Show duration on the dedicated timer element so the zone labels
+        // ("Rychle" / "Pomalu") stay visible during recording.
+        elements.recordTimer.textContent = '00:00';
+        startDurationTimer();
     } else if (transcribing) {
         // Recording stopped, transcription in progress. Hide the two zones,
         // show the single button in transcribing (yellow) state. The user
@@ -151,6 +198,9 @@ function setRecordingState(recording, transcribing) {
         elements.dictateIcon.textContent = '\u2715';
         elements.dictateText.textContent = 'Zrušit';
         elements.btnDictate.disabled = false;
+        elements.btnZoneFast.disabled = true;
+        elements.btnZoneSlow.disabled = true;
+        elements.recordTimer.textContent = '';
         stopDurationTimer();
     } else {
         // Idle: single button, default label.
@@ -159,8 +209,9 @@ function setRecordingState(recording, transcribing) {
         elements.dictateIcon.textContent = '\u25CF';
         elements.dictateText.textContent = 'Diktovat';
         elements.btnDictate.disabled = false;
-        elements.fastText.textContent = 'Rychle';
-        elements.slowText.textContent = 'Pomalu';
+        elements.btnZoneFast.disabled = true;
+        elements.btnZoneSlow.disabled = true;
+        elements.recordTimer.textContent = '';
         stopDurationTimer();
     }
 }
@@ -217,20 +268,16 @@ function updateAppButton(btn, wmClass, label) {
     }
 }
 
-function startDurationTimer(...textElements) {
+function startDurationTimer() {
     stopDurationTimer();
-    const targets = textElements.length > 0 ? textElements : [elements.dictateText];
     durationInterval = setInterval(() => {
         if (recordingStartTime && isRecording) {
             const elapsed = Math.floor((Date.now() - recordingStartTime) / 1000);
             const minutes = Math.floor(elapsed / 60).toString().padStart(2, '0');
             const seconds = (elapsed % 60).toString().padStart(2, '0');
-            // Show elapsed time on every target. The two zone buttons each
-            // get the same string so the user sees the running counter on
-            // whichever side they're hovering.
-            for (const t of targets) {
-                t.textContent = minutes + ':' + seconds;
-            }
+            // Update the dedicated timer element above the two zones, so
+            // the zone labels ("Rychle" / "Pomalu") stay visible.
+            elements.recordTimer.textContent = minutes + ':' + seconds;
         }
     }, 1000);
 }
@@ -273,9 +320,99 @@ function dictationHaptic() {
     }
 }
 
-elements.btnDictate.addEventListener('pointerdown', () => {
+// Dictation gesture model
+// =======================
+//
+// Two interaction styles, both supported:
+//
+//   A) Press-and-release (mobile):
+//        1. pointerdown on btnDictate → start recording
+//        2. user keeps the finger pressed and slides over to one of the
+//           two release zones
+//        3. pointerup on either zone → stop with that mode
+//        4. pointerup outside any zone (e.g. user lifted off mid-button)
+//           → default to slow (LLM-corrected) so the user does not lose
+//           audio because of an off-target release
+//
+//   B) Tap / click (desktop, or mobile users who prefer two taps):
+//        1. tap btnDictate → start recording
+//        2. tap a zone → stop with that mode
+//
+// Both styles share the same SignalR calls. The press-and-release path
+// is implemented via a global pointerup listener so we can detect
+// release on a zone even when the pointer started on btnDictate.
+
+let dictateGestureInProgress = false;
+let dictateStartedFromGesture = false;
+
+function getZoneAtPoint(clientX, clientY) {
+    const target = document.elementFromPoint(clientX, clientY);
+    if (!target) return null;
+    if (target === elements.btnZoneFast || elements.btnZoneFast.contains(target)) return 'fast';
+    if (target === elements.btnZoneSlow || elements.btnZoneSlow.contains(target)) return 'slow';
+    return null;
+}
+
+async function startDictationFromGesture() {
+    if (isRecording || isTranscribing) return;
+    try {
+        debugLog('invoke StartDictation');
+        await connection.invoke('StartDictation');
+        debugLog('StartDictation OK → setRecordingState(true)');
+        // Update the UI to recording state immediately. Do not wait for the
+        // SignalR broadcast — on flaky transports (long polling on mobile,
+        // congested WiFi) the RecordingStarted event can be delayed enough
+        // that the user is left looking at the blue Diktovat button while
+        // the server is already recording, with no way to stop. The server
+        // returning success from StartDictation guarantees the state has
+        // already transitioned. The follow-up broadcast is now idempotent.
+        setRecordingState(true, false);
+    } catch (error) {
+        debugLog('StartDictation FAIL: ' + error);
+        elements.btnDictate.disabled = false;
+        dictateStartedFromGesture = false;
+    }
+}
+
+async function stopDictationWithMode(quick) {
+    if (!isRecording) return;
+    try {
+        elements.btnZoneFast.disabled = true;
+        elements.btnZoneSlow.disabled = true;
+        await connection.invoke('StopDictationWithMode', quick);
+    } catch (error) {
+        console.error('StopDictationWithMode(' + quick + ') failed:', error);
+        elements.btnZoneFast.disabled = false;
+        elements.btnZoneSlow.disabled = false;
+    }
+}
+
+elements.btnDictate.addEventListener('pointerdown', async (ev) => {
     if (elements.btnDictate.disabled) return;
     dictationHaptic();
+    // Cancel transcription state has its own click handler below;
+    // pointerdown only kicks off a fresh recording.
+    if (isTranscribing) return;
+    if (!isRecording) {
+        dictateGestureInProgress = true;
+        // Capture pointerdown coordinates so the global pointerup handler
+        // can tell whether the user actually slid (press-and-release UX)
+        // or just tapped. Since the immediate UI swap puts a Rychle/Pomalu
+        // zone at the same pixel where Diktovat was, a plain tap would
+        // otherwise instantly stop the recording with 0 bytes captured.
+        dictateGestureStartX = ev.clientX;
+        dictateGestureStartY = ev.clientY;
+        // Set the "started from gesture" flag synchronously BEFORE the
+        // await so the click event (which fires after pointerup, before
+        // any awaits resolve) sees it and skips the duplicate StartDictation
+        // call. Without this guard, both pointerdown and click race to
+        // invoke StartDictation, and the second call ends up as a server
+        // no-op that yields no broadcast — leaving the UI stuck.
+        dictateStartedFromGesture = true;
+        debugLog('pointerdown btnDictate (' + ev.clientX + ',' + ev.clientY + ')');
+        try { ev.target.releasePointerCapture?.(ev.pointerId); } catch (_) {}
+        await startDictationFromGesture();
+    }
 });
 
 elements.btnZoneFast.addEventListener('pointerdown', () => {
@@ -288,6 +425,43 @@ elements.btnZoneSlow.addEventListener('pointerdown', () => {
     dictationHaptic();
 });
 
+// Global pointerup — handles the press-and-release gesture (style A).
+// Fires whether the release happens on a zone, the dictate button, or
+// somewhere else entirely. Decides what to do based on the element under
+// the pointer at release time.
+document.addEventListener('pointerup', async (ev) => {
+    if (!dictateGestureInProgress) return;
+    dictateGestureInProgress = false;
+
+    if (!isRecording) return;  // start may not have completed yet — let click handlers take over
+
+    // Slide detection: if the user did not move the pointer beyond the
+    // threshold, this was a plain tap. The immediate UI swap puts a
+    // zone at the same pixel where Diktovat was — a tap would otherwise
+    // hit a zone and instantly stop the recording with 0 bytes. Only
+    // honour the zone selection when the user actually slid.
+    const dx = ev.clientX - dictateGestureStartX;
+    const dy = ev.clientY - dictateGestureStartY;
+    const distance = Math.sqrt(dx * dx + dy * dy);
+    debugLog('pointerup d=' + distance.toFixed(0) + 'px');
+    if (distance < SLIDE_THRESHOLD_PX) {
+        // Tap, not a slide. Keep recording — the user will tap a zone
+        // separately when they want to stop.
+        return;
+    }
+
+    const zone = getZoneAtPoint(ev.clientX, ev.clientY);
+    if (zone === 'fast') {
+        debugLog('slide → stop fast');
+        await stopDictationWithMode(true);
+    } else if (zone === 'slow') {
+        debugLog('slide → stop slow');
+        await stopDictationWithMode(false);
+    }
+    // No zone under the pointer → keep recording. The user can either
+    // tap a zone (style B) or press-and-release again to stop.
+});
+
 elements.btnEnter.addEventListener('pointerdown', () => {
     if (elements.btnEnter.disabled) return;
     if ('vibrate' in navigator) navigator.vibrate(50);
@@ -298,16 +472,23 @@ elements.btnClear.addEventListener('pointerdown', () => {
     if ('vibrate' in navigator) navigator.vibrate(50);
 });
 
-// Single dictate button — idle starts recording, transcribing cancels.
+// Click fallback (style B): tap-to-start, tap-to-stop, tap-to-cancel.
 elements.btnDictate.addEventListener('click', async () => {
+    // pointerdown already handled the press-and-release start; this only
+    // fires when the user did a clean click (e.g. desktop mouse) AND
+    // pointerdown didn't start recording.
+    if (dictateStartedFromGesture) {
+        dictateStartedFromGesture = false;
+        return;
+    }
     try {
         if (isTranscribing) {
             await connection.invoke('CancelTranscription');
         } else if (!isRecording) {
-            // Always start in normal mode. The user picks fast vs slow at
-            // STOP time by releasing on one of the two zones below.
-            lastStopWasQuick = false;
             await connection.invoke('StartDictation');
+            // Same defensive UI update as the gesture path: don't wait
+            // for the SignalR broadcast to confirm recording started.
+            setRecordingState(true, false);
         }
     } catch (error) {
         console.error('StartDictation failed:', error);
@@ -315,35 +496,8 @@ elements.btnDictate.addEventListener('click', async () => {
     }
 });
 
-// Fast zone — release here = quick processing (no LLM, auto-Enter).
-elements.btnZoneFast.addEventListener('click', async () => {
-    if (!isRecording) return;
-    try {
-        elements.btnZoneFast.disabled = true;
-        elements.btnZoneSlow.disabled = true;
-        lastStopWasQuick = true;
-        await connection.invoke('StopDictationWithMode', true);
-    } catch (error) {
-        console.error('StopDictationWithMode(true) failed:', error);
-        elements.btnZoneFast.disabled = false;
-        elements.btnZoneSlow.disabled = false;
-    }
-});
-
-// Slow zone — release here = LLM-corrected processing.
-elements.btnZoneSlow.addEventListener('click', async () => {
-    if (!isRecording) return;
-    try {
-        elements.btnZoneFast.disabled = true;
-        elements.btnZoneSlow.disabled = true;
-        lastStopWasQuick = false;
-        await connection.invoke('StopDictationWithMode', false);
-    } catch (error) {
-        console.error('StopDictationWithMode(false) failed:', error);
-        elements.btnZoneFast.disabled = false;
-        elements.btnZoneSlow.disabled = false;
-    }
-});
+elements.btnZoneFast.addEventListener('click', () => stopDictationWithMode(true));
+elements.btnZoneSlow.addEventListener('click', () => stopDictationWithMode(false));
 
 elements.btnEnter.addEventListener('click', async () => {
     try {
@@ -456,6 +610,10 @@ for (const [num, btn] of Object.entries(elements.workspaceButtons)) {
 
 // Initialize
 async function initialize() {
+    // Render the script version into the status indicator before any
+    // network activity, so even on a complete failure to reach the server
+    // the user can still see which JS version the browser actually loaded.
+    setConnectionStatus(false);
     buildConnection();
 
     try {
