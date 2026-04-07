@@ -143,6 +143,38 @@ public class DictationHub : Hub
     }
 
     /// <summary>
+    /// Starts dictation in normal (LLM-corrected) mode. Used by the Remote
+    /// Control unified dictation button — start with this, then call
+    /// StopDictationWithMode(quick) when the user releases the button.
+    /// </summary>
+    public async Task StartDictation()
+    {
+        if (_dictationService.State == DictationState.Idle)
+        {
+            try { await _dictationService.StartDictationAsync(); }
+            catch (Exception ex) { _logger.LogError(ex, "StartDictation failed"); }
+        }
+    }
+
+    /// <summary>
+    /// Stops dictation, overriding the mode that was chosen at start time.
+    /// Used by the Remote Control unified dictation button: the client
+    /// passes <c>quick=true</c> if the user released on the fast zone, or
+    /// <c>quick=false</c> for the LLM-corrected pipeline.
+    /// </summary>
+    public async Task StopDictationWithMode(bool quick)
+    {
+        if (_dictationService.State == DictationState.Recording)
+        {
+            try { await _dictationService.StopDictationAsync(quick); }
+            catch (Exception ex)
+            {
+                _logger.LogError(ex, "StopDictationWithMode(quick={Quick}) failed", quick);
+            }
+        }
+    }
+
+    /// <summary>
     /// Cancels ongoing transcription.
     /// </summary>
     public Task CancelTranscription()

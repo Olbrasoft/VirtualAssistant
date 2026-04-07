@@ -46,8 +46,28 @@ public static class EndpointExtensions
     /// </summary>
     public static WebApplication MapVirtualAssistantEndpoints(this WebApplication app)
     {
-        // Enable static files (wwwroot)
-        app.UseStaticFiles();
+        // Enable static files (wwwroot). For HTML/JS/CSS we send
+        // Cache-Control: no-cache so browsers always revalidate via
+        // ETag/Last-Modified, which prevents stale Remote Control
+        // assets after a deploy from being served from the browser
+        // HTTP cache. (issue #932 caused user-visible regression
+        // because Chrome held an old remote.js for hours.)
+        app.UseStaticFiles(new StaticFileOptions
+        {
+            OnPrepareResponse = ctx =>
+            {
+                var path = ctx.File.Name;
+                if (path.EndsWith(".html", StringComparison.OrdinalIgnoreCase) ||
+                    path.EndsWith(".js", StringComparison.OrdinalIgnoreCase) ||
+                    path.EndsWith(".css", StringComparison.OrdinalIgnoreCase) ||
+                    path.EndsWith(".json", StringComparison.OrdinalIgnoreCase))
+                {
+                    ctx.Context.Response.Headers["Cache-Control"] = "no-store, no-cache, must-revalidate, max-age=0";
+                    ctx.Context.Response.Headers["Pragma"] = "no-cache";
+                    ctx.Context.Response.Headers["Expires"] = "0";
+                }
+            }
+        });
 
         app.MapControllers();
         app.MapRazorPages();
