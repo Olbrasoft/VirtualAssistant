@@ -1,6 +1,6 @@
 # VirtualAssistant - Claude Code Guide
 
-Linux voice-controlled virtual assistant with desktop context awareness.
+Linux voice-controlled virtual assistant with desktop context awareness and CI/CD wake integration.
 
 ## Build & Deploy
 
