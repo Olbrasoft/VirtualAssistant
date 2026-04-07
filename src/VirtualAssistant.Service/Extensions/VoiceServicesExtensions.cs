@@ -322,12 +322,20 @@ public static class VoiceServicesExtensions
 
         services.AddSingleton<ITranscriptionCorrectionRepository, TranscriptionCorrectionRepository>();
 
-        services.AddSingleton<ITextFilterStrategy>(sp =>
+        // Register DatabaseCorrectionFilterStrategy as both a concrete singleton (for the
+        // lightweight filter — Quick Dictation needs DB corrections like "cloud kód" →
+        // "Claude Code" without going through the full LLM pipeline) and as an
+        // ITextFilterStrategy (so it also runs in the full CompositeTextFilter for normal
+        // dictation). The same instance is shared by both registrations so the in-memory
+        // correction cache is used by both code paths.
+        services.AddSingleton<DatabaseCorrectionFilterStrategy>(sp =>
         {
             var logger = sp.GetRequiredService<ILogger<DatabaseCorrectionFilterStrategy>>();
             var repository = sp.GetService<ITranscriptionCorrectionRepository>();
             return new DatabaseCorrectionFilterStrategy(logger, repository);
         });
+        services.AddSingleton<ITextFilterStrategy>(sp =>
+            sp.GetRequiredService<DatabaseCorrectionFilterStrategy>());
 
         services.AddSingleton<ITextFilterStrategy>(sp =>
         {

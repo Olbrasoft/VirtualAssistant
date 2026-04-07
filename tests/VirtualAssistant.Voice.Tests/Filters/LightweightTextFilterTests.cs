@@ -1,6 +1,7 @@
 using System.Text.Json;
 using Microsoft.Extensions.Logging;
 using Moq;
+using Olbrasoft.VirtualAssistant.Data.Entities;
 using Olbrasoft.VirtualAssistant.Voice.Filters;
 
 namespace Olbrasoft.VirtualAssistant.Voice.Tests.Filters;
@@ -35,10 +36,15 @@ public class LightweightTextFilterTests : IDisposable
         var hallucination = new WhisperHallucinationFilterStrategy(
             Mock.Of<ILogger<WhisperHallucinationFilterStrategy>>(),
             _tempConfigPath);
+        // Pass null repository so DatabaseCorrectionFilterStrategy is disabled in tests —
+        // we cover its behavior in DatabaseCorrectionFilterStrategyTests.
+        var dbCorrections = new DatabaseCorrectionFilterStrategy(
+            Mock.Of<ILogger<DatabaseCorrectionFilterStrategy>>(),
+            repository: null);
         var whitespace = new WhitespaceFilterStrategy(
             Mock.Of<ILogger<WhitespaceFilterStrategy>>());
         var logger = Mock.Of<ILogger<LightweightTextFilter>>();
-        return new LightweightTextFilter(hallucination, whitespace, logger);
+        return new LightweightTextFilter(hallucination, dbCorrections, whitespace, logger);
     }
 
     [Fact]
@@ -97,17 +103,60 @@ public class LightweightTextFilterTests : IDisposable
     }
 
     [Fact]
-    public void Apply_NeverInvokesDatabaseOrLlm()
+    public void Apply_NeverInvokesLlm()
     {
-        // The lightweight filter takes only the two concrete strategies via constructor;
-        // there is no IEnumerable<ITextFilterStrategy> dependency that could leak DB or
-        // LLM strategies in. This test exists as documentation of the contract.
+        // The lightweight filter is constructed with concrete strategy types via the
+        // constructor — there is no ILlmProviderFactory or IRacingLlmProvider dependency,
+        // so no LLM call is reachable from this code path. The DatabaseCorrectionFilterStrategy
+        // IS injected (sub-millisecond cache lookup), so this test deliberately uses a
+        // null repository to keep the DB strategy disabled and verify only that LLM is not
+        // touched.
         WriteConfig(new TextFiltersConfig());
         var filter = CreateFilter();
 
-        // No throw, no DB call, no LLM call.
+        // No throw, no LLM call.
         var result = filter.Apply("plain text");
         Assert.Equal("plain text", result);
+    }
+
+    [Fact]
+    public void Apply_AppliesDatabaseCorrectionsBeforeWhitespace()
+    {
+        // Verifies the new behavior: Quick Dictation now picks up project-specific term
+        // normalization like "cloud kód" → "Claude Code" via DatabaseCorrectionFilterStrategy.
+        // We use a fake in-memory repository that returns a single correction.
+        WriteConfig(new TextFiltersConfig());
+
+        var hallucination = new WhisperHallucinationFilterStrategy(
+            Mock.Of<ILogger<WhisperHallucinationFilterStrategy>>(),
+            _tempConfigPath);
+        var fakeRepo = new Mock<ITranscriptionCorrectionRepository>();
+        fakeRepo.Setup(r => r.GetActiveCorrectionsAsync(It.IsAny<CancellationToken>()))
+            .ReturnsAsync(new List<TranscriptionCorrection>
+            {
+                new()
+                {
+                    Id = 1,
+                    IncorrectText = "cloud kód",
+                    CorrectText = "Claude Code",
+                    Priority = 90,
+                    IsActive = true
+                }
+            });
+        var dbCorrections = new DatabaseCorrectionFilterStrategy(
+            Mock.Of<ILogger<DatabaseCorrectionFilterStrategy>>(),
+            fakeRepo.Object);
+        var whitespace = new WhitespaceFilterStrategy(
+            Mock.Of<ILogger<WhitespaceFilterStrategy>>());
+        var filter = new LightweightTextFilter(
+            hallucination,
+            dbCorrections,
+            whitespace,
+            Mock.Of<ILogger<LightweightTextFilter>>());
+
+        var result = filter.Apply("  Otevři cloud kód a najdi mi tohle.  ");
+
+        Assert.Equal("Otevři Claude Code a najdi mi tohle.", result);
     }
 
     [Fact]
