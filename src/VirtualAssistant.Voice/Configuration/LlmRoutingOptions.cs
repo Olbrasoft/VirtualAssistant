@@ -24,9 +24,13 @@ public class LlmRoutingOptions
     public float Temperature { get; set; } = 0.2f;
 
     /// <summary>
-    /// Maximum number of tokens to generate in LLM response.
-    /// Default: 256 tokens.
+    /// Floor / minimum number of tokens to allocate for the LLM response.
+    /// Each provider dynamically calculates the actual <c>max_tokens</c> sent
+    /// to the API based on the input length (see
+    /// <c>LlmProviderBase.CalculateMaxTokens</c>); this value acts as a
+    /// lower bound so short dictations still get a reasonable budget.
+    /// Default: 1000 tokens.
     /// </summary>
-    [Range(1, 4096, ErrorMessage = "MaxTokens must be between 1 and 4096")]
-    public int MaxTokens { get; set; } = 256;
+    [Range(1, 16384, ErrorMessage = "MaxTokens must be between 1 and 16384")]
+    public int MaxTokens { get; set; } = 1000;
 }

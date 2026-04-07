@@ -262,4 +262,124 @@ public abstract class LlmProviderBase : ILlmProvider
 
         return null;
     }
+
+    /// <summary>
+    /// Calculates a dynamic <c>max_tokens</c> budget for the upcoming LLM
+    /// request based on the user input length and provider characteristics.
+    ///
+    /// The configured <c>options.MaxTokens</c> is treated as a lower bound /
+    /// minimum budget — for short dictations the configured value is used.
+    /// For long dictations the budget grows so the LLM has enough headroom
+    /// to emit the full corrected text without mid-word truncation.
+    ///
+    /// Sizing model:
+    ///   - Czech text averages ~3 characters per token
+    ///   - Output length ≈ input length (slight stylistic compression)
+    ///   - Reasoning models (Mercury) need a separate buffer on top of
+    ///     the visible output, so callers should pass <c>reasoningBuffer</c>
+    ///     for that
+    ///   - Final cap is hard-clamped to <c>maxAllowed</c> (provider-specific
+    ///     API ceiling, e.g. 16384) so we never exceed what the API accepts
+    ///
+    /// Real-world calibration: incident on voice_transcriptions.id=11577 had
+    /// 1756-char Whisper input + Mercury 2 max_tokens=1000 + reasoning_effort=low
+    /// → output truncated mid-word at 845 chars / 276 tokens. With this method
+    /// the same input gets ~1750 output budget + 1500 reasoning buffer = 3250
+    /// max_tokens, which fits comfortably below the 4096 cap.
+    /// </summary>
+    /// <param name="text">The user input text to be corrected.</param>
+    /// <param name="configuredMin">The configured base MaxTokens value
+    /// (acts as a floor for short inputs).</param>
+    /// <param name="reasoningBuffer">Extra tokens to reserve for internal
+    /// reasoning (Mercury 2: pass ~1500; non-reasoning models: 0).</param>
+    /// <param name="maxAllowed">Hard ceiling enforced by the provider's API.</param>
+    protected int CalculateMaxTokens(string text, int configuredMin, int reasoningBuffer, int maxAllowed)
+    {
+        // Estimate the output token count from the input length. Czech in
+        // UTF-8 averages roughly 3 chars per token; we round up and add 20%
+        // headroom because diacritics and punctuation can push some sentences
+        // toward 2 chars/token.
+        var estimatedOutputTokens = (int)Math.Ceiling(text.Length / 2.5);
+
+        var dynamic = estimatedOutputTokens + reasoningBuffer;
+        var withFloor = Math.Max(dynamic, configuredMin);
+        var clamped = Math.Min(withFloor, maxAllowed);
+
+        if (withFloor > maxAllowed)
+        {
+            Logger.LogWarning(
+                "{ProviderName}: input length {InputChars} chars would need ~{Estimated} tokens " +
+                "(reasoning buffer {ReasoningBuffer}), but provider cap is {MaxAllowed}. " +
+                "Output may be truncated.",
+                ProviderName, text.Length, withFloor, reasoningBuffer, maxAllowed);
+        }
+
+        return clamped;
+    }
+
+    /// <summary>
+    /// Detects whether an LLM response was likely truncated due to a
+    /// max_tokens cap. Logs a warning if so. Truncation indicators:
+    ///   1. <paramref name="completionTokens"/> is at or above 95% of the
+    ///      max_tokens budget that was sent in the request
+    ///   2. The corrected text is significantly shorter than the input
+    ///      (less than 50%) AND ends without terminal punctuation, suggesting
+    ///      the model stopped mid-thought
+    ///   3. The corrected text ends mid-word (no whitespace before the last
+    ///      character and no terminal punctuation)
+    /// </summary>
+    /// <returns>true if the response looks truncated.</returns>
+    protected bool DetectTruncation(string inputText, string correctedText, int? completionTokens, int maxTokensSent)
+    {
+        if (string.IsNullOrEmpty(correctedText)) return false;
+
+        var truncated = false;
+        var reasons = new List<string>();
+
+        // Reason 1: completion_tokens hit the cap
+        if (completionTokens.HasValue && maxTokensSent > 0)
+        {
+            var ratio = (double)completionTokens.Value / maxTokensSent;
+            if (ratio >= 0.95)
+            {
+                truncated = true;
+                reasons.Add($"completion_tokens {completionTokens.Value} is {ratio:P0} of max_tokens {maxTokensSent}");
+            }
+        }
+
+        // Reason 2: heavy compression + missing terminal punctuation
+        var lastChar = correctedText[correctedText.Length - 1];
+        var endsWithTerminal = lastChar == '.' || lastChar == '!' || lastChar == '?' ||
+                               lastChar == '"' || lastChar == ')' || lastChar == ']' ||
+                               lastChar == '…';
+        if (inputText.Length > 200 && correctedText.Length < inputText.Length / 2 && !endsWithTerminal)
+        {
+            truncated = true;
+            reasons.Add($"corrected length {correctedText.Length} < 50% of input {inputText.Length} and no terminal punctuation");
+        }
+
+        // Reason 3: ends mid-word
+        if (!endsWithTerminal && !char.IsWhiteSpace(lastChar) && correctedText.Length > 0)
+        {
+            // Find the last whitespace; if it is far from the end, the final
+            // word is unusually long, suggesting we cut a real word in half.
+            var lastSpace = correctedText.LastIndexOf(' ');
+            var trailingWordLength = lastSpace < 0 ? correctedText.Length : correctedText.Length - lastSpace - 1;
+            if (trailingWordLength > 25)
+            {
+                truncated = true;
+                reasons.Add($"trailing word is {trailingWordLength} chars (likely cut mid-word)");
+            }
+        }
+
+        if (truncated)
+        {
+            Logger.LogWarning(
+                "{ProviderName}: LIKELY TRUNCATED correction. Input {InputLength} chars → " +
+                "corrected {CorrectedLength} chars. Reasons: {Reasons}",
+                ProviderName, inputText.Length, correctedText.Length, string.Join("; ", reasons));
+        }
+
+        return truncated;
+    }
 }

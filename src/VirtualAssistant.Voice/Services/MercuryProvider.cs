@@ -67,6 +67,16 @@ public class MercuryProvider : LlmProviderBase
             // Mercury 2 temperature must be in range 0.5-1.0
             var temperature = Math.Max(0.5, Math.Min(1.0, _options.Temperature));
 
+            // Mercury 2 is a diffusion model with internal reasoning. Output
+            // tokens compete with reasoning tokens for the max_tokens budget,
+            // so we need a generous reasoning buffer on top of the output
+            // estimate. With reasoning_effort=low we observe ~500-1500
+            // reasoning tokens; we reserve 1500 to be safe. The provider
+            // ceiling is 16384 (Mercury 2 supports up to that).
+            const int reasoningBuffer = 1500;
+            const int providerCap = 16384;
+            var maxTokens = CalculateMaxTokens(text, _options.MaxTokens, reasoningBuffer, providerCap);
+
             var request = new Dictionary<string, object>
             {
                 ["model"] = _options.Model,
@@ -76,7 +86,7 @@ public class MercuryProvider : LlmProviderBase
                     new { role = "user", content = text }
                 },
                 ["temperature"] = temperature,
-                ["max_tokens"] = _options.MaxTokens
+                ["max_tokens"] = maxTokens
             };
 
             if (!string.IsNullOrWhiteSpace(_options.ReasoningEffort))
@@ -112,9 +122,15 @@ public class MercuryProvider : LlmProviderBase
 
             Logger.LogInformation("Mercury correction completed in {Duration}ms using prompt ID {PromptId}, model ID {ModelId}. " +
                 "Original length: {OriginalLength}, Corrected length: {CorrectedLength}, " +
-                "Tokens: input={InputTokens}, output={OutputTokens}, reasoning={ReasoningTokens}",
+                "Tokens: input={InputTokens}, output={OutputTokens}, reasoning={ReasoningTokens}, max_tokens_sent={MaxTokensSent}",
                 durationMs, promptId, modelId, text.Length, correctedText.Length,
-                result.Usage?.PromptTokens ?? 0, result.Usage?.CompletionTokens ?? 0, result.Usage?.ReasoningTokens ?? 0);
+                result.Usage?.PromptTokens ?? 0, result.Usage?.CompletionTokens ?? 0, result.Usage?.ReasoningTokens ?? 0, maxTokens);
+
+            // Detect and warn on likely truncation. Reasoning tokens count
+            // toward the max_tokens budget on Mercury, so we pass the SUM of
+            // (completion + reasoning) for the cap-utilization check.
+            var totalConsumed = (result.Usage?.CompletionTokens ?? 0) + (result.Usage?.ReasoningTokens ?? 0);
+            DetectTruncation(text, correctedText, totalConsumed, maxTokens);
 
             return new LlmCorrectionResult(
                 correctedText, promptId, durationMs, modelId,

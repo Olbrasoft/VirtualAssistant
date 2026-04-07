@@ -61,6 +61,12 @@ public class MistralProvider : LlmProviderBase
         {
             var modelId = await GetModelIdAsync(cancellationToken);
 
+            // Dynamic max_tokens budget — see LlmProviderBase.CalculateMaxTokens.
+            // Mistral is not a reasoning model, so no reasoning buffer.
+            const int reasoningBuffer = 0;
+            const int providerCap = 16384;
+            var maxTokens = CalculateMaxTokens(text, _options.MaxTokens, reasoningBuffer, providerCap);
+
             var request = new
             {
                 model = _options.Model,
@@ -70,7 +76,7 @@ public class MistralProvider : LlmProviderBase
                     new { role = "user", content = text }
                 },
                 temperature = _options.Temperature,
-                max_tokens = _options.MaxTokens
+                max_tokens = maxTokens
             };
 
             var response = await HttpClient.PostAsJsonAsync(ChatCompletionsEndpoint, request, cancellationToken);
@@ -88,8 +94,13 @@ public class MistralProvider : LlmProviderBase
             var correctedText = result.Choices[0].Message.Content.Trim();
             var durationMs = (int)(DateTime.UtcNow - startTime).TotalMilliseconds;
 
-            Logger.LogInformation("Mistral correction completed in {Duration}ms using prompt ID {PromptId}, model ID {ModelId}. Original length: {OriginalLength}, Corrected length: {CorrectedLength}",
-                durationMs, promptId, modelId, text.Length, correctedText.Length);
+            Logger.LogInformation("Mistral correction completed in {Duration}ms using prompt ID {PromptId}, model ID {ModelId}. Original length: {OriginalLength}, Corrected length: {CorrectedLength}, max_tokens_sent: {MaxTokensSent}",
+                durationMs, promptId, modelId, text.Length, correctedText.Length, maxTokens);
+
+            // Detect likely truncation. Mistral's response doesn't expose
+            // completion_tokens here, so DetectTruncation falls back to the
+            // text-shape heuristics.
+            DetectTruncation(text, correctedText, completionTokens: null, maxTokens);
 
             return new LlmCorrectionResult(correctedText, promptId, durationMs, modelId);
         }
