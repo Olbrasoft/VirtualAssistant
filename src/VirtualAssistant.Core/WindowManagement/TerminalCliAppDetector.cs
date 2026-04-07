@@ -128,7 +128,9 @@ public class TerminalCliAppDetector : ICliAppDetector
                 return null;
             }
 
-            var jsonArray = output.Substring(jsonStart, jsonEnd - jsonStart + 1);
+            var jsonArray = GdbusJsonHelper.UnescapeQuotes(
+                output.Substring(jsonStart, jsonEnd - jsonStart + 1));
+
             var windows = JsonSerializer.Deserialize<JsonElement>(jsonArray);
 
             foreach (var window in windows.EnumerateArray())

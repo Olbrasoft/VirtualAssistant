@@ -1,6 +1,7 @@
 using System.Diagnostics;
 using System.Text.Json;
 using Olbrasoft.VirtualAssistant.Core.Services;
+using Olbrasoft.VirtualAssistant.Core.WindowManagement;
 
 namespace Olbrasoft.VirtualAssistant.Service.Infrastructure;
 
@@ -134,7 +135,8 @@ public class WorkspaceDetectionService : IWorkspaceDetectionService
             return null;
         }
 
-        var json = output.Substring(start, end - start + 1);
+        var json = GdbusJsonHelper.UnescapeQuotes(
+            output.Substring(start, end - start + 1));
 
         try
         {

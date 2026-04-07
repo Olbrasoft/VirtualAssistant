@@ -1,6 +1,7 @@
 using System.Diagnostics;
 using System.Text.Json;
 using Microsoft.Extensions.Logging;
+using Olbrasoft.VirtualAssistant.Core.WindowManagement;
 using Olbrasoft.VirtualAssistant.Desktop.Events;
 using Olbrasoft.VirtualAssistant.Desktop.Models;
 
@@ -169,7 +170,8 @@ public class GnomeWindowFocusMonitor : IWindowFocusMonitor, IDisposable
                 return null;
             }
 
-            var json = gdbusOutput.Substring(startIndex, endIndex - startIndex + 1);
+            var json = GdbusJsonHelper.UnescapeQuotes(
+                gdbusOutput.Substring(startIndex, endIndex - startIndex + 1));
 
             var windows = JsonSerializer.Deserialize<List<WindowCallsWindow>>(json, new JsonSerializerOptions
             {
