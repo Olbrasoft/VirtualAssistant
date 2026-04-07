@@ -41,6 +41,25 @@ cd ~/Olbrasoft/VirtualAssistant && ./deploy/deploy.sh /opt/olbrasoft/virtual-ass
 
 ### Pull Request Workflow
 
+**Session Marker (MANDATORY):**
+
+Every PR you create with `gh pr create` MUST embed your Claude session UUID at the top of the body so CI/CD wake events route back to your session:
+
+```bash
+SESSION_ID=$(~/.claude/hooks/get-session-id.sh)
+gh pr create --title "feat: implement X" --body "$(cat <<EOF
+<!-- claude-session: $SESSION_ID -->
+
+Closes #123
+
+## Summary
+…
+EOF
+)"
+```
+
+Without the marker, deploy/review/verify wake events fall back to repo-cwd matching, which can route to the wrong Claude session or drop events entirely. See the global CLAUDE.md "CRITICAL - Pull Requests" section for details.
+
 **Automated Code Review:**
 - **GitHub Copilot** automatically reviews ALL pull requests
 - Reviews appear as PR comments within minutes of PR creation
