@@ -14,6 +14,11 @@ namespace Olbrasoft.VirtualAssistant.Data.EntityFrameworkCore.Migrations
     /// </summary>
     public partial class SeedClaudeCodeAndPokracujCorrections : Migration
     {
+        // Marker stored in the `notes` column for every row inserted by this migration.
+        // Down() filters by this marker so that pre-existing rows (potentially skipped by
+        // the idempotent Up() insert) are never deleted by a rollback.
+        private const string SeedNoteMarker = "Seeded by SeedClaudeCodeAndPokracujCorrections (DB analysis 2026-04-07)";
+
         /// <inheritdoc />
         protected override void Up(MigrationBuilder migrationBuilder)
         {
@@ -21,10 +26,16 @@ namespace Olbrasoft.VirtualAssistant.Data.EntityFrameworkCore.Migrations
             // so that it is applied BEFORE the new "Cloud Code" entry. Otherwise the substring
             // matcher in DatabaseCorrectionFilterStrategy would replace "Cloud Code" inside
             // "Cloud Coder" first, leaving "Claude Coder" mangled.
+            //
+            // Scoped by both `incorrect_text` AND `correct_text` so an unrelated row that
+            // happens to share the `incorrect_text` value (different correction target) is
+            // not accidentally modified.
             migrationBuilder.Sql(@"
                 UPDATE transcription_corrections
                 SET priority = 95, updated_at = NOW()
-                WHERE incorrect_text = 'Cloud Coder' AND priority < 95;
+                WHERE incorrect_text = 'Cloud Coder'
+                  AND correct_text = 'Claude Code'
+                  AND priority < 95;
             ");
 
             // Insert missing "Claude Code" variants. Priorities are ordered by length (longer
@@ -48,28 +59,36 @@ namespace Olbrasoft.VirtualAssistant.Data.EntityFrameworkCore.Migrations
         /// <inheritdoc />
         protected override void Down(MigrationBuilder migrationBuilder)
         {
-            // Revert priority change for Cloud Coder
+            // Revert priority change for Cloud Coder. Scoped by `incorrect_text` AND
+            // `correct_text` so unrelated rows are not affected, and by `priority = 95` so
+            // we only revert rows that Up() actually changed.
             migrationBuilder.Sql(@"
                 UPDATE transcription_corrections
                 SET priority = 90, updated_at = NOW()
-                WHERE incorrect_text = 'Cloud Coder' AND priority = 95;
+                WHERE incorrect_text = 'Cloud Coder'
+                  AND correct_text = 'Claude Code'
+                  AND priority = 95;
             ");
 
-            // Remove inserted Claude Code variants
-            migrationBuilder.Sql(@"
+            // Remove inserted Claude Code variants. Filtered by `notes = SeedNoteMarker`
+            // so we only delete rows that THIS migration created — never pre-existing rows
+            // that Up() may have skipped via WHERE NOT EXISTS.
+            migrationBuilder.Sql($@"
                 DELETE FROM transcription_corrections
                 WHERE correct_text = 'Claude Code'
                   AND incorrect_text IN (
                       'cloud kóde', 'cloud kode', 'Cloud kóde', 'cloud kód',
                       'Cloud Code', 'cloud code', 'cloudkode', 'Cloud kóda'
-                  );
+                  )
+                  AND notes = '{SeedNoteMarker}';
             ");
 
-            // Remove inserted pokračuj variants
-            migrationBuilder.Sql(@"
+            // Remove inserted pokračuj variants. Same notes-marker safety as above.
+            migrationBuilder.Sql($@"
                 DELETE FROM transcription_corrections
                 WHERE incorrect_text IN ('Pokraciu i prosím', 'Pokačuj', 'Pocaciu i')
-                  AND correct_text IN ('pokračuj', 'pokračuj prosím');
+                  AND correct_text IN ('pokračuj', 'pokračuj prosím')
+                  AND notes = '{SeedNoteMarker}';
             ");
         }
 
@@ -79,23 +98,29 @@ namespace Olbrasoft.VirtualAssistant.Data.EntityFrameworkCore.Migrations
             string correctText,
             int priority)
         {
-            // Use parameterized SQL to avoid quoting issues with apostrophes etc.
-            // The :p0/:p1/:p2 syntax is Npgsql positional parameters.
+            // MigrationBuilder.Sql executes raw SQL text, so this helper embeds the values
+            // directly into the statement and escapes single quotes in string literals by
+            // doubling them ('' is the SQL standard escape). Inputs to this helper are
+            // hard-coded compile-time literals from the migration body — there is no
+            // user-controlled data, so SQL injection is not a concern here.
+            var escapedIncorrect = incorrectText.Replace("'", "''");
+            var escapedCorrect = correctText.Replace("'", "''");
+
             migrationBuilder.Sql($@"
                 INSERT INTO transcription_corrections
                     (incorrect_text, correct_text, case_sensitive, priority, is_active, notes, created_at, updated_at)
                 SELECT
-                    '{incorrectText.Replace("'", "''")}',
-                    '{correctText.Replace("'", "''")}',
+                    '{escapedIncorrect}',
+                    '{escapedCorrect}',
                     false,
                     {priority},
                     true,
-                    'Seeded by SeedClaudeCodeAndPokracujCorrections (DB analysis 2026-04-07)',
+                    '{SeedNoteMarker}',
                     NOW(),
                     NOW()
                 WHERE NOT EXISTS (
                     SELECT 1 FROM transcription_corrections
-                    WHERE incorrect_text = '{incorrectText.Replace("'", "''")}'
+                    WHERE incorrect_text = '{escapedIncorrect}'
                 );
             ");
         }
