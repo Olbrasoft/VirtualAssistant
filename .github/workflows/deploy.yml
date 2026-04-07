@@ -141,6 +141,12 @@ jobs:
             FAILED_STEP="health"
           fi
 
+          # Use a commit-suffixed filename so two concurrent deploys never
+          # overwrite each other. wake-claude.sh now processes each event file
+          # independently and uses ack semantics to delete only after a live
+          # consumer has positively read it. See Olbrasoft/GitHub.Actions.Notify
+          # PR #22 for the design.
+          EVENT_FILE="$EVENTS_DIR/${REPO_FILE}-deploy-${COMMIT_SHA}.json"
           jq -n \
             --arg event "deploy-complete" \
             --arg status "${{ job.status }}" \
@@ -152,9 +158,9 @@ jobs:
             --arg failedStep "${FAILED_STEP}" \
             --arg timestamp "$(date -u +%Y-%m-%dT%H:%M:%SZ)" \
             '{event: $event, status: $status, repository: $repository, commit: $commit, commitMessage: $commitMessage, runUrl: $runUrl, environment: $environment, failedStep: $failedStep, timestamp: $timestamp}' \
-            > "$EVENTS_DIR/${REPO_FILE}.json"
+            > "$EVENT_FILE"
 
-          echo "Deploy event written to ${EVENTS_DIR}/${REPO_FILE}.json"
+          echo "Deploy event written to $EVENT_FILE"
           if [ -n "$FAILED_STEP" ]; then
             echo "Failed step: $FAILED_STEP"
           fi
