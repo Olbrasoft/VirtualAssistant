@@ -58,7 +58,7 @@ EOF
 )"
 ```
 
-Without the marker, deploy/review/verify wake events fall back to repo-cwd matching, which can route to the wrong Claude session or drop events entirely. See the global CLAUDE.md "CRITICAL - Pull Requests" section for details.
+Without the marker, deploy/review/verify wake events fall back to repo-cwd matching, which can route to the wrong Claude session or drop events entirely. Follow the mandatory session-marker instructions above whenever creating a PR.
 
 **Automated Code Review:**
 - **GitHub Copilot** automatically reviews ALL pull requests
