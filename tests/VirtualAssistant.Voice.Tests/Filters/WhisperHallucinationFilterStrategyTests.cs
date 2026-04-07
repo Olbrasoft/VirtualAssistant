@@ -278,6 +278,79 @@ public class WhisperHallucinationFilterStrategyTests : IDisposable
         Assert.Equal("Hello there.", result);
     }
 
+    // The production text-filters.json uses `\s*(?-i:Konec\.)\s*$` so that
+    // capital-K "Konec." at the end of a long sentence is stripped (Whisper
+    // hallucination), but lowercase "konec." inside a legitimate sentence
+    // (e.g. "...a to byl konec.") is preserved. The (?-i:...) inline group
+    // makes only the literal "Konec." case-sensitive while keeping the
+    // surrounding regex case-insensitive.
+    [Fact]
+    public void Apply_CaseSensitiveKonecSuffix_StripsCapitalKonecAtEnd()
+    {
+        WriteConfig(new TextFiltersConfig
+        {
+            RemoveSuffixRegex = new() { "\\s*(?-i:Konec\\.)\\s*" }
+        });
+        var strategy = CreateStrategy();
+
+        var result = strategy.Apply("Najdi mi něco užitečného na seznam.cz. Konec.");
+
+        Assert.Equal("Najdi mi něco užitečného na seznam.cz.", result);
+    }
+
+    [Fact]
+    public void Apply_CaseSensitiveKonecSuffix_StripsRepeatedKonecAtEnd()
+    {
+        // Iteration loop in WhisperHallucinationFilterStrategy.Apply (max
+        // 10 passes) handles "Konec. Konec." doubles by stripping one at a
+        // time until no match remains.
+        WriteConfig(new TextFiltersConfig
+        {
+            RemoveSuffixRegex = new() { "\\s*(?-i:Konec\\.)\\s*" }
+        });
+        var strategy = CreateStrategy();
+
+        var result = strategy.Apply("Hlavní text. Konec. Konec.");
+
+        Assert.Equal("Hlavní text.", result);
+    }
+
+    [Fact]
+    public void Apply_CaseSensitiveKonecSuffix_PreservesLowercaseKonecMidSentence()
+    {
+        WriteConfig(new TextFiltersConfig
+        {
+            RemoveSuffixRegex = new() { "\\s*(?-i:Konec\\.)\\s*" }
+        });
+        var strategy = CreateStrategy();
+
+        // Lowercase "konec." at the end of a legitimate sentence — must be
+        // preserved. The (?-i:...) group restricts the case-insensitivity
+        // override to ONLY the literal "Konec." substring.
+        var input = "Kdybych šel do lesa, sežral by mě medvěd a to by byl konec.";
+        var result = strategy.Apply(input);
+
+        Assert.Equal(input, result);
+    }
+
+    [Fact]
+    public void Apply_CaseSensitiveKonecSuffix_PreservesLowercaseKonecAtEnd()
+    {
+        WriteConfig(new TextFiltersConfig
+        {
+            RemoveSuffixRegex = new() { "\\s*(?-i:Konec\\.)\\s*" }
+        });
+        var strategy = CreateStrategy();
+
+        // Real example from the production database: "...spíš to pravidlo
+        // bych dal někam na konec." — lowercase "konec.", legitimate
+        // sentence, MUST NOT be stripped.
+        var input = "Spíš to pravidlo bych dal někam na konec.";
+        var result = strategy.Apply(input);
+
+        Assert.Equal(input, result);
+    }
+
     [Fact]
     public void Apply_WhenConfigFileChanges_HotReloadsPatterns()
     {
