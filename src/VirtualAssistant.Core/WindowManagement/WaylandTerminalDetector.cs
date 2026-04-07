@@ -105,10 +105,8 @@ public class WaylandTerminalDetector : ITerminalDetector
 
                 if (jsonStart >= 0 && jsonEnd > jsonStart)
                 {
-                    var jsonArray = output.Substring(jsonStart, jsonEnd - jsonStart + 1);
-
-                    // Fix double-escaped quotes from gdbus GVariant string output
-                    jsonArray = jsonArray.Replace("\\\\\"", "\\\"");
+                    var jsonArray = GdbusJsonHelper.UnescapeQuotes(
+                        output.Substring(jsonStart, jsonEnd - jsonStart + 1));
 
                     // Parse JSON and find focused window
                     var windows = JsonSerializer.Deserialize<JsonElement>(jsonArray);
