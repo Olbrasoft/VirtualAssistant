@@ -105,6 +105,7 @@ public static class WorkerServicesExtensions
 
             var transcriptionLogger = sp.GetRequiredService<ILogger<TranscriptionService>>();
             var textFilter = sp.GetRequiredService<ITextFilter>();
+            var lightweightTextFilter = sp.GetRequiredService<ILightweightTextFilter>();
             var llmProviderFactory = sp.GetRequiredService<ILlmProviderFactory>();
             var racingLlmProvider = sp.GetRequiredService<IRacingLlmProvider>();
             var llmProviderOptions = sp.GetRequiredService<IOptions<LlmProviderOptions>>();
@@ -114,6 +115,7 @@ public static class WorkerServicesExtensions
                 dictationTranscriber,
                 configuration,
                 textFilter,
+                lightweightTextFilter,
                 llmProviderFactory,
                 racingLlmProvider,
                 llmProviderOptions);

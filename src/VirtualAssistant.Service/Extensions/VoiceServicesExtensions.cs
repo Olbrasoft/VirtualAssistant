@@ -166,10 +166,11 @@ public static class VoiceServicesExtensions
             var transcriber = sp.GetRequiredService<ISpeechTranscriber>();
             var config = sp.GetRequiredService<IConfiguration>();
             var textFilter = sp.GetRequiredService<ITextFilter>();
+            var lightweightTextFilter = sp.GetRequiredService<ILightweightTextFilter>();
             var llmProviderFactory = sp.GetRequiredService<ILlmProviderFactory>();
             var racingLlmProvider = sp.GetRequiredService<IRacingLlmProvider>();
             var llmProviderOptions = sp.GetRequiredService<IOptions<LlmProviderOptions>>();
-            return new TranscriptionService(logger, transcriber, config, textFilter, llmProviderFactory, racingLlmProvider, llmProviderOptions);
+            return new TranscriptionService(logger, transcriber, config, textFilter, lightweightTextFilter, llmProviderFactory, racingLlmProvider, llmProviderOptions);
         });
 
         var openCodeUrl = configuration["OpenCodeUrl"] ?? "http://localhost:4096";
@@ -340,12 +341,28 @@ public static class VoiceServicesExtensions
             return new RemovePatternsFilterStrategy(logger, textFiltersConfigPath);
         });
 
+        // Register WhisperHallucinationFilterStrategy as both a concrete singleton (for the
+        // lightweight filter) and as an ITextFilterStrategy (so it also runs in the full
+        // CompositeTextFilter for normal dictation).
+        services.AddSingleton<WhisperHallucinationFilterStrategy>(sp =>
+        {
+            var logger = sp.GetRequiredService<ILogger<WhisperHallucinationFilterStrategy>>();
+            return new WhisperHallucinationFilterStrategy(logger, textFiltersConfigPath);
+        });
         services.AddSingleton<ITextFilterStrategy>(sp =>
+            sp.GetRequiredService<WhisperHallucinationFilterStrategy>());
+
+        // Register WhitespaceFilterStrategy as both concrete (for lightweight filter) and as
+        // ITextFilterStrategy (for full composite). Single instance shared by both.
+        services.AddSingleton<WhitespaceFilterStrategy>(sp =>
         {
             var logger = sp.GetRequiredService<ILogger<WhitespaceFilterStrategy>>();
             return new WhitespaceFilterStrategy(logger);
         });
+        services.AddSingleton<ITextFilterStrategy>(sp =>
+            sp.GetRequiredService<WhitespaceFilterStrategy>());
 
         services.AddSingleton<ITextFilter, CompositeTextFilter>();
+        services.AddSingleton<ILightweightTextFilter, LightweightTextFilter>();
     }
 }
