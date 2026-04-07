@@ -162,6 +162,15 @@ function setConnectionStatus(connected) {
     elements.btnDiscord.disabled = !connected;
     elements.btnFerdium.disabled = !connected;
     elements.btnPaste.disabled = !connected || !lastTranscription;
+    // Force the recording zones disabled while offline. setRecordingState()
+    // re-enables them only when a new recording actually starts after the
+    // connection is restored, so we never enable them here. Without this,
+    // hidden but focusable zone buttons could still receive haptics/clicks
+    // from a stale state when the SignalR connection drops.
+    if (!connected) {
+        elements.btnZoneFast.disabled = true;
+        elements.btnZoneSlow.disabled = true;
+    }
     for (const btn of Object.values(elements.workspaceButtons)) {
         btn.disabled = !connected;
     }
