@@ -136,6 +136,9 @@ public class WorkspaceDetectionService : IWorkspaceDetectionService
 
         var json = output.Substring(start, end - start + 1);
 
+        // Fix double-escaped quotes from gdbus GVariant string output
+        json = json.Replace("\\\\\"", "\\\"");
+
         try
         {
             return JsonSerializer.Deserialize<List<WindowInfo>>(json, new JsonSerializerOptions

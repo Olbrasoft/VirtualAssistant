@@ -129,6 +129,10 @@ public class TerminalCliAppDetector : ICliAppDetector
             }
 
             var jsonArray = output.Substring(jsonStart, jsonEnd - jsonStart + 1);
+
+            // Fix double-escaped quotes from gdbus GVariant string output
+            jsonArray = jsonArray.Replace("\\\\\"", "\\\"");
+
             var windows = JsonSerializer.Deserialize<JsonElement>(jsonArray);
 
             foreach (var window in windows.EnumerateArray())

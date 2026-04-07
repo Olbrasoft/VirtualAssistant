@@ -171,6 +171,9 @@ public class GnomeWindowFocusMonitor : IWindowFocusMonitor, IDisposable
 
             var json = gdbusOutput.Substring(startIndex, endIndex - startIndex + 1);
 
+            // Fix double-escaped quotes from gdbus GVariant string output
+            json = json.Replace("\\\\\"", "\\\"");
+
             var windows = JsonSerializer.Deserialize<List<WindowCallsWindow>>(json, new JsonSerializerOptions
             {
                 PropertyNameCaseInsensitive = true
