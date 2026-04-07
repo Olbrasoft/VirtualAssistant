@@ -51,7 +51,7 @@ public class WhisperHallucinationFilterStrategyTests : IDisposable
     {
         WriteConfig(new TextFiltersConfig
         {
-            RemoveWholeText = new() { "Konec.", "Děkuji." }
+            RemoveWholeText = new() { "Konec.", "Konec" }
         });
         var strategy = CreateStrategy();
 
@@ -153,7 +153,7 @@ public class WhisperHallucinationFilterStrategyTests : IDisposable
     {
         WriteConfig(new TextFiltersConfig
         {
-            RemoveWholeText = new() { "Konec.", "Děkuji." },
+            RemoveWholeText = new() { "Konec." },
             RemoveSuffixRegex = new() { "\\s*Titulky vytvořil[^.]*\\.?\\s*" }
         });
         var strategy = CreateStrategy();
@@ -277,21 +277,21 @@ public class WhisperHallucinationFilterStrategyTests : IDisposable
         });
         var strategy = CreateStrategy();
 
-        // First call: "Děkuji." is NOT a pattern yet
-        var first = strategy.Apply("Děkuji.");
-        Assert.Equal("Děkuji.", first);
+        // First call: synthetic pattern is NOT in config yet → text is preserved
+        var first = strategy.Apply("__SYNTHETIC_HALLUCINATION__");
+        Assert.Equal("__SYNTHETIC_HALLUCINATION__", first);
 
-        // Update the config file with a new pattern. Force a different last-write timestamp
+        // Update the config file with the new pattern. Force a different last-write timestamp
         // because some filesystems have second-level granularity.
         File.SetLastWriteTimeUtc(_tempConfigPath, DateTime.UtcNow.AddSeconds(-10));
         WriteConfig(new TextFiltersConfig
         {
-            RemoveWholeText = new() { "Konec.", "Děkuji." }
+            RemoveWholeText = new() { "Konec.", "__SYNTHETIC_HALLUCINATION__" }
         });
         File.SetLastWriteTimeUtc(_tempConfigPath, DateTime.UtcNow);
 
-        // Second call: "Děkuji." is now a pattern → wiped
-        var second = strategy.Apply("Děkuji.");
+        // Second call: pattern is now configured → text is wiped
+        var second = strategy.Apply("__SYNTHETIC_HALLUCINATION__");
         Assert.Equal(string.Empty, second);
     }
 }
