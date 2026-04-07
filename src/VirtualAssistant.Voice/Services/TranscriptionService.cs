@@ -233,6 +233,20 @@ public class TranscriptionService : ITranscriptionService
 
         var rawText = result.Text;
 
+        // Fire RawTranscriptionReady with the UNFILTERED Whisper output. The event name
+        // promises raw STT and listeners (e.g. transcription persistence, UI raw view)
+        // expect to see exactly what Whisper produced — they will perform their own
+        // filtering as needed. The filtering below only affects the returned
+        // TranscriptionResult, not the event payload.
+        try
+        {
+            RawTranscriptionReady?.Invoke(rawText);
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "RawTranscriptionReady handler failed");
+        }
+
         // Apply lightweight filter (Whisper hallucination removal + whitespace normalization).
         // Skips DB corrections and LLM correction to preserve Quick Dictation latency budget.
         // The full pipeline is intentionally NOT used here.
@@ -251,15 +265,6 @@ public class TranscriptionService : ITranscriptionService
                 FilteredText = string.Empty,
                 SttProviderId = result.SttProviderId
             };
-        }
-
-        try
-        {
-            RawTranscriptionReady?.Invoke(filteredText);
-        }
-        catch (Exception ex)
-        {
-            _logger.LogError(ex, "RawTranscriptionReady handler failed");
         }
 
         if (ReferenceEquals(filteredText, rawText))

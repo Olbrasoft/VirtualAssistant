@@ -135,16 +135,22 @@ public class WhisperHallucinationFilterStrategyTests : IDisposable
     [Fact]
     public void Apply_WhenSuffixRegexDoesNotMatchAtEnd_LeavesTextUnchanged()
     {
-        // The regex is anchored to end-of-text, so a match in the middle must NOT be removed.
+        // Verifies that the strategy appends `$` so the regex only matches at end-of-text.
+        // We deliberately use a UNRESTRICTED pattern (no `[^.]*` constraint) that, without
+        // the appended `$`, would happily match anywhere in the text. If the strategy
+        // forgot to anchor to end-of-text, this test would fail because the regex would
+        // match the mid-text occurrence and strip everything from "Titulky vytvořil" to
+        // the end of the string (or even partially within it).
         WriteConfig(new TextFiltersConfig
         {
-            RemoveSuffixRegex = new() { "\\s*Titulky vytvořil[^.]*\\.?\\s*" }
+            RemoveSuffixRegex = new() { "\\s*Titulky vytvořil\\s*" }
         });
         var strategy = CreateStrategy();
 
-        var input = "Titulky vytvořil JohnyX. A pak pokračuje normální text.";
+        var input = "Začátek textu. Titulky vytvořil a pak pokračuje normální text na konci.";
         var result = strategy.Apply(input);
 
+        // Pattern does NOT appear at end of text → must be left untouched.
         Assert.Equal(input, result);
     }
 
@@ -165,8 +171,13 @@ public class WhisperHallucinationFilterStrategyTests : IDisposable
     }
 
     [Fact]
-    public void Apply_WithMultipleSuffixRegexes_AppliesAllInOrder()
+    public void Apply_WithMultipleSuffixRegexes_StripsChainedSuffixes()
     {
+        // Verifies that two suffix patterns can chain: text ends with "Titulky vytvořil
+        // JohnyX. Konec.", neither pattern can match the WHOLE tail in one shot, so the
+        // strategy must loop until no pattern matches anymore. The exact removal order
+        // depends on the multi-pass loop and pattern declaration order — what matters is
+        // that BOTH suffixes are stripped, leaving only the legitimate prefix.
         WriteConfig(new TextFiltersConfig
         {
             RemoveSuffixRegex = new()
@@ -179,7 +190,6 @@ public class WhisperHallucinationFilterStrategyTests : IDisposable
 
         var result = strategy.Apply("Hlavní text. Titulky vytvořil JohnyX. Konec.");
 
-        // Both suffixes are matched and stripped (Konec. first, then Titulky vytvořil...).
         Assert.Equal("Hlavní text.", result);
     }
 
