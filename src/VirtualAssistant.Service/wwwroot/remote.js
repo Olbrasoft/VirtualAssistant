@@ -4,12 +4,10 @@
 // Bumped on every script change. Rendered next to the connection status so
 // the user can verify the phone is actually running the latest JS and not a
 // stale cached copy. MUST match the ?v= query string in remote.html.
-const SCRIPT_VERSION = 'v22';
+const SCRIPT_VERSION = 'v23';
 
 const elements = {
     connectionStatus: document.getElementById('connectionStatus'),
-    debugLog: document.getElementById('debugLog'),
-    debugLogToggle: document.getElementById('debugLogToggle'),
     debugLogContent: document.getElementById('debugLogContent'),
     controls: document.getElementById('controls'),
     btnDictate: document.getElementById('btnDictate'),
@@ -66,37 +64,8 @@ function debugLog(message) {
     }
     if (elements.debugLogContent) {
         elements.debugLogContent.textContent = debugLogLines.join('\n');
-        // Auto-scroll to the newest line when expanded
-        elements.debugLogContent.scrollTop = elements.debugLogContent.scrollHeight;
     }
     console.log('[debug]', message);
-}
-
-// Debug log expand/collapse — collapsed by default so it does not obscure
-// the Vložit (Paste) button. State persists in localStorage so the user's
-// preference survives reloads.
-const DEBUG_LOG_STORAGE_KEY = 'va-debug-log-expanded';
-
-function setDebugLogExpanded(expanded) {
-    if (!elements.debugLog || !elements.debugLogToggle) return;
-    elements.debugLog.classList.toggle('expanded', expanded);
-    elements.debugLogToggle.textContent = expanded ? '🐛 log ▾' : '🐛 log ▴';
-    try {
-        localStorage.setItem(DEBUG_LOG_STORAGE_KEY, expanded ? '1' : '0');
-    } catch (_) { /* localStorage may be unavailable in private mode */ }
-}
-
-function initDebugLogToggle() {
-    if (!elements.debugLogToggle) return;
-    let expanded = false;
-    try {
-        expanded = localStorage.getItem(DEBUG_LOG_STORAGE_KEY) === '1';
-    } catch (_) { /* ignore */ }
-    setDebugLogExpanded(expanded);
-    elements.debugLogToggle.addEventListener('click', () => {
-        const isExpanded = elements.debugLog.classList.contains('expanded');
-        setDebugLogExpanded(!isExpanded);
-    });
 }
 let focusedApp = '';
 let lastTranscription = '';
@@ -667,8 +636,5 @@ async function initialize() {
         setTimeout(initialize, 5000);
     }
 }
-
-// One-time DOM setup that must NOT be re-run on each retry of initialize().
-initDebugLogToggle();
 
 initialize();
