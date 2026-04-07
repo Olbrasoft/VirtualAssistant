@@ -141,12 +141,15 @@ jobs:
             FAILED_STEP="health"
           fi
 
-          # Use a commit-suffixed filename so two concurrent deploys never
-          # overwrite each other. wake-claude.sh now processes each event file
-          # independently and uses ack semantics to delete only after a live
-          # consumer has positively read it. See Olbrasoft/GitHub.Actions.Notify
-          # PR #22 for the design.
-          EVENT_FILE="$EVENTS_DIR/${REPO_FILE}-deploy-${COMMIT_SHA}.json"
+          # Use a run-unique filename so concurrent deploys, re-runs, and
+          # multiple deploys of the same commit do not overwrite each other.
+          # COMMIT_SHA alone is not enough — workflow_dispatch and re-runs can
+          # produce multiple deploys for the same SHA. RUN_ID + RUN_ATTEMPT
+          # make every event file globally unique per workflow run.
+          # wake-claude.sh now processes each event file independently and uses
+          # ack semantics to delete only after a live consumer has positively
+          # read it. See Olbrasoft/GitHub.Actions.Notify PR #22 for the design.
+          EVENT_FILE="$EVENTS_DIR/${REPO_FILE}-deploy-${COMMIT_SHA}-${GITHUB_RUN_ID}-${GITHUB_RUN_ATTEMPT}.json"
           jq -n \
             --arg event "deploy-complete" \
             --arg status "${{ job.status }}" \
