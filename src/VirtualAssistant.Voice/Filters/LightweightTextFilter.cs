@@ -9,8 +9,10 @@ namespace Olbrasoft.VirtualAssistant.Voice.Filters;
 ///   <item>Whisper hallucination removal — drops "Konec.", "Titulky vytvořil...", etc.</item>
 ///   <item>Database corrections — normalizes project-specific terms like
 ///         "cloud kód" → "Claude Code" via <see cref="DatabaseCorrectionFilterStrategy"/>.
-///         The DB cache is in-memory after warm-up so the lookup is sub-millisecond and
-///         does not violate the Quick Dictation latency contract.</item>
+///         The DB cache is pre-loaded by <c>DatabaseCorrectionCacheWarmupService</c>
+///         on application startup and refreshed every 4 minutes (just under the
+///         strategy's 5-minute internal TTL), so the Quick Dictation hot path
+///         always finds an in-memory cache and never blocks on a DB round-trip.</item>
 ///   <item>Whitespace normalization — trim + collapse double spaces.</item>
 /// </list>
 /// LLM correction is intentionally skipped — that is the difference between Quick

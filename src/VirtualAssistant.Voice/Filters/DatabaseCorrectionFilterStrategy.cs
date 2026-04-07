@@ -114,6 +114,39 @@ public class DatabaseCorrectionFilterStrategy : ITextFilterStrategy
     }
 
     /// <summary>
+    /// Pre-loads the corrections cache asynchronously, off the request path.
+    /// Called by <c>DatabaseCorrectionCacheWarmupService</c> on application startup
+    /// and again on a periodic timer, so the Quick Dictation hot path always finds
+    /// a fresh cache and never has to wait for a synchronous DB round-trip.
+    ///
+    /// Safe to call from any thread; the underlying refresh is serialized via the
+    /// strategy's internal lock.
+    /// </summary>
+    public async Task WarmupAsync(CancellationToken cancellationToken = default)
+    {
+        if (_repository == null)
+            return;
+
+        try
+        {
+            var corrections = await _repository.GetActiveCorrectionsAsync(cancellationToken).ConfigureAwait(false);
+            lock (_lock)
+            {
+                _cachedCorrections = corrections;
+                _cacheExpiry = DateTime.UtcNow.Add(CacheDuration);
+            }
+            _logger.LogInformation(
+                "Warmed corrections cache: {Count} active corrections (expires: {Expiry})",
+                corrections.Count,
+                _cacheExpiry);
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Failed to warm corrections cache");
+        }
+    }
+
+    /// <summary>
     /// Tracks correction usage asynchronously for analytics.
     /// </summary>
     private async Task TrackCorrectionUsageAsync(int correctionId)

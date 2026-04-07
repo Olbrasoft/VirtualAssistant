@@ -122,9 +122,15 @@ public class LightweightTextFilterTests : IDisposable
     [Fact]
     public void Apply_AppliesDatabaseCorrectionsBeforeWhitespace()
     {
-        // Verifies the new behavior: Quick Dictation now picks up project-specific term
-        // normalization like "cloud kód" → "Claude Code" via DatabaseCorrectionFilterStrategy.
-        // We use a fake in-memory repository that returns a single correction.
+        // This test locks in the ORDER: DB corrections must run BEFORE whitespace
+        // normalization. We pick a correction whose CORRECT_TEXT contains a double
+        // space ("Claude  Code"). If the order is correct (DB → whitespace), the
+        // double space introduced by the correction is collapsed by whitespace and
+        // the final result has a single space ("Claude Code"). If whitespace ran
+        // FIRST and DB ran second, the double space would survive in the output
+        // ("Claude  Code"), and the assertion would fail. The input has no double
+        // spaces, so whitespace alone has nothing to do; only the correction can
+        // introduce them.
         WriteConfig(new TextFiltersConfig());
 
         var hallucination = new WhisperHallucinationFilterStrategy(
@@ -138,7 +144,7 @@ public class LightweightTextFilterTests : IDisposable
                 {
                     Id = 1,
                     IncorrectText = "cloud kód",
-                    CorrectText = "Claude Code",
+                    CorrectText = "Claude  Code",  // double space — collapsed only if whitespace runs after
                     Priority = 90,
                     IsActive = true
                 }
@@ -154,8 +160,13 @@ public class LightweightTextFilterTests : IDisposable
             whitespace,
             Mock.Of<ILogger<LightweightTextFilter>>());
 
-        var result = filter.Apply("  Otevři cloud kód a najdi mi tohle.  ");
+        // Input has NO double spaces, so whitespace alone would not change anything
+        // related to the term. Only the DB correction introduces the double space,
+        // and only the post-correction whitespace pass collapses it.
+        var result = filter.Apply("Otevři cloud kód a najdi mi tohle.");
 
+        // Single space proves: DB ran first (introduced "Claude  Code"), whitespace
+        // ran second (collapsed it to "Claude Code").
         Assert.Equal("Otevři Claude Code a najdi mi tohle.", result);
     }
 

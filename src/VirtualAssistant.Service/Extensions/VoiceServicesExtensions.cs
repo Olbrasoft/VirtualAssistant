@@ -328,14 +328,26 @@ public static class VoiceServicesExtensions
         // ITextFilterStrategy (so it also runs in the full CompositeTextFilter for normal
         // dictation). The same instance is shared by both registrations so the in-memory
         // correction cache is used by both code paths.
+        //
+        // Use GetRequiredService for the repository — Quick Dictation correctness now
+        // depends on it. A missing registration would silently disable corrections,
+        // which is a regression we want to fail fast on.
         services.AddSingleton<DatabaseCorrectionFilterStrategy>(sp =>
         {
             var logger = sp.GetRequiredService<ILogger<DatabaseCorrectionFilterStrategy>>();
-            var repository = sp.GetService<ITranscriptionCorrectionRepository>();
+            var repository = sp.GetRequiredService<ITranscriptionCorrectionRepository>();
             return new DatabaseCorrectionFilterStrategy(logger, repository);
         });
         services.AddSingleton<ITextFilterStrategy>(sp =>
             sp.GetRequiredService<DatabaseCorrectionFilterStrategy>());
+
+        // Pre-load + periodically refresh the corrections cache off the request
+        // path. Without this, the very first transcription after startup (or
+        // every 5 minutes of idle) would block the audio pipeline on a
+        // synchronous EF Core call. The hosted service refreshes every 4
+        // minutes — under the strategy's 5-minute TTL — so the hot path
+        // always finds a fresh cache.
+        services.AddHostedService<DatabaseCorrectionCacheWarmupService>();
 
         services.AddSingleton<ITextFilterStrategy>(sp =>
         {
