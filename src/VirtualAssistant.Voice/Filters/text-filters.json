@@ -15,5 +15,12 @@
     "Na shledanou."
   ],
   "replace": {
-  }
+  },
+  "removeWholeText": [
+    "Konec.",
+    "Konec"
+  ],
+  "removeSuffixRegex": [
+    "\\s*Titulky vytvořil[^.]*\\.?\\s*$"
+  ]
 }

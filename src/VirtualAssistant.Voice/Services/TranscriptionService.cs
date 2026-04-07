@@ -20,6 +20,7 @@ public class TranscriptionService : ITranscriptionService
     private readonly ILogger<TranscriptionService> _logger;
     private readonly ISpeechTranscriber _transcriber;
     private readonly ITextFilter? _textFilter;
+    private readonly ILightweightTextFilter? _lightweightTextFilter;
     private readonly ILlmProviderFactory? _llmProviderFactory;
     private readonly IRacingLlmProvider? _racingLlmProvider;
     private readonly RacingOptions _racingOptions;
@@ -34,6 +35,7 @@ public class TranscriptionService : ITranscriptionService
         ISpeechTranscriber transcriber,
         IConfiguration configuration,
         ITextFilter? textFilter = null,
+        ILightweightTextFilter? lightweightTextFilter = null,
         ILlmProviderFactory? llmProviderFactory = null,
         IRacingLlmProvider? racingLlmProvider = null,
         IOptions<LlmProviderOptions>? llmProviderOptions = null)
@@ -41,6 +43,7 @@ public class TranscriptionService : ITranscriptionService
         _logger = logger;
         _transcriber = transcriber ?? throw new ArgumentNullException(nameof(transcriber));
         _textFilter = textFilter;
+        _lightweightTextFilter = lightweightTextFilter;
         _llmProviderFactory = llmProviderFactory;
         _racingLlmProvider = racingLlmProvider;
         _racingOptions = llmProviderOptions?.Value.Racing ?? new RacingOptions();
@@ -223,19 +226,58 @@ public class TranscriptionService : ITranscriptionService
         var safeAudio = TruncateIfTooLarge(audioData);
         var result = await _transcriber.TranscribeAsync(safeAudio, cancellationToken);
 
-        if (result.Success && !string.IsNullOrWhiteSpace(result.Text))
+        if (!result.Success || string.IsNullOrWhiteSpace(result.Text))
         {
-            try
-            {
-                RawTranscriptionReady?.Invoke(result.Text);
-            }
-            catch (Exception ex)
-            {
-                _logger.LogError(ex, "RawTranscriptionReady handler failed");
-            }
+            return result;
         }
 
-        return result;
+        var rawText = result.Text;
+
+        // Fire RawTranscriptionReady with the UNFILTERED Whisper output. The event name
+        // promises raw STT and listeners (e.g. transcription persistence, UI raw view)
+        // expect to see exactly what Whisper produced — they will perform their own
+        // filtering as needed. The filtering below only affects the returned
+        // TranscriptionResult, not the event payload.
+        try
+        {
+            RawTranscriptionReady?.Invoke(rawText);
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "RawTranscriptionReady handler failed");
+        }
+
+        // Apply lightweight filter (Whisper hallucination removal + whitespace normalization).
+        // Skips DB corrections and LLM correction to preserve Quick Dictation latency budget.
+        // The full pipeline is intentionally NOT used here.
+        var filteredText = _lightweightTextFilter?.Apply(rawText) ?? rawText;
+
+        if (string.IsNullOrWhiteSpace(filteredText))
+        {
+            // Whole-text matched a hallucination pattern → wipe the result so the caller
+            // (e.g. DictationWorker) skips paste/Enter via its IsNullOrWhiteSpace check.
+            _logger.LogInformation(
+                "TranscribeRawAsync: text wiped by lightweight filter (hallucination): '{Original}'",
+                rawText);
+            return new TranscriptionResult(string.Empty, result.Confidence)
+            {
+                OriginalText = rawText,
+                FilteredText = string.Empty,
+                SttProviderId = result.SttProviderId
+            };
+        }
+
+        if (ReferenceEquals(filteredText, rawText))
+        {
+            return result;
+        }
+
+        return new TranscriptionResult(filteredText, result.Confidence)
+        {
+            OriginalText = rawText,
+            FilteredText = filteredText,
+            SttProviderId = result.SttProviderId
+        };
     }
 
     /// <summary>
