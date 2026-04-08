@@ -62,6 +62,14 @@ public class ZenProvider : LlmProviderBase
         {
             var modelId = await GetModelIdAsync(cancellationToken);
 
+            // Dynamic max_tokens budget — see LlmProviderBase.CalculateMaxTokens
+            // for the sizing model. Zen with reasoning_effort gets a small
+            // reasoning buffer (500) to be safe. Non-reasoning case still
+            // benefits from a generous floor.
+            var reasoningBuffer = string.IsNullOrWhiteSpace(_options.ReasoningEffort) ? 0 : 500;
+            const int providerCap = 16384;
+            var maxTokens = CalculateMaxTokens(text, _options.MaxTokens, reasoningBuffer, providerCap);
+
             var request = new Dictionary<string, object>
             {
                 ["model"] = _options.Model,
@@ -71,7 +79,7 @@ public class ZenProvider : LlmProviderBase
                     new { role = "user", content = text }
                 },
                 ["temperature"] = _options.Temperature,
-                ["max_tokens"] = _options.MaxTokens
+                ["max_tokens"] = maxTokens
             };
 
             if (!string.IsNullOrWhiteSpace(_options.ReasoningEffort))
@@ -94,8 +102,13 @@ public class ZenProvider : LlmProviderBase
             var correctedText = result.Choices[0].Message.Content.Trim();
             var durationMs = (int)(DateTime.UtcNow - startTime).TotalMilliseconds;
 
-            Logger.LogInformation("Zen correction completed in {Duration}ms using prompt ID {PromptId}, model ID {ModelId}. Original length: {OriginalLength}, Corrected length: {CorrectedLength}",
-                durationMs, promptId, modelId, text.Length, correctedText.Length);
+            Logger.LogInformation("Zen correction completed in {Duration}ms using prompt ID {PromptId}, model ID {ModelId}. Original length: {OriginalLength}, Corrected length: {CorrectedLength}, max_tokens_sent: {MaxTokensSent}",
+                durationMs, promptId, modelId, text.Length, correctedText.Length, maxTokens);
+
+            // Detect likely truncation. We don't have completion_tokens from
+            // Zen's response, so DetectTruncation will fall back to the
+            // text-shape heuristics (mid-word ending, heavy compression).
+            DetectTruncation(text, correctedText, completionTokens: null, maxTokensSent: maxTokens);
 
             return new LlmCorrectionResult(correctedText, promptId, durationMs, modelId);
         }
