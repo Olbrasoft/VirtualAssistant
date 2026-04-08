@@ -4,7 +4,7 @@
 // Bumped on every script change. Rendered next to the connection status so
 // the user can verify the phone is actually running the latest JS and not a
 // stale cached copy. MUST match the ?v= query string in remote.html.
-const SCRIPT_VERSION = 'v23';
+const SCRIPT_VERSION = 'v24';
 
 const elements = {
     connectionStatus: document.getElementById('connectionStatus'),
@@ -52,8 +52,23 @@ let dictateGestureStartY = 0;
 // Pixel distance threshold above which we treat the gesture as a slide.
 // Below this, the user merely tapped — keep recording, do not select a zone.
 const SLIDE_THRESHOLD_PX = 40;
-// Maximum number of debug log lines kept on screen.
-const DEBUG_LOG_MAX = 8;
+// Minimum age of a recording (in ms) before zone-stop interactions are
+// allowed. The CSS swap from btnDictate → zones happens in the same JS
+// turn as setRecordingState(true), and on touch devices the original tap
+// can synthesize a click on whatever element is under the finger at
+// release time. Without this guard, that synthetic click can hit a zone
+// and instantly stop a recording the user just started — yielding the
+// "0 bytes captured" log pattern. 300 ms is comfortably longer than any
+// touch screen's tap-to-release latency and shorter than any human's
+// deliberate "start, then stop" double-tap.
+const ZONE_STOP_GUARD_MS = 300;
+// Maximum number of debug log lines kept on screen. 8 was too small —
+// one full dictation cycle generates ~10 log entries (pointerdown,
+// invoke, OK, setRecordingState true, pointerup, SR event 0, SR event 2,
+// setRecordingState transcribing, SR event 4, SR event 3,
+// setRecordingState idle, SR event 1) so any earlier failed-tap evidence
+// gets pushed out before the user can screenshot it.
+const DEBUG_LOG_MAX = 100;
 const debugLogLines = [];
 
 function debugLog(message) {
@@ -64,6 +79,10 @@ function debugLog(message) {
     }
     if (elements.debugLogContent) {
         elements.debugLogContent.textContent = debugLogLines.join('\n');
+        // Auto-scroll the debug-log container (parent of content) to bottom
+        // so the newest entry is always visible without manual scroll.
+        const container = elements.debugLogContent.parentElement;
+        if (container) container.scrollTop = container.scrollHeight;
     }
     console.log('[debug]', message);
 }
@@ -383,25 +402,53 @@ async function startDictationFromGesture() {
     }
 }
 
-async function stopDictationWithMode(quick) {
-    if (!isRecording) return;
+async function stopDictationWithMode(quick, source) {
+    source = source || 'unknown';
+    if (!isRecording) {
+        debugLog('stopDictationWithMode(' + quick + ') ignored from ' + source + ': isRecording=false');
+        return;
+    }
+    // Time guard: refuse to stop a recording that just started. Touch
+    // devices can synthesize a click on the zone that replaced btnDictate
+    // in the same JS turn the user tapped, instantly killing the 0-byte
+    // recording the user just initiated. Anything stopping a recording
+    // within ZONE_STOP_GUARD_MS of its start is treated as that synthetic
+    // click and ignored. A deliberate human stop will always be later
+    // than 300 ms (no human can react to "Recording started" + visual
+    // change + tap a zone in under 300 ms).
+    const age = recordingStartTime ? (Date.now() - recordingStartTime) : Infinity;
+    if (age < ZONE_STOP_GUARD_MS) {
+        debugLog('stopDictationWithMode(' + quick + ') BLOCKED from ' + source + ': age=' + age + 'ms < ' + ZONE_STOP_GUARD_MS + 'ms guard');
+        return;
+    }
     try {
+        debugLog('stopDictationWithMode(' + quick + ') from ' + source + ': age=' + age + 'ms');
         elements.btnZoneFast.disabled = true;
         elements.btnZoneSlow.disabled = true;
         await connection.invoke('StopDictationWithMode', quick);
     } catch (error) {
-        console.error('StopDictationWithMode(' + quick + ') failed:', error);
+        debugLog('StopDictationWithMode FAIL: ' + error);
         elements.btnZoneFast.disabled = false;
         elements.btnZoneSlow.disabled = false;
     }
 }
 
 elements.btnDictate.addEventListener('pointerdown', async (ev) => {
-    if (elements.btnDictate.disabled) return;
+    if (elements.btnDictate.disabled) {
+        debugLog('btnDictate pointerdown IGNORED: disabled');
+        return;
+    }
     dictationHaptic();
     // Cancel transcription state has its own click handler below;
     // pointerdown only kicks off a fresh recording.
-    if (isTranscribing) return;
+    if (isTranscribing) {
+        debugLog('btnDictate pointerdown IGNORED: isTranscribing=true');
+        return;
+    }
+    if (isRecording) {
+        debugLog('btnDictate pointerdown IGNORED: isRecording=true');
+        return;
+    }
     if (!isRecording) {
         dictateGestureInProgress = true;
         // Capture pointerdown coordinates so the global pointerup handler
@@ -442,7 +489,10 @@ document.addEventListener('pointerup', async (ev) => {
     if (!dictateGestureInProgress) return;
     dictateGestureInProgress = false;
 
-    if (!isRecording) return;  // start may not have completed yet — let click handlers take over
+    if (!isRecording) {
+        debugLog('global pointerup: isRecording=false, ignoring zone check');
+        return;
+    }
 
     // Slide detection: if the user did not move the pointer beyond the
     // threshold, this was a plain tap. The immediate UI swap puts a
@@ -452,7 +502,7 @@ document.addEventListener('pointerup', async (ev) => {
     const dx = ev.clientX - dictateGestureStartX;
     const dy = ev.clientY - dictateGestureStartY;
     const distance = Math.sqrt(dx * dx + dy * dy);
-    debugLog('pointerup d=' + distance.toFixed(0) + 'px');
+    debugLog('global pointerup d=' + distance.toFixed(0) + 'px (start=' + dictateGestureStartX + ',' + dictateGestureStartY + ' end=' + ev.clientX + ',' + ev.clientY + ')');
     if (distance < SLIDE_THRESHOLD_PX) {
         // Tap, not a slide. Keep recording — the user will tap a zone
         // separately when they want to stop.
@@ -461,11 +511,9 @@ document.addEventListener('pointerup', async (ev) => {
 
     const zone = getZoneAtPoint(ev.clientX, ev.clientY);
     if (zone === 'fast') {
-        debugLog('slide → stop fast');
-        await stopDictationWithMode(true);
+        await stopDictationWithMode(true, 'global-pointerup-slide');
     } else if (zone === 'slow') {
-        debugLog('slide → stop slow');
-        await stopDictationWithMode(false);
+        await stopDictationWithMode(false, 'global-pointerup-slide');
     }
     // No zone under the pointer → keep recording. The user can either
     // tap a zone (style B) or press-and-release again to stop.
@@ -505,8 +553,14 @@ elements.btnDictate.addEventListener('click', async () => {
     }
 });
 
-elements.btnZoneFast.addEventListener('click', () => stopDictationWithMode(true));
-elements.btnZoneSlow.addEventListener('click', () => stopDictationWithMode(false));
+elements.btnZoneFast.addEventListener('click', () => {
+    debugLog('btnZoneFast click handler fired');
+    stopDictationWithMode(true, 'btnZoneFast-click');
+});
+elements.btnZoneSlow.addEventListener('click', () => {
+    debugLog('btnZoneSlow click handler fired');
+    stopDictationWithMode(false, 'btnZoneSlow-click');
+});
 
 elements.btnEnter.addEventListener('click', async () => {
     try {
