@@ -408,16 +408,24 @@ async function stopDictationWithMode(quick, source) {
         debugLog('stopDictationWithMode(' + quick + ') ignored from ' + source + ': isRecording=false');
         return;
     }
-    // Time guard: refuse to stop a recording that just started. Touch
-    // devices can synthesize a click on the zone that replaced btnDictate
-    // in the same JS turn the user tapped, instantly killing the 0-byte
-    // recording the user just initiated. Anything stopping a recording
-    // within ZONE_STOP_GUARD_MS of its start is treated as that synthetic
-    // click and ignored. A deliberate human stop will always be later
-    // than 300 ms (no human can react to "Recording started" + visual
-    // change + tap a zone in under 300 ms).
+    // Time guard: refuse to stop a recording that just started — but
+    // ONLY for synthetic-click stop paths (zone click handlers fired by
+    // the browser after the original btnDictate tap). The deliberate
+    // press-and-release gesture (source='global-pointerup-slide') is
+    // explicitly exempt: a user CAN intentionally do a sub-300ms press-
+    // and-release to fire-and-forget a single word, and we must not
+    // block that.
+    //
+    // Touch devices can synthesize a click on the zone that replaced
+    // btnDictate in the same JS turn the user tapped, instantly killing
+    // the 0-byte recording the user just initiated. Anything stopping a
+    // recording within ZONE_STOP_GUARD_MS of its start via a click
+    // handler is treated as that synthetic click and ignored. A
+    // deliberate tap-to-stop (after the user can SEE the zone) will
+    // always be later than 300 ms.
     const age = recordingStartTime ? (Date.now() - recordingStartTime) : Infinity;
-    if (age < ZONE_STOP_GUARD_MS) {
+    const guardApplies = source !== 'global-pointerup-slide';
+    if (guardApplies && age < ZONE_STOP_GUARD_MS) {
         debugLog('stopDictationWithMode(' + quick + ') BLOCKED from ' + source + ': age=' + age + 'ms < ' + ZONE_STOP_GUARD_MS + 'ms guard');
         return;
     }
