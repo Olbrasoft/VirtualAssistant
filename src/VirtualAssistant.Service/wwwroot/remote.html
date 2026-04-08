@@ -272,6 +272,12 @@
             line-height: 1.25;
             color: #b0e0ff;
             background: rgba(0,0,0,0.45);
+            max-height: 50vh;
+            overflow-y: auto;
+            -webkit-overflow-scrolling: touch;
+        }
+
+        #debugLogContent {
             white-space: pre-wrap;
             word-break: break-all;
         }
@@ -476,7 +482,7 @@
     <script src="https://cdnjs.cloudflare.com/ajax/libs/microsoft-signalr/8.0.0/signalr.min.js"></script>
     <!-- Cache-busting version query — bump on every remote.js change so
          clients with stale browser cache do not serve an old script. -->
-    <script src="remote.js?v=23"></script>
+    <script src="remote.js?v=24"></script>
     <script>
         if ('serviceWorker' in navigator) {
             navigator.serviceWorker.register('/service-worker.js')
