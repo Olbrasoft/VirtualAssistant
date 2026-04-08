@@ -100,7 +100,7 @@ public class MistralProvider : LlmProviderBase
             // Detect likely truncation. Mistral's response doesn't expose
             // completion_tokens here, so DetectTruncation falls back to the
             // text-shape heuristics.
-            DetectTruncation(text, correctedText, completionTokens: null, maxTokens);
+            DetectTruncation(text, correctedText, completionTokens: null, maxTokensSent: maxTokens);
 
             return new LlmCorrectionResult(correctedText, promptId, durationMs, modelId);
         }

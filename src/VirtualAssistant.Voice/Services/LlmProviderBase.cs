@@ -295,10 +295,13 @@ public abstract class LlmProviderBase : ILlmProvider
     /// <param name="maxAllowed">Hard ceiling enforced by the provider's API.</param>
     protected int CalculateMaxTokens(string text, int configuredMin, int reasoningBuffer, int maxAllowed)
     {
-        // Estimate the output token count from the input length. Czech in
-        // UTF-8 averages roughly 3 chars per token; we round up and add 20%
-        // headroom because diacritics and punctuation can push some sentences
-        // toward 2 chars/token.
+        // Estimate the output token count from the input length. Czech with
+        // diacritics in UTF-8 averages around 2.5 chars per token (lower
+        // than the 3-4 chars/token typical for English) because each
+        // diacritical letter takes its own subword token. We use 2.5 as
+        // the divisor — slightly conservative — to give the output room
+        // without consuming budget for headroom that the floor (configuredMin)
+        // already provides.
         var estimatedOutputTokens = (int)Math.Ceiling(text.Length / 2.5);
 
         var dynamic = estimatedOutputTokens + reasoningBuffer;
@@ -361,10 +364,21 @@ public abstract class LlmProviderBase : ILlmProvider
         // Reason 3: ends mid-word
         if (!endsWithTerminal && !char.IsWhiteSpace(lastChar) && correctedText.Length > 0)
         {
-            // Find the last whitespace; if it is far from the end, the final
+            // Find the last whitespace character (any kind — \n, \t, NBSP,
+            // not just literal ' '); if it is far from the end, the final
             // word is unusually long, suggesting we cut a real word in half.
-            var lastSpace = correctedText.LastIndexOf(' ');
-            var trailingWordLength = lastSpace < 0 ? correctedText.Length : correctedText.Length - lastSpace - 1;
+            var lastWhitespaceIndex = -1;
+            for (var i = correctedText.Length - 1; i >= 0; i--)
+            {
+                if (char.IsWhiteSpace(correctedText[i]))
+                {
+                    lastWhitespaceIndex = i;
+                    break;
+                }
+            }
+            var trailingWordLength = lastWhitespaceIndex < 0
+                ? correctedText.Length
+                : correctedText.Length - lastWhitespaceIndex - 1;
             if (trailingWordLength > 25)
             {
                 truncated = true;

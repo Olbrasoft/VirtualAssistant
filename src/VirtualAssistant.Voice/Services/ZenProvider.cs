@@ -108,7 +108,7 @@ public class ZenProvider : LlmProviderBase
             // Detect likely truncation. We don't have completion_tokens from
             // Zen's response, so DetectTruncation will fall back to the
             // text-shape heuristics (mid-word ending, heavy compression).
-            DetectTruncation(text, correctedText, completionTokens: null, maxTokens);
+            DetectTruncation(text, correctedText, completionTokens: null, maxTokensSent: maxTokens);
 
             return new LlmCorrectionResult(correctedText, promptId, durationMs, modelId);
         }
