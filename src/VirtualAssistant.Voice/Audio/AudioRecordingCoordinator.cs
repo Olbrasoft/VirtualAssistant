@@ -54,15 +54,22 @@ public class AudioRecordingCoordinator : IAudioRecordingCoordinator, IDisposable
     /// <inheritdoc />
     public void EnableChunking(TimeSpan interval)
     {
-        _chunkInterval = interval < TimeSpan.FromSeconds(1) ? TimeSpan.FromSeconds(1) : interval;
-        _chunkingEnabled = true;
-        _logger.LogInformation("Chunk emission enabled with interval {Interval}s", _chunkInterval.TotalSeconds);
+        var normalizedInterval = interval < TimeSpan.FromSeconds(1) ? TimeSpan.FromSeconds(1) : interval;
+        lock (_bufferLock)
+        {
+            _chunkInterval = normalizedInterval;
+            _chunkingEnabled = true;
+        }
+        _logger.LogInformation("Chunk emission enabled with interval {Interval}s", normalizedInterval.TotalSeconds);
     }
 
     /// <inheritdoc />
     public void DisableChunking()
     {
-        _chunkingEnabled = false;
+        lock (_bufferLock)
+        {
+            _chunkingEnabled = false;
+        }
         _logger.LogInformation("Chunk emission disabled");
     }
 
@@ -280,13 +287,12 @@ public class AudioRecordingCoordinator : IAudioRecordingCoordinator, IDisposable
     /// </summary>
     private void TryEmitChunk()
     {
-        if (!_chunkingEnabled) return;
-
         byte[]? chunkBytes = null;
         int chunkIndex = 0;
 
         lock (_bufferLock)
         {
+            if (!_chunkingEnabled) return;
             if (DateTime.UtcNow - _lastChunkEmit < _chunkInterval) return;
             var pendingBytes = _audioBuffer.Count - _lastChunkCursor;
             if (pendingBytes <= 0) return;
@@ -316,13 +322,12 @@ public class AudioRecordingCoordinator : IAudioRecordingCoordinator, IDisposable
     /// </summary>
     private void TryEmitFinalChunk()
     {
-        if (!_chunkingEnabled) return;
-
         byte[]? tailBytes = null;
         int chunkIndex = 0;
 
         lock (_bufferLock)
         {
+            if (!_chunkingEnabled) return;
             var pendingBytes = _audioBuffer.Count - _lastChunkCursor;
             if (pendingBytes <= 0) return;
 

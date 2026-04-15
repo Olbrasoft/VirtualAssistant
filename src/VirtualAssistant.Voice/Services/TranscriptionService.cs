@@ -301,19 +301,22 @@ public class TranscriptionService : ITranscriptionService
 
         var filteredText = _lightweightTextFilter?.Apply(rawText) ?? rawText;
 
+        // Confidence 0.0f is a sentinel for "unknown" — this path has no per-chunk
+        // confidence data to aggregate, so we don't claim high confidence like a
+        // single Whisper pass would return.
         if (string.IsNullOrWhiteSpace(filteredText))
         {
             _logger.LogInformation(
                 "FinalizePreTranscribedRawAsync: text wiped by lightweight filter (hallucination): '{Original}'",
                 rawText);
-            return Task.FromResult(new TranscriptionResult(string.Empty, 1.0f)
+            return Task.FromResult(new TranscriptionResult(string.Empty, 0.0f)
             {
                 OriginalText = rawText,
                 FilteredText = string.Empty
             });
         }
 
-        return Task.FromResult(new TranscriptionResult(filteredText, 1.0f)
+        return Task.FromResult(new TranscriptionResult(filteredText, 0.0f)
         {
             OriginalText = rawText,
             FilteredText = filteredText
@@ -324,10 +327,22 @@ public class TranscriptionService : ITranscriptionService
     public async Task<string> TranscribeChunkRawAsync(byte[] audioData, CancellationToken cancellationToken = default)
     {
         if (audioData == null || audioData.Length == 0) return string.Empty;
+
+        // Do NOT use TruncateIfTooLarge here — it keeps the LAST bytes, which would
+        // drop the beginning of an individual chunk (already-spoken content) during
+        // streaming transcription. Chunks are normally small (a few seconds); if one
+        // ever exceeds the limit we log and skip rather than silently losing audio.
+        if (audioData.Length > _options.MaxSegmentBytes)
+        {
+            _logger.LogWarning(
+                "TranscribeChunkRawAsync: chunk too large ({Size} > {Max} bytes), skipping to avoid losing start of chunk",
+                audioData.Length, _options.MaxSegmentBytes);
+            return string.Empty;
+        }
+
         try
         {
-            var safeAudio = TruncateIfTooLarge(audioData);
-            var result = await _transcriber.TranscribeAsync(safeAudio, cancellationToken);
+            var result = await _transcriber.TranscribeAsync(audioData, cancellationToken);
             return result.Success ? result.Text ?? string.Empty : string.Empty;
         }
         catch (OperationCanceledException)

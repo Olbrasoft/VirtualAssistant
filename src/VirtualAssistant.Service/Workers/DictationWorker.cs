@@ -160,6 +160,17 @@ public class DictationWorker : BackgroundService, IDictationControl, IDictationS
             _logger.LogInformation(
                 "StopDictationAsync(quickMode={QuickMode}) - overriding start-time mode",
                 quickMode);
+
+            // If user picked slow mode but streaming was pre-transcribing chunks,
+            // cancel those background tasks — they'd be discarded anyway, no point
+            // burning GPU/serializing the Whisper semaphore for them.
+            if (!quickMode && _streamingActiveForSession)
+            {
+                try { _streamChunksCts?.Cancel(); } catch { /* best effort */ }
+                _recordingCoordinator.DisableChunking();
+                _logger.LogInformation("Slow-mode override: canceled pending streaming chunk transcriptions");
+            }
+
             _ = Task.Run(async () => await StopAndTranscribeAsync());
         }
 
@@ -752,6 +763,10 @@ public class DictationWorker : BackgroundService, IDictationControl, IDictationS
             _transcriptionCts?.Cancel();
             _transcriptionCts?.Dispose();
             _transcriptionCts = null;
+
+            // Cancel in-flight streaming chunk tasks and clear chunk state,
+            // otherwise they keep running into the next session.
+            ResetStreamingSessionState();
 
             // Return to Idle
             _stateMachine.TransitionTo(DictationState.Idle);
