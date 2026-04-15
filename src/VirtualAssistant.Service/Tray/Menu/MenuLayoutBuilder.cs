@@ -57,6 +57,12 @@ public class MenuLayoutBuilder : IMenuLayoutBuilder
                 ["enabled"] = VariantValue.Bool(true),
                 ["visible"] = VariantValue.Bool(true)
             }),
+            MenuItemIds.StreamingTranscriptionId => (id, new Dictionary<string, VariantValue>
+            {
+                ["label"] = VariantValue.String(GetStreamingTranscriptionLabel()),
+                ["enabled"] = VariantValue.Bool(true),
+                ["visible"] = VariantValue.Bool(true)
+            }),
             MenuItemIds.LlmCorrectionId => (id, new Dictionary<string, VariantValue>
             {
                 ["label"] = VariantValue.String(GetLlmCorrectionLabel()),
@@ -128,6 +134,7 @@ public class MenuLayoutBuilder : IMenuLayoutBuilder
             var muteLabel = GetMuteLabel();
             var ttsMuteLabel = GetTtsMuteLabel();
             var dictationLabel = GetDictationLabel();
+            var streamingLabel = GetStreamingTranscriptionLabel();
             var llmCorrectionLabel = GetLlmCorrectionLabel();
 
             children =
@@ -135,6 +142,7 @@ public class MenuLayoutBuilder : IMenuLayoutBuilder
                 CreateChildVariant(MenuItemIds.StatusId, "VirtualAssistant - poslouchám", false, enabled: false),
                 CreateChildVariant(MenuItemIds.Separator1Id, "", true),
                 CreateChildVariant(MenuItemIds.DictationToggleId, dictationLabel, false),
+                CreateChildVariant(MenuItemIds.StreamingTranscriptionId, streamingLabel, false),
                 CreateChildVariant(MenuItemIds.Separator2Id, "", true),
                 CreateChildVariant(MenuItemIds.LlmCorrectionId, llmCorrectionLabel, false),
                 CreateChildVariant(MenuItemIds.ReloadPromptId, GetPromptSyncLabel(), false),
@@ -208,6 +216,13 @@ public class MenuLayoutBuilder : IMenuLayoutBuilder
         return _stateManager.IsDictationEnabled
             ? "✅ Diktace - Vypnout"
             : "❌ Diktace - Zapnout";
+    }
+
+    private string GetStreamingTranscriptionLabel()
+    {
+        return _stateManager.IsStreamingTranscriptionEnabled
+            ? "✅ Streaming transkripce - Vypnout"
+            : "❌ Streaming transkripce - Zapnout";
     }
 
     private string GetLlmCorrectionLabel()

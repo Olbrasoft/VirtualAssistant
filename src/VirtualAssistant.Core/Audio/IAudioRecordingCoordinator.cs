@@ -1,6 +1,12 @@
 namespace Olbrasoft.VirtualAssistant.Core.Audio;
 
 /// <summary>
+/// Event args for a periodic audio chunk emitted during recording.
+/// Contains a raw PCM slice since the previous chunk boundary and its ordinal index.
+/// </summary>
+public record AudioChunkEventArgs(int Index, byte[] PcmBytes);
+
+/// <summary>
 /// Coordinates audio recording workflow including buffer management and capture task lifecycle.
 /// Separates audio recording concerns from dictation state machine orchestration.
 /// </summary>
@@ -10,6 +16,24 @@ public interface IAudioRecordingCoordinator
     /// Gets whether recording is currently in progress.
     /// </summary>
     bool IsRecording { get; }
+
+    /// <summary>
+    /// Fired periodically during recording with accumulated audio since the previous emit.
+    /// Subscribed to only when streaming transcription is enabled. Not fired outside recording.
+    /// </summary>
+    event EventHandler<AudioChunkEventArgs>? ChunkAvailable;
+
+    /// <summary>
+    /// Enables periodic chunk emission on the current (or next) recording session.
+    /// Call before <see cref="StartRecordingAsync"/> when streaming is active.
+    /// </summary>
+    /// <param name="interval">Minimum interval between chunk emits.</param>
+    void EnableChunking(TimeSpan interval);
+
+    /// <summary>
+    /// Disables chunk emission. Already-emitted chunks keep their state in subscribers.
+    /// </summary>
+    void DisableChunking();
 
     /// <summary>
     /// Starts audio recording, initializing buffer and capture task.

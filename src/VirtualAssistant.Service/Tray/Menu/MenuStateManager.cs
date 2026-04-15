@@ -12,6 +12,7 @@ public class MenuStateManager : IMenuStateManager
     private string _logViewerStatus = "Checking...";
     private bool _llmCorrectionEnabled = true;
     private bool _dictationEnabled = true;
+    private bool _streamingTranscriptionEnabled;
     private PromptSyncStatus _promptSyncStatus = PromptSyncStatus.Unknown;
     private string? _lastSyncError;
     private uint _revision;
@@ -58,6 +59,11 @@ public class MenuStateManager : IMenuStateManager
     /// Gets whether dictation is enabled.
     /// </summary>
     public bool IsDictationEnabled => _dictationEnabled;
+
+    /// <summary>
+    /// Gets whether streaming (chunked) transcription is enabled for the fast dictation path.
+    /// </summary>
+    public bool IsStreamingTranscriptionEnabled => _streamingTranscriptionEnabled;
 
     /// <summary>
     /// Gets the current prompt synchronization status.
@@ -111,6 +117,15 @@ public class MenuStateManager : IMenuStateManager
     public void UpdateDictationStatus(bool enabled)
     {
         _dictationEnabled = enabled;
+        IncrementRevisionAndNotify();
+    }
+
+    /// <summary>
+    /// Updates the streaming transcription enabled status (fast path only).
+    /// </summary>
+    public void UpdateStreamingTranscriptionStatus(bool enabled)
+    {
+        _streamingTranscriptionEnabled = enabled;
         IncrementRevisionAndNotify();
     }
 

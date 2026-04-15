@@ -247,4 +247,24 @@ public class MenuEventDispatcher : IMenuEventDispatcher
             _logger.LogError(ex, "Failed to toggle dictation");
         }
     }
+
+    /// <inheritdoc/>
+    public void HandleStreamingTranscriptionToggle(bool enabled)
+    {
+        try
+        {
+            if (_dictationControl == null)
+            {
+                _logger.LogWarning("Dictation control not available");
+                return;
+            }
+
+            _logger.LogInformation("Setting streaming transcription enabled: {Enabled}", enabled);
+            _dictationControl.SetStreamingTranscriptionEnabled(enabled);
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Failed to toggle streaming transcription");
+        }
+    }
 }

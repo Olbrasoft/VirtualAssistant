@@ -52,6 +52,11 @@ public interface IMenuEventRouter
     event Action<bool>? OnTtsMuteToggleRequested;
 
     /// <summary>
+    /// Event fired when user toggles streaming transcription on/off.
+    /// </summary>
+    event Action<bool>? OnStreamingTranscriptionToggled;
+
+    /// <summary>
     /// Handles a menu click event.
     /// </summary>
     /// <param name="id">Menu item ID that was clicked.</param>
