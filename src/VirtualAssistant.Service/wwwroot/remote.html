@@ -343,14 +343,16 @@
         }
 
         .workspace-buttons {
+            --workspace-gap: 10px;
+            --workspace-per-row: 4;
             display: flex;
             flex-wrap: wrap;
-            gap: 10px;
+            gap: var(--workspace-gap);
         }
 
         .btn-workspace {
-            flex: 1 1 calc(25% - 8px);
-            min-width: calc(25% - 8px);
+            flex: 1 1 calc((100% - (var(--workspace-per-row) - 1) * var(--workspace-gap)) / var(--workspace-per-row));
+            min-width: calc((100% - (var(--workspace-per-row) - 1) * var(--workspace-gap)) / var(--workspace-per-row));
             height: 70px;
             font-size: 1.5rem;
             font-weight: 700;
@@ -488,7 +490,7 @@
     <script src="https://cdnjs.cloudflare.com/ajax/libs/microsoft-signalr/8.0.0/signalr.min.js"></script>
     <!-- Cache-busting version query — bump on every remote.js change so
          clients with stale browser cache do not serve an old script. -->
-    <script src="remote.js?v=24"></script>
+    <script src="remote.js?v=25"></script>
     <script>
         if ('serviceWorker' in navigator) {
             navigator.serviceWorker.register('/service-worker.js')

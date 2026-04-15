@@ -1,4 +1,4 @@
-const CACHE_NAME = 'va-dictation-v25';
+const CACHE_NAME = 'va-dictation-v26';
 
 const SAME_ORIGIN_URLS = [
     '/remote.html',
@@ -50,8 +50,10 @@ self.addEventListener('fetch', event => {
                 }
                 return response;
             })
-            .catch(() =>
-                caches.match(event.request).then(cachedResponse => {
+            .catch(() => {
+                // Ignore querystring so /remote.js?v=25 matches precached /remote.js
+                const matchOptions = isSameOrigin ? { ignoreSearch: true } : undefined;
+                return caches.match(event.request, matchOptions).then(cachedResponse => {
                     if (cachedResponse) {
                         return cachedResponse;
                     }
@@ -62,8 +64,8 @@ self.addEventListener('fetch', event => {
                         status: 503,
                         statusText: 'Service Unavailable'
                     });
-                })
-            )
+                });
+            })
     );
 });
 
