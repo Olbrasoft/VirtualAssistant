@@ -260,7 +260,7 @@ public class DictationHub : Hub
         catch (Exception ex) { _logger.LogError(ex, "ClearText failed"); }
     }
 
-    private static readonly HashSet<int> AllowedWorkspaces = [1, 4, 5, 6];
+    private static readonly HashSet<int> AllowedWorkspaces = [1, 2, 3, 4, 5, 6, 7, 8];
 
     /// <summary>
     /// Gets current workspace info (1-indexed workspace number and total count).

@@ -4,7 +4,7 @@
 // Bumped on every script change. Rendered next to the connection status so
 // the user can verify the phone is actually running the latest JS and not a
 // stale cached copy. MUST match the ?v= query string in remote.html.
-const SCRIPT_VERSION = 'v24';
+const SCRIPT_VERSION = 'v25';
 
 const elements = {
     connectionStatus: document.getElementById('connectionStatus'),
@@ -26,9 +26,13 @@ const elements = {
     btnFerdium: document.getElementById('btnFerdium'),
     workspaceButtons: {
         1: document.getElementById('btnWorkspace1'),
+        2: document.getElementById('btnWorkspace2'),
+        3: document.getElementById('btnWorkspace3'),
         4: document.getElementById('btnWorkspace4'),
         5: document.getElementById('btnWorkspace5'),
-        6: document.getElementById('btnWorkspace6')
+        6: document.getElementById('btnWorkspace6'),
+        7: document.getElementById('btnWorkspace7'),
+        8: document.getElementById('btnWorkspace8')
     }
 };
 

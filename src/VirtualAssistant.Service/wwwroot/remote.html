@@ -343,12 +343,16 @@
         }
 
         .workspace-buttons {
+            --workspace-gap: 10px;
+            --workspace-per-row: 4;
             display: flex;
-            gap: 10px;
+            flex-wrap: wrap;
+            gap: var(--workspace-gap);
         }
 
         .btn-workspace {
-            flex: 1;
+            flex: 1 1 calc((100% - (var(--workspace-per-row) - 1) * var(--workspace-gap)) / var(--workspace-per-row));
+            min-width: calc((100% - (var(--workspace-per-row) - 1) * var(--workspace-gap)) / var(--workspace-per-row));
             height: 70px;
             font-size: 1.5rem;
             font-weight: 700;
@@ -437,9 +441,13 @@
         <div class="workspace-section" id="workspaceSection">
             <div class="workspace-buttons">
                 <button class="btn-workspace" id="btnWorkspace1" data-workspace="1" disabled>1</button>
+                <button class="btn-workspace hidden" id="btnWorkspace2" data-workspace="2" disabled>2</button>
+                <button class="btn-workspace hidden" id="btnWorkspace3" data-workspace="3" disabled>3</button>
                 <button class="btn-workspace hidden" id="btnWorkspace4" data-workspace="4" disabled>4</button>
                 <button class="btn-workspace hidden" id="btnWorkspace5" data-workspace="5" disabled>5</button>
                 <button class="btn-workspace hidden" id="btnWorkspace6" data-workspace="6" disabled>6</button>
+                <button class="btn-workspace hidden" id="btnWorkspace7" data-workspace="7" disabled>7</button>
+                <button class="btn-workspace hidden" id="btnWorkspace8" data-workspace="8" disabled>8</button>
             </div>
         </div>
 
@@ -482,7 +490,7 @@
     <script src="https://cdnjs.cloudflare.com/ajax/libs/microsoft-signalr/8.0.0/signalr.min.js"></script>
     <!-- Cache-busting version query — bump on every remote.js change so
          clients with stale browser cache do not serve an old script. -->
-    <script src="remote.js?v=24"></script>
+    <script src="remote.js?v=25"></script>
     <script>
         if ('serviceWorker' in navigator) {
             navigator.serviceWorker.register('/service-worker.js')
