@@ -27,6 +27,13 @@ public class AudioRecordingCoordinator : IAudioRecordingCoordinator, IDisposable
     private readonly object _startLock = new();
     private bool _disposed;
 
+    // Streaming chunk emission state
+    private volatile bool _chunkingEnabled;
+    private TimeSpan _chunkInterval = TimeSpan.FromSeconds(8);
+    private int _lastChunkCursor;      // byte index in _audioBuffer where last chunk ended
+    private int _nextChunkIndex;       // ordinal for next emitted chunk
+    private DateTime _lastChunkEmit;   // last emit timestamp
+
     public AudioRecordingCoordinator(
         ILogger<AudioRecordingCoordinator> logger,
         IAudioCaptureService audioCapture,
@@ -42,6 +49,24 @@ public class AudioRecordingCoordinator : IAudioRecordingCoordinator, IDisposable
     public bool IsRecording => _recordingTask != null;
 
     /// <inheritdoc />
+    public event EventHandler<AudioChunkEventArgs>? ChunkAvailable;
+
+    /// <inheritdoc />
+    public void EnableChunking(TimeSpan interval)
+    {
+        _chunkInterval = interval < TimeSpan.FromSeconds(1) ? TimeSpan.FromSeconds(1) : interval;
+        _chunkingEnabled = true;
+        _logger.LogInformation("Chunk emission enabled with interval {Interval}s", _chunkInterval.TotalSeconds);
+    }
+
+    /// <inheritdoc />
+    public void DisableChunking()
+    {
+        _chunkingEnabled = false;
+        _logger.LogInformation("Chunk emission disabled");
+    }
+
+    /// <inheritdoc />
     public async Task StartRecordingAsync(CancellationToken cancellationToken = default)
     {
         // Use lock to prevent concurrent start operations (fixes race condition)
@@ -55,10 +80,13 @@ public class AudioRecordingCoordinator : IAudioRecordingCoordinator, IDisposable
 
             try
             {
-                // Clear audio buffer
+                // Clear audio buffer and reset chunking cursor
                 lock (_bufferLock)
                 {
                     _audioBuffer.Clear();
+                    _lastChunkCursor = 0;
+                    _nextChunkIndex = 0;
+                    _lastChunkEmit = DateTime.UtcNow;
                 }
 
                 // Create cancellation token for recording
@@ -123,6 +151,10 @@ public class AudioRecordingCoordinator : IAudioRecordingCoordinator, IDisposable
 
             // Stop audio capture
             _audioCapture.Stop();
+
+            // Emit final chunk (tail since last emit) before clearing buffer.
+            // No-op when chunking disabled or no pending bytes.
+            TryEmitFinalChunk();
 
             // Get recorded audio
             byte[] audioData;
@@ -227,6 +259,8 @@ public class AudioRecordingCoordinator : IAudioRecordingCoordinator, IDisposable
                     }
 
                     _logger.LogDebug("Audio chunk captured: {Bytes} bytes (total: {Total})", chunk.Length, totalBytes);
+
+                    TryEmitChunk();
                 }
             }
         }
@@ -237,6 +271,75 @@ public class AudioRecordingCoordinator : IAudioRecordingCoordinator, IDisposable
         catch (Exception ex)
         {
             _logger.LogError(ex, "Error capturing audio");
+        }
+    }
+
+    /// <summary>
+    /// Emits a chunk if chunking is enabled, the interval has elapsed, and there is
+    /// audio data past the last emit cursor.
+    /// </summary>
+    private void TryEmitChunk()
+    {
+        if (!_chunkingEnabled) return;
+
+        byte[]? chunkBytes = null;
+        int chunkIndex = 0;
+
+        lock (_bufferLock)
+        {
+            if (DateTime.UtcNow - _lastChunkEmit < _chunkInterval) return;
+            var pendingBytes = _audioBuffer.Count - _lastChunkCursor;
+            if (pendingBytes <= 0) return;
+
+            chunkBytes = new byte[pendingBytes];
+            _audioBuffer.CopyTo(_lastChunkCursor, chunkBytes, 0, pendingBytes);
+            _lastChunkCursor = _audioBuffer.Count;
+            chunkIndex = _nextChunkIndex++;
+            _lastChunkEmit = DateTime.UtcNow;
+        }
+
+        try
+        {
+            ChunkAvailable?.Invoke(this, new AudioChunkEventArgs(chunkIndex, chunkBytes));
+            _logger.LogDebug("Emitted audio chunk {Index}: {Bytes} bytes", chunkIndex, chunkBytes.Length);
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Error invoking ChunkAvailable handler for chunk {Index}", chunkIndex);
+        }
+    }
+
+    /// <summary>
+    /// Called from stop paths to drain the last pending bytes as a final chunk before
+    /// returning the full buffer to the caller. Only emits if chunking is enabled and
+    /// there's remaining audio past the last chunk cursor.
+    /// </summary>
+    private void TryEmitFinalChunk()
+    {
+        if (!_chunkingEnabled) return;
+
+        byte[]? tailBytes = null;
+        int chunkIndex = 0;
+
+        lock (_bufferLock)
+        {
+            var pendingBytes = _audioBuffer.Count - _lastChunkCursor;
+            if (pendingBytes <= 0) return;
+
+            tailBytes = new byte[pendingBytes];
+            _audioBuffer.CopyTo(_lastChunkCursor, tailBytes, 0, pendingBytes);
+            _lastChunkCursor = _audioBuffer.Count;
+            chunkIndex = _nextChunkIndex++;
+        }
+
+        try
+        {
+            ChunkAvailable?.Invoke(this, new AudioChunkEventArgs(chunkIndex, tailBytes));
+            _logger.LogDebug("Emitted final audio chunk {Index}: {Bytes} bytes", chunkIndex, tailBytes.Length);
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Error invoking ChunkAvailable handler for final chunk {Index}", chunkIndex);
         }
     }
 

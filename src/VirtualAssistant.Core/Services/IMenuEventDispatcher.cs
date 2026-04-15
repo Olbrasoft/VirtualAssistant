@@ -55,4 +55,9 @@ public interface IMenuEventDispatcher
     /// Opens browser to Inception Labs billing dashboard.
     /// </summary>
     void HandleMercuryBilling();
+
+    /// <summary>
+    /// Handles streaming transcription toggle from menu (fast dictation path only).
+    /// </summary>
+    void HandleStreamingTranscriptionToggle(bool enabled);
 }

@@ -42,6 +42,11 @@ public interface IMenuStateManager
     bool IsDictationEnabled { get; }
 
     /// <summary>
+    /// Gets whether streaming (chunked) transcription is enabled for the fast dictation path.
+    /// </summary>
+    bool IsStreamingTranscriptionEnabled { get; }
+
+    /// <summary>
     /// Gets the current prompt synchronization status.
     /// </summary>
     PromptSyncStatus PromptSyncStatus { get; }
@@ -75,6 +80,11 @@ public interface IMenuStateManager
     /// Updates the dictation enabled status.
     /// </summary>
     void UpdateDictationStatus(bool enabled);
+
+    /// <summary>
+    /// Updates the streaming transcription enabled status (fast path only).
+    /// </summary>
+    void UpdateStreamingTranscriptionStatus(bool enabled);
 
     /// <summary>
     /// Updates the prompt synchronization status.

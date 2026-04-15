@@ -64,6 +64,11 @@ public class MenuEventRouter : IMenuEventRouter
     public event Action<bool>? OnTtsMuteToggleRequested;
 
     /// <summary>
+    /// Event fired when user toggles streaming transcription on/off.
+    /// </summary>
+    public event Action<bool>? OnStreamingTranscriptionToggled;
+
+    /// <summary>
     /// Handles a menu click event.
     /// Routes the event to the appropriate handler based on menu item ID.
     /// </summary>
@@ -96,7 +101,8 @@ public class MenuEventRouter : IMenuEventRouter
         [MenuItemIds.MercuryBillingId] = HandleMercuryBilling,
         [MenuItemIds.LlmCorrectionId] = HandleLlmCorrection,
         [MenuItemIds.ReloadPromptId] = HandleReloadPrompt,
-        [MenuItemIds.DictationToggleId] = HandleDictationToggle
+        [MenuItemIds.DictationToggleId] = HandleDictationToggle,
+        [MenuItemIds.StreamingTranscriptionId] = HandleStreamingTranscriptionToggle
     };
 
     private void HandleQuit()
@@ -157,5 +163,13 @@ public class MenuEventRouter : IMenuEventRouter
         var newState = !_stateManager.IsDictationEnabled;
         _stateManager.UpdateDictationStatus(newState);
         OnDictationToggleRequested?.Invoke(newState);
+    }
+
+    private void HandleStreamingTranscriptionToggle()
+    {
+        _logger.LogInformation("Streaming transcription toggle clicked (current: {Enabled})", _stateManager.IsStreamingTranscriptionEnabled);
+        var newState = !_stateManager.IsStreamingTranscriptionEnabled;
+        _stateManager.UpdateStreamingTranscriptionStatus(newState);
+        OnStreamingTranscriptionToggled?.Invoke(newState);
     }
 }
