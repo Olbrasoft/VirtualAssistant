@@ -9,15 +9,22 @@ namespace Olbrasoft.VirtualAssistant.Service.Workers;
 /// </summary>
 public class ScreenshotWatcherWorker : BackgroundService
 {
-    private static readonly string ScreenshotDir =
+    /// <summary>
+    /// Shared screenshot directory path — used by both this worker and DictationHub.
+    /// </summary>
+    public static readonly string ScreenshotDir =
         Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.UserProfile), "Obrázky", "Snímky obrazovky");
 
-    private static readonly TimeSpan FreshnessWindow = TimeSpan.FromMinutes(5);
+    /// <summary>
+    /// Shared freshness window — screenshots older than this are considered expired.
+    /// </summary>
+    public static readonly TimeSpan FreshnessWindow = TimeSpan.FromMinutes(5);
 
     private readonly ILogger<ScreenshotWatcherWorker> _logger;
     private readonly IHubContext<DictationHub> _hubContext;
     private FileSystemWatcher? _watcher;
     private bool _lastBroadcastState;
+    private DateTime _latestScreenshotTime = DateTime.MinValue;
 
     public ScreenshotWatcherWorker(
         ILogger<ScreenshotWatcherWorker> logger,
@@ -44,10 +51,15 @@ public class ScreenshotWatcherWorker : BackgroundService
         _watcher.Created += (_, e) =>
         {
             _logger.LogInformation("New screenshot detected: {File}", e.Name);
+            _latestScreenshotTime = DateTime.Now;
             _ = BroadcastAvailabilityAsync(true);
         };
 
         _logger.LogInformation("Screenshot watcher started on {Dir}", ScreenshotDir);
+
+        // Broadcast initial state immediately so clients don't wait 30s
+        var initialState = HasRecentScreenshot();
+        await BroadcastAvailabilityAsync(initialState);
 
         // Periodic check for expiry (every 30s)
         while (!stoppingToken.IsCancellationRequested)
@@ -55,7 +67,19 @@ public class ScreenshotWatcherWorker : BackgroundService
             try
             {
                 await Task.Delay(TimeSpan.FromSeconds(30), stoppingToken);
-                var available = HasRecentScreenshot();
+
+                // Fast path: if we know the latest screenshot time from watcher events,
+                // just check that timestamp instead of scanning the directory.
+                bool available;
+                if (_latestScreenshotTime > DateTime.MinValue)
+                {
+                    available = (DateTime.Now - _latestScreenshotTime) < FreshnessWindow;
+                }
+                else
+                {
+                    available = HasRecentScreenshot();
+                }
+
                 if (available != _lastBroadcastState)
                 {
                     await BroadcastAvailabilityAsync(available);
@@ -74,7 +98,11 @@ public class ScreenshotWatcherWorker : BackgroundService
                 .Select(f => new FileInfo(f))
                 .Any(fi => fi.LastWriteTime > cutoff);
         }
-        catch { return false; }
+        catch (Exception ex)
+        {
+            _logger.LogDebug(ex, "Error checking recent screenshots in {Dir}", ScreenshotDir);
+            return false;
+        }
     }
 
     private async Task BroadcastAvailabilityAsync(bool available)
