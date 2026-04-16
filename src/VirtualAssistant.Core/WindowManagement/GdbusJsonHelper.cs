@@ -34,4 +34,29 @@ public static class GdbusJsonHelper
 
         return json.Replace("\\\\\"", "\\\"");
     }
+
+    /// <summary>
+    /// Extracts the substring from the first <c>[</c> to the last <c>]</c>
+    /// found in raw <c>gdbus</c> output wrapped in the GVariant tuple prefix,
+    /// e.g. <c>('[{…}]',)</c>. Returns <c>null</c> when no opening bracket is
+    /// found or when no later closing bracket can be located.
+    /// </summary>
+    /// <param name="rawOutput">Unprocessed stdout from a gdbus call.</param>
+    /// <returns>The JSON array substring, or <c>null</c> if not present.</returns>
+    public static string? TryExtractJsonArray(string? rawOutput)
+    {
+        if (string.IsNullOrEmpty(rawOutput))
+        {
+            return null;
+        }
+
+        var jsonStart = rawOutput.IndexOf('[');
+        var jsonEnd = rawOutput.LastIndexOf(']');
+        if (jsonStart < 0 || jsonEnd <= jsonStart)
+        {
+            return null;
+        }
+
+        return rawOutput.Substring(jsonStart, jsonEnd - jsonStart + 1);
+    }
 }

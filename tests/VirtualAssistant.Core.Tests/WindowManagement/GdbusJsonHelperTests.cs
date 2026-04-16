@@ -79,4 +79,47 @@ public class GdbusJsonHelperTests
 
         Assert.Equal(input, result);
     }
+
+    [Fact]
+    public void TryExtractJsonArray_WithGdbusTuplePrefix_ReturnsArraySubstring()
+    {
+        // Happy path: gdbus emits a single-element tuple with a string value,
+        // e.g. ('[{"focus":true}]',) — we want the inner JSON array.
+        var raw = "('[{\"focus\":true,\"wm_class\":\"kitty\"}]',)";
+
+        var result = GdbusJsonHelper.TryExtractJsonArray(raw);
+
+        Assert.Equal("[{\"focus\":true,\"wm_class\":\"kitty\"}]", result);
+    }
+
+    [Fact]
+    public void TryExtractJsonArray_WithNoBrackets_ReturnsNull()
+    {
+        // Edge case: gdbus returned an error/empty payload without any brackets.
+        var raw = "no data";
+
+        var result = GdbusJsonHelper.TryExtractJsonArray(raw);
+
+        Assert.Null(result);
+    }
+
+    [Fact]
+    public void TryExtractJsonArray_WithNullInput_ReturnsNull()
+    {
+        var result = GdbusJsonHelper.TryExtractJsonArray(null);
+
+        Assert.Null(result);
+    }
+
+    [Fact]
+    public void TryExtractJsonArray_WithOnlyOpeningBracket_ReturnsNull()
+    {
+        // Malformed: opening bracket but no closing one — do not return a
+        // half-formed substring.
+        var raw = "('[broken',)";
+
+        var result = GdbusJsonHelper.TryExtractJsonArray(raw);
+
+        Assert.Null(result);
+    }
 }

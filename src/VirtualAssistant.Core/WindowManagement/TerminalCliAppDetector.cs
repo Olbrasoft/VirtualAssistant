@@ -151,16 +151,14 @@ public class TerminalCliAppDetector : ICliAppDetector
             }
 
             // Extract JSON array from gdbus output: ('[{...}]',)
-            var jsonStart = output.IndexOf('[');
-            var jsonEnd = output.LastIndexOf(']');
-            if (jsonStart < 0 || jsonEnd <= jsonStart)
+            var rawJsonArray = GdbusJsonHelper.TryExtractJsonArray(output);
+            if (rawJsonArray is null)
             {
                 _logger.LogDebug("Could not parse D-Bus output");
                 return null;
             }
 
-            var jsonArray = GdbusJsonHelper.UnescapeQuotes(
-                output.Substring(jsonStart, jsonEnd - jsonStart + 1));
+            var jsonArray = GdbusJsonHelper.UnescapeQuotes(rawJsonArray);
 
             var windows = JsonSerializer.Deserialize<JsonElement>(jsonArray);
 
