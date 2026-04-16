@@ -195,6 +195,40 @@ public class DictationHub : Hub
     }
 
     /// <summary>
+    /// Types the word "Pokračuj" into the active window and presses Enter.
+    /// Used by the Remote Control "Pokračuj" button when Claude Code is the active CLI app.
+    /// </summary>
+    public async Task SendContinue()
+    {
+        _logger.LogInformation("SendContinue called from client {ConnectionId}", Context.ConnectionId);
+        try
+        {
+            await _keyboardSimulation.TypeIntoActiveWindowAsync("Pokračuj");
+            await _keyboardSimulation.SendKeyAsync("enter");
+        }
+        catch (Exception ex) { _logger.LogError(ex, "SendContinue failed"); }
+    }
+
+    /// <summary>
+    /// Returns the name of the CLI app currently running in the focused terminal
+    /// (e.g., "Claude Code", "OpenCode", "Gemini CLI"), or empty string if none.
+    /// Used by the Remote Control to toggle agent-specific buttons (e.g., Pokračuj).
+    /// </summary>
+    public async Task<string> GetActiveCliApp()
+    {
+        try
+        {
+            var cliApp = await _cliAppDetector.DetectCliAppAsync();
+            return cliApp?.AppName ?? "";
+        }
+        catch (Exception ex)
+        {
+            _logger.LogWarning(ex, "GetActiveCliApp failed");
+            return "";
+        }
+    }
+
+    /// <summary>
     /// Pastes from the system clipboard using the correct shortcut for the active window.
     /// Delegates to IKeyboardSimulationService.PasteFromClipboardAsync which centrally
     /// handles terminal (Ctrl+Shift+V) vs GUI (Ctrl+V) detection.

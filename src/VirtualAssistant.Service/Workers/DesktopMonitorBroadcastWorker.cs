@@ -140,6 +140,7 @@ public class DesktopMonitorBroadcastWorker : BackgroundService
             // Priority 0: Check for CLI apps running in terminals (e.g., Claude Code, OpenCode)
             // This handles cases where CLI apps change the terminal window title
             var cliApp = await _cliAppDetector.DetectCliAppAsync(CancellationToken.None);
+            await _dictationHubContext.Clients.All.SendAsync("CliAppChanged", cliApp?.AppName ?? "");
             if (cliApp != null)
             {
                 _logger.LogDebug(
