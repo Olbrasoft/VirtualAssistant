@@ -760,11 +760,13 @@ public class DictationWorker : BackgroundService, IDictationControl, IDictationS
             // Play cancel sound (paper-rip effect)
             _cancelSound.Play();
 
-            // If still recording, stop audio capture and discard buffer
+            // If still recording, stop audio capture and discard buffer.
+            // Must complete before resetting streaming state so no more
+            // chunk events arrive after the reset.
             if (currentState == DictationState.Recording)
             {
                 _logger.LogInformation("Canceling active recording (emergency stop)");
-                _ = _recordingCoordinator.EmergencyStopAsync();
+                _recordingCoordinator.EmergencyStopAsync().GetAwaiter().GetResult();
             }
 
             // Cancel transcription if in progress
