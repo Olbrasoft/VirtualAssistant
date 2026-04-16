@@ -1,9 +1,11 @@
 using Microsoft.AspNetCore.SignalR;
+using Olbrasoft.Data.Cqrs;
 using Olbrasoft.LinuxDesktop.Core.Services;
 using Olbrasoft.VirtualAssistant.Core.Keyboard;
 using Olbrasoft.VirtualAssistant.Core.Services;
 using Olbrasoft.VirtualAssistant.Core.StateMachine;
 using Olbrasoft.VirtualAssistant.Core.WindowManagement;
+using Olbrasoft.VirtualAssistant.Data.Queries.PromptQueries;
 using IDesktopContextService = Olbrasoft.VirtualAssistant.Core.Services.IDesktopContextService;
 
 namespace Olbrasoft.VirtualAssistant.Service.Hubs;
@@ -25,6 +27,7 @@ public class DictationHub : Hub
     private readonly IDesktopContextService _desktopContext;
     private readonly ICliAppDetector _cliAppDetector;
     private readonly ITerminalDetector _terminalDetector;
+    private readonly IQueryProcessor _queryProcessor;
     private readonly ILogger<DictationHub> _logger;
 
     public DictationHub(
@@ -35,6 +38,7 @@ public class DictationHub : Hub
         IDesktopContextService desktopContext,
         ICliAppDetector cliAppDetector,
         ITerminalDetector terminalDetector,
+        IQueryProcessor queryProcessor,
         ILogger<DictationHub> logger)
     {
         _dictationService = dictationService;
@@ -44,6 +48,7 @@ public class DictationHub : Hub
         _desktopContext = desktopContext;
         _cliAppDetector = cliAppDetector;
         _terminalDetector = terminalDetector;
+        _queryProcessor = queryProcessor;
         _logger = logger;
     }
 
@@ -210,16 +215,29 @@ public class DictationHub : Hub
     }
 
     /// <summary>
-    /// Returns the name of the CLI app currently running in the focused terminal
-    /// (e.g., "Claude Code", "OpenCode", "Gemini CLI"), or empty string if none.
-    /// Used by the Remote Control to toggle agent-specific buttons (e.g., Pokračuj).
+    /// Returns the name of the CLI app currently detected as the focused
+    /// application (e.g., "Claude Code", "OpenCode", "Gemini CLI"), or empty
+    /// string if none. Used by the Remote Control on initial connection to
+    /// set the initial state of agent-specific buttons (e.g., Pokračuj).
+    ///
+    /// Matches the same detection flow as DesktopMonitorBroadcastWorker:
+    /// first the process-tree-based CLI detector, then title/application
+    /// pattern matching — the latter works even when the CLI detector can't
+    /// see the process (e.g., claude running under tmux).
     /// </summary>
     public async Task<string> GetActiveCliApp()
     {
         try
         {
             var cliApp = await _cliAppDetector.DetectCliAppAsync();
-            return cliApp?.AppName ?? "";
+            if (cliApp != null)
+                return cliApp.AppName;
+
+            var context = await _desktopContext.GetCurrentContextAsync();
+            var prompt = await _queryProcessor.ProcessAsync(
+                new GetPromptByAppIdPatternQuery(context.ActiveWindowTitle, context.ActiveApplication),
+                CancellationToken.None);
+            return prompt?.ApplicationName ?? "";
         }
         catch (Exception ex)
         {

@@ -4,7 +4,7 @@
 // Bumped on every script change. Rendered next to the connection status so
 // the user can verify the phone is actually running the latest JS and not a
 // stale cached copy. MUST match the ?v= query string in remote.html.
-const SCRIPT_VERSION = 'v30';
+const SCRIPT_VERSION = 'v31';
 
 const elements = {
     connectionStatus: document.getElementById('connectionStatus'),
