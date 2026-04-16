@@ -81,4 +81,27 @@ public class RateLimitParserTests
         var expected = before.AddMinutes(10).AddSeconds(120.5);
         Assert.True(result.Value >= expected.AddSeconds(-2) && result.Value <= expected.AddSeconds(2));
     }
+
+    [Fact]
+    public void ParseResetTimeFromError_WithSubSecondPrecision_ReturnsCorrectTime()
+    {
+        var errorBody = "try again in 0m0.25s";
+        var before = DateTime.UtcNow;
+
+        var result = RateLimitParser.ParseResetTimeFromError(errorBody);
+
+        Assert.NotNull(result);
+        var actualDelay = result.Value - before;
+        var expectedDelay = TimeSpan.FromSeconds(0.25);
+        var tolerance = TimeSpan.FromMilliseconds(100);
+        Assert.True(actualDelay >= expectedDelay - tolerance && actualDelay <= expectedDelay + tolerance);
+    }
+
+    [Fact]
+    public void ParseResetTimeFromError_WithNullInput_ReturnsNullWithoutThrowing()
+    {
+        var result = RateLimitParser.ParseResetTimeFromError(null!);
+
+        Assert.Null(result);
+    }
 }
