@@ -4,7 +4,7 @@
 // Bumped on every script change. Rendered next to the connection status so
 // the user can verify the phone is actually running the latest JS and not a
 // stale cached copy. MUST match the ?v= query string in remote.html.
-const SCRIPT_VERSION = 'v25';
+const SCRIPT_VERSION = 'v26';
 
 const elements = {
     connectionStatus: document.getElementById('connectionStatus'),
@@ -14,6 +14,8 @@ const elements = {
     btnZoneFast: document.getElementById('btnZoneFast'),
     btnZoneSlow: document.getElementById('btnZoneSlow'),
     btnEnter: document.getElementById('btnEnter'),
+    enterIcon: document.getElementById('enterIcon'),
+    enterText: document.getElementById('enterText'),
     btnClear: document.getElementById('btnClear'),
     dictateIcon: document.getElementById('dictateIcon'),
     dictateText: document.getElementById('dictateText'),
@@ -221,6 +223,11 @@ function setRecordingState(recording, transcribing) {
         // ("Rychle" / "Pomalu") stay visible during recording.
         elements.recordTimer.textContent = '00:00';
         startDurationTimer();
+
+        // Swap Enter → Zrušit during recording
+        elements.btnEnter.classList.add('cancel-mode');
+        elements.enterIcon.textContent = '\u2715';
+        elements.enterText.textContent = 'Zrušit';
     } else if (transcribing) {
         // Recording stopped, transcription in progress. Hide the two zones,
         // show the single button in transcribing (yellow) state. The user
@@ -234,6 +241,7 @@ function setRecordingState(recording, transcribing) {
         elements.btnZoneSlow.disabled = true;
         elements.recordTimer.textContent = '';
         stopDurationTimer();
+        restoreEnterButton();
     } else {
         // Idle: single button, default label.
         elements.controls.classList.remove('recording');
@@ -245,7 +253,14 @@ function setRecordingState(recording, transcribing) {
         elements.btnZoneSlow.disabled = true;
         elements.recordTimer.textContent = '';
         stopDurationTimer();
+        restoreEnterButton();
     }
+}
+
+function restoreEnterButton() {
+    elements.btnEnter.classList.remove('cancel-mode');
+    elements.enterIcon.textContent = '\u21B5';
+    elements.enterText.textContent = 'Enter';
 }
 
 function setTranscriptionText(text) {
@@ -577,9 +592,14 @@ elements.btnZoneSlow.addEventListener('click', () => {
 elements.btnEnter.addEventListener('click', async () => {
     try {
         elements.btnEnter.disabled = true;
-        await connection.invoke('PressEnter');
+        if (isRecording) {
+            // Cancel recording — discard audio
+            await connection.invoke('CancelTranscription');
+        } else {
+            await connection.invoke('PressEnter');
+        }
     } catch (error) {
-        console.error('Enter failed:', error);
+        console.error('Enter/Cancel failed:', error);
     } finally {
         elements.btnEnter.disabled = false;
     }

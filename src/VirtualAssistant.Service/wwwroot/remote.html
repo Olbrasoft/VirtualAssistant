@@ -161,6 +161,14 @@
             font-size: 1.3rem;
         }
 
+        .btn-enter.cancel-mode {
+            background: linear-gradient(135deg, #f44336 0%, #d32f2f 100%);
+        }
+
+        .btn-enter.cancel-mode:hover:not(:disabled) {
+            background: linear-gradient(135deg, #e53935 0%, #c62828 100%);
+        }
+
         .btn-enter:hover:not(:disabled) {
             background: linear-gradient(135deg, #45a049 0%, #3d9142 100%);
         }
@@ -428,8 +436,8 @@
             </div>
 
             <button class="btn btn-enter" id="btnEnter" disabled>
-                <span class="icon">&#x21B5;</span>
-                Enter
+                <span class="icon" id="enterIcon">&#x21B5;</span>
+                <span id="enterText">Enter</span>
             </button>
 
             <button class="btn btn-clear" id="btnClear" disabled>
@@ -490,7 +498,7 @@
     <script src="https://cdnjs.cloudflare.com/ajax/libs/microsoft-signalr/8.0.0/signalr.min.js"></script>
     <!-- Cache-busting version query — bump on every remote.js change so
          clients with stale browser cache do not serve an old script. -->
-    <script src="remote.js?v=25"></script>
+    <script src="remote.js?v=26"></script>
     <script>
         if ('serviceWorker' in navigator) {
             navigator.serviceWorker.register('/service-worker.js')
