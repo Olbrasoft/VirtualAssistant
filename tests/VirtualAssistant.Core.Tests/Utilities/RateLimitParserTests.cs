@@ -91,8 +91,10 @@ public class RateLimitParserTests
         var result = RateLimitParser.ParseResetTimeFromError(errorBody);
 
         Assert.NotNull(result);
-        var expected = before.AddSeconds(0.25);
-        Assert.True(result.Value >= expected.AddSeconds(-2) && result.Value <= expected.AddSeconds(2));
+        var actualDelay = result.Value - before;
+        var expectedDelay = TimeSpan.FromSeconds(0.25);
+        var tolerance = TimeSpan.FromMilliseconds(100);
+        Assert.True(actualDelay >= expectedDelay - tolerance && actualDelay <= expectedDelay + tolerance);
     }
 
     [Fact]
