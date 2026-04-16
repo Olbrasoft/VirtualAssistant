@@ -93,11 +93,11 @@
 
         /* Pokračuj button — only visible when Claude Code is the active CLI
            app. When visible, shares the dictation row equally with btn-dictate
-           (each takes half width). Green to distinguish it from the blue
-           Diktovat button. */
+           (each takes half width). Purple to distinguish it from both the
+           blue Diktovat above and the green Enter below. */
         .btn-continue {
             flex: 1;
-            background: linear-gradient(135deg, #4caf50 0%, #388e3c 100%);
+            background: linear-gradient(135deg, #7c4dff 0%, #651fff 100%);
             color: white;
             padding: 50px 20px;
             font-size: 1.4rem;
@@ -105,7 +105,7 @@
         }
 
         .btn-continue:hover:not(:disabled) {
-            background: linear-gradient(135deg, #388e3c 0%, #2e7d32 100%);
+            background: linear-gradient(135deg, #651fff 0%, #5e35b1 100%);
         }
 
         .dictation-row.claude-code .btn-continue {
@@ -455,7 +455,7 @@
                  .recording class on #controls. -->
             <div class="dictation-row" id="dictationRow">
                 <button class="btn btn-continue" id="btnContinue" disabled>
-                    <span class="icon">&#x25B6;</span>
+                    <span class="icon">&#x279C;</span>
                     <span>Pokračuj</span>
                 </button>
                 <button class="btn btn-dictate" id="btnDictate" disabled>
@@ -559,7 +559,7 @@
     <script src="https://cdnjs.cloudflare.com/ajax/libs/microsoft-signalr/8.0.0/signalr.min.js"></script>
     <!-- Cache-busting version query — bump on every remote.js change so
          clients with stale browser cache do not serve an old script. -->
-    <script src="remote.js?v=31"></script>
+    <script src="remote.js?v=32"></script>
     <script>
         if ('serviceWorker' in navigator) {
             navigator.serviceWorker.register('/service-worker.js')
