@@ -4,7 +4,7 @@
 // Bumped on every script change. Rendered next to the connection status so
 // the user can verify the phone is actually running the latest JS and not a
 // stale cached copy. MUST match the ?v= query string in remote.html.
-const SCRIPT_VERSION = 'v27';
+const SCRIPT_VERSION = 'v28';
 
 const elements = {
     connectionStatus: document.getElementById('connectionStatus'),
@@ -25,6 +25,7 @@ const elements = {
     transcriptionText: document.getElementById('transcriptionText'),
     btnPaste: document.getElementById('btnPaste'),
     btnClipboardPaste: document.getElementById('btnClipboardPaste'),
+    btnScreenshotPaste: document.getElementById('btnScreenshotPaste'),
     btnDiscord: document.getElementById('btnDiscord'),
     btnFerdium: document.getElementById('btnFerdium'),
     workspaceButtons: {
@@ -349,6 +350,8 @@ async function refreshStatus() {
 
         const wsInfo = await connection.invoke('GetWorkspaceInfo');
         handleWorkspaceChanged(wsInfo.currentWorkspace, wsInfo.totalWorkspaces);
+
+        await checkScreenshotAvailability();
     } catch (error) {
         console.error('Failed to get status:', error);
     }
@@ -635,6 +638,46 @@ elements.btnPaste.addEventListener('click', async () => {
         elements.btnPaste.disabled = false;
     }
 });
+
+// Screenshot availability check
+async function checkScreenshotAvailability() {
+    if (!elements.btnScreenshotPaste) return;
+    try {
+        if (connection?.state !== signalR.HubConnectionState.Connected) return;
+        const available = await connection.invoke('IsScreenshotAvailable');
+        if (available) {
+            elements.btnScreenshotPaste.classList.remove('hidden');
+            elements.btnScreenshotPaste.disabled = false;
+        } else {
+            elements.btnScreenshotPaste.classList.add('hidden');
+        }
+    } catch (error) {
+        console.error('Screenshot check failed:', error);
+    }
+}
+
+// Poll screenshot availability every 15s
+setInterval(checkScreenshotAvailability, 15000);
+
+// Screenshot paste handler
+if (elements.btnScreenshotPaste) {
+    elements.btnScreenshotPaste.addEventListener('pointerdown', () => {
+        if (elements.btnScreenshotPaste.disabled) return;
+        if ('vibrate' in navigator) navigator.vibrate(50);
+    });
+
+    elements.btnScreenshotPaste.addEventListener('click', async () => {
+        if (connection?.state !== signalR.HubConnectionState.Connected) return;
+        try {
+            elements.btnScreenshotPaste.disabled = true;
+            await connection.invoke('InsertScreenshotPath');
+        } catch (error) {
+            console.error('InsertScreenshotPath failed:', error);
+        } finally {
+            elements.btnScreenshotPaste.disabled = false;
+        }
+    });
+}
 
 // Clipboard paste handler (guarded for stale HTML without the button)
 if (elements.btnClipboardPaste) {
