@@ -4,7 +4,7 @@
 // Bumped on every script change. Rendered next to the connection status so
 // the user can verify the phone is actually running the latest JS and not a
 // stale cached copy. MUST match the ?v= query string in remote.html.
-const SCRIPT_VERSION = 'v28';
+const SCRIPT_VERSION = 'v29';
 
 const elements = {
     connectionStatus: document.getElementById('connectionStatus'),
@@ -129,6 +129,7 @@ function buildConnection() {
     connection.on('DictationEvent', handleDictationEvent);
     connection.on('AppFocusChanged', handleAppFocusChanged);
     connection.on('WorkspaceChanged', handleWorkspaceChanged);
+    connection.on('ScreenshotAvailable', handleScreenshotAvailable);
     connection.on('Connected', (connectionId) => {
         console.log('Connected with ID:', connectionId);
     });
@@ -645,26 +646,30 @@ elements.btnPaste.addEventListener('click', async () => {
     }
 });
 
-// Screenshot availability check
+// Screenshot availability — driven by ScreenshotWatcherWorker SignalR broadcast
+function handleScreenshotAvailable(available) {
+    if (!elements.btnScreenshotPaste) return;
+    console.log('ScreenshotAvailable:', available);
+    if (available) {
+        elements.btnScreenshotPaste.classList.remove('hidden');
+        elements.btnScreenshotPaste.disabled = false;
+    } else {
+        elements.btnScreenshotPaste.classList.add('hidden');
+        elements.btnScreenshotPaste.disabled = true;
+    }
+}
+
+// Initial check on connect (replaces polling)
 async function checkScreenshotAvailability() {
     if (!elements.btnScreenshotPaste) return;
     try {
         if (connection?.state !== signalR.HubConnectionState.Connected) return;
         const available = await connection.invoke('IsScreenshotAvailable');
-        if (available) {
-            elements.btnScreenshotPaste.classList.remove('hidden');
-            elements.btnScreenshotPaste.disabled = false;
-        } else {
-            elements.btnScreenshotPaste.classList.add('hidden');
-            elements.btnScreenshotPaste.disabled = true;
-        }
+        handleScreenshotAvailable(available);
     } catch (error) {
         console.error('Screenshot check failed:', error);
     }
 }
-
-// Poll screenshot availability every 15s
-setInterval(checkScreenshotAvailability, 15000);
 
 // Screenshot paste handler
 if (elements.btnScreenshotPaste) {

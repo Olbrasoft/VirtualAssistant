@@ -206,8 +206,7 @@ public class DictationHub : Hub
         catch (Exception ex) { _logger.LogError(ex, "PasteFromClipboard failed"); }
     }
 
-    private static readonly string ScreenshotDir =
-        Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.UserProfile), "Obrázky", "Snímky obrazovky");
+    private static string ScreenshotDir => Workers.ScreenshotWatcherWorker.ScreenshotDir;
 
     private const string InsertScreenshotScript = "/home/jirka/.local/bin/insert-screenshot-path";
 
@@ -220,7 +219,7 @@ public class DictationHub : Hub
         {
             if (!Directory.Exists(ScreenshotDir)) return Task.FromResult(false);
 
-            var cutoff = DateTime.Now.AddMinutes(-5);
+            var cutoff = DateTime.Now - Workers.ScreenshotWatcherWorker.FreshnessWindow;
             var hasRecent = Directory.EnumerateFiles(ScreenshotDir, "*.png")
                 .Select(f => new FileInfo(f))
                 .Any(fi => fi.LastWriteTime > cutoff);
