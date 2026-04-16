@@ -353,6 +353,14 @@ public class XDoToolKeyboardService : IKeyboardSimulationService
         }
     }
 
+    /// <inheritdoc/>
+    public async Task PasteFromClipboardAsync(CancellationToken cancellationToken = default)
+    {
+        var pasteShortcut = await GetPasteShortcutAsync(cancellationToken);
+        _logger.LogInformation("PasteFromClipboard: sending {Shortcut}", pasteShortcut);
+        await SendKeyAsync(pasteShortcut, cancellationToken);
+    }
+
     private static void TryKillProcess(Process? process)
     {
         if (process == null) return;

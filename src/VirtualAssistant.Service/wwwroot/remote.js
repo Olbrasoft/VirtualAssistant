@@ -185,7 +185,7 @@ function setConnectionStatus(connected) {
     elements.btnDictate.disabled = !connected;
     elements.btnEnter.disabled = !connected;
     elements.btnClear.disabled = !connected;
-    elements.btnClipboardPaste.disabled = !connected;
+    if (elements.btnClipboardPaste) elements.btnClipboardPaste.disabled = !connected;
     elements.btnDiscord.disabled = !connected;
     elements.btnFerdium.disabled = !connected;
     elements.btnPaste.disabled = !connected || !lastTranscription;
@@ -636,23 +636,25 @@ elements.btnPaste.addEventListener('click', async () => {
     }
 });
 
-// Clipboard paste handler
-elements.btnClipboardPaste.addEventListener('pointerdown', () => {
-    if (elements.btnClipboardPaste.disabled) return;
-    if ('vibrate' in navigator) navigator.vibrate(50);
-});
+// Clipboard paste handler (guarded for stale HTML without the button)
+if (elements.btnClipboardPaste) {
+    elements.btnClipboardPaste.addEventListener('pointerdown', () => {
+        if (elements.btnClipboardPaste.disabled) return;
+        if ('vibrate' in navigator) navigator.vibrate(50);
+    });
 
-elements.btnClipboardPaste.addEventListener('click', async () => {
-    if (connection?.state !== signalR.HubConnectionState.Connected) return;
-    try {
-        elements.btnClipboardPaste.disabled = true;
-        await connection.invoke('PasteFromClipboard');
-    } catch (error) {
-        console.error('PasteFromClipboard failed:', error);
-    } finally {
-        elements.btnClipboardPaste.disabled = false;
-    }
-});
+    elements.btnClipboardPaste.addEventListener('click', async () => {
+        if (connection?.state !== signalR.HubConnectionState.Connected) return;
+        try {
+            elements.btnClipboardPaste.disabled = true;
+            await connection.invoke('PasteFromClipboard');
+        } catch (error) {
+            console.error('PasteFromClipboard failed:', error);
+        } finally {
+            elements.btnClipboardPaste.disabled = false;
+        }
+    });
+}
 
 // App launcher haptic feedback
 elements.btnDiscord.addEventListener('pointerdown', () => {

@@ -31,4 +31,10 @@ public interface IKeyboardSimulationService
     /// Used for quick dictation where latency matters more than clipboard preservation.
     /// </summary>
     Task<bool> FastPasteAsync(string text, CancellationToken cancellationToken = default);
+
+    /// <summary>
+    /// Sends the correct paste shortcut (Ctrl+V for GUI, Ctrl+Shift+V for terminal)
+    /// to paste from the system clipboard into the active window.
+    /// </summary>
+    Task PasteFromClipboardAsync(CancellationToken cancellationToken = default);
 }
