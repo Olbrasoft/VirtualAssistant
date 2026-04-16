@@ -187,6 +187,12 @@ function setConnectionStatus(connected) {
     elements.btnEnter.disabled = !connected;
     elements.btnClear.disabled = !connected;
     if (elements.btnClipboardPaste) elements.btnClipboardPaste.disabled = !connected;
+    if (elements.btnScreenshotPaste) {
+        if (!connected) {
+            elements.btnScreenshotPaste.classList.add('hidden');
+            elements.btnScreenshotPaste.disabled = true;
+        }
+    }
     elements.btnDiscord.disabled = !connected;
     elements.btnFerdium.disabled = !connected;
     elements.btnPaste.disabled = !connected || !lastTranscription;
@@ -650,6 +656,7 @@ async function checkScreenshotAvailability() {
             elements.btnScreenshotPaste.disabled = false;
         } else {
             elements.btnScreenshotPaste.classList.add('hidden');
+            elements.btnScreenshotPaste.disabled = true;
         }
     } catch (error) {
         console.error('Screenshot check failed:', error);

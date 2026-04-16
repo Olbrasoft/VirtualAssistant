@@ -249,13 +249,29 @@ public class DictationHub : Hub
                 {
                     FileName = "/bin/bash",
                     Arguments = InsertScreenshotScript,
+                    RedirectStandardError = true,
                     UseShellExecute = false,
                     CreateNoWindow = true
                 }
             };
             process.Start();
-            await process.WaitForExitAsync();
-            _logger.LogInformation("InsertScreenshotPath completed with exit code {ExitCode}", process.ExitCode);
+
+            using var timeoutCts = new CancellationTokenSource(TimeSpan.FromSeconds(5));
+            await process.WaitForExitAsync(timeoutCts.Token);
+
+            if (process.ExitCode != 0)
+            {
+                var stderr = await process.StandardError.ReadToEndAsync();
+                _logger.LogWarning("InsertScreenshotPath exit code {ExitCode}: {Stderr}", process.ExitCode, stderr);
+            }
+            else
+            {
+                _logger.LogInformation("InsertScreenshotPath completed successfully");
+            }
+        }
+        catch (OperationCanceledException)
+        {
+            _logger.LogError("InsertScreenshotPath timed out after 5s");
         }
         catch (Exception ex) { _logger.LogError(ex, "InsertScreenshotPath failed"); }
     }
