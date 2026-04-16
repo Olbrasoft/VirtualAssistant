@@ -156,6 +156,9 @@ public static class WorkerServicesExtensions
         // Desktop Monitor broadcasting (SignalR hub updates)
         services.AddHostedService<DesktopMonitorBroadcastWorker>();
 
+        // Screenshot watcher (instant SignalR broadcast when new screenshot appears)
+        services.AddHostedService<ScreenshotWatcherWorker>();
+
         return services;
     }
 }
