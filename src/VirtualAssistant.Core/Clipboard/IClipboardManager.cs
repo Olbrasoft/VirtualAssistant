@@ -18,4 +18,16 @@ public interface IClipboardManager
     /// <param name="content">Content to set in the clipboard.</param>
     /// <param name="cancellationToken">Cancellation token.</param>
     Task SetClipboardAsync(string content, CancellationToken cancellationToken = default);
+
+    /// <summary>
+    /// Gets the current X11/Wayland PRIMARY selection (the "mouse middle-click"
+    /// selection, read by Shift+Insert in most terminals).
+    /// </summary>
+    Task<string?> GetPrimarySelectionAsync(CancellationToken cancellationToken = default);
+
+    /// <summary>
+    /// Sets the X11/Wayland PRIMARY selection. Used when pasting into terminal
+    /// agents (e.g. Claude Code) via Shift+Insert, which reads PRIMARY, not CLIPBOARD.
+    /// </summary>
+    Task SetPrimarySelectionAsync(string content, CancellationToken cancellationToken = default);
 }
