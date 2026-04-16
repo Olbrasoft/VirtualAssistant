@@ -14,15 +14,18 @@ public class XDoToolKeyboardService : IKeyboardSimulationService
 {
     private readonly IClipboardManager _clipboardManager;
     private readonly ITerminalDetector _terminalDetector;
+    private readonly ICliAppDetector _cliAppDetector;
     private readonly ILogger<XDoToolKeyboardService> _logger;
 
     public XDoToolKeyboardService(
         IClipboardManager clipboardManager,
         ITerminalDetector terminalDetector,
+        ICliAppDetector cliAppDetector,
         ILogger<XDoToolKeyboardService> logger)
     {
         _clipboardManager = clipboardManager ?? throw new ArgumentNullException(nameof(clipboardManager));
         _terminalDetector = terminalDetector ?? throw new ArgumentNullException(nameof(terminalDetector));
+        _cliAppDetector = cliAppDetector ?? throw new ArgumentNullException(nameof(cliAppDetector));
         _logger = logger ?? throw new ArgumentNullException(nameof(logger));
     }
 
@@ -135,7 +138,8 @@ public class XDoToolKeyboardService : IKeyboardSimulationService
 
     private static readonly HashSet<string> AllowedKeys = new(StringComparer.OrdinalIgnoreCase)
     {
-        "enter", "ctrl+u", "ctrl+v", "ctrl+shift+v", "escape", "tab", "backspace", "delete", "alt+F4",
+        "enter", "ctrl+u", "ctrl+v", "ctrl+shift+v", "shift+insert",
+        "escape", "tab", "backspace", "delete", "alt+F4",
         "super+kp1", "super+kp2", "super+kp3", "super+kp4",
         "super+kp5", "super+kp6", "super+kp7", "super+kp8",
         "end", "ctrl+a"
@@ -372,11 +376,25 @@ public class XDoToolKeyboardService : IKeyboardSimulationService
     }
 
     /// <summary>
-    /// Gets the appropriate paste shortcut based on the active window type.
-    /// Terminals use Ctrl+Shift+V, other applications use Ctrl+V.
+    /// Gets the appropriate paste shortcut based on the active window type:
+    /// - CLI apps running in a terminal (Claude Code, OpenCode, Gemini CLI) use Shift+Insert.
+    ///   These TUIs hijack Ctrl+Shift+V for their own purposes (Claude Code treats it as
+    ///   "paste image"), so we fall back to the traditional X11 paste binding which goes
+    ///   to the terminal first and is delivered to the app as bracketed paste.
+    /// - Other terminals use Ctrl+Shift+V (standard terminal paste).
+    /// - GUI apps use Ctrl+V.
     /// </summary>
     private async Task<string> GetPasteShortcutAsync(CancellationToken cancellationToken)
     {
+        var cliApp = await _cliAppDetector.DetectCliAppAsync(cancellationToken);
+        if (cliApp != null)
+        {
+            _logger.LogInformation(
+                "Using paste shortcut: shift+insert (CLI app: {AppName} — Ctrl+Shift+V would be hijacked)",
+                cliApp.AppName);
+            return "shift+insert";
+        }
+
         var isTerminal = await _terminalDetector.IsTerminalActiveAsync(cancellationToken);
         var pasteShortcut = isTerminal ? "ctrl+shift+v" : "ctrl+v";
 
