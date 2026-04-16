@@ -751,7 +751,8 @@ public class DictationWorker : BackgroundService, IDictationControl, IDictationS
     {
         try
         {
-            _logger.LogInformation("Canceling transcription");
+            var currentState = _stateMachine.CurrentState;
+            _logger.LogInformation("CancelTranscription called in state {State}", currentState);
 
             // Stop typing sound immediately
             _typingSound.StopLoop();
@@ -759,7 +760,14 @@ public class DictationWorker : BackgroundService, IDictationControl, IDictationS
             // Play cancel sound (paper-rip effect)
             _cancelSound.Play();
 
-            // Cancel transcription
+            // If still recording, stop audio capture and discard buffer
+            if (currentState == DictationState.Recording)
+            {
+                _logger.LogInformation("Canceling active recording (emergency stop)");
+                _ = _recordingCoordinator.EmergencyStopAsync();
+            }
+
+            // Cancel transcription if in progress
             _transcriptionCts?.Cancel();
             _transcriptionCts?.Dispose();
             _transcriptionCts = null;
@@ -771,7 +779,7 @@ public class DictationWorker : BackgroundService, IDictationControl, IDictationS
             // Return to Idle
             _stateMachine.TransitionTo(DictationState.Idle);
 
-            _logger.LogInformation("Transcription canceled");
+            _logger.LogInformation("Dictation canceled from state {State}", currentState);
         }
         catch (Exception ex)
         {
