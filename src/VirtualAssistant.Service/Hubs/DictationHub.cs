@@ -195,6 +195,23 @@ public class DictationHub : Hub
     }
 
     /// <summary>
+    /// Pastes from the system clipboard using the correct shortcut for the active window.
+    /// Terminal apps use Ctrl+Shift+V, GUI apps use Ctrl+V.
+    /// </summary>
+    public async Task PasteFromClipboard()
+    {
+        _logger.LogInformation("PasteFromClipboard called from client {ConnectionId}", Context.ConnectionId);
+        try
+        {
+            var isTerminal = await _terminalDetector.IsTerminalActiveAsync();
+            var pasteKey = isTerminal ? "ctrl+shift+v" : "ctrl+v";
+            _logger.LogInformation("PasteFromClipboard: {Key} (terminal={IsTerminal})", pasteKey, isTerminal);
+            await _keyboardSimulation.SendKeyAsync(pasteKey);
+        }
+        catch (Exception ex) { _logger.LogError(ex, "PasteFromClipboard failed"); }
+    }
+
+    /// <summary>
     /// Pastes the given text at the current cursor position using clipboard + paste simulation.
     /// </summary>
     public async Task<bool> PasteTranscription(string text)

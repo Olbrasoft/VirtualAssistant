@@ -4,7 +4,7 @@
 // Bumped on every script change. Rendered next to the connection status so
 // the user can verify the phone is actually running the latest JS and not a
 // stale cached copy. MUST match the ?v= query string in remote.html.
-const SCRIPT_VERSION = 'v26';
+const SCRIPT_VERSION = 'v27';
 
 const elements = {
     connectionStatus: document.getElementById('connectionStatus'),
@@ -24,6 +24,7 @@ const elements = {
     recordTimer: document.getElementById('recordTimer'),
     transcriptionText: document.getElementById('transcriptionText'),
     btnPaste: document.getElementById('btnPaste'),
+    btnClipboardPaste: document.getElementById('btnClipboardPaste'),
     btnDiscord: document.getElementById('btnDiscord'),
     btnFerdium: document.getElementById('btnFerdium'),
     workspaceButtons: {
@@ -184,6 +185,7 @@ function setConnectionStatus(connected) {
     elements.btnDictate.disabled = !connected;
     elements.btnEnter.disabled = !connected;
     elements.btnClear.disabled = !connected;
+    elements.btnClipboardPaste.disabled = !connected;
     elements.btnDiscord.disabled = !connected;
     elements.btnFerdium.disabled = !connected;
     elements.btnPaste.disabled = !connected || !lastTranscription;
@@ -631,6 +633,24 @@ elements.btnPaste.addEventListener('click', async () => {
         console.error('Paste failed:', error);
     } finally {
         elements.btnPaste.disabled = false;
+    }
+});
+
+// Clipboard paste handler
+elements.btnClipboardPaste.addEventListener('pointerdown', () => {
+    if (elements.btnClipboardPaste.disabled) return;
+    if ('vibrate' in navigator) navigator.vibrate(50);
+});
+
+elements.btnClipboardPaste.addEventListener('click', async () => {
+    if (connection?.state !== signalR.HubConnectionState.Connected) return;
+    try {
+        elements.btnClipboardPaste.disabled = true;
+        await connection.invoke('PasteFromClipboard');
+    } catch (error) {
+        console.error('PasteFromClipboard failed:', error);
+    } finally {
+        elements.btnClipboardPaste.disabled = false;
     }
 });
 

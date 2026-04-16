@@ -1,4 +1,4 @@
-const CACHE_NAME = 'va-dictation-v28';
+const CACHE_NAME = 'va-dictation-v29';
 
 const SAME_ORIGIN_URLS = [
     '/remote.html',
