@@ -36,10 +36,10 @@ public static class GdbusJsonHelper
     }
 
     /// <summary>
-    /// Extracts the first JSON array substring (from the first <c>[</c> to the
-    /// matching last <c>]</c>) from raw <c>gdbus</c> output wrapped in the
-    /// GVariant tuple prefix, e.g. <c>('[{…}]',)</c>. Returns <c>null</c>
-    /// when no bracket pair can be located.
+    /// Extracts the substring from the first <c>[</c> to the last <c>]</c>
+    /// found in raw <c>gdbus</c> output wrapped in the GVariant tuple prefix,
+    /// e.g. <c>('[{…}]',)</c>. Returns <c>null</c> when no opening bracket is
+    /// found or when no later closing bracket can be located.
     /// </summary>
     /// <param name="rawOutput">Unprocessed stdout from a gdbus call.</param>
     /// <returns>The JSON array substring, or <c>null</c> if not present.</returns>
