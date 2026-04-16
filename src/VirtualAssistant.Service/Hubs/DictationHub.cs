@@ -202,16 +202,33 @@ public class DictationHub : Hub
     /// <summary>
     /// Types the word "Pokračuj" into the active window and presses Enter.
     /// Used by the Remote Control "Pokračuj" button when Claude Code is the active CLI app.
+    /// Guarded server-side: the UI toggle on the client is best-effort (focus
+    /// can change between CliAppChanged broadcasts and the button press), so
+    /// we re-validate that the currently focused CLI app is Claude Code before
+    /// typing. If not, we no-op and return false to avoid sending "Pokračuj"
+    /// into an unrelated window.
     /// </summary>
-    public async Task SendContinue()
+    public async Task<bool> SendContinue()
     {
         _logger.LogInformation("SendContinue called from client {ConnectionId}", Context.ConnectionId);
         try
         {
+            var activeApp = await GetActiveCliApp();
+            if (!string.Equals(activeApp, "Claude Code", StringComparison.OrdinalIgnoreCase))
+            {
+                _logger.LogWarning("SendContinue rejected: active CLI app is '{App}', not Claude Code", activeApp);
+                return false;
+            }
+
             await _keyboardSimulation.TypeIntoActiveWindowAsync("Pokračuj");
             await _keyboardSimulation.SendKeyAsync("enter");
+            return true;
         }
-        catch (Exception ex) { _logger.LogError(ex, "SendContinue failed"); }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "SendContinue failed");
+            return false;
+        }
     }
 
     /// <summary>
