@@ -195,6 +195,18 @@ public class DictationHub : Hub
     }
 
     /// <summary>
+    /// Pastes from the system clipboard using the correct shortcut for the active window.
+    /// Delegates to IKeyboardSimulationService.PasteFromClipboardAsync which centrally
+    /// handles terminal (Ctrl+Shift+V) vs GUI (Ctrl+V) detection.
+    /// </summary>
+    public async Task PasteFromClipboard()
+    {
+        _logger.LogInformation("PasteFromClipboard called from client {ConnectionId}", Context.ConnectionId);
+        try { await _keyboardSimulation.PasteFromClipboardAsync(); }
+        catch (Exception ex) { _logger.LogError(ex, "PasteFromClipboard failed"); }
+    }
+
+    /// <summary>
     /// Pastes the given text at the current cursor position using clipboard + paste simulation.
     /// </summary>
     public async Task<bool> PasteTranscription(string text)

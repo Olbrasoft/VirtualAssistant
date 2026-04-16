@@ -173,6 +173,18 @@
             background: linear-gradient(135deg, #45a049 0%, #3d9142 100%);
         }
 
+        .btn-clipboard-paste {
+            background: linear-gradient(135deg, #5c6bc0 0%, #3f51b5 100%);
+            color: white;
+            padding: 15px 40px;
+            font-size: 1rem;
+            margin-bottom: 12px;
+        }
+
+        .btn-clipboard-paste:hover:not(:disabled) {
+            background: linear-gradient(135deg, #3f51b5 0%, #303f9f 100%);
+        }
+
         .btn-clear {
             background: linear-gradient(135deg, #ff9800 0%, #f57c00 100%);
             color: white;
@@ -459,6 +471,11 @@
             </div>
         </div>
 
+        <button class="btn btn-clipboard-paste" id="btnClipboardPaste" disabled>
+            <span class="icon">&#x1F4CB;</span>
+            Vložit ze schránky
+        </button>
+
         <div class="app-launchers">
             <button class="btn-app" id="btnDiscord" disabled>
                 <svg viewBox="0 -28.5 256 256" xmlns="http://www.w3.org/2000/svg" fill="white">
@@ -498,7 +515,7 @@
     <script src="https://cdnjs.cloudflare.com/ajax/libs/microsoft-signalr/8.0.0/signalr.min.js"></script>
     <!-- Cache-busting version query — bump on every remote.js change so
          clients with stale browser cache do not serve an old script. -->
-    <script src="remote.js?v=26"></script>
+    <script src="remote.js?v=27"></script>
     <script>
         if ('serviceWorker' in navigator) {
             navigator.serviceWorker.register('/service-worker.js')
