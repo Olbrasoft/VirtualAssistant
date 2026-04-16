@@ -1,3 +1,4 @@
+using Microsoft.Extensions.DependencyInjection;
 using Olbrasoft.Data.Cqrs;
 using Olbrasoft.VirtualAssistant.Data.Commands.TranscriptionCorrectionCommands;
 using Olbrasoft.VirtualAssistant.Data.Entities;
@@ -8,28 +9,30 @@ namespace Olbrasoft.VirtualAssistant.Service.Infrastructure;
 
 /// <summary>
 /// Repository implementation for accessing transcription corrections via CQRS.
+/// Uses IServiceScopeFactory to create a fresh DbContext scope per operation,
+/// making it safe for concurrent use from the transcription pipeline.
 /// </summary>
 public class TranscriptionCorrectionRepository : ITranscriptionCorrectionRepository
 {
-    private readonly IQueryProcessor _queryProcessor;
-    private readonly ICommandExecutor _commandExecutor;
+    private readonly IServiceScopeFactory _scopeFactory;
     private readonly ILogger<TranscriptionCorrectionRepository> _logger;
 
     public TranscriptionCorrectionRepository(
-        IQueryProcessor queryProcessor,
-        ICommandExecutor commandExecutor,
+        IServiceScopeFactory scopeFactory,
         ILogger<TranscriptionCorrectionRepository> logger)
     {
-        _queryProcessor = queryProcessor ?? throw new ArgumentNullException(nameof(queryProcessor));
-        _commandExecutor = commandExecutor ?? throw new ArgumentNullException(nameof(commandExecutor));
+        _scopeFactory = scopeFactory ?? throw new ArgumentNullException(nameof(scopeFactory));
         _logger = logger ?? throw new ArgumentNullException(nameof(logger));
     }
 
     /// <inheritdoc />
     public async Task<IReadOnlyList<TranscriptionCorrection>> GetActiveCorrectionsAsync(CancellationToken ct = default)
     {
+        using var scope = _scopeFactory.CreateScope();
+        var queryProcessor = scope.ServiceProvider.GetRequiredService<IQueryProcessor>();
+
         var query = new GetActiveTranscriptionCorrectionsQuery();
-        return await _queryProcessor.ProcessAsync(query, ct);
+        return await queryProcessor.ProcessAsync(query, ct);
     }
 
     /// <inheritdoc />
@@ -37,8 +40,11 @@ public class TranscriptionCorrectionRepository : ITranscriptionCorrectionReposit
     {
         try
         {
+            using var scope = _scopeFactory.CreateScope();
+            var commandExecutor = scope.ServiceProvider.GetRequiredService<ICommandExecutor>();
+
             var command = new TrackCorrectionUsageCommand(CorrectionId: correctionId);
-            await _commandExecutor.ExecuteAsync(command, ct);
+            await commandExecutor.ExecuteAsync(command, ct);
         }
         catch (Exception ex)
         {
