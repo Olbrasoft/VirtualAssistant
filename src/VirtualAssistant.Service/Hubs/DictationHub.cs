@@ -206,6 +206,76 @@ public class DictationHub : Hub
         catch (Exception ex) { _logger.LogError(ex, "PasteFromClipboard failed"); }
     }
 
+    private static readonly string ScreenshotDir =
+        Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.UserProfile), "Obrázky", "Snímky obrazovky");
+
+    private const string InsertScreenshotScript = "/home/jirka/.local/bin/insert-screenshot-path";
+
+    /// <summary>
+    /// Checks if a recent screenshot (&lt;5 min) exists in the screenshot directory.
+    /// </summary>
+    public Task<bool> IsScreenshotAvailable()
+    {
+        try
+        {
+            if (!Directory.Exists(ScreenshotDir)) return Task.FromResult(false);
+
+            var cutoff = DateTime.Now.AddMinutes(-5);
+            var hasRecent = Directory.EnumerateFiles(ScreenshotDir, "*.png")
+                .Select(f => new FileInfo(f))
+                .Any(fi => fi.LastWriteTime > cutoff);
+
+            return Task.FromResult(hasRecent);
+        }
+        catch (Exception ex)
+        {
+            _logger.LogWarning(ex, "IsScreenshotAvailable check failed");
+            return Task.FromResult(false);
+        }
+    }
+
+    /// <summary>
+    /// Runs the insert-screenshot-path script which finds the most recent screenshot,
+    /// puts its path in the clipboard, and simulates Ctrl+Shift+V to paste into terminal.
+    /// </summary>
+    public async Task InsertScreenshotPath()
+    {
+        _logger.LogInformation("InsertScreenshotPath called from client {ConnectionId}", Context.ConnectionId);
+        try
+        {
+            using var process = new System.Diagnostics.Process
+            {
+                StartInfo = new System.Diagnostics.ProcessStartInfo
+                {
+                    FileName = "/bin/bash",
+                    Arguments = InsertScreenshotScript,
+                    RedirectStandardError = true,
+                    UseShellExecute = false,
+                    CreateNoWindow = true
+                }
+            };
+            process.Start();
+
+            using var timeoutCts = new CancellationTokenSource(TimeSpan.FromSeconds(5));
+            await process.WaitForExitAsync(timeoutCts.Token);
+
+            if (process.ExitCode != 0)
+            {
+                var stderr = await process.StandardError.ReadToEndAsync();
+                _logger.LogWarning("InsertScreenshotPath exit code {ExitCode}: {Stderr}", process.ExitCode, stderr);
+            }
+            else
+            {
+                _logger.LogInformation("InsertScreenshotPath completed successfully");
+            }
+        }
+        catch (OperationCanceledException)
+        {
+            _logger.LogError("InsertScreenshotPath timed out after 5s");
+        }
+        catch (Exception ex) { _logger.LogError(ex, "InsertScreenshotPath failed"); }
+    }
+
     /// <summary>
     /// Pastes the given text at the current cursor position using clipboard + paste simulation.
     /// </summary>
