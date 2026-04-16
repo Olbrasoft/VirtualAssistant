@@ -14,20 +14,27 @@ public class XDoToolKeyboardService : IKeyboardSimulationService
 {
     private readonly IClipboardManager _clipboardManager;
     private readonly ITerminalDetector _terminalDetector;
+    private readonly ICliAppDetector _cliAppDetector;
     private readonly ILogger<XDoToolKeyboardService> _logger;
 
     public XDoToolKeyboardService(
         IClipboardManager clipboardManager,
         ITerminalDetector terminalDetector,
+        ICliAppDetector cliAppDetector,
         ILogger<XDoToolKeyboardService> logger)
     {
         _clipboardManager = clipboardManager ?? throw new ArgumentNullException(nameof(clipboardManager));
         _terminalDetector = terminalDetector ?? throw new ArgumentNullException(nameof(terminalDetector));
+        _cliAppDetector = cliAppDetector ?? throw new ArgumentNullException(nameof(cliAppDetector));
         _logger = logger ?? throw new ArgumentNullException(nameof(logger));
     }
 
     /// <summary>
     /// Types text into the active window using clipboard + dotool paste.
+    /// For terminal CLI agents (Claude Code, OpenCode, Gemini) the text is
+    /// staged in the PRIMARY selection and pasted via Shift+Insert — these
+    /// TUIs hijack Ctrl+Shift+V as a "paste image" shortcut, so the
+    /// traditional X11 primary-paste route is the reliable one.
     /// </summary>
     public async Task<bool> TypeIntoActiveWindowAsync(string text, CancellationToken cancellationToken = default)
     {
@@ -46,19 +53,28 @@ public class XDoToolKeyboardService : IKeyboardSimulationService
             // Add space after text
             var textToType = text + " ";
 
-            // Step 1: Save current clipboard content
-            var originalClipboard = await _clipboardManager.GetClipboardAsync(cancellationToken);
+            var pasteShortcut = await GetPasteShortcutAsync(cancellationToken);
+            var usePrimary = pasteShortcut == "shift+insert";
 
-            // Step 2: Copy our text to clipboard
-            await _clipboardManager.SetClipboardAsync(textToType, cancellationToken);
+            // Step 1: Save current selection we are about to overwrite
+            string? originalClipboard = null;
+            string? originalPrimary = null;
+            if (usePrimary)
+            {
+                originalPrimary = await _clipboardManager.GetPrimarySelectionAsync(cancellationToken);
+                await _clipboardManager.SetPrimarySelectionAsync(textToType, cancellationToken);
+            }
+            else
+            {
+                originalClipboard = await _clipboardManager.GetClipboardAsync(cancellationToken);
+                await _clipboardManager.SetClipboardAsync(textToType, cancellationToken);
+            }
 
-            // Small delay to ensure clipboard is ready
+            // Small delay to ensure selection is ready before we trigger the paste
             await Task.Delay(50, cancellationToken);
 
-            // Step 3: Simulate paste using dotool (clipboard already contains our text)
-            // Note: dotool type doesn't support Czech diacritics properly, so we use paste simulation
-            var pasteShortcut = await GetPasteShortcutAsync(cancellationToken);
-            _logger.LogInformation("Simulating paste with shortcut: {Shortcut}", pasteShortcut);
+            _logger.LogInformation("Simulating paste with shortcut: {Shortcut} (selection: {Selection})",
+                pasteShortcut, usePrimary ? "PRIMARY" : "CLIPBOARD");
 
             var dotoolProcess = new Process
             {
@@ -101,21 +117,30 @@ public class XDoToolKeyboardService : IKeyboardSimulationService
                 return false;
             }
 
-            // Small delay to ensure paste completed
-            await Task.Delay(100, cancellationToken);
+            // Wait long enough for the terminal/tmux/TUI chain to read the
+            // selection before we restore it. 100 ms was too short in tmux —
+            // the terminal paste handler had not yet read the PRIMARY by the
+            // time we wrote the original value back, so the user saw the old
+            // content pasted.
+            await Task.Delay(300, cancellationToken);
 
-            // Step 4: Restore original clipboard content
-            if (!string.IsNullOrEmpty(originalClipboard))
+            // Step 4: Restore the original selection we overwrote
+            try
             {
-                try
+                if (usePrimary && !string.IsNullOrEmpty(originalPrimary))
+                {
+                    await _clipboardManager.SetPrimarySelectionAsync(originalPrimary, cancellationToken);
+                    _logger.LogDebug("Restored original PRIMARY selection");
+                }
+                else if (!usePrimary && !string.IsNullOrEmpty(originalClipboard))
                 {
                     await _clipboardManager.SetClipboardAsync(originalClipboard, cancellationToken);
                     _logger.LogDebug("Restored original clipboard content");
                 }
-                catch (InvalidOperationException ex)
-                {
-                    _logger.LogWarning("Could not restore clipboard: {Message}", ex.Message);
-                }
+            }
+            catch (InvalidOperationException ex)
+            {
+                _logger.LogWarning("Could not restore selection: {Message}", ex.Message);
             }
 
             _logger.LogInformation("✅ Typed {Length} characters into active window", textToType.Length);
@@ -135,7 +160,8 @@ public class XDoToolKeyboardService : IKeyboardSimulationService
 
     private static readonly HashSet<string> AllowedKeys = new(StringComparer.OrdinalIgnoreCase)
     {
-        "enter", "ctrl+u", "ctrl+v", "ctrl+shift+v", "escape", "tab", "backspace", "delete", "alt+F4",
+        "enter", "ctrl+u", "ctrl+v", "ctrl+shift+v", "shift+insert",
+        "escape", "tab", "backspace", "delete", "alt+F4",
         "super+kp1", "super+kp2", "super+kp3", "super+kp4",
         "super+kp5", "super+kp6", "super+kp7", "super+kp8",
         "end", "ctrl+a"
@@ -288,12 +314,17 @@ public class XDoToolKeyboardService : IKeyboardSimulationService
 
         try
         {
-            // 1. Set clipboard (skip save/restore for speed)
-            await _clipboardManager.SetClipboardAsync(text, cancellationToken);
-            await Task.Delay(30, cancellationToken);
-
-            // 2. Detect paste shortcut and send via dotool
+            // 1. Detect paste shortcut first so we know which selection to write to
             var pasteShortcut = await GetPasteShortcutAsync(cancellationToken);
+            var usePrimary = pasteShortcut == "shift+insert";
+
+            // 2. Stage the text in the right selection (Shift+Insert reads PRIMARY)
+            if (usePrimary)
+                await _clipboardManager.SetPrimarySelectionAsync(text, cancellationToken);
+            else
+                await _clipboardManager.SetClipboardAsync(text, cancellationToken);
+
+            await Task.Delay(30, cancellationToken);
 
             dotoolProcess = new Process
             {
@@ -358,6 +389,39 @@ public class XDoToolKeyboardService : IKeyboardSimulationService
     {
         var pasteShortcut = await GetPasteShortcutAsync(cancellationToken);
         _logger.LogInformation("PasteFromClipboard: sending {Shortcut}", pasteShortcut);
+
+        // Shift+Insert path (CLI agent TUIs) reads PRIMARY, not CLIPBOARD.
+        // The user clicked "Paste from clipboard" intending to paste the
+        // current CLIPBOARD content, so mirror CLIPBOARD → PRIMARY for the
+        // duration of the paste, then restore PRIMARY.
+        if (pasteShortcut == "shift+insert")
+        {
+            var clipboard = await _clipboardManager.GetClipboardAsync(cancellationToken);
+            if (string.IsNullOrEmpty(clipboard))
+            {
+                _logger.LogWarning("PasteFromClipboard: clipboard is empty, nothing to paste");
+                return;
+            }
+
+            var originalPrimary = await _clipboardManager.GetPrimarySelectionAsync(cancellationToken);
+            try
+            {
+                await _clipboardManager.SetPrimarySelectionAsync(clipboard, cancellationToken);
+                await Task.Delay(50, cancellationToken);
+                await SendKeyAsync(pasteShortcut, cancellationToken);
+                await Task.Delay(300, cancellationToken);
+            }
+            finally
+            {
+                if (!string.IsNullOrEmpty(originalPrimary))
+                {
+                    try { await _clipboardManager.SetPrimarySelectionAsync(originalPrimary, cancellationToken); }
+                    catch (Exception ex) { _logger.LogWarning(ex, "Could not restore PRIMARY selection"); }
+                }
+            }
+            return;
+        }
+
         await SendKeyAsync(pasteShortcut, cancellationToken);
     }
 
@@ -372,11 +436,25 @@ public class XDoToolKeyboardService : IKeyboardSimulationService
     }
 
     /// <summary>
-    /// Gets the appropriate paste shortcut based on the active window type.
-    /// Terminals use Ctrl+Shift+V, other applications use Ctrl+V.
+    /// Gets the appropriate paste shortcut based on the active window type:
+    /// - CLI apps running in a terminal (Claude Code, OpenCode, Gemini CLI) use Shift+Insert.
+    ///   These TUIs hijack Ctrl+Shift+V for their own purposes (Claude Code treats it as
+    ///   "paste image"), so we fall back to the traditional X11 paste binding which goes
+    ///   to the terminal first and is delivered to the app as bracketed paste.
+    /// - Other terminals use Ctrl+Shift+V (standard terminal paste).
+    /// - GUI apps use Ctrl+V.
     /// </summary>
     private async Task<string> GetPasteShortcutAsync(CancellationToken cancellationToken)
     {
+        var cliApp = await _cliAppDetector.DetectCliAppAsync(cancellationToken);
+        if (cliApp != null)
+        {
+            _logger.LogInformation(
+                "Using paste shortcut: shift+insert (CLI app: {AppName} — Ctrl+Shift+V would be hijacked)",
+                cliApp.AppName);
+            return "shift+insert";
+        }
+
         var isTerminal = await _terminalDetector.IsTerminalActiveAsync(cancellationToken);
         var pasteShortcut = isTerminal ? "ctrl+shift+v" : "ctrl+v";
 

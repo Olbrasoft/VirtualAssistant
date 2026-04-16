@@ -4,13 +4,15 @@
 // Bumped on every script change. Rendered next to the connection status so
 // the user can verify the phone is actually running the latest JS and not a
 // stale cached copy. MUST match the ?v= query string in remote.html.
-const SCRIPT_VERSION = 'v29';
+const SCRIPT_VERSION = 'v32';
 
 const elements = {
     connectionStatus: document.getElementById('connectionStatus'),
     debugLogContent: document.getElementById('debugLogContent'),
     controls: document.getElementById('controls'),
+    dictationRow: document.getElementById('dictationRow'),
     btnDictate: document.getElementById('btnDictate'),
+    btnContinue: document.getElementById('btnContinue'),
     btnZoneFast: document.getElementById('btnZoneFast'),
     btnZoneSlow: document.getElementById('btnZoneSlow'),
     btnEnter: document.getElementById('btnEnter'),
@@ -130,6 +132,7 @@ function buildConnection() {
     connection.on('AppFocusChanged', handleAppFocusChanged);
     connection.on('WorkspaceChanged', handleWorkspaceChanged);
     connection.on('ScreenshotAvailable', handleScreenshotAvailable);
+    connection.on('CliAppChanged', handleCliAppChanged);
     connection.on('Connected', (connectionId) => {
         console.log('Connected with ID:', connectionId);
     });
@@ -185,6 +188,7 @@ function setConnectionStatus(connected) {
     elements.connectionStatus.className = 'connection-status ' + (connected ? 'connected' : 'disconnected');
 
     elements.btnDictate.disabled = !connected;
+    if (elements.btnContinue) elements.btnContinue.disabled = !connected;
     elements.btnEnter.disabled = !connected;
     elements.btnClear.disabled = !connected;
     if (elements.btnClipboardPaste) elements.btnClipboardPaste.disabled = !connected;
@@ -287,6 +291,15 @@ function handleAppFocusChanged(wmClass) {
     updateAppButton(elements.btnFerdium, 'ferdium', 'Ferdium');
 }
 
+// Toggles the "Pokračuj" button visibility based on the active CLI app
+// detected in the focused terminal. Only Claude Code enables the split —
+// other CLI apps (OpenCode, Gemini) keep the single full-width Diktovat.
+function handleCliAppChanged(cliAppName) {
+    const isClaudeCode = (cliAppName || '').toLowerCase() === 'claude code';
+    if (!elements.dictationRow) return;
+    elements.dictationRow.classList.toggle('claude-code', isClaudeCode);
+}
+
 function handleWorkspaceChanged(workspace, total) {
     console.log('WorkspaceChanged:', workspace, '/', total);
     currentWorkspace = workspace;
@@ -357,6 +370,13 @@ async function refreshStatus() {
 
         const wsInfo = await connection.invoke('GetWorkspaceInfo');
         handleWorkspaceChanged(wsInfo.currentWorkspace, wsInfo.totalWorkspaces);
+
+        try {
+            const cliApp = await connection.invoke('GetActiveCliApp');
+            handleCliAppChanged(cliApp);
+        } catch (error) {
+            console.error('GetActiveCliApp failed:', error);
+        }
 
         await checkScreenshotAvailability();
     } catch (error) {
@@ -562,6 +582,27 @@ elements.btnEnter.addEventListener('pointerdown', () => {
     if (elements.btnEnter.disabled) return;
     if ('vibrate' in navigator) navigator.vibrate(50);
 });
+
+if (elements.btnContinue) {
+    elements.btnContinue.addEventListener('pointerdown', () => {
+        if (elements.btnContinue.disabled) return;
+        if ('vibrate' in navigator) navigator.vibrate(50);
+    });
+
+    elements.btnContinue.addEventListener('click', async () => {
+        if (connection?.state !== signalR.HubConnectionState.Connected) return;
+        try {
+            elements.btnContinue.disabled = true;
+            await connection.invoke('SendContinue');
+        } catch (error) {
+            console.error('SendContinue failed:', error);
+        } finally {
+            if (connection.state === signalR.HubConnectionState.Connected) {
+                elements.btnContinue.disabled = false;
+            }
+        }
+    });
+}
 
 elements.btnClear.addEventListener('pointerdown', () => {
     if (elements.btnClear.disabled) return;

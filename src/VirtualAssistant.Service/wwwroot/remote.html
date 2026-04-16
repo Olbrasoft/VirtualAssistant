@@ -76,6 +76,7 @@
            release zones (fast + slow) while recording. */
         .dictation-row {
             display: flex;
+            gap: 12px;
         }
 
         .btn-dictate {
@@ -88,6 +89,27 @@
 
         .btn-dictate:hover:not(:disabled) {
             background: linear-gradient(135deg, #1976d2 0%, #1565c0 100%);
+        }
+
+        /* Pokračuj button — only visible when Claude Code is the active CLI
+           app. When visible, shares the dictation row equally with btn-dictate
+           (each takes half width). Purple to distinguish it from both the
+           blue Diktovat above and the green Enter below. */
+        .btn-continue {
+            flex: 1;
+            background: linear-gradient(135deg, #7c4dff 0%, #651fff 100%);
+            color: white;
+            padding: 50px 20px;
+            font-size: 1.4rem;
+            display: none;
+        }
+
+        .btn-continue:hover:not(:disabled) {
+            background: linear-gradient(135deg, #651fff 0%, #5e35b1 100%);
+        }
+
+        .dictation-row.claude-code .btn-continue {
+            display: flex;
         }
 
         .btn-dictate.transcribing {
@@ -431,7 +453,11 @@
             <!-- Idle: single dictation button. Pressed → start recording.
                  Once recording is in progress this row is hidden via the
                  .recording class on #controls. -->
-            <div class="dictation-row">
+            <div class="dictation-row" id="dictationRow">
+                <button class="btn btn-continue" id="btnContinue" disabled>
+                    <span class="icon">&#x279C;</span>
+                    <span>Pokračuj</span>
+                </button>
                 <button class="btn btn-dictate" id="btnDictate" disabled>
                     <span class="icon" id="dictateIcon">&#x25CF;</span>
                     <span id="dictateText">Diktovat</span>
@@ -533,7 +559,7 @@
     <script src="https://cdnjs.cloudflare.com/ajax/libs/microsoft-signalr/8.0.0/signalr.min.js"></script>
     <!-- Cache-busting version query — bump on every remote.js change so
          clients with stale browser cache do not serve an old script. -->
-    <script src="remote.js?v=29"></script>
+    <script src="remote.js?v=32"></script>
     <script>
         if ('serviceWorker' in navigator) {
             navigator.serviceWorker.register('/service-worker.js')

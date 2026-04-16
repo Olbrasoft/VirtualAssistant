@@ -25,6 +25,20 @@ public class TerminalCliAppDetector : ICliAppDetector
     };
 
     /// <summary>
+    /// Title-based fallback for when process-tree detection fails (e.g. claude
+    /// runs inside tmux, whose server is a systemd daemon and not a descendant
+    /// of the focused terminal). Matches on substrings in the terminal window
+    /// title that the TUI agent sets itself.
+    /// </summary>
+    private static readonly (string TitleMarker, string AppName, string PromptFileName)[] TitleMarkers =
+    {
+        ("Claude Code", "Claude Code", "ClaudeCodeCorrection"),
+        ("OpenCode", "OpenCode", "OpenCodeCorrection"),
+        ("OC |", "OpenCode", "OpenCodeCorrection"),
+        ("Gemini", "Gemini CLI", "GeminiCorrection")
+    };
+
+    /// <summary>
     /// Terminal window classes that we know how to detect CLI apps in.
     /// </summary>
     private static readonly HashSet<string> TerminalClasses = new(StringComparer.OrdinalIgnoreCase)
@@ -77,7 +91,24 @@ public class TerminalCliAppDetector : ICliAppDetector
                 }
             }
 
-            _logger.LogDebug("No known CLI apps detected in terminal descendants");
+            // Fallback: when the CLI app runs under tmux, the tmux server is a
+            // systemd daemon and its panes (including claude) are NOT in the
+            // process tree of the focused terminal. In that case, trust the
+            // terminal window title — TUI agents set it themselves (e.g.
+            // "Claude Code", "OC | ...").
+            var title = focusedWindow.Value.Title ?? "";
+            foreach (var (titleMarker, appName, promptFileName) in TitleMarkers)
+            {
+                if (title.Contains(titleMarker, StringComparison.OrdinalIgnoreCase))
+                {
+                    _logger.LogInformation(
+                        "Detected CLI app by terminal title: {AppName} (title: '{Title}')",
+                        appName, title);
+                    return new CliAppDetectionResult(appName, promptFileName);
+                }
+            }
+
+            _logger.LogDebug("No known CLI apps detected in terminal descendants or title");
             return null;
         }
         catch (Exception ex)
@@ -90,7 +121,7 @@ public class TerminalCliAppDetector : ICliAppDetector
     /// <summary>
     /// Gets information about the currently focused window using GNOME window-calls extension.
     /// </summary>
-    private async Task<(string WmClass, int Pid)?> GetFocusedWindowInfoAsync(CancellationToken cancellationToken)
+    private async Task<(string WmClass, int Pid, string Title)?> GetFocusedWindowInfoAsync(CancellationToken cancellationToken)
     {
         try
         {
@@ -143,11 +174,14 @@ public class TerminalCliAppDetector : ICliAppDetector
                     var pid = window.TryGetProperty("pid", out var pidProp)
                         ? pidProp.GetInt32()
                         : 0;
+                    var title = window.TryGetProperty("title", out var titleProp)
+                        ? titleProp.GetString() ?? ""
+                        : "";
 
                     if (pid > 0)
                     {
-                        _logger.LogDebug("Focused window: {WmClass}, PID: {Pid}", wmClass, pid);
-                        return (wmClass, pid);
+                        _logger.LogDebug("Focused window: {WmClass} \"{Title}\" (PID: {Pid})", wmClass, title, pid);
+                        return (wmClass, pid, title);
                     }
                 }
             }

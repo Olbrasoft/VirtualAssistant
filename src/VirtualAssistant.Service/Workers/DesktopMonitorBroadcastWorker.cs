@@ -151,6 +151,7 @@ public class DesktopMonitorBroadcastWorker : BackgroundService
                     cliApp.AppName,
                     context.ActiveWindowTitle,
                     cliApp.PromptFileName);
+                await _dictationHubContext.Clients.All.SendAsync("CliAppChanged", cliApp.AppName);
                 return;
             }
 
@@ -170,13 +171,21 @@ public class DesktopMonitorBroadcastWorker : BackgroundService
                 "Broadcasting prompt change: {WindowTitle} ({App}) → {Prompt}",
                 context.ActiveWindowTitle, context.ActiveApplication, prompt?.PromptFileName ?? "null");
 
+            var applicationName = prompt?.ApplicationName ?? "Unknown";
+
             // Broadcast prompt change to all connected clients
             // Use context.ActiveWindowTitle for APP ID to match ACTIVE WINDOW display
             await _hubContext.Clients.All.SendAsync(
                 "PromptChanged",
-                prompt?.ApplicationName ?? "Unknown",  // e.g., "Claude Code"
+                applicationName,                       // e.g., "Claude Code"
                 context.ActiveWindowTitle,             // SAME as ACTIVE WINDOW field
                 prompt?.PromptFileName ?? "DefaultCorrection");
+
+            // Emit CliAppChanged so the Remote Control can toggle agent-specific
+            // buttons (e.g., Pokračuj for Claude Code). Pattern-matched prompt
+            // names are the canonical source — title-based detection works even
+            // when the CLI detector can't see the process (e.g., claude inside tmux).
+            await _dictationHubContext.Clients.All.SendAsync("CliAppChanged", applicationName);
         }
         catch (Exception ex)
         {
@@ -188,6 +197,7 @@ public class DesktopMonitorBroadcastWorker : BackgroundService
                 "Default",
                 context.ActiveWindowTitle,  // SAME as ACTIVE WINDOW field
                 "DefaultCorrection");
+            await _dictationHubContext.Clients.All.SendAsync("CliAppChanged", "");
         }
         finally
         {
