@@ -21,4 +21,5 @@ public static class MenuItemIds
     public const int AboutId = 17;
     public const int MercuryBillingId = 18;
     public const int StreamingTranscriptionId = 19;
+    public const int ReloadCorrectionsCacheId = 20;
 }

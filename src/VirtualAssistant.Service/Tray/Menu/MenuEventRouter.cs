@@ -69,6 +69,11 @@ public class MenuEventRouter : IMenuEventRouter
     public event Action<bool>? OnStreamingTranscriptionToggled;
 
     /// <summary>
+    /// Event fired when user clicks "Obnovit cache" for transcription corrections.
+    /// </summary>
+    public event Action? OnReloadCorrectionsCacheRequested;
+
+    /// <summary>
     /// Handles a menu click event.
     /// Routes the event to the appropriate handler based on menu item ID.
     /// </summary>
@@ -102,7 +107,8 @@ public class MenuEventRouter : IMenuEventRouter
         [MenuItemIds.LlmCorrectionId] = HandleLlmCorrection,
         [MenuItemIds.ReloadPromptId] = HandleReloadPrompt,
         [MenuItemIds.DictationToggleId] = HandleDictationToggle,
-        [MenuItemIds.StreamingTranscriptionId] = HandleStreamingTranscriptionToggle
+        [MenuItemIds.StreamingTranscriptionId] = HandleStreamingTranscriptionToggle,
+        [MenuItemIds.ReloadCorrectionsCacheId] = HandleReloadCorrectionsCache
     };
 
     private void HandleQuit()
@@ -171,5 +177,11 @@ public class MenuEventRouter : IMenuEventRouter
         var newState = !_stateManager.IsStreamingTranscriptionEnabled;
         _stateManager.UpdateStreamingTranscriptionStatus(newState);
         OnStreamingTranscriptionToggled?.Invoke(newState);
+    }
+
+    private void HandleReloadCorrectionsCache()
+    {
+        _logger.LogInformation("Reload corrections cache menu item clicked");
+        OnReloadCorrectionsCacheRequested?.Invoke();
     }
 }

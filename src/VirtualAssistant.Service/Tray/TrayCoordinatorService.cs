@@ -89,6 +89,7 @@ public class TrayCoordinatorService : IDisposable
             handler.OnDictationToggleRequested += _menuDispatcher.HandleDictationToggle;
             handler.OnMercuryBillingRequested += _menuDispatcher.HandleMercuryBilling;
             handler.OnStreamingTranscriptionToggled += _menuDispatcher.HandleStreamingTranscriptionToggle;
+            handler.OnReloadCorrectionsCacheRequested += _menuDispatcher.HandleReloadCorrectionsCache;
 
             _logger.LogDebug("Menu handler events wired up successfully");
         }

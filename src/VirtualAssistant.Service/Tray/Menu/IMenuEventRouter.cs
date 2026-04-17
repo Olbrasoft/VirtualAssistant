@@ -57,6 +57,12 @@ public interface IMenuEventRouter
     event Action<bool>? OnStreamingTranscriptionToggled;
 
     /// <summary>
+    /// Event fired when user clicks "Obnovit cache" for transcription corrections
+    /// in the tray menu.
+    /// </summary>
+    event Action? OnReloadCorrectionsCacheRequested;
+
+    /// <summary>
     /// Handles a menu click event.
     /// </summary>
     /// <param name="id">Menu item ID that was clicked.</param>
