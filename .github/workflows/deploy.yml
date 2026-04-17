@@ -191,9 +191,17 @@ jobs:
           else
             WAKE_PROMPT="ghnotify deploy-failure: repo=${GITHUB_REPOSITORY} status=${{ job.status }} commit=${COMMIT_SHA} failed_step=${FAILED_STEP:-unknown} run_url=${RUN_URL} | next: deploy FAILED (job.status=${{ job.status }}${FAILED_STEP:+, failed step: $FAILED_STEP}). Read the run logs at ${RUN_URL}, diagnose, fix on main or a hotfix branch, push. Service may still be serving the previous build — verify http://localhost:5055/health before trusting the current state."
           fi
+          # GitHub Actions on self-hosted runners inherit a minimal PATH
+          # that does NOT include `~/.cargo/bin` where `cargo install` puts
+          # the ghnotify binary. Prepend the common install locations so
+          # `command -v ghnotify` can actually find it; the `command -v`
+          # lookup honors the current process PATH only, so exporting here
+          # (rather than trying to source ~/.bashrc — unreliable under
+          # non-interactive runners) is the robust approach.
+          export PATH="$HOME/.cargo/bin:$HOME/.local/bin:$PATH"
           if command -v ghnotify > /dev/null 2>&1; then
             ghnotify send --repo "$GITHUB_REPOSITORY" --prompt "$WAKE_PROMPT" || \
               echo "ghnotify send failed; wake not delivered" >&2
           else
-            echo "ghnotify CLI not found on PATH — install via 'cargo install --path /home/jirka/Olbrasoft/ghnotify'" >&2
+            echo "ghnotify CLI not found on PATH (looked in: $PATH) — install via 'cargo install --path /home/jirka/Olbrasoft/ghnotify'" >&2
           fi
