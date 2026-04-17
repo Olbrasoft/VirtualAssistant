@@ -37,4 +37,8 @@
     <ProjectReference Include="..\VirtualAssistant.Data.EntityFrameworkCore\VirtualAssistant.Data.EntityFrameworkCore.csproj" />
   </ItemGroup>
 
+  <ItemGroup>
+    <InternalsVisibleTo Include="VirtualAssistant.Core.Tests" />
+  </ItemGroup>
+
 </Project>
