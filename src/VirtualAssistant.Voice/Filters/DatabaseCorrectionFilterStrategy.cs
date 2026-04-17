@@ -19,8 +19,9 @@ public class DatabaseCorrectionFilterStrategy : ITextFilterStrategy
     private DateTime _cacheExpiry = DateTime.MinValue;
     // 1 hour: with a tray-menu "Obnovit cache" button available, a short polling TTL
     // is no longer the primary path for picking up new rows. Manual invalidation is
-    // instant; the periodic refresh is just a safety net.
-    private static readonly TimeSpan CacheDuration = TimeSpan.FromHours(1);
+    // instant; the periodic refresh is just a safety net. Exposed so the warm-up
+    // background service can derive its refresh interval from this single source.
+    public static readonly TimeSpan CacheDuration = TimeSpan.FromHours(1);
     private readonly object _lock = new();
 
     public DatabaseCorrectionFilterStrategy(
@@ -80,19 +81,20 @@ public class DatabaseCorrectionFilterStrategy : ITextFilterStrategy
     }
 
     /// <summary>
-    /// Refreshes the database corrections cache if expired.
+    /// Refreshes the database corrections cache if expired. Always acquires
+    /// <see cref="_lock"/> before reading <see cref="_cacheExpiry"/>; the previous
+    /// un-synchronized fast-path read could legally observe a stale expiry after
+    /// <see cref="InvalidateCache"/> was called from another thread, defeating the
+    /// "next dictation" guarantee. The lock is cheap in practice — Apply is only
+    /// called on the dictation pipeline, not in any hot loop.
     /// </summary>
     private void RefreshCorrectionsCache()
     {
         if (_repository == null)
             return;
 
-        if (DateTime.UtcNow < _cacheExpiry)
-            return;
-
         lock (_lock)
         {
-            // Double-check after acquiring lock
             if (DateTime.UtcNow < _cacheExpiry)
                 return;
 

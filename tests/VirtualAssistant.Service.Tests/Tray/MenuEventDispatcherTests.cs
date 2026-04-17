@@ -1,7 +1,9 @@
 using Microsoft.Extensions.Logging;
 using Moq;
 using Olbrasoft.VirtualAssistant.Core.Services;
+using Olbrasoft.VirtualAssistant.Data.Entities;
 using Olbrasoft.VirtualAssistant.Service.Tray;
+using Olbrasoft.VirtualAssistant.Voice.Filters;
 using Olbrasoft.VirtualAssistant.Voice.Services;
 
 namespace Olbrasoft.VirtualAssistant.Service.Tests.Tray;
@@ -455,6 +457,54 @@ public class MenuEventDispatcherTests
 
         // Assert - Should not throw, but should log error
         _dictationControlMock.Verify(x => x.SetDictationEnabled(true), Times.Once);
+    }
+
+    #endregion
+
+    #region HandleReloadCorrectionsCache Tests
+
+    [Fact]
+    public void HandleReloadCorrectionsCache_WithoutFilter_LogsWarningDoesNotThrow()
+    {
+        // correctionFilter omitted — the tray should not crash if the Voice layer
+        // decided to disable DB corrections (repository: null construction).
+        var sut = new MenuEventDispatcher(
+            _loggerMock.Object,
+            _muteServiceMock.Object,
+            _settingsServiceMock.Object,
+            DashboardBaseUrl,
+            correctionFilter: null);
+
+        var ex = Record.Exception(() => sut.HandleReloadCorrectionsCache());
+
+        Assert.Null(ex);
+    }
+
+    [Fact]
+    public void HandleReloadCorrectionsCache_WithFilter_ForcesNextApplyToReloadFromRepository()
+    {
+        // Verifies the contract the tray button was built for: after a click, the
+        // very next Apply() calls the repository, picking up newly INSERTed rows.
+        var repo = new Mock<ITranscriptionCorrectionRepository>();
+        repo.Setup(r => r.GetActiveCorrectionsAsync(It.IsAny<CancellationToken>()))
+            .ReturnsAsync(Array.Empty<TranscriptionCorrection>());
+
+        var filter = new DatabaseCorrectionFilterStrategy(
+            Mock.Of<ILogger<DatabaseCorrectionFilterStrategy>>(),
+            repo.Object);
+
+        var sut = new MenuEventDispatcher(
+            _loggerMock.Object,
+            _muteServiceMock.Object,
+            _settingsServiceMock.Object,
+            DashboardBaseUrl,
+            correctionFilter: filter);
+
+        filter.Apply("warm cache");
+        sut.HandleReloadCorrectionsCache();
+        filter.Apply("trigger reload");
+
+        repo.Verify(r => r.GetActiveCorrectionsAsync(It.IsAny<CancellationToken>()), Times.Exactly(2));
     }
 
     #endregion
