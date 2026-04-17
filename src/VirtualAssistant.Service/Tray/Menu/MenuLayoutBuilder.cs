@@ -75,6 +75,12 @@ public class MenuLayoutBuilder : IMenuLayoutBuilder
                 ["enabled"] = VariantValue.Bool(true),
                 ["visible"] = VariantValue.Bool(true)
             }),
+            MenuItemIds.ReloadCorrectionsCacheId => (id, new Dictionary<string, VariantValue>
+            {
+                ["label"] = VariantValue.String(GetCorrectionsCacheLabel()),
+                ["enabled"] = VariantValue.Bool(true),
+                ["visible"] = VariantValue.Bool(true)
+            }),
             MenuItemIds.MuteToggleId => (id, new Dictionary<string, VariantValue>
             {
                 ["label"] = VariantValue.String(GetMuteLabel()),
@@ -146,6 +152,7 @@ public class MenuLayoutBuilder : IMenuLayoutBuilder
                 CreateChildVariant(MenuItemIds.Separator2Id, "", true),
                 CreateChildVariant(MenuItemIds.LlmCorrectionId, llmCorrectionLabel, false),
                 CreateChildVariant(MenuItemIds.ReloadPromptId, GetPromptSyncLabel(), false),
+                CreateChildVariant(MenuItemIds.ReloadCorrectionsCacheId, GetCorrectionsCacheLabel(), false),
                 CreateChildVariant(MenuItemIds.Separator3Id, "", true),
                 CreateChildVariant(MenuItemIds.MuteToggleId, muteLabel, false),
                 CreateChildVariant(MenuItemIds.TtsMuteToggleId, ttsMuteLabel, false),
@@ -231,6 +238,9 @@ public class MenuLayoutBuilder : IMenuLayoutBuilder
             ? "✅ Posílání do LLM - Vypnout"
             : "❌ Posílání do LLM - Zapnout";
     }
+
+    private static string GetCorrectionsCacheLabel()
+        => "🔄 Opravy transkripce - Obnovit cache";
 
     private string GetPromptSyncLabel()
     {

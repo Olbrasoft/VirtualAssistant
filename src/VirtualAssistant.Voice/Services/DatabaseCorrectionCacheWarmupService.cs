@@ -10,15 +10,16 @@ namespace Olbrasoft.VirtualAssistant.Voice.Services;
 /// Quick Dictation hot path always finds a fresh in-memory cache and
 /// never has to wait for a synchronous DB round-trip.
 ///
-/// The strategy's internal cache has a 5-minute TTL. Without warm-up,
-/// the very first transcription after startup (or after every 5 minutes
-/// of idle) would block on a synchronous EF Core call inside the audio
-/// pipeline. This service refreshes every 4 minutes — under the TTL —
-/// so the cache is always served from RAM.
+/// The refresh interval is derived from <see cref="DatabaseCorrectionFilterStrategy.CacheDuration"/>
+/// with a 5-minute safety margin, so the warm-up always completes before the
+/// underlying cache expires. If the strategy's TTL changes (e.g. the tray-menu
+/// "Obnovit cache" button lets us relax the polling), this service follows
+/// automatically.
 /// </summary>
 public class DatabaseCorrectionCacheWarmupService : BackgroundService
 {
-    private static readonly TimeSpan RefreshInterval = TimeSpan.FromMinutes(4);
+    private static readonly TimeSpan RefreshInterval =
+        DatabaseCorrectionFilterStrategy.CacheDuration - TimeSpan.FromMinutes(5);
 
     private readonly DatabaseCorrectionFilterStrategy _strategy;
     private readonly ILogger<DatabaseCorrectionCacheWarmupService> _logger;

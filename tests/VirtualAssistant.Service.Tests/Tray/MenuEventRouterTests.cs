@@ -201,6 +201,21 @@ public class MenuEventRouterTests
 
     #endregion
 
+    #region HandleMenuEvent - ReloadCorrectionsCache
+
+    [Fact]
+    public void HandleMenuEvent_ReloadCorrectionsCacheClicked_FiresOnReloadCorrectionsCacheRequested()
+    {
+        var eventFired = false;
+        _router.OnReloadCorrectionsCacheRequested += () => eventFired = true;
+
+        _router.HandleMenuEvent(MenuItemIds.ReloadCorrectionsCacheId, "clicked");
+
+        Assert.True(eventFired);
+    }
+
+    #endregion
+
     #region HandleMenuEvent - DictationToggle
 
     [Fact]

@@ -3,6 +3,7 @@ using System.Reflection;
 using Olbrasoft.VirtualAssistant.Core.Services;
 using Olbrasoft.VirtualAssistant.Service.Services;
 using Olbrasoft.VirtualAssistant.Service.Tray.Menu;
+using Olbrasoft.VirtualAssistant.Voice.Filters;
 using Olbrasoft.VirtualAssistant.Voice.Services;
 
 namespace Olbrasoft.VirtualAssistant.Service.Tray;
@@ -21,6 +22,7 @@ public class MenuEventDispatcher : IMenuEventDispatcher
     private readonly IDictationControl? _dictationControl;
     private readonly IPromptSyncService? _promptSyncService;
     private readonly IMenuStateManager? _menuStateManager;
+    private readonly DatabaseCorrectionFilterStrategy? _correctionFilter;
 
     public MenuEventDispatcher(
         ILogger<MenuEventDispatcher> logger,
@@ -30,7 +32,8 @@ public class MenuEventDispatcher : IMenuEventDispatcher
         ILlmProvider? llmProvider = null,
         IDictationControl? dictationControl = null,
         IPromptSyncService? promptSyncService = null,
-        IMenuStateManager? menuStateManager = null)
+        IMenuStateManager? menuStateManager = null,
+        DatabaseCorrectionFilterStrategy? correctionFilter = null)
     {
         _logger = logger ?? throw new ArgumentNullException(nameof(logger));
         _muteService = muteService ?? throw new ArgumentNullException(nameof(muteService));
@@ -40,6 +43,7 @@ public class MenuEventDispatcher : IMenuEventDispatcher
         _dictationControl = dictationControl;
         _promptSyncService = promptSyncService;
         _menuStateManager = menuStateManager;
+        _correctionFilter = correctionFilter;
     }
 
     /// <inheritdoc/>
@@ -245,6 +249,30 @@ public class MenuEventDispatcher : IMenuEventDispatcher
         catch (Exception ex)
         {
             _logger.LogError(ex, "Failed to toggle dictation");
+        }
+    }
+
+    /// <summary>
+    /// Invalidates the transcription corrections cache so a freshly INSERTed row in
+    /// <c>transcription_corrections</c> takes effect on the very next dictation.
+    /// No-op if the filter strategy is not available (e.g. running in tests).
+    /// </summary>
+    public void HandleReloadCorrectionsCache()
+    {
+        if (_correctionFilter is null)
+        {
+            _logger.LogWarning("Transcription correction filter not available; cache invalidation skipped");
+            return;
+        }
+
+        try
+        {
+            _correctionFilter.InvalidateCache();
+            _logger.LogInformation("Transcription corrections cache invalidated from tray menu");
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Failed to invalidate transcription corrections cache");
         }
     }
 

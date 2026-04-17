@@ -31,6 +31,7 @@ internal class VirtualAssistantDBusMenuHandler : ComCanonicalDbusmenuHandler, Sy
     private readonly Action<bool> _ttsMuteToggleHandler;
     private readonly Action _mercuryBillingHandler;
     private readonly Action<bool> _streamingTranscriptionHandler;
+    private readonly Action _reloadCorrectionsCacheHandler;
 
     /// <summary>
     /// Event fired when user selects Quit from the menu.
@@ -82,6 +83,11 @@ internal class VirtualAssistantDBusMenuHandler : ComCanonicalDbusmenuHandler, Sy
     /// </summary>
     public event Action? OnMercuryBillingRequested;
 
+    /// <summary>
+    /// Event fired when user clicks "Obnovit cache" for transcription corrections.
+    /// </summary>
+    public event Action? OnReloadCorrectionsCacheRequested;
+
     public VirtualAssistantDBusMenuHandler(
         ILogger<VirtualAssistantDBusMenuHandler> logger,
         IMenuStateManager stateManager,
@@ -110,6 +116,7 @@ internal class VirtualAssistantDBusMenuHandler : ComCanonicalDbusmenuHandler, Sy
         _ttsMuteToggleHandler = (muted) => OnTtsMuteToggleRequested?.Invoke(muted);
         _mercuryBillingHandler = () => OnMercuryBillingRequested?.Invoke();
         _streamingTranscriptionHandler = (enabled) => OnStreamingTranscriptionToggled?.Invoke(enabled);
+        _reloadCorrectionsCacheHandler = () => OnReloadCorrectionsCacheRequested?.Invoke();
 
         // Subscribe to state changes to emit layout updates
         _stateManager.StateChanged += OnStateChanged;
@@ -125,6 +132,7 @@ internal class VirtualAssistantDBusMenuHandler : ComCanonicalDbusmenuHandler, Sy
         _eventRouter.OnTtsMuteToggleRequested += _ttsMuteToggleHandler;
         _eventRouter.OnMercuryBillingRequested += _mercuryBillingHandler;
         _eventRouter.OnStreamingTranscriptionToggled += _streamingTranscriptionHandler;
+        _eventRouter.OnReloadCorrectionsCacheRequested += _reloadCorrectionsCacheHandler;
     }
 
     public override Connection Connection => _connection ?? throw new InvalidOperationException("Connection not set. Call RegisterWithDbus first.");
@@ -335,6 +343,7 @@ internal class VirtualAssistantDBusMenuHandler : ComCanonicalDbusmenuHandler, Sy
         _eventRouter.OnTtsMuteToggleRequested -= _ttsMuteToggleHandler;
         _eventRouter.OnMercuryBillingRequested -= _mercuryBillingHandler;
         _eventRouter.OnStreamingTranscriptionToggled -= _streamingTranscriptionHandler;
+        _eventRouter.OnReloadCorrectionsCacheRequested -= _reloadCorrectionsCacheHandler;
     }
 
     protected override ValueTask<bool> OnAboutToShowAsync(Message request, int id)

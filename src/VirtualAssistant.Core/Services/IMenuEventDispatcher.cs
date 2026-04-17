@@ -60,4 +60,12 @@ public interface IMenuEventDispatcher
     /// Handles streaming transcription toggle from menu (fast dictation path only).
     /// </summary>
     void HandleStreamingTranscriptionToggle(bool enabled);
+
+    /// <summary>
+    /// Handles "Obnovit cache" click: invalidates the transcription corrections
+    /// cache so a freshly INSERTed row in <c>transcription_corrections</c> takes
+    /// effect on the next dictation, without waiting for the 1-hour TTL or a
+    /// service restart.
+    /// </summary>
+    void HandleReloadCorrectionsCache();
 }

@@ -122,6 +122,7 @@ public static class TrayServicesExtensions
             var dictationControl = sp.GetService<IDictationControl>();
             var promptSyncService = sp.GetService<IPromptSyncService>();
             var menuStateManager = sp.GetService<IMenuStateManager>();
+            var correctionFilter = sp.GetService<Olbrasoft.VirtualAssistant.Voice.Filters.DatabaseCorrectionFilterStrategy>();
 
             var dashboardBaseUrl = configuration["Dashboard:BaseUrl"] ?? "http://localhost:5055";
 
@@ -133,7 +134,8 @@ public static class TrayServicesExtensions
                 llmProvider,
                 dictationControl,
                 promptSyncService,
-                menuStateManager);
+                menuStateManager,
+                correctionFilter);
         });
 
         // Recording notification service for dictation status (Phase 1 - issue #670)
