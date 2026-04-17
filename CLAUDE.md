@@ -112,31 +112,28 @@ Example (WRONG):
 6. ✅ Copy assets (icons, sounds) to deployment directory
 7. ✅ Restart `virtual-assistant.service`
 8. ✅ Health check (verifies service responds on `/health`)
-9. ✅ Write deploy event to `~/.config/claude-channels/deploy-events/` + call `wake-claude.sh` → FIFO wakes Claude Code
+9. ✅ Write deploy event to `~/.config/claude-channels/deploy-events/` (audit artifact) + call `ghnotify send` → wakes Claude Code
 
 **Deployment is FULLY AUTOMATED** - no manual steps required after merge!
 
-### Post-Deploy Verification (FIFO-Based Push Wake)
+### Post-Deploy Verification (ghnotify CLI push wake)
 
-**GitHub Actions writes deploy result to `~/.config/claude-channels/deploy-events/` and calls `wake-claude.sh` to wake Claude Code via FIFO pipe.** No polling, no inotifywait, no flock.
+**GitHub Actions calls `ghnotify send --repo Olbrasoft/VirtualAssistant --prompt "ghnotify deploy-complete: …"` on the self-hosted runner, and ghnotify delivers the wake to live Claude Code sessions.** The legacy `~/.claude/hooks/wake-claude.sh` FIFO path was removed during the ghnotify migration; the event JSON files in `deploy-events/` are retained only as an audit trail.
 
 **How it works:**
-1. GitHub Actions deploys → writes `Olbrasoft-VirtualAssistant.json` to deploy-events directory
-2. Calls `wake-claude.sh Olbrasoft/VirtualAssistant` → wakes ALL Claude Code sessions for this repo
-3. `wake-on-event.sh` (asyncRewake hook) reads event file and outputs instructions via stderr
+1. GitHub Actions deploys → writes `Olbrasoft-VirtualAssistant-deploy-{commit}-{run}-{attempt}.json` audit record to `deploy-events/`.
+2. Derives a deploy-complete / deploy-failure wake prompt keyed off `${{ job.status }}` (so cancelled jobs are treated as failures, not false positives).
+3. Runs `ghnotify send --repo Olbrasoft/VirtualAssistant --prompt "..."` which routes the wake to every Claude Code session subscribed to that repo.
 4. Claude Code reacts:
    - Verify service is running: `systemctl --user status virtual-assistant.service`
    - Check logs for errors: `journalctl --user -u virtual-assistant.service --since "2 min ago"`
    - Send notification via `mcp__notify__notify` with deployment result
-5. Fallback: `check-deploy-status.sh` (UserPromptSubmit hook) reads event on next prompt if FIFO wake missed
 
 **Configuration:**
-- FIFO hook: `~/.claude/hooks/wake-on-event.sh` (Claude Code asyncRewake hook type, uses FIFO at `/tmp/claude-wake/{REPO}/{PID}.fifo`)
-- Wake script: `~/.claude/hooks/wake-claude.sh` (writes to FIFOs to wake sessions)
-- Fallback: `~/.claude/hooks/check-deploy-status.sh` (UserPromptSubmit hook)
-- Events dir: `~/.config/claude-channels/deploy-events/`
+- ghnotify CLI binary on the runner host PATH (build with `cargo install --path /home/jirka/Olbrasoft/ghnotify`)
+- Events dir (audit only): `~/.config/claude-channels/deploy-events/`
 
-**If Claude Code is not running during deploy:** the event file persists until next session starts and user sends a prompt (fallback hook reads it).
+**If Claude Code is not running during deploy:** the wake is dropped. The audit JSON is still written; you can grep it manually from `deploy-events/` if needed.
 
 ### Code Review Notification (FIFO-Based Push Wake via gh webhook forward)
 
