@@ -13,6 +13,20 @@ public class TerminalCliAppDetector : ICliAppDetector
 {
     private readonly ILogger<TerminalCliAppDetector> _logger;
 
+    // Last successful detection + its timestamp. When a later probe fails transiently
+    // (gdbus slow / returns empty), we serve this value instead of falling through to
+    // the wrong paste shortcut. Claude Code intercepts Ctrl+V and Ctrl+Shift+V as
+    // "paste image", so a Ctrl+V fallback triggers the "No image found in clipboard"
+    // toast — the very bug this cache is meant to prevent. See issue #958.
+    private readonly object _cacheLock = new();
+    private CliAppDetectionResult? _cachedResult;
+    private DateTime _cachedAtUtc = DateTime.MinValue;
+
+    // Staleness cap: long enough to ride out a gdbus hiccup between consecutive taps
+    // of "Vložit rychle", short enough that a real app switch masked by a persistent
+    // gdbus outage flips us back to "no cached app" quickly.
+    internal static readonly TimeSpan CacheStaleness = TimeSpan.FromSeconds(10);
+
     /// <summary>
     /// Known CLI applications to detect, mapped to their prompt configurations.
     /// Key: process name pattern, Value: (AppName, PromptFileName)
@@ -61,8 +75,10 @@ public class TerminalCliAppDetector : ICliAppDetector
             var focusedWindow = await GetFocusedWindowInfoAsync(cancellationToken);
             if (focusedWindow == null)
             {
-                _logger.LogDebug("Could not get focused window info");
-                return null;
+                // gdbus probe failed (or GNOME Shell slow / extension stalled). If the
+                // last successful detection is fresh enough, serve it — otherwise we'd
+                // fall back to Ctrl+V which Claude Code hijacks as "paste image".
+                return TryServeCachedResult("gdbus probe returned no focused window info");
             }
 
             // Check if focused window is a terminal
@@ -87,7 +103,7 @@ public class TerminalCliAppDetector : ICliAppDetector
                 {
                     _logger.LogInformation("Detected CLI app in terminal: {AppName} (process: {ProcessName})",
                         appName, processName);
-                    return new CliAppDetectionResult(appName, promptFileName);
+                    return CacheAndReturn(new CliAppDetectionResult(appName, promptFileName));
                 }
             }
 
@@ -104,7 +120,7 @@ public class TerminalCliAppDetector : ICliAppDetector
                     _logger.LogInformation(
                         "Detected CLI app by terminal title: {AppName} (title: '{Title}')",
                         appName, title);
-                    return new CliAppDetectionResult(appName, promptFileName);
+                    return CacheAndReturn(new CliAppDetectionResult(appName, promptFileName));
                 }
             }
 
@@ -114,9 +130,47 @@ public class TerminalCliAppDetector : ICliAppDetector
         catch (Exception ex)
         {
             _logger.LogWarning(ex, "Error during CLI app detection");
-            return null;
+            // Same fall-through as a null gdbus result: a recent cached value is
+            // vastly better than a Ctrl+V fallback that hits the paste-image hijack.
+            return TryServeCachedResult("unhandled exception during detection");
         }
     }
+
+    private CliAppDetectionResult CacheAndReturn(CliAppDetectionResult result)
+    {
+        lock (_cacheLock)
+        {
+            _cachedResult = result;
+            _cachedAtUtc = DateTime.UtcNow;
+        }
+        return result;
+    }
+
+    private CliAppDetectionResult? TryServeCachedResult(string failureReason)
+    {
+        CliAppDetectionResult? cached;
+        DateTime cachedAt;
+        lock (_cacheLock)
+        {
+            cached = _cachedResult;
+            cachedAt = _cachedAtUtc;
+        }
+
+        if (cached is not null && IsCacheFresh(cachedAt, DateTime.UtcNow))
+        {
+            var age = DateTime.UtcNow - cachedAt;
+            _logger.LogInformation(
+                "Serving cached CLI app detection {AppName} (age {AgeSeconds:F1}s, reason: {Reason})",
+                cached.AppName, age.TotalSeconds, failureReason);
+            return cached;
+        }
+
+        _logger.LogDebug("No usable cache (reason: {Reason})", failureReason);
+        return null;
+    }
+
+    internal static bool IsCacheFresh(DateTime cachedAtUtc, DateTime nowUtc)
+        => cachedAtUtc != DateTime.MinValue && nowUtc - cachedAtUtc <= CacheStaleness;
 
     /// <summary>
     /// Gets information about the currently focused window using GNOME window-calls extension.
