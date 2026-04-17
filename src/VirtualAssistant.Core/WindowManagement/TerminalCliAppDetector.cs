@@ -85,6 +85,10 @@ public class TerminalCliAppDetector : ICliAppDetector
             if (!TerminalClasses.Contains(focusedWindow.Value.WmClass))
             {
                 _logger.LogDebug("Focused window is not a terminal: {WmClass}", focusedWindow.Value.WmClass);
+                // Confirmed non-terminal focus: invalidate cache so a later gdbus
+                // hiccup can't serve the stale CLI-app result (which would push
+                // Shift+Insert into a GUI app whose "real" paste shortcut is Ctrl+V).
+                ClearCache();
                 return null;
             }
 
@@ -125,6 +129,9 @@ public class TerminalCliAppDetector : ICliAppDetector
             }
 
             _logger.LogDebug("No known CLI apps detected in terminal descendants or title");
+            // Confirmed terminal without any known CLI app (e.g. plain bash): same
+            // invalidation reason as the non-terminal branch.
+            ClearCache();
             return null;
         }
         catch (Exception ex)
@@ -144,6 +151,15 @@ public class TerminalCliAppDetector : ICliAppDetector
             _cachedAtUtc = DateTime.UtcNow;
         }
         return result;
+    }
+
+    private void ClearCache()
+    {
+        lock (_cacheLock)
+        {
+            _cachedResult = null;
+            _cachedAtUtc = DateTime.MinValue;
+        }
     }
 
     private CliAppDetectionResult? TryServeCachedResult(string failureReason)
