@@ -102,49 +102,54 @@ public class NotificationBatchingService : INotificationBatchingService, IDispos
         {
             _logger.LogInformation("Processing notification from {Agent}", notification.Agent);
 
-            // Tracker touches scoped dependencies (DbContext via CQRS), so we create a fresh
-            // scope per notification — avoids capturing a scoped service in this Singleton.
-            using var scope = _scopeFactory.CreateScope();
-            var notificationTracker = scope.ServiceProvider.GetRequiredService<INotificationTracker>();
-
-            if (notification.NotificationId.HasValue)
-            {
-                await notificationTracker.MarkAsProcessingAsync(notification.NotificationId.Value);
-            }
-
             var text = notification.Content;
+            var notificationId = notification.NotificationId;
 
+            // Short-circuit empty text before opening any scope — no DB work to do
+            // beyond MarkAsPlayed when we have an id.
             if (string.IsNullOrWhiteSpace(text))
             {
                 _logger.LogDebug("Empty notification text, skipping TTS");
-                if (notification.NotificationId.HasValue)
+                if (notificationId.HasValue)
                 {
-                    await notificationTracker.MarkAsPlayedAsync(notification.NotificationId.Value);
+                    await InvokeTrackerAsync(t => t.MarkAsPlayedAsync(notificationId.Value));
                 }
                 return;
+            }
+
+            // Phase 1 (pre-TTS): open a short-lived scope to mark Processing.
+            if (notificationId.HasValue)
+            {
+                await InvokeTrackerAsync(t => t.MarkAsProcessingAsync(notificationId.Value));
             }
 
             await WaitForSpeechUnlockAsync();
 
             var ttsResult = await _speechController.SpeakAsync(text, notification.Agent, skipCache: true);
 
-            if (notification.NotificationId.HasValue)
+            // Phase 2 (post-TTS): second short-lived scope for outcome + played updates.
+            // Splitting the scopes means the scoped DbContext is not held across the
+            // full TTS operation (which can take seconds).
+            if (notificationId.HasValue)
             {
                 var status = ttsResult.Cancelled ? "cancelled_by_dictation"
                     : ttsResult.Skipped ? "skipped"
                     : ttsResult.Success ? "success"
                     : "error";
 
-                await notificationTracker.RecordTtsOutcomeAsync(
-                    notification.NotificationId.Value,
-                    ttsResult.ProviderUsed,
-                    status,
-                    ttsResult.DurationMs);
-
-                if (ttsResult.Success || ttsResult.Skipped)
+                await InvokeTrackerAsync(async t =>
                 {
-                    await notificationTracker.MarkAsPlayedAsync(notification.NotificationId.Value);
-                }
+                    await t.RecordTtsOutcomeAsync(
+                        notificationId.Value,
+                        ttsResult.ProviderUsed,
+                        status,
+                        ttsResult.DurationMs);
+
+                    if (ttsResult.Success || ttsResult.Skipped)
+                    {
+                        await t.MarkAsPlayedAsync(notificationId.Value);
+                    }
+                });
             }
 
             _logger.LogInformation("Notification sent to TTS: {Text} (Provider: {Provider}, Status: {Status})",
@@ -154,6 +159,18 @@ public class NotificationBatchingService : INotificationBatchingService, IDispos
         {
             _logger.LogError(ex, "Error processing notification from {Agent}", notification.Agent);
         }
+    }
+
+    /// <summary>
+    /// Resolves <see cref="INotificationTracker"/> inside a fresh DI scope so the
+    /// scoped DbContext behind it is released as soon as <paramref name="action"/>
+    /// returns. Avoids keeping scoped state alive across the long TTS operation.
+    /// </summary>
+    private async Task InvokeTrackerAsync(Func<INotificationTracker, Task> action)
+    {
+        using var scope = _scopeFactory.CreateScope();
+        var tracker = scope.ServiceProvider.GetRequiredService<INotificationTracker>();
+        await action(tracker);
     }
 
     /// <summary>

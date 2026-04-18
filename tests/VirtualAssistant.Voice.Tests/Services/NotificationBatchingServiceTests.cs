@@ -33,12 +33,18 @@ public class NotificationBatchingServiceTests : IDisposable
         // Default: speech not locked
         _speechLockServiceMock.Setup(x => x.IsLocked).Returns(false);
 
-        // Real scope factory that resolves the mocked tracker per-scope.
-        // Mirrors production where NotificationBatchingService is Singleton and
-        // creates a fresh scope per notification to resolve Scoped INotificationTracker.
+        // Real ServiceProvider with scope validation turned on so that any future
+        // captive-dependency regression fails fast at build time rather than in
+        // production. The mock tracker instance is shared across scopes — only the
+        // *resolution path* is scoped. Moq records calls across scopes, which is
+        // exactly what our Verify assertions check.
         var services = new ServiceCollection();
         services.AddScoped(_ => _notificationTrackerMock.Object);
-        _serviceProvider = services.BuildServiceProvider();
+        _serviceProvider = services.BuildServiceProvider(new ServiceProviderOptions
+        {
+            ValidateScopes = true,
+            ValidateOnBuild = true,
+        });
 
         _speechToTextSettings = Options.Create(new SpeechToTextSettings
         {
