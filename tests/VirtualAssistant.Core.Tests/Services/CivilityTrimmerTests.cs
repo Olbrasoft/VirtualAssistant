@@ -85,6 +85,19 @@ public class CivilityTrimmerTests
         Assert.Equal(input, CivilityTrimmer.StripTrailingCivility(input));
     }
 
+    [Theory]
+    [InlineData("Hotovo.   ")]
+    [InlineData("Hotovo.\n")]
+    [InlineData("Hotovo.\r\n\t")]
+    public void StripTrailingCivility_NoTrailingCivilityWithTrailingWhitespace_ReturnsUnchanged(string input)
+    {
+        // No civility to strip → the trimmer must not silently normalize
+        // trailing whitespace the user (or Whisper) produced. The only time
+        // we discard trailing whitespace is when it precedes a civility we
+        // actually removed — in the no-op case the input is returned verbatim.
+        Assert.Equal(input, CivilityTrimmer.StripTrailingCivility(input));
+    }
+
     [Fact]
     public void StripTrailingCivility_CivilityMidSentence_DoesNotStrip()
     {

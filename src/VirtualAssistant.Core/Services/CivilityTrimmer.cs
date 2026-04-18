@@ -57,6 +57,9 @@ public static class CivilityTrimmer
     /// Returns <paramref name="text"/> with any trailing civility-only
     /// sentences stripped. Repeats the strip so multiple tacked-on civilities
     /// ("… Děkuji. Ahoj.") all come off. Null is normalized to empty.
+    /// When nothing is stripped the original text is returned verbatim —
+    /// trailing whitespace/newlines the user typed are preserved, never
+    /// silently normalized by this pass.
     /// </summary>
     public static string StripTrailingCivility(string? text)
     {
@@ -77,15 +80,19 @@ public static class CivilityTrimmer
             var match = TrailingSentence.Match(trimmedEnd);
             if (!match.Success)
             {
-                return trimmedEnd;
+                return current;
             }
 
             var phrase = match.Groups[1].Value.Trim();
             if (!CivilityPhrases.Contains(phrase))
             {
-                return trimmedEnd;
+                return current;
             }
 
+            // Keep only the content before the matched civility sentence —
+            // this also discards the whitespace/newlines between the last
+            // real sentence and the stripped trailer, which is the desired
+            // behaviour when a strip actually happens.
             current = trimmedEnd[..match.Index];
         }
     }

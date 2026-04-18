@@ -730,7 +730,7 @@ public class DictationWorker : BackgroundService, IDictationControl, IDictationS
             return text;
         }
 
-        if (cliApp is null || !string.Equals(cliApp.AppName, "Claude Code", StringComparison.Ordinal))
+        if (cliApp is null || !string.Equals(cliApp.AppName, "Claude Code", StringComparison.OrdinalIgnoreCase))
         {
             return text;
         }
