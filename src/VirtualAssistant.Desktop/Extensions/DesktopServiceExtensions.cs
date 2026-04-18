@@ -54,14 +54,17 @@ public static class DesktopServiceExtensions
             var logger = sp.GetRequiredService<ILogger<IdleMonitorService>>();
             try
             {
-                // Documented sync-over-async exception (#976): DI singleton factories
-                // are invoked lazily on first resolution, but always from the host
-                // startup thread, not from an ASP.NET request context. There is no
-                // SynchronizationContext to deadlock against and no thread-pool
-                // pressure at startup, so the narrow risk that normally bans this
-                // pattern does not apply here. An IHostedService wrapper would be
-                // strictly more code with no runtime benefit — the D-Bus handshake
-                // has to complete before the first idle query either way.
+                // Documented sync-over-async exception (#976). Copilot review on
+                // PR #1011 corrected an earlier wording that claimed this runs
+                // on the startup thread — it doesn't: singleton factory lambdas
+                // execute lazily, on whichever thread first resolves the
+                // service. In this desktop host there is still no request-context
+                // SynchronizationContext to deadlock against, but the resolving
+                // thread does block until the D-Bus handshake completes. That
+                // latency is acceptable here because the first idle query
+                // inherently has to wait for the connection either way; if
+                // startup-time initialization is ever required, force resolution
+                // explicitly during startup instead of relying on AddSingleton.
                 return IdleMonitorService.CreateAsync().GetAwaiter().GetResult();
             }
             catch (Exception ex)
@@ -98,9 +101,10 @@ public static class DesktopServiceExtensions
             var logger = sp.GetRequiredService<ILogger<WindowService>>();
             try
             {
-                // Documented sync-over-async exception (#976): see IdleService
-                // comment above — same rationale applies (DI startup path,
-                // single-threaded, no SynchronizationContext deadlock risk).
+                // Documented sync-over-async exception (#976): same rationale as
+                // the IdleService factory above. This factory runs when the
+                // singleton is first resolved, which may occur outside startup
+                // and on any thread.
                 return WindowService.CreateAsync(logger).GetAwaiter().GetResult();
             }
             catch (Exception ex)

@@ -19,7 +19,10 @@ public class SpeechTranscriberFactory : ISpeechTranscriberFactory
     private readonly SpeechProviderSettings _settings;
     private readonly ILogger<SpeechTranscriberFactory> _logger;
 
-    // Cache for provider IDs - loaded from database ONCE at first use
+    // Cache for provider IDs - loaded from database ONCE at first use.
+    // All reads and writes go through Volatile helpers so publication of the
+    // populated dictionary is reliably visible to other threads without
+    // requiring them to enter the lock. (Copilot review on PR #1011.)
     private Dictionary<string, int>? _providerIdCache;
     private readonly object _cacheLock = new();
 
@@ -127,7 +130,7 @@ public class SpeechTranscriberFactory : ISpeechTranscriberFactory
             throw new ArgumentException("Provider name must be a non-empty string.", nameof(providerName));
         }
 
-        EnsureProviderIdCacheLoaded();
+        var cache = EnsureProviderIdCacheLoaded();
 
         // Provider implementations expose their own DatabaseName so the mapping
         // has a single source of truth and new providers don't require factory edits.
@@ -138,14 +141,14 @@ public class SpeechTranscriberFactory : ISpeechTranscriberFactory
                 nameof(providerName));
         }
 
-        if (_providerIdCache!.TryGetValue(provider.DatabaseName, out var id))
+        if (cache.TryGetValue(provider.DatabaseName, out var id))
         {
             return id;
         }
 
         throw new ArgumentException(
             $"Provider '{providerName}' has DatabaseName '{provider.DatabaseName}' which is not in the providers table. " +
-            $"Known rows: {string.Join(", ", _providerIdCache.Keys)}",
+            $"Known rows: {string.Join(", ", cache.Keys)}",
             nameof(providerName));
     }
 
@@ -157,58 +160,71 @@ public class SpeechTranscriberFactory : ISpeechTranscriberFactory
     /// </summary>
     public async Task WarmupAsync(CancellationToken cancellationToken = default)
     {
-        if (_providerIdCache != null) return;
+        if (Volatile.Read(ref _providerIdCache) != null) return;
 
         var providers = await _queryProcessor
             .ProcessAsync(new GetProvidersByTypeQuery("stt"), cancellationToken)
             .ConfigureAwait(false);
 
+        Dictionary<string, int> published;
         lock (_cacheLock)
         {
-            if (_providerIdCache != null) return;
-
-            _providerIdCache = providers.ToDictionary(
-                p => p.Name,
-                p => p.Id,
-                StringComparer.OrdinalIgnoreCase);
+            var existing = Volatile.Read(ref _providerIdCache);
+            if (existing != null)
+            {
+                published = existing;
+            }
+            else
+            {
+                published = providers.ToDictionary(
+                    p => p.Name,
+                    p => p.Id,
+                    StringComparer.OrdinalIgnoreCase);
+                Volatile.Write(ref _providerIdCache, published);
+            }
         }
 
         _logger.LogInformation(
             "Warmed {Count} STT providers from database: {Providers}",
-            _providerIdCache.Count,
-            string.Join(", ", _providerIdCache.Select(p => $"{p.Key}={p.Value}")));
+            published.Count,
+            string.Join(", ", published.Select(p => $"{p.Key}={p.Value}")));
     }
 
     /// <summary>
     /// Loads provider IDs from database into cache via synchronous blocking.
-    /// In production this is unreachable because the warmup hosted service
-    /// populates the cache at startup before any transcription pipeline runs;
-    /// it remains as a defensive fallback for test environments where
-    /// <see cref="WarmupAsync"/> was not invoked. The sync-over-async is
-    /// acceptable on that cold-start path because the caller is inside a
-    /// double-checked lock and the blocking call happens at most once per
-    /// process lifetime.
+    /// In normal production operation this path is not reached because the
+    /// warmup hosted service populates the cache at startup before any
+    /// transcription pipeline runs; it remains as a defensive fallback for
+    /// cases where <see cref="WarmupAsync"/> was not invoked or did not
+    /// complete successfully. The sync-over-async is acceptable on that
+    /// cold-start path because the caller is inside a double-checked lock
+    /// and the blocking call happens at most once per process lifetime.
     /// </summary>
-    private void EnsureProviderIdCacheLoaded()
+    private Dictionary<string, int> EnsureProviderIdCacheLoaded()
     {
-        if (_providerIdCache != null) return;
+        var existing = Volatile.Read(ref _providerIdCache);
+        if (existing != null) return existing;
 
         lock (_cacheLock)
         {
-            if (_providerIdCache != null) return;
+            existing = Volatile.Read(ref _providerIdCache);
+            if (existing != null) return existing;
 
             var providers = _queryProcessor.ProcessAsync(
                 new GetProvidersByTypeQuery("stt"), CancellationToken.None).GetAwaiter().GetResult();
 
-            _providerIdCache = providers.ToDictionary(
+            var loaded = providers.ToDictionary(
                 p => p.Name,
                 p => p.Id,
                 StringComparer.OrdinalIgnoreCase);
+            Volatile.Write(ref _providerIdCache, loaded);
 
             _logger.LogInformation(
                 "Loaded {Count} STT providers from database (cold-start fallback): {Providers}",
-                _providerIdCache.Count,
-                string.Join(", ", _providerIdCache.Select(p => $"{p.Key}={p.Value}")));
+                loaded.Count,
+                string.Join(", ", loaded.Select(p => $"{p.Key}={p.Value}")));
+
+            return loaded;
         }
     }
 }
