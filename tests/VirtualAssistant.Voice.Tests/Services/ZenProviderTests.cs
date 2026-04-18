@@ -213,21 +213,12 @@ public class ZenProviderTests
 
     private void SetupMocksForCorrection(Mock<HttpMessageHandler> handlerMock, string responseText = "Corrected text")
     {
-        _desktopContextServiceMock
-            .Setup(x => x.GetCurrentContextAsync(It.IsAny<CancellationToken>()))
-            .ReturnsAsync(new DesktopContext(0, 1, "test", "test", "test", DateTime.UtcNow));
-
-        _cliAppDetectorMock
-            .Setup(x => x.DetectCliAppAsync(It.IsAny<CancellationToken>()))
-            .ReturnsAsync((CliAppDetectionResult?)null);
-
-        _queryProcessorMock
-            .Setup(x => x.ProcessAsync(It.IsAny<GetPromptByAppIdPatternQuery>(), It.IsAny<CancellationToken>()))
-            .ReturnsAsync(new Prompt { Id = 1, PromptFileName = "Test.md" });
-
-        _promptCacheMock
-            .Setup(x => x.GetPrompt("Test.md"))
-            .Returns("System prompt");
+        // Prompt resolution now lives behind ISystemPromptResolver — the old
+        // desktop-context / CLI-app / pattern-query mock setup is no longer on
+        // the Zen code path (it's covered by SystemPromptResolverTests instead).
+        _promptResolverMock
+            .Setup(r => r.ResolveAsync(It.IsAny<CancellationToken>()))
+            .ReturnsAsync(("System prompt", 1));
 
         _queryProcessorMock
             .Setup(x => x.ProcessAsync(It.IsAny<GetLlmModelByIdentifierQuery>(), It.IsAny<CancellationToken>()))

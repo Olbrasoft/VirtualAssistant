@@ -1,3 +1,4 @@
+using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
 using Olbrasoft.Data.Cqrs;
 using Olbrasoft.VirtualAssistant.Core.Services;
@@ -17,21 +18,29 @@ public sealed class SystemPromptResolver : ISystemPromptResolver
 
     private readonly IPromptCache _promptCache;
     private readonly IDesktopContextService _desktopContextService;
-    private readonly IQueryProcessor _queryProcessor;
     private readonly ICliAppDetector _cliAppDetector;
+    private readonly IServiceScopeFactory _scopeFactory;
     private readonly ILogger<SystemPromptResolver> _logger;
 
+    /// <summary>
+    /// Registered as a Singleton, so we cannot capture the scoped
+    /// <see cref="IQueryProcessor"/> (which transitively owns the EF Core
+    /// DbContext) — that would be the captive-dependency bug that #972 already
+    /// taught us about. Each <see cref="ResolveAsync"/> call instead creates
+    /// a short-lived scope and pulls IQueryProcessor from it, matching the
+    /// pattern established in <c>PromptResolver</c>.
+    /// </summary>
     public SystemPromptResolver(
         IPromptCache promptCache,
         IDesktopContextService desktopContextService,
-        IQueryProcessor queryProcessor,
         ICliAppDetector cliAppDetector,
+        IServiceScopeFactory scopeFactory,
         ILogger<SystemPromptResolver> logger)
     {
         _promptCache = promptCache ?? throw new ArgumentNullException(nameof(promptCache));
         _desktopContextService = desktopContextService ?? throw new ArgumentNullException(nameof(desktopContextService));
-        _queryProcessor = queryProcessor ?? throw new ArgumentNullException(nameof(queryProcessor));
         _cliAppDetector = cliAppDetector ?? throw new ArgumentNullException(nameof(cliAppDetector));
+        _scopeFactory = scopeFactory ?? throw new ArgumentNullException(nameof(scopeFactory));
         _logger = logger ?? throw new ArgumentNullException(nameof(logger));
     }
 
@@ -41,7 +50,10 @@ public sealed class SystemPromptResolver : ISystemPromptResolver
         {
             var context = await _desktopContextService.GetCurrentContextAsync(cancellationToken);
 
-            if (await TryResolveCliAppPromptAsync(cancellationToken) is { } cliPrompt)
+            using var scope = _scopeFactory.CreateScope();
+            var queryProcessor = scope.ServiceProvider.GetRequiredService<IQueryProcessor>();
+
+            if (await TryResolveCliAppPromptAsync(queryProcessor, cancellationToken) is { } cliPrompt)
             {
                 return cliPrompt;
             }
@@ -49,11 +61,11 @@ public sealed class SystemPromptResolver : ISystemPromptResolver
             _logger.LogDebug("Active window: '{Title}', app: '{App}', looking for matching prompt pattern",
                 context.ActiveWindowTitle, context.ActiveApplication);
 
-            var prompt = await _queryProcessor.ProcessAsync(
+            var prompt = await queryProcessor.ProcessAsync(
                 new GetPromptByAppIdPatternQuery(context.ActiveWindowTitle, context.ActiveApplication),
                 cancellationToken);
 
-            prompt ??= await _queryProcessor.ProcessAsync(new GetDefaultPromptQuery(), cancellationToken);
+            prompt ??= await queryProcessor.ProcessAsync(new GetDefaultPromptQuery(), cancellationToken);
 
             if (prompt == null)
             {
@@ -67,6 +79,12 @@ public sealed class SystemPromptResolver : ISystemPromptResolver
 
             return (promptText, prompt.Id);
         }
+        catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
+        {
+            // Propagate user cancellation — a cancelled caller must not silently
+            // get the fallback prompt (matches PromptResolver's behavior).
+            throw;
+        }
         catch (Exception ex)
         {
             _logger.LogError(ex, "Error resolving context-aware prompt, falling back to {Fallback} (ID {Id})",
@@ -75,7 +93,9 @@ public sealed class SystemPromptResolver : ISystemPromptResolver
         }
     }
 
-    private async Task<(string PromptText, int PromptId)?> TryResolveCliAppPromptAsync(CancellationToken cancellationToken)
+    private async Task<(string PromptText, int PromptId)?> TryResolveCliAppPromptAsync(
+        IQueryProcessor queryProcessor,
+        CancellationToken cancellationToken)
     {
         var cliApp = await _cliAppDetector.DetectCliAppAsync(cancellationToken);
         if (cliApp == null)
@@ -86,7 +106,7 @@ public sealed class SystemPromptResolver : ISystemPromptResolver
         _logger.LogDebug("CLI app detected: {AppName} → using prompt '{Prompt}'",
             cliApp.AppName, cliApp.PromptFileName);
 
-        var cliPrompt = await _queryProcessor.ProcessAsync(
+        var cliPrompt = await queryProcessor.ProcessAsync(
             new GetPromptByFileNameQuery(cliApp.PromptFileName),
             cancellationToken);
 
