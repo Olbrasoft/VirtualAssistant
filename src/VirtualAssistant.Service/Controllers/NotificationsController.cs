@@ -13,6 +13,11 @@ namespace Olbrasoft.VirtualAssistant.Service.Controllers;
 [Produces("application/json")]
 public class NotificationsController : ControllerBase
 {
+    // Upper bounds for notification payload — cheap server-side guardrails against
+    // accidentally or maliciously oversized inputs from upstream MCP clients.
+    private const int MaxTextLength = 4000;
+    private const int MaxIssueIds = 20;
+
     private readonly INotificationService _notificationService;
     private readonly INotificationBatchingService _batchingService;
     private readonly ILogger<NotificationsController> _logger;
@@ -41,9 +46,28 @@ public class NotificationsController : ControllerBase
             return BadRequest(new ErrorResponse { Error = "Text is required" });
         }
 
+        // Defend against clients sending a dump of thousands of characters that would
+        // be spoken aloud; Czech TTS providers hit their own per-request caps well
+        // below this, but we still want a clean 400 instead of a runaway cost.
+        if (request.Text.Length > MaxTextLength)
+        {
+            return BadRequest(new ErrorResponse
+            {
+                Error = $"Text length {request.Text.Length} exceeds the {MaxTextLength}-character limit."
+            });
+        }
+
         if (string.IsNullOrWhiteSpace(request.Source))
         {
             return BadRequest(new ErrorResponse { Error = "Source (agent name) is required" });
+        }
+
+        if (request.IssueIds is { Count: > MaxIssueIds })
+        {
+            return BadRequest(new ErrorResponse
+            {
+                Error = $"IssueIds count {request.IssueIds.Count} exceeds the {MaxIssueIds}-item limit."
+            });
         }
 
         _logger.LogInformation("Notification from {Source}: {Text} (LLM: {Provider}/{Model})",

@@ -1,8 +1,9 @@
 namespace Olbrasoft.VirtualAssistant.Voice.Configuration;
 
 /// <summary>
-/// Configuration options for external service endpoints.
-/// Allows all service URLs to be configured via appsettings.
+/// Configuration options for external service endpoints. URLs must be supplied
+/// via appsettings / environment — empty defaults force the consuming service
+/// to bind explicit values instead of silently reaching for localhost.
 /// </summary>
 public class ExternalServicesOptions
 {
@@ -11,25 +12,15 @@ public class ExternalServicesOptions
     /// </summary>
     public const string SectionName = "ExternalServices";
 
-    /// <summary>
-    /// URL of the Push-to-Talk repeat endpoint.
-    /// Used to repeat the last spoken text.
-    /// </summary>
-    public string PttRepeatUrl { get; set; } = "http://localhost:5050/api/ptt/repeat";
+    /// <summary>Push-to-Talk repeat endpoint URL.</summary>
+    public string PttRepeatUrl { get; set; } = string.Empty;
 
-    /// <summary>
-    /// URL of the task dispatch endpoint.
-    /// Used to dispatch tasks to agents.
-    /// </summary>
-    public string TaskDispatchUrl { get; set; } = "http://localhost:5055/api/hub/dispatch-task";
+    /// <summary>Task dispatch endpoint URL.</summary>
+    public string TaskDispatchUrl { get; set; } = string.Empty;
 
-    /// <summary>
-    /// URL of the VirtualAssistant service base URL.
-    /// </summary>
-    public string VirtualAssistantBaseUrl { get; set; } = "http://localhost:5055";
+    /// <summary>VirtualAssistant service base URL.</summary>
+    public string VirtualAssistantBaseUrl { get; set; } = string.Empty;
 
-    /// <summary>
-    /// URL of the SpeechToText service base URL.
-    /// </summary>
-    public string SpeechToTextBaseUrl { get; set; } = "http://localhost:5050";
+    /// <summary>SpeechToText service base URL.</summary>
+    public string SpeechToTextBaseUrl { get; set; } = string.Empty;
 }

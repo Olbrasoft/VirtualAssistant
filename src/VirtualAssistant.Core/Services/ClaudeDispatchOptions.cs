@@ -11,9 +11,10 @@ public class ClaudeDispatchOptions
     public const string SectionName = "ClaudeDispatch";
 
     /// <summary>
-    /// URL for notifications endpoint.
+    /// URL for notifications endpoint. Must be supplied via configuration;
+    /// empty string is rejected by the consuming service.
     /// </summary>
-    public string NotifyUrl { get; set; } = "http://localhost:5055/api/notifications";
+    public string NotifyUrl { get; set; } = string.Empty;
 
     /// <summary>
     /// Default working directory for Claude execution.
