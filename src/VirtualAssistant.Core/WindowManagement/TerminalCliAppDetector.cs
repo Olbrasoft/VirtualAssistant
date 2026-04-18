@@ -158,30 +158,13 @@ public class TerminalCliAppDetector : ICliAppDetector
 
         try
         {
-            using var process = new Process
-            {
-                StartInfo = new ProcessStartInfo
-                {
-                    FileName = "pgrep",
-                    Arguments = $"-P {parentPid}",
-                    RedirectStandardOutput = true,
-                    RedirectStandardError = true,
-                    UseShellExecute = false,
-                    CreateNoWindow = true,
-                },
-            };
+            var output = await RunPgrepAsync($"-P {parentPid}", cancellationToken);
+            if (output is null) return children;
 
-            process.Start();
-            var output = await process.StandardOutput.ReadToEndAsync(cancellationToken);
-            await process.WaitForExitAsync(cancellationToken);
-
-            if (process.ExitCode == 0 && !string.IsNullOrWhiteSpace(output))
+            foreach (var line in output.Split('\n', StringSplitOptions.RemoveEmptyEntries))
             {
-                foreach (var line in output.Split('\n', StringSplitOptions.RemoveEmptyEntries))
-                {
-                    if (int.TryParse(line.Trim(), out var pid))
-                        children.Add(pid);
-                }
+                if (int.TryParse(line.Trim(), out var pid))
+                    children.Add(pid);
             }
         }
         catch (OperationCanceledException) { throw; }
@@ -199,32 +182,15 @@ public class TerminalCliAppDetector : ICliAppDetector
 
         try
         {
-            using var process = new Process
-            {
-                StartInfo = new ProcessStartInfo
-                {
-                    FileName = "pgrep",
-                    Arguments = $"-x {processName}",
-                    RedirectStandardOutput = true,
-                    RedirectStandardError = true,
-                    UseShellExecute = false,
-                    CreateNoWindow = true,
-                },
-            };
+            var output = await RunPgrepAsync($"-x {processName}", cancellationToken);
+            if (output is null) return false;
 
-            process.Start();
-            var output = await process.StandardOutput.ReadToEndAsync(cancellationToken);
-            await process.WaitForExitAsync(cancellationToken);
-
-            if (process.ExitCode == 0 && !string.IsNullOrWhiteSpace(output))
+            foreach (var line in output.Split('\n', StringSplitOptions.RemoveEmptyEntries))
             {
-                foreach (var line in output.Split('\n', StringSplitOptions.RemoveEmptyEntries))
+                if (int.TryParse(line.Trim(), out var pid) && pids.Contains(pid))
                 {
-                    if (int.TryParse(line.Trim(), out var pid) && pids.Contains(pid))
-                    {
-                        _logger.LogDebug("Found {ProcessName} (PID: {Pid}) among terminal descendants", processName, pid);
-                        return true;
-                    }
+                    _logger.LogDebug("Found {ProcessName} (PID: {Pid}) among terminal descendants", processName, pid);
+                    return true;
                 }
             }
 
@@ -236,5 +202,42 @@ public class TerminalCliAppDetector : ICliAppDetector
             _logger.LogDebug(ex, "Failed to check if process '{ProcessName}' is among PIDs", processName);
             return false;
         }
+    }
+
+    /// <summary>
+    /// Spawns pgrep with the given arguments, returns stdout on success or
+    /// null if pgrep exited non-zero (no match is exit 1). Kills the child
+    /// on caller cancellation before re-throwing so hotkey spam cannot
+    /// accumulate short-lived pgrep processes. (Copilot review on PR #1003.)
+    /// </summary>
+    private static async Task<string?> RunPgrepAsync(string arguments, CancellationToken cancellationToken)
+    {
+        using var process = new Process
+        {
+            StartInfo = new ProcessStartInfo
+            {
+                FileName = "pgrep",
+                Arguments = arguments,
+                RedirectStandardOutput = true,
+                RedirectStandardError = true,
+                UseShellExecute = false,
+                CreateNoWindow = true,
+            },
+        };
+
+        process.Start();
+        string output;
+        try
+        {
+            output = await process.StandardOutput.ReadToEndAsync(cancellationToken);
+            await process.WaitForExitAsync(cancellationToken);
+        }
+        catch (OperationCanceledException)
+        {
+            try { process.Kill(entireProcessTree: true); } catch { }
+            throw;
+        }
+
+        return process.ExitCode == 0 && !string.IsNullOrWhiteSpace(output) ? output : null;
     }
 }

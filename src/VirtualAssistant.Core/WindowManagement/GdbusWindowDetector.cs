@@ -16,26 +16,38 @@ public sealed class GdbusWindowDetector : IGdbusWindowDetector
 
     public async Task<FocusedWindowInfo?> GetFocusedWindowInfoAsync(CancellationToken cancellationToken)
     {
+        using var process = new Process
+        {
+            StartInfo = new ProcessStartInfo
+            {
+                FileName = "gdbus",
+                Arguments = "call --session --dest org.gnome.Shell " +
+                           "--object-path /org/gnome/Shell/Extensions/Windows " +
+                           "--method org.gnome.Shell.Extensions.Windows.List",
+                RedirectStandardOutput = true,
+                RedirectStandardError = true,
+                UseShellExecute = false,
+                CreateNoWindow = true,
+            },
+        };
+
         try
         {
-            using var process = new Process
-            {
-                StartInfo = new ProcessStartInfo
-                {
-                    FileName = "gdbus",
-                    Arguments = "call --session --dest org.gnome.Shell " +
-                               "--object-path /org/gnome/Shell/Extensions/Windows " +
-                               "--method org.gnome.Shell.Extensions.Windows.List",
-                    RedirectStandardOutput = true,
-                    RedirectStandardError = true,
-                    UseShellExecute = false,
-                    CreateNoWindow = true,
-                },
-            };
-
             process.Start();
-            var output = await process.StandardOutput.ReadToEndAsync(cancellationToken);
-            await process.WaitForExitAsync(cancellationToken);
+            string output;
+            try
+            {
+                output = await process.StandardOutput.ReadToEndAsync(cancellationToken);
+                await process.WaitForExitAsync(cancellationToken);
+            }
+            catch (OperationCanceledException)
+            {
+                // Caller cancelled mid-probe. Kill the gdbus child so it can't
+                // outlive the detection call — under hotkey spam this would
+                // otherwise accumulate short-lived gdbus children.
+                try { process.Kill(entireProcessTree: true); } catch { }
+                throw;
+            }
 
             if (process.ExitCode != 0 || string.IsNullOrWhiteSpace(output))
             {

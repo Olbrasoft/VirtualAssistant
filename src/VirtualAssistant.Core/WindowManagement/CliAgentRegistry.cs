@@ -33,9 +33,9 @@ public static class CliAgentRegistry
     };
 
     /// <summary>
-    /// Returns the agent whose tmux session prefix starts <paramref name="sessionName"/>,
-    /// or null if no agent claims the prefix. Case-insensitive so a user who
-    /// types "Claude-foo" still wins.
+    /// Returns the agent whose tmux session prefix matches the start of
+    /// <paramref name="sessionName"/>, or null if no agent claims the prefix.
+    /// Case-insensitive so a user who types "Claude-foo" still wins.
     /// </summary>
     public static KnownAgent? FindByTmuxSession(string sessionName)
     {
