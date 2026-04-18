@@ -95,11 +95,19 @@ public static class WorkerServicesExtensions
         // Register under the interface so callers don't need to know the concrete
         // implementation. Keeps DictationWorker and any future consumer decoupled
         // from Voice.Audio.AudioRecordingCoordinator specifically.
+        //
+        // The buffer manager and scheduler are constructed inline rather than as
+        // separate top-level registrations because their state is per-coordinator —
+        // registering them as global singletons would share buffer/cursor state
+        // across any future second coordinator (e.g. the continuous-listening
+        // pipeline, if it ever grows a streaming component).
         services.AddKeyedSingleton<IAudioRecordingCoordinator>(DictationKey, (sp, _) =>
             new Voice.Audio.AudioRecordingCoordinator(
                 sp.GetRequiredService<ILogger<Voice.Audio.AudioRecordingCoordinator>>(),
                 sp.GetRequiredKeyedService<IAudioCaptureService>(DictationKey),
-                sp.GetRequiredService<IOptions<Voice.Configuration.AudioRecordingOptions>>()));
+                sp.GetRequiredService<IOptions<Voice.Configuration.AudioRecordingOptions>>(),
+                new Voice.Audio.AudioBufferManager(),
+                new Voice.Audio.ChunkEmissionScheduler(sp.GetRequiredService<ILogger<Voice.Audio.ChunkEmissionScheduler>>())));
     }
 
     /// <summary>
