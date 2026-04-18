@@ -259,9 +259,22 @@
             font-style: italic;
         }
 
-        .btn-paste {
+        /* Paste row hosts two buttons side-by-side: plain "Vložit" on the left
+           and "Vložit a Enter" on the right. Hidden until a transcription
+           arrives, then both reveal together via .visible. */
+        .paste-row {
+            display: none;
+            gap: 10px;
             margin-top: 12px;
-            padding: 10px 20px;
+        }
+
+        .paste-row.visible {
+            display: flex;
+        }
+
+        .btn-paste {
+            flex: 1;
+            padding: 10px 12px;
             font-size: 0.95rem;
             font-weight: 600;
             border: none;
@@ -269,12 +282,17 @@
             cursor: pointer;
             background: linear-gradient(135deg, #7c4dff 0%, #651fff 100%);
             color: white;
-            width: 100%;
-            display: none;
+            display: flex;
             align-items: center;
             justify-content: center;
             gap: 8px;
             transition: all 0.2s ease;
+        }
+
+        /* Distinct green tint so "Vložit a Enter" reads as the submit action,
+           matching the .btn-enter gradient used elsewhere on the page. */
+        .btn-paste-enter {
+            background: linear-gradient(135deg, #4caf50 0%, #45a049 100%);
         }
 
         .btn-paste:active {
@@ -284,10 +302,6 @@
         .btn-paste:disabled {
             opacity: 0.5;
             cursor: not-allowed;
-        }
-
-        .btn-paste.visible {
-            display: flex;
         }
 
         .connection-status {
@@ -545,9 +559,18 @@
         <div class="transcription-box">
             <h3>Poslední přepis</h3>
             <div class="transcription-text empty" id="transcriptionText">Žádný přepis</div>
-            <button class="btn-paste" id="btnPaste" disabled>
-                <span>&#x1F4CB;</span> Vložit
-            </button>
+            <!-- Paste row: shown only once a transcription arrives. Two buttons
+                 share the row equally so the right one reaches "paste + Enter"
+                 in one tap — saves the usual switch-back-and-press-Enter dance
+                 when the phone is the only input device. -->
+            <div class="paste-row" id="pasteRow">
+                <button class="btn-paste" id="btnPaste" disabled>
+                    <span>&#x1F4CB;</span> Vložit
+                </button>
+                <button class="btn-paste btn-paste-enter" id="btnPasteEnter" disabled>
+                    <span>&#x1F4CB;</span> Vložit a Enter
+                </button>
+            </div>
         </div>
 
         <div class="debug-log" id="debugLog">
@@ -559,7 +582,7 @@
     <script src="https://cdnjs.cloudflare.com/ajax/libs/microsoft-signalr/8.0.0/signalr.min.js"></script>
     <!-- Cache-busting version query — bump on every remote.js change so
          clients with stale browser cache do not serve an old script. -->
-    <script src="remote.js?v=32"></script>
+    <script src="remote.js?v=33"></script>
     <script>
         if ('serviceWorker' in navigator) {
             navigator.serviceWorker.register('/service-worker.js')
