@@ -195,6 +195,8 @@ public static class VoiceServicesExtensions
         services.AddSingleton<IClipboardManager, WlClipboardManager>();
         services.AddSingleton<ITerminalDetector, WaylandTerminalDetector>();
         services.AddSingleton<ICliAppDetector, TerminalCliAppDetector>();
+        services.AddSingleton<IDotoolProcessRunner, DotoolProcessRunner>();
+        services.AddSingleton<IClipboardPasteOrchestrator, ClipboardPasteOrchestrator>();
         services.AddSingleton<IKeyboardSimulationService, XDoToolKeyboardService>();
 
         services.AddSingleton<IKeyboardLedReader, LinuxKeyboardLedReader>();
