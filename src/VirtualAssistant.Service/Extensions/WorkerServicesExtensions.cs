@@ -4,6 +4,7 @@ using Olbrasoft.VirtualAssistant.Core.Configuration;
 using Olbrasoft.VirtualAssistant.Core.Keyboard;
 using Olbrasoft.VirtualAssistant.Core.Services;
 using Olbrasoft.VirtualAssistant.Core.Speech;
+using Olbrasoft.VirtualAssistant.Core.WindowManagement;
 using Microsoft.AspNetCore.SignalR;
 using Olbrasoft.VirtualAssistant.Service.Hubs;
 using Olbrasoft.VirtualAssistant.Service.Infrastructure;
@@ -121,6 +122,7 @@ public static class WorkerServicesExtensions
                 llmProviderOptions);
 
             var hubContext = sp.GetRequiredService<IHubContext<DictationHub>>();
+            var cliAppDetector = sp.GetRequiredService<ICliAppDetector>();
 
             return new DictationWorker(
                 logger,
@@ -133,6 +135,7 @@ public static class WorkerServicesExtensions
                 cancelSound,
                 scopeFactory,
                 hubContext,
+                cliAppDetector,
                 dictationOptionsService);
         });
 

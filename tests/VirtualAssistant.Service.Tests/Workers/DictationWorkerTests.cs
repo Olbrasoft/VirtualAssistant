@@ -11,6 +11,7 @@ using Olbrasoft.VirtualAssistant.Core.Models;
 using Olbrasoft.VirtualAssistant.Core.Services;
 using Olbrasoft.VirtualAssistant.Core.Speech;
 using Olbrasoft.VirtualAssistant.Core.StateMachine;
+using Olbrasoft.VirtualAssistant.Core.WindowManagement;
 using Olbrasoft.VirtualAssistant.Service.Hubs;
 using Olbrasoft.VirtualAssistant.Service.Workers;
 using Olbrasoft.VirtualAssistant.Voice.Services;
@@ -33,6 +34,7 @@ public class DictationWorkerTests : IDisposable
     private readonly Mock<IServiceProvider> _serviceProviderMock;
     private readonly Mock<IDictationPersistenceService> _persistenceServiceMock;
     private readonly Mock<IHubContext<DictationHub>> _hubContextMock;
+    private readonly Mock<ICliAppDetector> _cliAppDetectorMock;
     private readonly DictationOptions _options;
     private readonly DictationWorker _sut;
 
@@ -54,6 +56,7 @@ public class DictationWorkerTests : IDisposable
         _persistenceServiceMock = new Mock<IDictationPersistenceService>();
         _hubContextMock = new Mock<IHubContext<DictationHub>>();
         _hubContextMock.Setup(x => x.Clients).Returns(Mock.Of<IHubClients>());
+        _cliAppDetectorMock = new Mock<ICliAppDetector>();
 
         _options = new DictationOptions { KeyboardLedSettleTimeMs = 10 };
 
@@ -78,6 +81,7 @@ public class DictationWorkerTests : IDisposable
             _cancelSoundMock.Object,
             _scopeFactoryMock.Object,
             _hubContextMock.Object,
+            _cliAppDetectorMock.Object,
             Options.Create(_options));
     }
 
@@ -97,6 +101,7 @@ public class DictationWorkerTests : IDisposable
             _cancelSoundMock.Object,
             _scopeFactoryMock.Object,
             _hubContextMock.Object,
+            _cliAppDetectorMock.Object,
             Options.Create(_options)));
     }
 
@@ -114,6 +119,7 @@ public class DictationWorkerTests : IDisposable
             _cancelSoundMock.Object,
             _scopeFactoryMock.Object,
             _hubContextMock.Object,
+            _cliAppDetectorMock.Object,
             Options.Create(_options)));
     }
 
@@ -131,6 +137,7 @@ public class DictationWorkerTests : IDisposable
             _cancelSoundMock.Object,
             _scopeFactoryMock.Object,
             _hubContextMock.Object,
+            _cliAppDetectorMock.Object,
             Options.Create(_options)));
     }
 
@@ -148,6 +155,7 @@ public class DictationWorkerTests : IDisposable
             _cancelSoundMock.Object,
             _scopeFactoryMock.Object,
             _hubContextMock.Object,
+            _cliAppDetectorMock.Object,
             null!));
     }
 
@@ -165,6 +173,7 @@ public class DictationWorkerTests : IDisposable
             _cancelSoundMock.Object,
             _scopeFactoryMock.Object,
             _hubContextMock.Object,
+            _cliAppDetectorMock.Object,
             Options.Create(_options)));
     }
 
@@ -182,6 +191,7 @@ public class DictationWorkerTests : IDisposable
             _cancelSoundMock.Object,
             _scopeFactoryMock.Object,
             _hubContextMock.Object,
+            _cliAppDetectorMock.Object,
             Options.Create(_options)));
     }
 
@@ -199,6 +209,7 @@ public class DictationWorkerTests : IDisposable
             _cancelSoundMock.Object,
             _scopeFactoryMock.Object,
             _hubContextMock.Object,
+            _cliAppDetectorMock.Object,
             Options.Create(_options)));
     }
 
@@ -216,6 +227,7 @@ public class DictationWorkerTests : IDisposable
             _cancelSoundMock.Object,
             _scopeFactoryMock.Object,
             _hubContextMock.Object,
+            _cliAppDetectorMock.Object,
             Options.Create(_options)));
     }
 
@@ -233,6 +245,7 @@ public class DictationWorkerTests : IDisposable
             null!,
             _scopeFactoryMock.Object,
             _hubContextMock.Object,
+            _cliAppDetectorMock.Object,
             Options.Create(_options)));
     }
 
@@ -250,6 +263,7 @@ public class DictationWorkerTests : IDisposable
             _cancelSoundMock.Object,
             null!,
             _hubContextMock.Object,
+            _cliAppDetectorMock.Object,
             Options.Create(_options)));
     }
 
@@ -266,6 +280,25 @@ public class DictationWorkerTests : IDisposable
             _typingSoundMock.Object,
             _cancelSoundMock.Object,
             _scopeFactoryMock.Object,
+            null!,
+            _cliAppDetectorMock.Object,
+            Options.Create(_options)));
+    }
+
+    [Fact]
+    public void Constructor_NullCliAppDetector_ThrowsArgumentNullException()
+    {
+        Assert.Throws<ArgumentNullException>(() => new DictationWorker(
+            _loggerMock.Object,
+            _keyboardMonitorMock.Object,
+            _stateMachineMock.Object,
+            _recordingCoordinatorMock.Object,
+            _transcriptionServiceMock.Object,
+            _keyboardSimulationMock.Object,
+            _typingSoundMock.Object,
+            _cancelSoundMock.Object,
+            _scopeFactoryMock.Object,
+            _hubContextMock.Object,
             null!,
             Options.Create(_options)));
     }

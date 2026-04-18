@@ -6,6 +6,7 @@ using Olbrasoft.VirtualAssistant.Core.Keyboard;
 using Olbrasoft.VirtualAssistant.Core.Models;
 using Olbrasoft.VirtualAssistant.Core.Services;
 using Olbrasoft.VirtualAssistant.Core.Speech;
+using Olbrasoft.VirtualAssistant.Core.WindowManagement;
 using Olbrasoft.VirtualAssistant.Voice.Services;
 using Olbrasoft.VirtualAssistant.Core.StateMachine;
 using Olbrasoft.VirtualAssistant.Voice.StateMachine;
@@ -30,6 +31,7 @@ public class DictationWorker : BackgroundService, IDictationControl, IDictationS
     private readonly ISoundEffectPlayer _cancelSound;
     private readonly IServiceScopeFactory _scopeFactory;
     private readonly IHubContext<DictationHub> _hubContext;
+    private readonly ICliAppDetector _cliAppDetector;
     private readonly DictationOptions _options;
 
     private CancellationTokenSource? _transcriptionCts;
@@ -61,6 +63,7 @@ public class DictationWorker : BackgroundService, IDictationControl, IDictationS
         ISoundEffectPlayer cancelSound,
         IServiceScopeFactory scopeFactory,
         IHubContext<DictationHub> hubContext,
+        ICliAppDetector cliAppDetector,
         IOptions<DictationOptions> options)
     {
         _logger = logger ?? throw new ArgumentNullException(nameof(logger));
@@ -73,6 +76,7 @@ public class DictationWorker : BackgroundService, IDictationControl, IDictationS
         _cancelSound = cancelSound ?? throw new ArgumentNullException(nameof(cancelSound));
         _scopeFactory = scopeFactory ?? throw new ArgumentNullException(nameof(scopeFactory));
         _hubContext = hubContext ?? throw new ArgumentNullException(nameof(hubContext));
+        _cliAppDetector = cliAppDetector ?? throw new ArgumentNullException(nameof(cliAppDetector));
         ArgumentNullException.ThrowIfNull(options);
         _options = options.Value;
     }
@@ -479,8 +483,21 @@ public class DictationWorker : BackgroundService, IDictationControl, IDictationS
 
             if (_quickDictationMode)
             {
+                // Strip trailing civility ("… Děkuji.", "… Ahoj.", Whisper
+                // hallucinated sign-offs) when pasting into a CLI agent that
+                // reads the text as a prompt. Scoped to Claude Code only — in
+                // chat apps "Děkuji." is a legitimate message and must stay.
+                var textToPaste = await StripCivilityForClaudeCodeAsync(transcriptionResult.Text, _transcriptionCts!.Token);
+                if (string.IsNullOrWhiteSpace(textToPaste))
+                {
+                    _logger.LogInformation("Quick dictation: transcription reduced to empty after civility trim — skipping paste");
+                    _typingSound.StopLoop();
+                    _stateMachine.TransitionTo(DictationState.Idle);
+                    return;
+                }
+
                 // Quick mode: fast paste without clipboard save/restore
-                var pasteSucceeded = await _keyboardSimulation.FastPasteAsync(transcriptionResult.Text, _transcriptionCts!.Token);
+                var pasteSucceeded = await _keyboardSimulation.FastPasteAsync(textToPaste, _transcriptionCts!.Token);
                 _typingSound.StopLoop();
 
                 if (!pasteSucceeded)
@@ -491,7 +508,7 @@ public class DictationWorker : BackgroundService, IDictationControl, IDictationS
                 }
 
                 // Broadcast QuickTranscriptionCompleted BEFORE idle transition so client sets pending flag first
-                await BroadcastDictationEventAsync(DictationEventType.QuickTranscriptionCompleted, transcriptionResult.Text);
+                await BroadcastDictationEventAsync(DictationEventType.QuickTranscriptionCompleted, textToPaste);
                 _stateMachine.TransitionTo(DictationState.Idle);
                 _logger.LogInformation("Quick dictation: text pasted, QuickTranscriptionCompleted sent");
             }
@@ -680,6 +697,52 @@ public class DictationWorker : BackgroundService, IDictationControl, IDictationS
                 sttProviderId,
                 _transcriptionCts!.Token);
         }
+    }
+
+    /// <summary>
+    /// Applies <see cref="CivilityTrimmer"/> to the dictated text if the active
+    /// CLI app is Claude Code. For any other CLI agent or a plain GUI focus,
+    /// returns the text unchanged — the trimmer is Claude-Code-scoped per the
+    /// feature request ("Děkuji." is a legitimate message in chat apps).
+    /// Detection errors fall back to leaving the text untouched — the worst
+    /// case here is one stray civility word, worth less than mangling valid
+    /// input when gdbus hiccups.
+    /// </summary>
+    private async Task<string> StripCivilityForClaudeCodeAsync(string text, CancellationToken cancellationToken)
+    {
+        if (string.IsNullOrWhiteSpace(text))
+        {
+            return text;
+        }
+
+        CliAppDetectionResult? cliApp;
+        try
+        {
+            cliApp = await _cliAppDetector.DetectCliAppAsync(cancellationToken);
+        }
+        catch (OperationCanceledException)
+        {
+            throw;
+        }
+        catch (Exception ex)
+        {
+            _logger.LogDebug(ex, "CLI app detection failed before quick paste — skipping civility trim");
+            return text;
+        }
+
+        if (cliApp is null || !string.Equals(cliApp.AppName, "Claude Code", StringComparison.Ordinal))
+        {
+            return text;
+        }
+
+        var stripped = CivilityTrimmer.StripTrailingCivility(text);
+        if (stripped.Length != text.Length)
+        {
+            _logger.LogInformation(
+                "Quick dictation: stripped trailing civility for Claude Code ({Before} → {After} chars)",
+                text.Length, stripped.Length);
+        }
+        return stripped;
     }
 
     /// <summary>
