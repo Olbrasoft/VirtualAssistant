@@ -18,9 +18,8 @@ public abstract class LlmProviderBase : ILlmProvider
     protected readonly HttpClient HttpClient;
     protected readonly ILogger Logger;
     protected readonly IPromptCache PromptCache;
-    protected readonly IDesktopContextService DesktopContextService;
     protected readonly IQueryProcessor QueryProcessor;
-    protected readonly ICliAppDetector CliAppDetector;
+    private readonly ISystemPromptResolver _promptResolver;
     private readonly IServiceScopeFactory _scopeFactory;
 
     private Dictionary<string, string> _lastRateLimitHeaders = new();
@@ -61,87 +60,27 @@ public abstract class LlmProviderBase : ILlmProvider
         HttpClient httpClient,
         IPromptCache promptCache,
         ILogger logger,
-        IDesktopContextService desktopContextService,
         IQueryProcessor queryProcessor,
-        ICliAppDetector cliAppDetector,
+        ISystemPromptResolver promptResolver,
         IServiceScopeFactory scopeFactory,
         bool initialEnabled)
     {
         HttpClient = httpClient;
         PromptCache = promptCache ?? throw new ArgumentNullException(nameof(promptCache));
         Logger = logger;
-        DesktopContextService = desktopContextService ?? throw new ArgumentNullException(nameof(desktopContextService));
         QueryProcessor = queryProcessor ?? throw new ArgumentNullException(nameof(queryProcessor));
-        CliAppDetector = cliAppDetector ?? throw new ArgumentNullException(nameof(cliAppDetector));
+        _promptResolver = promptResolver ?? throw new ArgumentNullException(nameof(promptResolver));
         _scopeFactory = scopeFactory ?? throw new ArgumentNullException(nameof(scopeFactory));
         _runtimeEnabled = initialEnabled;
     }
 
     /// <summary>
     /// Gets the system prompt based on current desktop context.
-    /// Priority: 1) CLI app detection (Claude Code, OpenCode), 2) Window title/app pattern, 3) Default prompt.
-    /// Returns (promptText, promptId) tuple.
+    /// Delegates to the injected <see cref="ISystemPromptResolver"/> — see that
+    /// type for the priority cascade (CLI app → window pattern → default).
     /// </summary>
-    protected async Task<(string PromptText, int PromptId)> GetSystemPromptAsync(CancellationToken ct)
-    {
-        try
-        {
-            var context = await DesktopContextService.GetCurrentContextAsync(ct);
-
-            // Priority 1: Check for CLI apps running in terminals (e.g., Claude Code, OpenCode)
-            // This handles cases where CLI apps run in terminal but don't change window title
-            var cliApp = await CliAppDetector.DetectCliAppAsync(ct);
-            if (cliApp != null)
-            {
-                Logger.LogDebug("CLI app detected: {AppName} → using prompt '{Prompt}'",
-                    cliApp.AppName, cliApp.PromptFileName);
-
-                // Get prompt ID from database by file name
-                var cliPrompt = await QueryProcessor.ProcessAsync(
-                    new GetPromptByFileNameQuery(cliApp.PromptFileName), ct);
-
-                if (cliPrompt != null)
-                {
-                    var cliPromptText = PromptCache.GetPrompt(cliPrompt.PromptFileName);
-                    Logger.LogDebug("Using prompt '{Prompt}' (ID: {Id}) for CLI app '{App}'",
-                        cliPrompt.PromptFileName, cliPrompt.Id, cliApp.AppName);
-                    return (cliPromptText, cliPrompt.Id);
-                }
-
-                // CLI app detected but no matching prompt in DB - use prompt file directly with ID 0
-                Logger.LogWarning("CLI app '{App}' detected but prompt '{Prompt}' not found in database",
-                    cliApp.AppName, cliApp.PromptFileName);
-            }
-
-            // Priority 2: Match by window title or application pattern
-            Logger.LogDebug("Active window: '{Title}', app: '{App}', looking for matching prompt pattern",
-                context.ActiveWindowTitle, context.ActiveApplication);
-
-            var prompt = await QueryProcessor.ProcessAsync(
-                new GetPromptByAppIdPatternQuery(context.ActiveWindowTitle, context.ActiveApplication), ct);
-
-            // Priority 3: Default prompt
-            prompt ??= await QueryProcessor.ProcessAsync(new GetDefaultPromptQuery(), ct);
-
-            if (prompt == null)
-            {
-                Logger.LogError("CRITICAL: No default prompt found in database - using hardcoded fallback");
-                return (PromptCache.GetPrompt("DefaultCorrection"), 4);
-            }
-
-            var promptText = PromptCache.GetPrompt(prompt.PromptFileName);
-
-            Logger.LogDebug("Using prompt '{Prompt}' (ID: {Id}) for window '{Title}'",
-                prompt.PromptFileName, prompt.Id, context.ActiveWindowTitle);
-
-            return (promptText, prompt.Id);
-        }
-        catch (Exception ex)
-        {
-            Logger.LogError(ex, "Error getting context-aware prompt, falling back to DefaultCorrection (ID 4)");
-            return (PromptCache.GetPrompt("DefaultCorrection"), 4);
-        }
-    }
+    protected Task<(string PromptText, int PromptId)> GetSystemPromptAsync(CancellationToken ct)
+        => _promptResolver.ResolveAsync(ct);
 
     /// <summary>
     /// Gets the ModelId from database based on configured ModelIdentifier.

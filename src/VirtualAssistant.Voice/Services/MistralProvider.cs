@@ -30,11 +30,10 @@ public class MistralProvider : LlmProviderBase
         IOptions<MistralOptions> options,
         IPromptCache promptCache,
         ILogger<MistralProvider> logger,
-        IDesktopContextService desktopContextService,
         IQueryProcessor queryProcessor,
-        ICliAppDetector cliAppDetector,
+        ISystemPromptResolver promptResolver,
         IServiceScopeFactory scopeFactory)
-        : base(httpClient, promptCache, logger, desktopContextService, queryProcessor, cliAppDetector, scopeFactory, options.Value.Enabled)
+        : base(httpClient, promptCache, logger, queryProcessor, promptResolver, scopeFactory, options.Value.Enabled)
     {
         _options = options.Value;
 

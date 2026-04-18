@@ -25,6 +25,7 @@ public class ZenProviderTests
     private readonly Mock<IDesktopContextService> _desktopContextServiceMock;
     private readonly Mock<IQueryProcessor> _queryProcessorMock;
     private readonly Mock<ICliAppDetector> _cliAppDetectorMock;
+    private readonly Mock<ISystemPromptResolver> _promptResolverMock;
     private readonly Mock<IServiceScopeFactory> _scopeFactoryMock;
     private readonly ZenOptions _options;
 
@@ -50,6 +51,10 @@ public class ZenProviderTests
         _desktopContextServiceMock = new Mock<IDesktopContextService>();
         _queryProcessorMock = new Mock<IQueryProcessor>();
         _cliAppDetectorMock = new Mock<ICliAppDetector>();
+        _promptResolverMock = new Mock<ISystemPromptResolver>();
+        _promptResolverMock
+            .Setup(r => r.ResolveAsync(It.IsAny<CancellationToken>()))
+            .ReturnsAsync(("default prompt text", 4));
 
         var scopeMock = new Mock<IServiceScope>();
         var spMock = new Mock<IServiceProvider>();
@@ -67,9 +72,8 @@ public class ZenProviderTests
             _optionsMock.Object,
             _promptCacheMock.Object,
             _loggerMock.Object,
-            _desktopContextServiceMock.Object,
             _queryProcessorMock.Object,
-            _cliAppDetectorMock.Object,
+            _promptResolverMock.Object,
             _scopeFactoryMock.Object);
     }
 
@@ -200,9 +204,8 @@ public class ZenProviderTests
             _optionsMock.Object,
             _promptCacheMock.Object,
             _loggerMock.Object,
-            _desktopContextServiceMock.Object,
             _queryProcessorMock.Object,
-            _cliAppDetectorMock.Object,
+            _promptResolverMock.Object,
             _scopeFactoryMock.Object);
 
         return (sut, handlerMock);
@@ -318,60 +321,52 @@ public class ZenProviderTests
     [Fact]
     public void Constructor_ThrowsOnNullPromptCache()
     {
-        // Arrange & Act & Assert
         Assert.Throws<ArgumentNullException>(() => new ZenProvider(
             new HttpClient(),
             _optionsMock.Object,
             null!,
             _loggerMock.Object,
-            _desktopContextServiceMock.Object,
             _queryProcessorMock.Object,
-            _cliAppDetectorMock.Object,
-            _scopeFactoryMock.Object));
-    }
-
-    [Fact]
-    public void Constructor_ThrowsOnNullDesktopContextService()
-    {
-        // Arrange & Act & Assert
-        Assert.Throws<ArgumentNullException>(() => new ZenProvider(
-            new HttpClient(),
-            _optionsMock.Object,
-            _promptCacheMock.Object,
-            _loggerMock.Object,
-            null!,
-            _queryProcessorMock.Object,
-            _cliAppDetectorMock.Object,
+            _promptResolverMock.Object,
             _scopeFactoryMock.Object));
     }
 
     [Fact]
     public void Constructor_ThrowsOnNullQueryProcessor()
     {
-        // Arrange & Act & Assert
         Assert.Throws<ArgumentNullException>(() => new ZenProvider(
             new HttpClient(),
             _optionsMock.Object,
             _promptCacheMock.Object,
             _loggerMock.Object,
-            _desktopContextServiceMock.Object,
             null!,
-            _cliAppDetectorMock.Object,
+            _promptResolverMock.Object,
             _scopeFactoryMock.Object));
     }
 
     [Fact]
-    public void Constructor_ThrowsOnNullCliAppDetector()
+    public void Constructor_ThrowsOnNullPromptResolver()
     {
-        // Arrange & Act & Assert
         Assert.Throws<ArgumentNullException>(() => new ZenProvider(
             new HttpClient(),
             _optionsMock.Object,
             _promptCacheMock.Object,
             _loggerMock.Object,
-            _desktopContextServiceMock.Object,
             _queryProcessorMock.Object,
             null!,
             _scopeFactoryMock.Object));
+    }
+
+    [Fact]
+    public void Constructor_ThrowsOnNullScopeFactory()
+    {
+        Assert.Throws<ArgumentNullException>(() => new ZenProvider(
+            new HttpClient(),
+            _optionsMock.Object,
+            _promptCacheMock.Object,
+            _loggerMock.Object,
+            _queryProcessorMock.Object,
+            _promptResolverMock.Object,
+            null!));
     }
 }

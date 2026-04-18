@@ -273,50 +273,43 @@ public static class VoiceServicesExtensions
         services.AddHttpClient("Zen");
         services.AddHttpClient("Mercury");
 
+        // SystemPromptResolver encapsulates the CLI-app / window-pattern / default
+        // prompt priority cascade that every provider needs. Registered once so all
+        // three providers share the same logic + caching semantics.
+        services.AddSingleton<ISystemPromptResolver, SystemPromptResolver>();
+
         // Register MistralProvider
         services.AddSingleton<ILlmProvider, MistralProvider>(sp =>
-        {
-            var httpClientFactory = sp.GetRequiredService<IHttpClientFactory>();
-            var httpClient = httpClientFactory.CreateClient("Mistral");
-            var options = sp.GetRequiredService<IOptions<MistralOptions>>();
-            var promptCache = sp.GetRequiredService<IPromptCache>();
-            var logger = sp.GetRequiredService<ILogger<MistralProvider>>();
-            var desktopContextService = sp.GetRequiredService<IDesktopContextService>();
-            var queryProcessor = sp.GetRequiredService<IQueryProcessor>();
-            var cliAppDetector = sp.GetRequiredService<ICliAppDetector>();
-            var scopeFactory = sp.GetRequiredService<IServiceScopeFactory>();
-            return new MistralProvider(httpClient, options, promptCache, logger, desktopContextService, queryProcessor, cliAppDetector, scopeFactory);
-        });
+            new MistralProvider(
+                sp.GetRequiredService<IHttpClientFactory>().CreateClient("Mistral"),
+                sp.GetRequiredService<IOptions<MistralOptions>>(),
+                sp.GetRequiredService<IPromptCache>(),
+                sp.GetRequiredService<ILogger<MistralProvider>>(),
+                sp.GetRequiredService<IQueryProcessor>(),
+                sp.GetRequiredService<ISystemPromptResolver>(),
+                sp.GetRequiredService<IServiceScopeFactory>()));
 
         // Register ZenProvider
         services.AddSingleton<ILlmProvider, ZenProvider>(sp =>
-        {
-            var httpClientFactory = sp.GetRequiredService<IHttpClientFactory>();
-            var httpClient = httpClientFactory.CreateClient("Zen");
-            var options = sp.GetRequiredService<IOptions<ZenOptions>>();
-            var promptCache = sp.GetRequiredService<IPromptCache>();
-            var logger = sp.GetRequiredService<ILogger<ZenProvider>>();
-            var desktopContextService = sp.GetRequiredService<IDesktopContextService>();
-            var queryProcessor = sp.GetRequiredService<IQueryProcessor>();
-            var cliAppDetector = sp.GetRequiredService<ICliAppDetector>();
-            var scopeFactory = sp.GetRequiredService<IServiceScopeFactory>();
-            return new ZenProvider(httpClient, options, promptCache, logger, desktopContextService, queryProcessor, cliAppDetector, scopeFactory);
-        });
+            new ZenProvider(
+                sp.GetRequiredService<IHttpClientFactory>().CreateClient("Zen"),
+                sp.GetRequiredService<IOptions<ZenOptions>>(),
+                sp.GetRequiredService<IPromptCache>(),
+                sp.GetRequiredService<ILogger<ZenProvider>>(),
+                sp.GetRequiredService<IQueryProcessor>(),
+                sp.GetRequiredService<ISystemPromptResolver>(),
+                sp.GetRequiredService<IServiceScopeFactory>()));
 
         // Register MercuryProvider
         services.AddSingleton<ILlmProvider, MercuryProvider>(sp =>
-        {
-            var httpClientFactory = sp.GetRequiredService<IHttpClientFactory>();
-            var httpClient = httpClientFactory.CreateClient("Mercury");
-            var options = sp.GetRequiredService<IOptions<MercuryOptions>>();
-            var promptCache = sp.GetRequiredService<IPromptCache>();
-            var logger = sp.GetRequiredService<ILogger<MercuryProvider>>();
-            var desktopContextService = sp.GetRequiredService<IDesktopContextService>();
-            var queryProcessor = sp.GetRequiredService<IQueryProcessor>();
-            var cliAppDetector = sp.GetRequiredService<ICliAppDetector>();
-            var scopeFactory = sp.GetRequiredService<IServiceScopeFactory>();
-            return new MercuryProvider(httpClient, options, promptCache, logger, desktopContextService, queryProcessor, cliAppDetector, scopeFactory);
-        });
+            new MercuryProvider(
+                sp.GetRequiredService<IHttpClientFactory>().CreateClient("Mercury"),
+                sp.GetRequiredService<IOptions<MercuryOptions>>(),
+                sp.GetRequiredService<IPromptCache>(),
+                sp.GetRequiredService<ILogger<MercuryProvider>>(),
+                sp.GetRequiredService<IQueryProcessor>(),
+                sp.GetRequiredService<ISystemPromptResolver>(),
+                sp.GetRequiredService<IServiceScopeFactory>()));
 
         // Register LlmProviderFactory
         services.AddSingleton<ILlmProviderFactory, LlmProviderFactory>();
