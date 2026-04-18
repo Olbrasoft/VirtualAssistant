@@ -14,7 +14,13 @@ public class DesktopContextService : IDesktopContextService, IAsyncDisposable
     private readonly IDesktopMonitorBackgroundService? _monitor;
     private readonly ILogger<DesktopContextService> _logger;
     private readonly Subject<DesktopContextChange> _contextChanges = new();
-    private readonly SemaphoreSlim _lock = new(1, 1);
+
+    // Plain monitor instead of SemaphoreSlim — OnContextUpdate runs synchronously
+    // from the Subject subscription, so SemaphoreSlim.Wait() was a sync-over-async
+    // smell and the async variant would need the callback to go async anyway.
+    // No async work is done while the lock is held, so `lock(_stateLock)` is both
+    // correct and avoids the disposable lifetime concerns.
+    private readonly object _stateLock = new();
     private IDisposable? _contextSubscription;
 
     private DesktopContext? _lastContext;
@@ -47,8 +53,7 @@ public class DesktopContextService : IDesktopContextService, IAsyncDisposable
 
         try
         {
-            _lock.Wait();
-            try
+            lock (_stateLock)
             {
                 if (_lastContext == null)
                 {
@@ -87,10 +92,6 @@ public class DesktopContextService : IDesktopContextService, IAsyncDisposable
                     _lastContext = newContext;
                     _contextChanges.OnNext(change);
                 }
-            }
-            finally
-            {
-                _lock.Release();
             }
         }
         catch (Exception ex)
@@ -133,27 +134,22 @@ public class DesktopContextService : IDesktopContextService, IAsyncDisposable
         Timestamp: DateTime.UtcNow
     );
 
-    public async ValueTask DisposeAsync()
+    public ValueTask DisposeAsync()
     {
-        if (_disposed) return;
+        if (_disposed) return ValueTask.CompletedTask;
         _disposed = true;
 
         // Unsubscribe from BackgroundService events
         _contextSubscription?.Dispose();
 
-        await _lock.WaitAsync();
-        try
+        lock (_stateLock)
         {
             _contextChanges.OnCompleted();
             _contextChanges.Dispose();
 
             _logger.LogInformation("DesktopContextService disposed");
         }
-        finally
-        {
-            _lock.Release();
-        }
 
-        _lock.Dispose();
+        return ValueTask.CompletedTask;
     }
 }
