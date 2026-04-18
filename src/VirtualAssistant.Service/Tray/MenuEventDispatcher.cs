@@ -8,25 +8,21 @@ namespace Olbrasoft.VirtualAssistant.Service.Tray;
 /// The dispatcher itself holds no business logic — it only forwards calls so
 /// that <see cref="IMenuEventDispatcher"/> stays a single entry point while
 /// each domain (mute / dictation / LLM / dashboard) can evolve independently.
-/// Constructor dropped from nine parameters to five; per-handler dependencies
-/// stay inside the handler that actually uses them.
+/// Per-handler dependencies stay inside the handler that actually uses them.
 /// </summary>
 public class MenuEventDispatcher : IMenuEventDispatcher
 {
-    private readonly ILogger<MenuEventDispatcher> _logger;
     private readonly IMuteMenuHandler _mute;
     private readonly IDictationMenuHandler _dictation;
     private readonly ILlmMenuHandler _llm;
     private readonly IDashboardMenuHandler _dashboard;
 
     public MenuEventDispatcher(
-        ILogger<MenuEventDispatcher> logger,
         IMuteMenuHandler mute,
         IDictationMenuHandler dictation,
         ILlmMenuHandler llm,
         IDashboardMenuHandler dashboard)
     {
-        _logger = logger ?? throw new ArgumentNullException(nameof(logger));
         _mute = mute ?? throw new ArgumentNullException(nameof(mute));
         _dictation = dictation ?? throw new ArgumentNullException(nameof(dictation));
         _llm = llm ?? throw new ArgumentNullException(nameof(llm));

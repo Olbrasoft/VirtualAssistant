@@ -140,12 +140,7 @@ public static class TrayServicesExtensions
                 sp.GetRequiredService<ILogger<Tray.Handlers.DashboardMenuHandler>>(),
                 dashboardBaseUrl);
 
-            return new MenuEventDispatcher(
-                sp.GetRequiredService<ILogger<MenuEventDispatcher>>(),
-                mute,
-                dictation,
-                llm,
-                dashboard);
+            return new MenuEventDispatcher(mute, dictation, llm, dashboard);
         });
 
         // Recording notification service for dictation status (Phase 1 - issue #670)

@@ -17,7 +17,7 @@ public class DashboardMenuHandlerTests
     {
         // Defensive fallback matches the pre-split behavior of MenuEventDispatcher —
         // some test code used to pass null through and expect "http://localhost:5055".
-        var sut = new DashboardMenuHandler(_loggerMock.Object, null!);
+        var sut = new DashboardMenuHandler(_loggerMock.Object, dashboardBaseUrl: null);
 
         Assert.NotNull(sut);
     }

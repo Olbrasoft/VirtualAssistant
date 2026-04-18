@@ -1,4 +1,3 @@
-using Microsoft.Extensions.Logging;
 using Moq;
 using Olbrasoft.VirtualAssistant.Service.Tray;
 using Olbrasoft.VirtualAssistant.Service.Tray.Handlers;
@@ -13,7 +12,6 @@ namespace Olbrasoft.VirtualAssistant.Service.Tests.Tray;
 /// </summary>
 public class MenuEventDispatcherTests
 {
-    private readonly Mock<ILogger<MenuEventDispatcher>> _loggerMock = new();
     private readonly Mock<IMuteMenuHandler> _muteMock = new();
     private readonly Mock<IDictationMenuHandler> _dictationMock = new();
     private readonly Mock<ILlmMenuHandler> _llmMock = new();
@@ -23,7 +21,6 @@ public class MenuEventDispatcherTests
     public MenuEventDispatcherTests()
     {
         _sut = new MenuEventDispatcher(
-            _loggerMock.Object,
             _muteMock.Object,
             _dictationMock.Object,
             _llmMock.Object,
@@ -31,29 +28,24 @@ public class MenuEventDispatcherTests
     }
 
     [Fact]
-    public void Constructor_WithNullLogger_Throws() =>
-        Assert.Throws<ArgumentNullException>(() => new MenuEventDispatcher(
-            null!, _muteMock.Object, _dictationMock.Object, _llmMock.Object, _dashboardMock.Object));
-
-    [Fact]
     public void Constructor_WithNullMute_Throws() =>
         Assert.Throws<ArgumentNullException>(() => new MenuEventDispatcher(
-            _loggerMock.Object, null!, _dictationMock.Object, _llmMock.Object, _dashboardMock.Object));
+            null!, _dictationMock.Object, _llmMock.Object, _dashboardMock.Object));
 
     [Fact]
     public void Constructor_WithNullDictation_Throws() =>
         Assert.Throws<ArgumentNullException>(() => new MenuEventDispatcher(
-            _loggerMock.Object, _muteMock.Object, null!, _llmMock.Object, _dashboardMock.Object));
+            _muteMock.Object, null!, _llmMock.Object, _dashboardMock.Object));
 
     [Fact]
     public void Constructor_WithNullLlm_Throws() =>
         Assert.Throws<ArgumentNullException>(() => new MenuEventDispatcher(
-            _loggerMock.Object, _muteMock.Object, _dictationMock.Object, null!, _dashboardMock.Object));
+            _muteMock.Object, _dictationMock.Object, null!, _dashboardMock.Object));
 
     [Fact]
     public void Constructor_WithNullDashboard_Throws() =>
         Assert.Throws<ArgumentNullException>(() => new MenuEventDispatcher(
-            _loggerMock.Object, _muteMock.Object, _dictationMock.Object, _llmMock.Object, null!));
+            _muteMock.Object, _dictationMock.Object, _llmMock.Object, null!));
 
     [Fact]
     public void HandleMuteToggle_DelegatesToMuteHandler()
