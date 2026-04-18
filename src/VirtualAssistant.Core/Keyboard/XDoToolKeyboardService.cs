@@ -106,24 +106,25 @@ public class XDoToolKeyboardService : IKeyboardSimulationService
             await dotoolProcess.StandardInput.WriteLineAsync($"key {pasteShortcut}");
             dotoolProcess.StandardInput.Close();
 
-            // Add timeout to prevent hanging (max 5 seconds for paste)
+            // Use an independent timeout CTS. Binding the timer to `cancellationToken`
+            // would conflate "user cancelled" with "dotool hung 5 s", and the timeout
+            // branch below would log a fake timeout when the real cause was cancellation.
+            using var timeoutCts = new CancellationTokenSource(TimeSpan.FromSeconds(5));
             var dotoolTask = dotoolProcess.WaitForExitAsync(cancellationToken);
-            var timeoutTask = Task.Delay(TimeSpan.FromSeconds(5), cancellationToken);
+            var timeoutTask = Task.Delay(Timeout.InfiniteTimeSpan, timeoutCts.Token);
             var completedTask = await Task.WhenAny(dotoolTask, timeoutTask);
 
             if (completedTask == timeoutTask)
             {
+                cancellationToken.ThrowIfCancellationRequested();
                 _logger.LogError("dotool paste timeout after 5 seconds, killing process");
-                try
-                {
-                    dotoolProcess.Kill();
-                }
-                catch (Exception ex)
-                {
-                    _logger.LogWarning(ex, "Failed to kill dotool process");
-                }
+                TryKillProcess(dotoolProcess);
                 return false;
             }
+
+            // Surface cancellation as OperationCanceledException (caught below) rather
+            // than as a silent "timeout" false-positive.
+            await dotoolTask;
 
             if (dotoolProcess.ExitCode != 0)
             {
