@@ -1,8 +1,13 @@
 namespace Olbrasoft.VirtualAssistant.Voice.Configuration;
 
 /// <summary>
-/// Configuration options for external service endpoints.
-/// Allows all service URLs to be configured via appsettings.
+/// Configuration options for external service endpoints. Defaults are
+/// intentionally empty so that a missing config section is visible (empty
+/// string returned to HttpClient surfaces as an obvious error message) rather
+/// than silently reaching for <c>http://localhost:…</c>. Consumers log the
+/// failure and return an error result — they do NOT crash the host. Wire up
+/// <see cref="Microsoft.Extensions.Options.IValidateOptions{T}"/> at startup
+/// if a deployment wants fail-fast behavior.
 /// </summary>
 public class ExternalServicesOptions
 {
@@ -11,25 +16,15 @@ public class ExternalServicesOptions
     /// </summary>
     public const string SectionName = "ExternalServices";
 
-    /// <summary>
-    /// URL of the Push-to-Talk repeat endpoint.
-    /// Used to repeat the last spoken text.
-    /// </summary>
-    public string PttRepeatUrl { get; set; } = "http://localhost:5050/api/ptt/repeat";
+    /// <summary>Push-to-Talk repeat endpoint URL.</summary>
+    public string PttRepeatUrl { get; set; } = string.Empty;
 
-    /// <summary>
-    /// URL of the task dispatch endpoint.
-    /// Used to dispatch tasks to agents.
-    /// </summary>
-    public string TaskDispatchUrl { get; set; } = "http://localhost:5055/api/hub/dispatch-task";
+    /// <summary>Task dispatch endpoint URL.</summary>
+    public string TaskDispatchUrl { get; set; } = string.Empty;
 
-    /// <summary>
-    /// URL of the VirtualAssistant service base URL.
-    /// </summary>
-    public string VirtualAssistantBaseUrl { get; set; } = "http://localhost:5055";
+    /// <summary>VirtualAssistant service base URL.</summary>
+    public string VirtualAssistantBaseUrl { get; set; } = string.Empty;
 
-    /// <summary>
-    /// URL of the SpeechToText service base URL.
-    /// </summary>
-    public string SpeechToTextBaseUrl { get; set; } = "http://localhost:5050";
+    /// <summary>SpeechToText service base URL.</summary>
+    public string SpeechToTextBaseUrl { get; set; } = string.Empty;
 }
