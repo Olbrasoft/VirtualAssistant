@@ -179,12 +179,16 @@ public class SpeechTranscriberFactory : ISpeechTranscriberFactory
         // DB round-trip fires while a warmup is running. Per-caller
         // cancellation is honoured via WaitAsync — the underlying warmup keeps
         // running so a cancelling caller doesn't abort the shared load for
-        // siblings. (Copilot review on PR #1016.)
+        // siblings. The FIRST caller's token is what drives the actual DB
+        // query inside LoadAndPublishAsync, so pass ApplicationStopping from
+        // SpeechTranscriberFactoryWarmupService (the primary startup caller)
+        // to let the host abort the query cleanly on shutdown. (Copilot
+        // reviews on PR #1016 and #1017.)
         Task warmup;
         lock (_cacheLock)
         {
             if (Volatile.Read(ref _providerIdCache) != null) return Task.CompletedTask;
-            _warmupTask ??= LoadAndPublishAsync();
+            _warmupTask ??= LoadAndPublishAsync(cancellationToken);
             warmup = _warmupTask;
         }
 
@@ -193,12 +197,12 @@ public class SpeechTranscriberFactory : ISpeechTranscriberFactory
             : warmup;
     }
 
-    private async Task LoadAndPublishAsync()
+    private async Task LoadAndPublishAsync(CancellationToken cancellationToken)
     {
         try
         {
             var providers = await _queryProcessor
-                .ProcessAsync(new GetProvidersByTypeQuery("stt"), CancellationToken.None)
+                .ProcessAsync(new GetProvidersByTypeQuery("stt"), cancellationToken)
                 .ConfigureAwait(false);
 
             Dictionary<string, int> published;

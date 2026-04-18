@@ -154,15 +154,17 @@ public class InMemoryEventBusTests
     [Fact]
     public async Task Subscribe_SameDelegateTwice_DisposingOneRemovesBoth()
     {
-        // Documents the current InMemoryEventBus behaviour for the
+        // Documents the current InMemoryEventBus behavior for the
         // "subscribe the same delegate twice" edge case: Unsubscribe uses
         // ReferenceEquals, so a single Dispose removes every registration
         // that shares the delegate instance. This is arguably a latent
         // bug (per-subscription tokens should be independent), but pinning
-        // the current behaviour prevents silent regressions and makes a
+        // the current behavior prevents silent regressions and makes a
         // future fix visible as a test breakage. CI on commit 5f08bc1
         // failed because an earlier version of the adjacent test assumed
-        // the opposite semantics.
+        // the opposite semantics. (Copilot review on PR #1018 flagged the
+        // inconsistent "behaviour" spelling — switched to "behavior" to
+        // match the project's existing identifiers.)
         var sut = CreateSut();
         var callCount = 0;
         Func<TestEvent, CancellationToken, Task> handler = (_, _) =>
