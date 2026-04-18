@@ -16,8 +16,9 @@ public class GetAssociatedIssueIdsQueryHandler(VirtualAssistantDbContext context
             return [];
         }
 
+        // No AsNoTracking() — the Select projects to a scalar (GitHubIssueId),
+        // so EF Core never materialises an entity that could be tracked.
         return await Where(ngi => query.NotificationIds.Contains(ngi.NotificationId))
-            .AsNoTracking()
             .Select(ngi => ngi.GitHubIssueId)
             .Distinct()
             .ToListAsync(token);
