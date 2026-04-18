@@ -26,11 +26,13 @@ public class SpeechTranscriberFactory : ISpeechTranscriberFactory
     private Dictionary<string, int>? _providerIdCache;
     private readonly object _cacheLock = new();
 
-    // Shared in-flight warmup task. All concurrent WarmupAsync callers latch
-    // onto the same task so "one DB query per process lifetime" is a real
-    // guarantee — previously two concurrent warmups could each issue their
-    // own round-trip even though only one dictionary got published.
-    // (Copilot review on PR #1013.)
+    // Shared in-flight warmup task. Concurrent WarmupAsync callers latch
+    // onto the same task so only one DB round-trip fires while a warmup is
+    // in flight; EnsureProviderIdCacheLoaded also observes this task so the
+    // sync cold-start path doesn't issue a second query while warmup is
+    // still running. Reset to null when the task completes unsuccessfully
+    // (cancellation or fault) so a later WarmupAsync can retry the load.
+    // (Copilot reviews on PR #1013 and #1016.)
     private Task? _warmupTask;
 
     /// <summary>
@@ -173,46 +175,70 @@ public class SpeechTranscriberFactory : ISpeechTranscriberFactory
     {
         if (Volatile.Read(ref _providerIdCache) != null) return Task.CompletedTask;
 
-        // Share the in-flight warmup across concurrent callers so we issue
-        // exactly one DB round-trip, even under a race where two hosted
-        // services both trigger warmup. Future cancellations are honoured by
-        // the first caller's token — see LoadAndPublishAsync.
+        // Share the in-flight warmup across concurrent callers so exactly one
+        // DB round-trip fires while a warmup is running. Per-caller
+        // cancellation is honoured via WaitAsync — the underlying warmup keeps
+        // running so a cancelling caller doesn't abort the shared load for
+        // siblings. (Copilot review on PR #1016.)
+        Task warmup;
         lock (_cacheLock)
         {
             if (Volatile.Read(ref _providerIdCache) != null) return Task.CompletedTask;
-            _warmupTask ??= LoadAndPublishAsync(cancellationToken);
-            return _warmupTask;
+            _warmupTask ??= LoadAndPublishAsync();
+            warmup = _warmupTask;
         }
+
+        return cancellationToken.CanBeCanceled
+            ? warmup.WaitAsync(cancellationToken)
+            : warmup;
     }
 
-    private async Task LoadAndPublishAsync(CancellationToken cancellationToken)
+    private async Task LoadAndPublishAsync()
     {
-        var providers = await _queryProcessor
-            .ProcessAsync(new GetProvidersByTypeQuery("stt"), cancellationToken)
-            .ConfigureAwait(false);
-
-        Dictionary<string, int> published;
-        lock (_cacheLock)
+        try
         {
-            var existing = Volatile.Read(ref _providerIdCache);
-            if (existing != null)
-            {
-                published = existing;
-            }
-            else
-            {
-                published = providers.ToDictionary(
-                    p => p.Name,
-                    p => p.Id,
-                    StringComparer.OrdinalIgnoreCase);
-                Volatile.Write(ref _providerIdCache, published);
-            }
-        }
+            var providers = await _queryProcessor
+                .ProcessAsync(new GetProvidersByTypeQuery("stt"), CancellationToken.None)
+                .ConfigureAwait(false);
 
-        _logger.LogInformation(
-            "Warmed {Count} STT providers from database: {Providers}",
-            published.Count,
-            string.Join(", ", published.Select(p => $"{p.Key}={p.Value}")));
+            Dictionary<string, int> published;
+            lock (_cacheLock)
+            {
+                var existing = Volatile.Read(ref _providerIdCache);
+                if (existing != null)
+                {
+                    published = existing;
+                }
+                else
+                {
+                    published = providers.ToDictionary(
+                        p => p.Name,
+                        p => p.Id,
+                        StringComparer.OrdinalIgnoreCase);
+                    Volatile.Write(ref _providerIdCache, published);
+                }
+            }
+
+            _logger.LogInformation(
+                "Warmed {Count} STT providers from database: {Providers}",
+                published.Count,
+                string.Join(", ", published.Select(p => $"{p.Key}={p.Value}")));
+        }
+        catch
+        {
+            // Reset so a later WarmupAsync or GetProviderId can retry. Without
+            // this a transient DB failure would pin the factory to the sync
+            // cold-start path for the process lifetime. (Copilot review on
+            // PR #1016.)
+            lock (_cacheLock)
+            {
+                if (Volatile.Read(ref _providerIdCache) == null)
+                {
+                    _warmupTask = null;
+                }
+            }
+            throw;
+        }
     }
 
     /// <summary>
@@ -229,6 +255,31 @@ public class SpeechTranscriberFactory : ISpeechTranscriberFactory
     {
         var existing = Volatile.Read(ref _providerIdCache);
         if (existing != null) return existing;
+
+        // If WarmupAsync is in flight, wait for it instead of issuing a
+        // second DB round-trip. Read _warmupTask under the lock (publication
+        // via Volatile doesn't apply to non-null task references assigned
+        // inside the lock) but await outside the lock. (Copilot review on
+        // PR #1016.)
+        Task? warmup;
+        lock (_cacheLock)
+        {
+            warmup = _warmupTask;
+        }
+
+        if (warmup != null)
+        {
+            try
+            {
+                warmup.GetAwaiter().GetResult();
+                existing = Volatile.Read(ref _providerIdCache);
+                if (existing != null) return existing;
+            }
+            catch
+            {
+                // Warmup failed; fall through to the sync cold-start below.
+            }
+        }
 
         lock (_cacheLock)
         {

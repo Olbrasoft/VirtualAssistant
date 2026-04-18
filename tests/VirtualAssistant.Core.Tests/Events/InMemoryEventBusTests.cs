@@ -123,21 +123,29 @@ public class InMemoryEventBusTests
     }
 
     [Fact]
-    public void Subscribe_MultipleTimesSameHandler_CreatesMultipleRegistrations()
+    public async Task Subscribe_MultipleTimesSameHandler_DisposingOneKeepsOther()
     {
         // Subscribe returns a per-call IDisposable that removes exactly that
-        // registration. Disposing one should not remove the other, otherwise
-        // the "remove-by-reference" semantics would collapse. This test pins
-        // the per-subscription disposal contract.
+        // registration. Disposing one must not remove the other, otherwise
+        // the "remove-by-reference" semantics would collapse. Copilot on
+        // PR #1015 pointed out the earlier version of this test never
+        // published or asserted — the test would have passed even if Subscribe
+        // deduped handlers or Dispose removed all registrations for the same
+        // delegate. Fixed by publishing after the partial dispose.
         var sut = CreateSut();
-        Func<TestEvent, CancellationToken, Task> handler = (_, _) => Task.CompletedTask;
+        var callCount = 0;
+        Func<TestEvent, CancellationToken, Task> handler = (_, _) =>
+        {
+            Interlocked.Increment(ref callCount);
+            return Task.CompletedTask;
+        };
         var sub1 = sut.Subscribe(handler);
         var sub2 = sut.Subscribe(handler);
 
         sub1.Dispose();
-        sub2.Dispose();
+        await sut.PublishAsync(new TestEvent("x"));
 
-        // No assertion needed — the check is that double-dispose doesn't throw
-        // and that the bus cleans up both registrations cleanly.
+        Assert.Equal(1, callCount);
+        sub2.Dispose();
     }
 }
