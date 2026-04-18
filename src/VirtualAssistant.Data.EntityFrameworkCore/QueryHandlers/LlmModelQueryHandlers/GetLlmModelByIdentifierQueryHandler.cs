@@ -13,6 +13,7 @@ public class GetLlmModelByIdentifierQueryHandler(VirtualAssistantDbContext conte
     protected override async Task<LlmModel?> GetResultToHandleAsync(GetLlmModelByIdentifierQuery query, CancellationToken token)
     {
         return await Context.LlmModels
+            .AsNoTracking()
             .FirstOrDefaultAsync(m => m.ModelIdentifier == query.ModelIdentifier && m.IsActive, token);
     }
 }

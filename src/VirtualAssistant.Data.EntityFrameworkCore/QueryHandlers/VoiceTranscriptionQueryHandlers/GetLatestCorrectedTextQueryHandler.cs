@@ -12,6 +12,7 @@ public class GetLatestCorrectedTextQueryHandler(VirtualAssistantDbContext contex
     protected override async Task<string?> GetResultToHandleAsync(GetLatestCorrectedTextQuery query, CancellationToken token)
     {
         var latestTranscription = await Context.Set<VoiceTranscription>()
+            .AsNoTracking()
             .OrderByDescending(v => v.CreatedAt)
             .FirstOrDefaultAsync(token);
 
@@ -20,6 +21,7 @@ public class GetLatestCorrectedTextQueryHandler(VirtualAssistantDbContext contex
 
         // Check if there's an LLM correction for this transcription
         var correction = await Context.LlmCorrections
+            .AsNoTracking()
             .Where(c => c.VoiceTranscriptionId == latestTranscription.Id)
             .OrderByDescending(c => c.CreatedAt)
             .Select(c => c.CorrectedText)
