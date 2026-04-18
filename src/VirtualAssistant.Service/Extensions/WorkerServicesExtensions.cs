@@ -39,15 +39,12 @@ public static class WorkerServicesExtensions
 
         services.AddSingleton(sp =>
         {
-            var recordingCoordinator = sp.GetRequiredKeyedService<Voice.Audio.AudioRecordingCoordinator>(DictationKey);
-            var dictationTranscriptionService = sp.GetRequiredKeyedService<ITranscriptionService>(DictationKey);
-
             return new DictationWorker(
                 sp.GetRequiredService<ILogger<DictationWorker>>(),
                 sp.GetRequiredService<IKeyboardMonitor>(),
                 sp.GetRequiredService<Voice.StateMachine.IDictationStateMachine>(),
-                recordingCoordinator,
-                dictationTranscriptionService,
+                sp.GetRequiredKeyedService<IAudioRecordingCoordinator>(DictationKey),
+                sp.GetRequiredKeyedService<ITranscriptionService>(DictationKey),
                 sp.GetRequiredService<IKeyboardSimulationService>(),
                 sp.GetRequiredKeyedService<ISoundEffectPlayer>("typing"),
                 sp.GetRequiredKeyedService<ISoundEffectPlayer>("cancel"),
@@ -95,7 +92,10 @@ public static class WorkerServicesExtensions
                 sp.GetRequiredService<ILogger<AudioCaptureService>>(),
                 sp.GetRequiredService<IConfiguration>()));
 
-        services.AddKeyedSingleton(DictationKey, (sp, _) =>
+        // Register under the interface so callers don't need to know the concrete
+        // implementation. Keeps DictationWorker and any future consumer decoupled
+        // from Voice.Audio.AudioRecordingCoordinator specifically.
+        services.AddKeyedSingleton<IAudioRecordingCoordinator>(DictationKey, (sp, _) =>
             new Voice.Audio.AudioRecordingCoordinator(
                 sp.GetRequiredService<ILogger<Voice.Audio.AudioRecordingCoordinator>>(),
                 sp.GetRequiredKeyedService<IAudioCaptureService>(DictationKey),
@@ -127,11 +127,17 @@ public static class WorkerServicesExtensions
 
         // Active transcriber for dictation — Google primary + dedicated Whisper fallback
         // when configured, otherwise the single available provider.
+        // NOTE: GoogleSpeechTranscriber is registered as a concrete singleton in
+        // VoiceServicesExtensions (NOT as a keyed ISpeechTranscriber), so we pull it
+        // by type here. A previous version of this code used
+        // GetKeyedService<ISpeechTranscriber>("google") which always returned null
+        // and silently fell back to Whisper (pre-existing bug) — Copilot caught it
+        // during the #977 review.
         services.AddKeyedSingleton<ISpeechTranscriber>(DictationKey, (sp, _) =>
         {
             var speechSettings = sp.GetRequiredService<IOptions<SpeechProviderSettings>>().Value;
             var factory = sp.GetRequiredService<ISpeechTranscriberFactory>();
-            var googleTranscriber = sp.GetKeyedService<ISpeechTranscriber>("google");
+            var googleTranscriber = sp.GetService<GoogleSpeechTranscriber>();
             var whisper = sp.GetRequiredKeyedService<WhisperSpeechTranscriber>(DictationKey);
 
             if (googleTranscriber == null)
