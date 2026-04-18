@@ -15,6 +15,7 @@ public class SearchVoiceTranscriptionsQueryHandler(VirtualAssistantDbContext con
         if (string.IsNullOrWhiteSpace(query.SearchQuery))
         {
             return await Context.Set<VoiceTranscription>()
+                .AsNoTracking()
                 .Include(v => v.Provider)
                 .OrderByDescending(v => v.CreatedAt)
                 .Take(100)
@@ -25,6 +26,7 @@ public class SearchVoiceTranscriptionsQueryHandler(VirtualAssistantDbContext con
         var searchPattern = $"%{escapedSearch}%";
 
         return await Where(v => EF.Functions.ILike(v.TranscribedText, searchPattern))
+            .AsNoTracking()
             .Include(v => v.Provider)
             .OrderByDescending(v => v.CreatedAt)
             .Take(100)

@@ -12,6 +12,7 @@ public class GetPromptByFileNameQueryHandler(VirtualAssistantDbContext context)
     protected override async Task<Prompt?> GetResultToHandleAsync(GetPromptByFileNameQuery query, CancellationToken token)
     {
         return await Context.Prompts
+            .AsNoTracking()
             .FirstOrDefaultAsync(p => p.PromptFileName == query.PromptFileName, token);
     }
 }

@@ -21,6 +21,7 @@ public class GetPromptByAppIdPatternQueryHandler(VirtualAssistantDbContext conte
         if (!string.IsNullOrWhiteSpace(query.ActiveApplication))
         {
             var appMatch = await Context.Prompts
+                .AsNoTracking()
                 .Where(p => p.ApplicationPattern != null && p.ApplicationPattern != "")
                 .Where(p => EF.Functions.Like(query.ActiveApplication, "%" + p.ApplicationPattern + "%"))
                 .FirstOrDefaultAsync(token);
@@ -33,6 +34,7 @@ public class GetPromptByAppIdPatternQueryHandler(VirtualAssistantDbContext conte
         // Example: windowTitle = "Claude Code - file.cs" matches AppIdPattern = "Claude Code"
         // Example: windowTitle = "OC | Create issues" matches AppIdPattern = "OC |"
         return await Context.Prompts
+            .AsNoTracking()
             .Where(p => p.AppIdPattern != "*")
             .Where(p => EF.Functions.Like(query.ActiveWindowTitle, "%" + p.AppIdPattern + "%"))
             .FirstOrDefaultAsync(token);

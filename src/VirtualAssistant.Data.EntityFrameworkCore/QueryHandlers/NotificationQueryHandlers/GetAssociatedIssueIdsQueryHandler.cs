@@ -17,6 +17,7 @@ public class GetAssociatedIssueIdsQueryHandler(VirtualAssistantDbContext context
         }
 
         return await Where(ngi => query.NotificationIds.Contains(ngi.NotificationId))
+            .AsNoTracking()
             .Select(ngi => ngi.GitHubIssueId)
             .Distinct()
             .ToListAsync(token);

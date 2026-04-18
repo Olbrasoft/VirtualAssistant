@@ -12,6 +12,7 @@ public class GetDefaultPromptQueryHandler(VirtualAssistantDbContext context)
     protected override async Task<Prompt> GetResultToHandleAsync(GetDefaultPromptQuery query, CancellationToken token)
     {
         var defaultPrompt = await Context.Prompts
+            .AsNoTracking()
             .FirstOrDefaultAsync(p => p.AppIdPattern == "*", token);
 
         if (defaultPrompt == null)
