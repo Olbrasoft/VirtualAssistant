@@ -27,7 +27,10 @@ public sealed class DotoolProcessRunner : IDotoolProcessRunner
             {
                 FileName = "dotool",
                 RedirectStandardInput = true,
-                RedirectStandardOutput = true,
+                // StandardOutput is intentionally NOT redirected. dotool produces
+                // no meaningful output on success and leaving the child's stdout
+                // attached to our stdout would let it deadlock if it ever wrote
+                // more than the pipe buffer. (Copilot review on PR #997.)
                 RedirectStandardError = true,
                 UseShellExecute = false,
                 CreateNoWindow = true,
@@ -59,12 +62,26 @@ public sealed class DotoolProcessRunner : IDotoolProcessRunner
             return DotoolResult.Timeout();
         }
 
-        await processTask;
+        try
+        {
+            await processTask;
+        }
+        catch (OperationCanceledException)
+        {
+            // Without this, a caller cancellation during wait would leave a
+            // live dotool child behind — the regression Copilot flagged on
+            // PR #997 relative to the prior FastPaste path.
+            TryKill(process);
+            throw;
+        }
 
         if (process.ExitCode != 0)
         {
             var error = await process.StandardError.ReadToEndAsync(cancellationToken);
-            return DotoolResult.Failed(error);
+            var message = string.IsNullOrWhiteSpace(error)
+                ? $"dotool exited with code {process.ExitCode}."
+                : $"dotool exited with code {process.ExitCode}: {error.TrimEnd()}";
+            return DotoolResult.Failed(message);
         }
 
         return DotoolResult.Ok();
