@@ -194,8 +194,9 @@ public static class VoiceServicesExtensions
         // hardcoded localhost fallback — a missing value fails fast at startup
         // with a clear error message naming the config key, rather than
         // waiting for the first OpenCode call to surface a less actionable
-        // exception from inside the HTTP client. (Copilot review on PR #1012.)
-        services.AddSingleton(sp =>
+        // exception from inside the HTTP client. (Copilot reviews on PR #1012
+        // and #1014 — factory doesn't need the service provider.)
+        services.AddSingleton(_ =>
         {
             var openCodeUrl = configuration["OpenCode:Url"];
             if (string.IsNullOrWhiteSpace(openCodeUrl))

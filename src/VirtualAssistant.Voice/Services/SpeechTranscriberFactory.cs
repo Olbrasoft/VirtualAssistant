@@ -26,6 +26,13 @@ public class SpeechTranscriberFactory : ISpeechTranscriberFactory
     private Dictionary<string, int>? _providerIdCache;
     private readonly object _cacheLock = new();
 
+    // Shared in-flight warmup task. All concurrent WarmupAsync callers latch
+    // onto the same task so "one DB query per process lifetime" is a real
+    // guarantee — previously two concurrent warmups could each issue their
+    // own round-trip even though only one dictionary got published.
+    // (Copilot review on PR #1013.)
+    private Task? _warmupTask;
+
     /// <summary>
     /// Initializes a new instance of <see cref="SpeechTranscriberFactory"/>.
     /// Providers self-declare their <see cref="ISpeechTranscriber.ProviderKey"/> and
@@ -120,8 +127,12 @@ public class SpeechTranscriberFactory : ISpeechTranscriberFactory
     public IReadOnlyCollection<string> GetAvailableProviders() => _providersByKey.Keys.ToArray();
 
     /// <summary>
-    /// Gets the database provider ID for tracking.
-    /// Returns from cache - loaded once at startup, no DB query per call.
+    /// Gets the database provider ID for tracking. The provider-ID cache is
+    /// populated once per process: by <see cref="WarmupAsync"/> at startup
+    /// when the warmup hosted service is wired, otherwise by the first
+    /// GetProviderId call via a synchronous cold-start fallback inside
+    /// <c>EnsureProviderIdCacheLoaded</c>. Subsequent calls are an in-memory
+    /// dictionary lookup with no DB access. (Copilot review on PR #1013.)
     /// </summary>
     public int GetProviderId(string providerName)
     {
@@ -158,10 +169,24 @@ public class SpeechTranscriberFactory : ISpeechTranscriberFactory
     /// startup, so the hot path (<see cref="GetProviderId"/>) never has to trigger
     /// the synchronous fallback below.
     /// </summary>
-    public async Task WarmupAsync(CancellationToken cancellationToken = default)
+    public Task WarmupAsync(CancellationToken cancellationToken = default)
     {
-        if (Volatile.Read(ref _providerIdCache) != null) return;
+        if (Volatile.Read(ref _providerIdCache) != null) return Task.CompletedTask;
 
+        // Share the in-flight warmup across concurrent callers so we issue
+        // exactly one DB round-trip, even under a race where two hosted
+        // services both trigger warmup. Future cancellations are honoured by
+        // the first caller's token — see LoadAndPublishAsync.
+        lock (_cacheLock)
+        {
+            if (Volatile.Read(ref _providerIdCache) != null) return Task.CompletedTask;
+            _warmupTask ??= LoadAndPublishAsync(cancellationToken);
+            return _warmupTask;
+        }
+    }
+
+    private async Task LoadAndPublishAsync(CancellationToken cancellationToken)
+    {
         var providers = await _queryProcessor
             .ProcessAsync(new GetProvidersByTypeQuery("stt"), cancellationToken)
             .ConfigureAwait(false);
