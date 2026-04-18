@@ -1,8 +1,6 @@
-using Microsoft.AspNetCore.SignalR;
 using Microsoft.Extensions.Options;
 using Olbrasoft.VirtualAssistant.Core.Audio;
 using Olbrasoft.VirtualAssistant.Core.Configuration;
-using Olbrasoft.VirtualAssistant.Core.Keyboard;
 using Olbrasoft.VirtualAssistant.Core.Models;
 using Olbrasoft.VirtualAssistant.Core.Services;
 using Olbrasoft.VirtualAssistant.Core.Speech;
@@ -11,6 +9,7 @@ using Olbrasoft.VirtualAssistant.Voice.Services;
 using Olbrasoft.VirtualAssistant.Core.StateMachine;
 using Olbrasoft.VirtualAssistant.Voice.StateMachine;
 using Olbrasoft.VirtualAssistant.Service.Hubs;
+using Olbrasoft.VirtualAssistant.Service.Workers.Dictation;
 using Olbrasoft.VirtualAssistant.Service.Workers.Streaming;
 
 namespace Olbrasoft.VirtualAssistant.Service.Workers;
@@ -27,11 +26,8 @@ public class DictationWorker : BackgroundService, IDictationControl, IDictationS
     private readonly IDictationStateMachine _stateMachine;
     private readonly IAudioRecordingCoordinator _recordingCoordinator;
     private readonly ITranscriptionService _transcriptionService;
-    private readonly IKeyboardSimulationService _keyboardSimulation;
-    private readonly ISoundEffectPlayer _typingSound;
-    private readonly ISoundEffectPlayer _cancelSound;
+    private readonly IDictationOutputChannel _outputChannel;
     private readonly IServiceScopeFactory _scopeFactory;
-    private readonly IHubContext<DictationHub> _hubContext;
     private readonly ICliAppDetector _cliAppDetector;
     private readonly IStreamingChunkAssembler _streamingAssembler;
     private readonly DictationOptions _options;
@@ -53,11 +49,8 @@ public class DictationWorker : BackgroundService, IDictationControl, IDictationS
         IDictationStateMachine stateMachine,
         IAudioRecordingCoordinator recordingCoordinator,
         ITranscriptionService transcriptionService,
-        IKeyboardSimulationService keyboardSimulation,
-        ISoundEffectPlayer typingSound,
-        ISoundEffectPlayer cancelSound,
+        IDictationOutputChannel outputChannel,
         IServiceScopeFactory scopeFactory,
-        IHubContext<DictationHub> hubContext,
         ICliAppDetector cliAppDetector,
         IStreamingChunkAssembler streamingAssembler,
         IOptions<DictationOptions> options)
@@ -67,11 +60,8 @@ public class DictationWorker : BackgroundService, IDictationControl, IDictationS
         _stateMachine = stateMachine ?? throw new ArgumentNullException(nameof(stateMachine));
         _recordingCoordinator = recordingCoordinator ?? throw new ArgumentNullException(nameof(recordingCoordinator));
         _transcriptionService = transcriptionService ?? throw new ArgumentNullException(nameof(transcriptionService));
-        _keyboardSimulation = keyboardSimulation ?? throw new ArgumentNullException(nameof(keyboardSimulation));
-        _typingSound = typingSound ?? throw new ArgumentNullException(nameof(typingSound));
-        _cancelSound = cancelSound ?? throw new ArgumentNullException(nameof(cancelSound));
+        _outputChannel = outputChannel ?? throw new ArgumentNullException(nameof(outputChannel));
         _scopeFactory = scopeFactory ?? throw new ArgumentNullException(nameof(scopeFactory));
-        _hubContext = hubContext ?? throw new ArgumentNullException(nameof(hubContext));
         _cliAppDetector = cliAppDetector ?? throw new ArgumentNullException(nameof(cliAppDetector));
         _streamingAssembler = streamingAssembler ?? throw new ArgumentNullException(nameof(streamingAssembler));
         ArgumentNullException.ThrowIfNull(options);
@@ -337,21 +327,8 @@ public class DictationWorker : BackgroundService, IDictationControl, IDictationS
         _streamingAssembler.SubmitChunk(e.Index, e.PcmBytes);
     }
 
-    private async Task BroadcastDictationEventAsync(DictationEventType eventType, string? text)
-    {
-        try
-        {
-            await _hubContext.Clients.All.SendAsync("DictationEvent", new DictationEvent
-            {
-                EventType = eventType,
-                Text = text
-            });
-        }
-        catch (Exception ex)
-        {
-            _logger.LogDebug(ex, "Failed to broadcast dictation event to SignalR clients");
-        }
-    }
+    private Task BroadcastDictationEventAsync(DictationEventType eventType, string? text) =>
+        _outputChannel.BroadcastEventAsync(eventType, text);
 
     private async Task StartRecordingAsync()
     {
@@ -420,14 +397,14 @@ public class DictationWorker : BackgroundService, IDictationControl, IDictationS
                 if (string.IsNullOrWhiteSpace(textToPaste))
                 {
                     _logger.LogInformation("Quick dictation: transcription reduced to empty after civility trim — skipping paste");
-                    _typingSound.StopLoop();
+                    _outputChannel.StopTypingFeedback();
                     _stateMachine.TransitionTo(DictationState.Idle);
                     return;
                 }
 
                 // Quick mode: fast paste without clipboard save/restore
-                var pasteSucceeded = await _keyboardSimulation.FastPasteAsync(textToPaste, _transcriptionCts!.Token);
-                _typingSound.StopLoop();
+                var pasteSucceeded = await _outputChannel.FastPasteAsync(textToPaste, _transcriptionCts!.Token);
+                _outputChannel.StopTypingFeedback();
 
                 if (!pasteSucceeded)
                 {
@@ -451,13 +428,13 @@ public class DictationWorker : BackgroundService, IDictationControl, IDictationS
         catch (OperationCanceledException)
         {
             _logger.LogInformation("Transcription canceled by user");
-            _typingSound.StopLoop();
+            _outputChannel.StopTypingFeedback();
             _stateMachine.TransitionTo(DictationState.Idle);
         }
         catch (Exception ex)
         {
             _logger.LogError(ex, "Error during transcription");
-            _typingSound.StopLoop();
+            _outputChannel.StopTypingFeedback();
             _stateMachine.TransitionTo(DictationState.Idle);
         }
         finally
@@ -507,7 +484,7 @@ public class DictationWorker : BackgroundService, IDictationControl, IDictationS
     /// </summary>
     private async Task<TranscriptionResult?> TranscribeRawWithSoundAsync(byte[] audioData)
     {
-        _typingSound.StartLoop();
+        _outputChannel.StartTypingFeedback();
         _transcriptionCts = new CancellationTokenSource();
 
         TranscriptionResult result;
@@ -535,7 +512,7 @@ public class DictationWorker : BackgroundService, IDictationControl, IDictationS
         if (!result.Success || string.IsNullOrWhiteSpace(result.Text))
         {
             _logger.LogWarning("Quick transcription failed or empty");
-            _typingSound.StopLoop();
+            _outputChannel.StopTypingFeedback();
             _stateMachine.TransitionTo(DictationState.Idle);
             return null;
         }
@@ -550,7 +527,7 @@ public class DictationWorker : BackgroundService, IDictationControl, IDictationS
     /// </summary>
     private async Task<TranscriptionResult?> TranscribeAudioWithSoundAsync(byte[] audioData)
     {
-        _typingSound.StartLoop();
+        _outputChannel.StartTypingFeedback();
         _transcriptionCts = new CancellationTokenSource();
 
         var result = await _transcriptionService.TranscribeAsync(audioData, _transcriptionCts.Token);
@@ -558,7 +535,7 @@ public class DictationWorker : BackgroundService, IDictationControl, IDictationS
         if (!result.Success || string.IsNullOrWhiteSpace(result.Text))
         {
             _logger.LogWarning("Transcription failed or empty");
-            _typingSound.StopLoop();
+            _outputChannel.StopTypingFeedback();
             _stateMachine.TransitionTo(DictationState.Idle);
             return null;
         }
@@ -672,9 +649,9 @@ public class DictationWorker : BackgroundService, IDictationControl, IDictationS
     /// </summary>
     private async Task TypeTextAndFinishAsync(string text)
     {
-        var typed = await _keyboardSimulation.TypeIntoActiveWindowAsync(text, _transcriptionCts!.Token);
+        var typed = await _outputChannel.TypeIntoActiveWindowAsync(text, _transcriptionCts!.Token);
 
-        _typingSound.StopLoop();
+        _outputChannel.StopTypingFeedback();
 
         if (!typed)
         {
@@ -697,7 +674,7 @@ public class DictationWorker : BackgroundService, IDictationControl, IDictationS
             await _recordingCoordinator.EmergencyStopAsync();
 
             // Play cancel sound (paper-rip effect)
-            _cancelSound.Play();
+            _outputChannel.PlayCancelCue();
 
             // Return to Idle without transcription
             _stateMachine.TransitionTo(DictationState.Idle);
@@ -740,10 +717,10 @@ public class DictationWorker : BackgroundService, IDictationControl, IDictationS
             _logger.LogInformation("CancelTranscription called in state {State}", currentState);
 
             // Stop typing sound immediately
-            _typingSound.StopLoop();
+            _outputChannel.StopTypingFeedback();
 
             // Play cancel sound (paper-rip effect)
-            _cancelSound.Play();
+            _outputChannel.PlayCancelCue();
 
             // If still recording, stop audio capture and discard buffer.
             // Must complete before resetting streaming state so no more

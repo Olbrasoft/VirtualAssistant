@@ -9,6 +9,7 @@ using Microsoft.AspNetCore.SignalR;
 using Olbrasoft.VirtualAssistant.Service.Hubs;
 using Olbrasoft.VirtualAssistant.Service.Infrastructure;
 using Olbrasoft.VirtualAssistant.Service.Workers;
+using Olbrasoft.VirtualAssistant.Service.Workers.Dictation;
 using Olbrasoft.VirtualAssistant.Service.Workers.Streaming;
 using Olbrasoft.VirtualAssistant.Voice.Configuration;
 using Olbrasoft.VirtualAssistant.Voice.Filters;
@@ -49,17 +50,24 @@ public static class WorkerServicesExtensions
                 sp.GetRequiredService<ILogger<StreamingChunkAssembler>>(),
                 transcription);
 
+            // Bundle the four output-surface dependencies (sounds, keyboard,
+            // SignalR) behind a single IDictationOutputChannel so the worker
+            // ctor shrinks by three deps. (#969 god-class split.)
+            var outputChannel = new DictationOutputChannel(
+                sp.GetRequiredService<ILogger<DictationOutputChannel>>(),
+                sp.GetRequiredService<IKeyboardSimulationService>(),
+                sp.GetRequiredKeyedService<ISoundEffectPlayer>("typing"),
+                sp.GetRequiredKeyedService<ISoundEffectPlayer>("cancel"),
+                sp.GetRequiredService<IHubContext<DictationHub>>());
+
             return new DictationWorker(
                 sp.GetRequiredService<ILogger<DictationWorker>>(),
                 sp.GetRequiredService<IKeyboardMonitor>(),
                 sp.GetRequiredService<Voice.StateMachine.IDictationStateMachine>(),
                 sp.GetRequiredKeyedService<IAudioRecordingCoordinator>(DictationKey),
                 transcription,
-                sp.GetRequiredService<IKeyboardSimulationService>(),
-                sp.GetRequiredKeyedService<ISoundEffectPlayer>("typing"),
-                sp.GetRequiredKeyedService<ISoundEffectPlayer>("cancel"),
+                outputChannel,
                 sp.GetRequiredService<IServiceScopeFactory>(),
-                sp.GetRequiredService<IHubContext<DictationHub>>(),
                 sp.GetRequiredService<ICliAppDetector>(),
                 assembler,
                 sp.GetRequiredService<IOptions<DictationOptions>>());
