@@ -124,78 +124,18 @@ public class TranscriptionService : ITranscriptionService
             }
         }
 
-        // 2. Apply LLM correction
-        Guid? raceGroupId = null;
-        Task<LlmCorrectionResult?>? racingLoserTask = null;
-        string? racingLoserProviderName = null;
-
-        if (!string.IsNullOrWhiteSpace(processedText))
-        {
-            // Racing mode: call multiple providers in parallel, use first response
-            if (_racingOptions.Enabled && _racingLlmProvider != null)
-            {
-                try
-                {
-                    var racingResult = await _racingLlmProvider.CorrectTextAsync(processedText, cancellationToken);
-                    if (racingResult != null)
-                    {
-                        var beforeLlm = processedText;
-                        processedText = racingResult.WinnerResult.CorrectedText;
-                        llmDurationMs = racingResult.WinnerResult.DurationMs;
-                        promptId = racingResult.WinnerResult.PromptId;
-                        modelId = racingResult.WinnerResult.ModelId;
-                        inputTokens = racingResult.WinnerResult.InputTokens;
-                        outputTokens = racingResult.WinnerResult.OutputTokens;
-                        reasoningTokens = racingResult.WinnerResult.ReasoningTokens;
-
-                        // Only set race metadata when a real race occurred (i.e., a loser exists)
-                        if (racingResult.LoserTask != null)
-                        {
-                            raceGroupId = racingResult.RaceGroupId;
-                            racingLoserTask = racingResult.LoserTask;
-                            racingLoserProviderName = racingResult.LoserProviderName;
-                        }
-
-                        if (beforeLlm != processedText)
-                        {
-                            _logger.LogInformation("LLM racing correction by {Winner} in {Duration}ms: '{Before}' → '{After}'",
-                                racingResult.WinnerProviderName, llmDurationMs, beforeLlm, processedText);
-                        }
-                    }
-                }
-                catch (Exception ex)
-                {
-                    _logger.LogError(ex, "LLM racing correction failed, using filtered text: {Error}", ex.Message);
-                }
-            }
-            // Single provider mode: call active provider only
-            else if (_llmProviderFactory != null)
-            {
-                try
-                {
-                    var llmProvider = _llmProviderFactory.GetActiveProvider();
-                    var beforeLlm = processedText;
-                    var correctionResult = await llmProvider.CorrectTextAsync(processedText, cancellationToken);
-                    processedText = correctionResult.CorrectedText;
-                    llmDurationMs = correctionResult.DurationMs;
-                    promptId = correctionResult.PromptId;
-                    modelId = correctionResult.ModelId;
-                    inputTokens = correctionResult.InputTokens;
-                    outputTokens = correctionResult.OutputTokens;
-                    reasoningTokens = correctionResult.ReasoningTokens;
-
-                    if (beforeLlm != processedText)
-                    {
-                        _logger.LogInformation("LLM correction applied in {Duration}ms: '{Before}' → '{After}'",
-                            llmDurationMs, beforeLlm, processedText);
-                    }
-                }
-                catch (Exception ex)
-                {
-                    _logger.LogError(ex, "LLM correction failed, using filtered text: {Error}", ex.Message);
-                }
-            }
-        }
+        // 2. Apply LLM correction (racing or single-provider — whichever is configured)
+        var llm = await ApplyLlmCorrectionAsync(processedText, cancellationToken);
+        processedText = llm.CorrectedText;
+        llmDurationMs = llm.DurationMs;
+        promptId = llm.PromptId;
+        modelId = llm.ModelId;
+        inputTokens = llm.InputTokens;
+        outputTokens = llm.OutputTokens;
+        reasoningTokens = llm.ReasoningTokens;
+        var raceGroupId = llm.RaceGroupId;
+        var racingLoserTask = llm.RacingLoserTask;
+        var racingLoserProviderName = llm.RacingLoserProviderName;
 
         // Return new result with processed text if it changed
         if (processedText != originalText)
@@ -354,6 +294,115 @@ public class TranscriptionService : ITranscriptionService
             _logger.LogError(ex, "TranscribeChunkRawAsync failed for chunk of {Bytes} bytes", audioData.Length);
             return string.Empty;
         }
+    }
+
+    /// <summary>
+    /// Accumulator struct so <see cref="TranscribeAsync"/> gets a single return value
+    /// from the LLM-correction step instead of eight out-parameters.
+    /// </summary>
+    private readonly struct LlmCorrectionOutput
+    {
+        public string CorrectedText { get; init; }
+        public int? DurationMs { get; init; }
+        public int? PromptId { get; init; }
+        public int? ModelId { get; init; }
+        public int? InputTokens { get; init; }
+        public int? OutputTokens { get; init; }
+        public int? ReasoningTokens { get; init; }
+        public Guid? RaceGroupId { get; init; }
+        public Task<LlmCorrectionResult?>? RacingLoserTask { get; init; }
+        public string? RacingLoserProviderName { get; init; }
+
+        public static LlmCorrectionOutput Unchanged(string text) => new() { CorrectedText = text };
+    }
+
+    /// <summary>
+    /// Runs LLM correction on the supplied text, choosing between the racing pipeline
+    /// and the single-active-provider pipeline based on <see cref="LlmRoutingOptions.Enabled"/>.
+    /// </summary>
+    /// <remarks>
+    /// Keeps <see cref="TranscribeAsync"/> readable — previously this logic was inlined
+    /// with two large try/catch blocks and eight local accumulators.
+    /// </remarks>
+    private async Task<LlmCorrectionOutput> ApplyLlmCorrectionAsync(string processedText, CancellationToken cancellationToken)
+    {
+        if (string.IsNullOrWhiteSpace(processedText))
+        {
+            return LlmCorrectionOutput.Unchanged(processedText);
+        }
+
+        if (_racingOptions.Enabled && _racingLlmProvider != null)
+        {
+            try
+            {
+                var racingResult = await _racingLlmProvider.CorrectTextAsync(processedText, cancellationToken);
+                if (racingResult == null)
+                {
+                    return LlmCorrectionOutput.Unchanged(processedText);
+                }
+
+                var winner = racingResult.WinnerResult;
+                if (processedText != winner.CorrectedText)
+                {
+                    _logger.LogInformation("LLM racing correction by {Winner} in {Duration}ms: '{Before}' → '{After}'",
+                        racingResult.WinnerProviderName, winner.DurationMs, processedText, winner.CorrectedText);
+                }
+
+                // Only propagate race metadata when a real race occurred (a loser exists).
+                var hasLoser = racingResult.LoserTask != null;
+                return new LlmCorrectionOutput
+                {
+                    CorrectedText = winner.CorrectedText,
+                    DurationMs = winner.DurationMs,
+                    PromptId = winner.PromptId,
+                    ModelId = winner.ModelId,
+                    InputTokens = winner.InputTokens,
+                    OutputTokens = winner.OutputTokens,
+                    ReasoningTokens = winner.ReasoningTokens,
+                    RaceGroupId = hasLoser ? racingResult.RaceGroupId : null,
+                    RacingLoserTask = hasLoser ? racingResult.LoserTask : null,
+                    RacingLoserProviderName = hasLoser ? racingResult.LoserProviderName : null,
+                };
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(ex, "LLM racing correction failed, using filtered text: {Error}", ex.Message);
+                return LlmCorrectionOutput.Unchanged(processedText);
+            }
+        }
+
+        if (_llmProviderFactory != null)
+        {
+            try
+            {
+                var llmProvider = _llmProviderFactory.GetActiveProvider();
+                var correctionResult = await llmProvider.CorrectTextAsync(processedText, cancellationToken);
+
+                if (processedText != correctionResult.CorrectedText)
+                {
+                    _logger.LogInformation("LLM correction applied in {Duration}ms: '{Before}' → '{After}'",
+                        correctionResult.DurationMs, processedText, correctionResult.CorrectedText);
+                }
+
+                return new LlmCorrectionOutput
+                {
+                    CorrectedText = correctionResult.CorrectedText,
+                    DurationMs = correctionResult.DurationMs,
+                    PromptId = correctionResult.PromptId,
+                    ModelId = correctionResult.ModelId,
+                    InputTokens = correctionResult.InputTokens,
+                    OutputTokens = correctionResult.OutputTokens,
+                    ReasoningTokens = correctionResult.ReasoningTokens,
+                };
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(ex, "LLM correction failed, using filtered text: {Error}", ex.Message);
+                return LlmCorrectionOutput.Unchanged(processedText);
+            }
+        }
+
+        return LlmCorrectionOutput.Unchanged(processedText);
     }
 
     /// <summary>
