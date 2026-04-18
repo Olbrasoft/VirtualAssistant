@@ -2,10 +2,13 @@ namespace Olbrasoft.VirtualAssistant.Service.Workers.Streaming;
 
 /// <summary>
 /// Encapsulates the per-session streaming-chunk state that used to live
-/// directly on <c>DictationWorker</c> (#969 god-class split). One instance
-/// corresponds to one dictation session: the worker calls <see cref="Reset"/>
-/// at StartRecording, forwards audio chunks through <see cref="SubmitChunk"/>,
-/// and at Stop awaits <see cref="CombineAsync"/> for the aggregated text.
+/// directly on <c>DictationWorker</c> (#969 god-class split). The assembler
+/// *holds per-session state* but is typically reused across sessions — the
+/// worker calls <see cref="Reset"/> at StartRecording (which clears the
+/// previous session's state and installs a fresh CTS), forwards audio chunks
+/// through <see cref="SubmitChunk"/>, and at Stop awaits <see cref="CombineAsync"/>
+/// for the aggregated text. DI registers a single assembler alongside the
+/// singleton <c>DictationWorker</c>.
 /// </summary>
 public interface IStreamingChunkAssembler
 {
