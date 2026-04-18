@@ -1,3 +1,4 @@
+using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
 using Moq;
@@ -18,6 +19,7 @@ public class NotificationBatchingServiceTests : IDisposable
     private readonly Mock<IVirtualAssistantSpeaker> _speakerMock;
     private readonly Mock<INotificationTracker> _notificationTrackerMock;
     private readonly Mock<ISpeechLockService> _speechLockServiceMock;
+    private readonly ServiceProvider _serviceProvider;
     private readonly IOptions<SpeechToTextSettings> _speechToTextSettings;
     private readonly NotificationBatchingService _sut;
 
@@ -31,6 +33,19 @@ public class NotificationBatchingServiceTests : IDisposable
         // Default: speech not locked
         _speechLockServiceMock.Setup(x => x.IsLocked).Returns(false);
 
+        // Real ServiceProvider with scope validation turned on so that any future
+        // captive-dependency regression fails fast at build time rather than in
+        // production. The mock tracker instance is shared across scopes — only the
+        // *resolution path* is scoped. Moq records calls across scopes, which is
+        // exactly what our Verify assertions check.
+        var services = new ServiceCollection();
+        services.AddScoped(_ => _notificationTrackerMock.Object);
+        _serviceProvider = services.BuildServiceProvider(new ServiceProviderOptions
+        {
+            ValidateScopes = true,
+            ValidateOnBuild = true,
+        });
+
         _speechToTextSettings = Options.Create(new SpeechToTextSettings
         {
             BaseUrl = "http://localhost:5050",
@@ -41,7 +56,7 @@ public class NotificationBatchingServiceTests : IDisposable
         _sut = new NotificationBatchingService(
             _loggerMock.Object,
             _speakerMock.Object,
-            _notificationTrackerMock.Object,
+            _serviceProvider.GetRequiredService<IServiceScopeFactory>(),
             _speechLockServiceMock.Object,
             _speechToTextSettings);
     }
@@ -49,6 +64,7 @@ public class NotificationBatchingServiceTests : IDisposable
     public void Dispose()
     {
         _sut.Dispose();
+        _serviceProvider.Dispose();
         GC.SuppressFinalize(this);
     }
 

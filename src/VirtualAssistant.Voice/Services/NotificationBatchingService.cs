@@ -1,4 +1,5 @@
 using System.Collections.Concurrent;
+using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
 using Olbrasoft.VirtualAssistant.Voice.Configuration;
@@ -17,7 +18,7 @@ public class NotificationBatchingService : INotificationBatchingService, IDispos
 {
     private readonly ILogger<NotificationBatchingService> _logger;
     private readonly ISpeechController _speechController;
-    private readonly INotificationTracker _notificationTracker;
+    private readonly IServiceScopeFactory _scopeFactory;
     private readonly ISpeechLockService _speechLockService;
     private readonly SpeechToTextSettings _speechToTextSettings;
 
@@ -28,13 +29,13 @@ public class NotificationBatchingService : INotificationBatchingService, IDispos
     public NotificationBatchingService(
         ILogger<NotificationBatchingService> logger,
         ISpeechController speechController,
-        INotificationTracker notificationTracker,
+        IServiceScopeFactory scopeFactory,
         ISpeechLockService speechLockService,
         IOptions<SpeechToTextSettings> speechToTextSettings)
     {
         _logger = logger;
         _speechController = speechController;
-        _notificationTracker = notificationTracker;
+        _scopeFactory = scopeFactory;
         _speechLockService = speechLockService;
         _speechToTextSettings = speechToTextSettings.Value;
 
@@ -101,49 +102,54 @@ public class NotificationBatchingService : INotificationBatchingService, IDispos
         {
             _logger.LogInformation("Processing notification from {Agent}", notification.Agent);
 
-            // Update status to Processing
-            if (notification.NotificationId.HasValue)
-            {
-                await _notificationTracker.MarkAsProcessingAsync(notification.NotificationId.Value);
-            }
-
             var text = notification.Content;
+            var notificationId = notification.NotificationId;
 
+            // Short-circuit empty text before opening any scope — no DB work to do
+            // beyond MarkAsPlayed when we have an id.
             if (string.IsNullOrWhiteSpace(text))
             {
                 _logger.LogDebug("Empty notification text, skipping TTS");
-                if (notification.NotificationId.HasValue)
+                if (notificationId.HasValue)
                 {
-                    await _notificationTracker.MarkAsPlayedAsync(notification.NotificationId.Value);
+                    await InvokeTrackerAsync(t => t.MarkAsPlayedAsync(notificationId.Value));
                 }
                 return;
             }
 
-            // Wait for speech lock to be released before speaking
+            // Phase 1 (pre-TTS): open a short-lived scope to mark Processing.
+            if (notificationId.HasValue)
+            {
+                await InvokeTrackerAsync(t => t.MarkAsProcessingAsync(notificationId.Value));
+            }
+
             await WaitForSpeechUnlockAsync();
 
-            // Speak the text directly - skip cache for notifications (each is unique with timestamps/dynamic content)
             var ttsResult = await _speechController.SpeakAsync(text, notification.Agent, skipCache: true);
 
-            // Record TTS tracking if we have a notification ID
-            if (notification.NotificationId.HasValue)
+            // Phase 2 (post-TTS): second short-lived scope for outcome + played updates.
+            // Splitting the scopes means the scoped DbContext is not held across the
+            // full TTS operation (which can take seconds).
+            if (notificationId.HasValue)
             {
                 var status = ttsResult.Cancelled ? "cancelled_by_dictation"
                     : ttsResult.Skipped ? "skipped"
                     : ttsResult.Success ? "success"
                     : "error";
 
-                await _notificationTracker.RecordTtsOutcomeAsync(
-                    notification.NotificationId.Value,
-                    ttsResult.ProviderUsed,
-                    status,
-                    ttsResult.DurationMs);
-
-                // Update status to Played only if TTS succeeded or was skipped
-                if (ttsResult.Success || ttsResult.Skipped)
+                await InvokeTrackerAsync(async t =>
                 {
-                    await _notificationTracker.MarkAsPlayedAsync(notification.NotificationId.Value);
-                }
+                    await t.RecordTtsOutcomeAsync(
+                        notificationId.Value,
+                        ttsResult.ProviderUsed,
+                        status,
+                        ttsResult.DurationMs);
+
+                    if (ttsResult.Success || ttsResult.Skipped)
+                    {
+                        await t.MarkAsPlayedAsync(notificationId.Value);
+                    }
+                });
             }
 
             _logger.LogInformation("Notification sent to TTS: {Text} (Provider: {Provider}, Status: {Status})",
@@ -153,6 +159,18 @@ public class NotificationBatchingService : INotificationBatchingService, IDispos
         {
             _logger.LogError(ex, "Error processing notification from {Agent}", notification.Agent);
         }
+    }
+
+    /// <summary>
+    /// Resolves <see cref="INotificationTracker"/> inside a fresh DI scope so the
+    /// scoped DbContext behind it is released as soon as <paramref name="action"/>
+    /// returns. Avoids keeping scoped state alive across the long TTS operation.
+    /// </summary>
+    private async Task InvokeTrackerAsync(Func<INotificationTracker, Task> action)
+    {
+        using var scope = _scopeFactory.CreateScope();
+        var tracker = scope.ServiceProvider.GetRequiredService<INotificationTracker>();
+        await action(tracker);
     }
 
     /// <summary>
