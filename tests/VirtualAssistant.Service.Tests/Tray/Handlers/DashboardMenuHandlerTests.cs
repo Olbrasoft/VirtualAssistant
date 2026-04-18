@@ -22,28 +22,10 @@ public class DashboardMenuHandlerTests
         Assert.NotNull(sut);
     }
 
-    [Fact]
-    public void HandleDashboard_DoesNotThrow()
-    {
-        // The method spawns xdg-open; we can't meaningfully assert on the
-        // subprocess, but exceptions must be swallowed on CI runners where
-        // xdg-open is absent.
-        var sut = new DashboardMenuHandler(_loggerMock.Object, "http://localhost:5055");
-
-        var ex = Record.Exception(() => sut.HandleDashboard());
-
-        Assert.Null(ex);
-    }
-
-    [Fact]
-    public void HandleAbout_DoesNotThrow()
-    {
-        // Same reasoning as HandleDashboard — zenity may be absent; the
-        // handler must log and return rather than propagate.
-        var sut = new DashboardMenuHandler(_loggerMock.Object, "http://localhost:5055");
-
-        var ex = Record.Exception(() => sut.HandleAbout());
-
-        Assert.Null(ex);
-    }
+    // Deliberately no tests for HandleDashboard / HandleAbout: their only
+    // side effect is spawning xdg-open / zenity, which on the developer
+    // machine actually opens a browser tab and a dialog window. A "does
+    // not throw" assertion is not worth polluting the developer's session.
+    // If the subprocess contract ever needs verification, wrap the process
+    // spawn behind an IProcessLauncher abstraction first.
 }
