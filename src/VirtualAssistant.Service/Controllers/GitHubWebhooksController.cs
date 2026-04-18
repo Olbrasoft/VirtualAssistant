@@ -49,15 +49,30 @@ public class GitHubWebhooksController : ControllerBase
         using var reader = new StreamReader(Request.Body);
         var body = await reader.ReadToEndAsync();
 
-        // Verify signature if secret is configured
+        // Fail-closed signature verification: require a configured secret AND a
+        // valid signature header on every request. Previously the check was opt-in
+        // (only ran if both the secret and the signature header were present) — a
+        // deployment with no secret would happily accept forged webhooks.
         var webhookSecret = _configuration["GitHub:WebhookSecret"];
-        if (!string.IsNullOrEmpty(webhookSecret) && !string.IsNullOrEmpty(signature))
+        if (string.IsNullOrEmpty(webhookSecret))
         {
-            if (!VerifySignature(body, signature, webhookSecret))
-            {
-                _logger.LogWarning("Invalid webhook signature for delivery {Delivery}", delivery);
-                return Unauthorized("Invalid signature");
-            }
+            _logger.LogError(
+                "GitHub:WebhookSecret is not configured — rejecting webhook delivery {Delivery}. " +
+                "Set the secret in SecureStore to enable this endpoint.",
+                delivery);
+            return Unauthorized("Webhook secret not configured");
+        }
+
+        if (string.IsNullOrEmpty(signature))
+        {
+            _logger.LogWarning("Missing X-Hub-Signature-256 header on delivery {Delivery}", delivery);
+            return Unauthorized("Missing signature");
+        }
+
+        if (!VerifySignature(body, signature, webhookSecret))
+        {
+            _logger.LogWarning("Invalid webhook signature for delivery {Delivery}", delivery);
+            return Unauthorized("Invalid signature");
         }
 
         // Handle different event types

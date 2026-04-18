@@ -45,17 +45,29 @@ public static class HostingExtensions
     /// <summary>
     /// Configures Kestrel to listen on all interfaces.
     /// </summary>
+    /// <remarks>
+    /// **Auth policy (decided 2026-04-18 as part of code review #978):**
+    ///
+    /// The service binds to 0.0.0.0 because Remote Control must be reachable from
+    /// the user's phone on the LAN. All non-webhook endpoints are therefore
+    /// deliberately anonymous and rely on three layers of defense:
+    ///
+    /// 1. Trusted LAN. The user runs this service on a home/office network behind
+    ///    NAT; the port is not internet-exposed. If you operate on an untrusted
+    ///    network, configure a firewall rule or a reverse proxy with auth.
+    ///
+    /// 2. Input bounds on state-mutating endpoints (see e.g. NotificationsController
+    ///    text-length / issue-id caps added under #984).
+    ///
+    /// 3. GitHub webhook endpoint has mandatory signature validation — see
+    ///    GitHubWebhooksController (fail-closed behavior added under #978).
+    ///
+    /// If you add new state-mutating endpoints, either decorate them with
+    /// [AllowAnonymous] and cite this block, or add a specific auth scheme.
+    /// </remarks>
     private static void ConfigureKestrel(this WebApplicationBuilder builder)
     {
         var listenerPort = builder.Configuration.GetValue("ListenerApiPort", 5055);
-
-        // SECURITY WARNING: Binding to 0.0.0.0 exposes the service to all network interfaces,
-        // including external networks. This service currently has NO authentication.
-        // For production use on untrusted networks, consider:
-        // 1. Binding to localhost only (127.0.0.1) for local-only access
-        // 2. Adding authentication middleware (API keys, OAuth, etc.)
-        // 3. Using a reverse proxy (nginx) with access control
-        // 4. Configuring firewall rules to restrict access
         var remotePort = builder.Configuration.GetValue("RemoteControlPort", 5050);
         builder.WebHost.UseUrls($"http://0.0.0.0:{listenerPort}", $"http://0.0.0.0:{remotePort}");
     }

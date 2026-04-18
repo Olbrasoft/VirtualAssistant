@@ -15,6 +15,8 @@ namespace Olbrasoft.VirtualAssistant.Service.Tests.Controllers;
 /// </summary>
 public class GitHubWebhooksControllerTests
 {
+    private const string TestSecret = "test-secret";
+
     private readonly Mock<ILogger<GitHubWebhooksController>> _loggerMock;
     private readonly Mock<IConfiguration> _configurationMock;
     private readonly GitHubWebhooksController _controller;
@@ -23,7 +25,9 @@ public class GitHubWebhooksControllerTests
     {
         _loggerMock = new Mock<ILogger<GitHubWebhooksController>>();
         _configurationMock = new Mock<IConfiguration>();
-        _configurationMock.Setup(x => x["GitHub:WebhookSecret"]).Returns((string?)null);
+        // Default: secret configured so happy-path tests that pass a valid signature work;
+        // tests exercising the no-secret branch override this setup explicitly.
+        _configurationMock.Setup(x => x["GitHub:WebhookSecret"]).Returns(TestSecret);
 
         _controller = new GitHubWebhooksController(
             _loggerMock.Object,
@@ -35,7 +39,7 @@ public class GitHubWebhooksControllerTests
     {
         // Arrange
         var pingPayload = @"{""zen"": ""Anything added dilutes everything else.""}";
-        SetupControllerContext("ping", "delivery-123", null, pingPayload);
+        SetupControllerContext("ping", "delivery-123", ComputeSignature(pingPayload, TestSecret), pingPayload);
 
         // Act
         var result = await _controller.HandleGitHubWebhook();
@@ -54,7 +58,7 @@ public class GitHubWebhooksControllerTests
             ""repository"": { ""name"": ""VirtualAssistant"" },
             ""pusher"": { ""name"": ""test-user"" }
         }";
-        SetupControllerContext("push", "delivery-456", null, pushPayload);
+        SetupControllerContext("push", "delivery-456", ComputeSignature(pushPayload, TestSecret), pushPayload);
 
         // Act
         var result = await _controller.HandleGitHubWebhook();
@@ -72,7 +76,7 @@ public class GitHubWebhooksControllerTests
     {
         // Arrange
         var unknownPayload = @"{}";
-        SetupControllerContext("unknown_event", "delivery-789", null, unknownPayload);
+        SetupControllerContext("unknown_event", "delivery-789", ComputeSignature(unknownPayload, TestSecret), unknownPayload);
 
         // Act
         var result = await _controller.HandleGitHubWebhook();
@@ -89,16 +93,11 @@ public class GitHubWebhooksControllerTests
     public async Task HandleGitHubWebhook_WithInvalidSignature_ReturnsUnauthorized()
     {
         // Arrange
-        var webhookSecret = "test-secret";
-        _configurationMock.Setup(x => x["GitHub:WebhookSecret"]).Returns(webhookSecret);
-
-        var controller = new GitHubWebhooksController(_loggerMock.Object, _configurationMock.Object);
-
         var pingPayload = @"{""zen"": ""Test""}";
-        SetupControllerContext("ping", "delivery-000", "sha256=invalid_signature", pingPayload, controller);
+        SetupControllerContext("ping", "delivery-000", "sha256=invalid_signature", pingPayload);
 
         // Act
-        var result = await controller.HandleGitHubWebhook();
+        var result = await _controller.HandleGitHubWebhook();
 
         // Assert
         var unauthorizedResult = Assert.IsType<UnauthorizedObjectResult>(result);
@@ -109,21 +108,48 @@ public class GitHubWebhooksControllerTests
     public async Task HandleGitHubWebhook_WithValidSignature_ProcessesEvent()
     {
         // Arrange
-        var webhookSecret = "test-secret";
-        _configurationMock.Setup(x => x["GitHub:WebhookSecret"]).Returns(webhookSecret);
+        var pingPayload = @"{""zen"": ""Test""}";
+        SetupControllerContext("ping", "delivery-001", ComputeSignature(pingPayload, TestSecret), pingPayload);
 
+        // Act
+        var result = await _controller.HandleGitHubWebhook();
+
+        // Assert
+        var okResult = Assert.IsType<OkObjectResult>(result);
+        Assert.NotNull(okResult.Value);
+    }
+
+    [Fact]
+    public async Task HandleGitHubWebhook_WithoutConfiguredSecret_ReturnsUnauthorized()
+    {
+        // Arrange — no secret configured (fail-closed under #978)
+        _configurationMock.Setup(x => x["GitHub:WebhookSecret"]).Returns((string?)null);
         var controller = new GitHubWebhooksController(_loggerMock.Object, _configurationMock.Object);
 
         var pingPayload = @"{""zen"": ""Test""}";
-        var signature = ComputeSignature(pingPayload, webhookSecret);
-        SetupControllerContext("ping", "delivery-001", signature, pingPayload, controller);
+        SetupControllerContext("ping", "delivery-no-secret", "sha256=any", pingPayload, controller);
 
         // Act
         var result = await controller.HandleGitHubWebhook();
 
         // Assert
-        var okResult = Assert.IsType<OkObjectResult>(result);
-        Assert.NotNull(okResult.Value);
+        var unauthorized = Assert.IsType<UnauthorizedObjectResult>(result);
+        Assert.Equal("Webhook secret not configured", unauthorized.Value);
+    }
+
+    [Fact]
+    public async Task HandleGitHubWebhook_WithoutSignatureHeader_ReturnsUnauthorized()
+    {
+        // Arrange — secret is configured, but the caller omitted the signature header
+        var pingPayload = @"{""zen"": ""Test""}";
+        SetupControllerContext("ping", "delivery-no-sig", signature: null, body: pingPayload);
+
+        // Act
+        var result = await _controller.HandleGitHubWebhook();
+
+        // Assert
+        var unauthorized = Assert.IsType<UnauthorizedObjectResult>(result);
+        Assert.Equal("Missing signature", unauthorized.Value);
     }
 
     [Fact]
@@ -135,7 +161,7 @@ public class GitHubWebhooksControllerTests
             ""repository"": { ""name"": ""UnknownRepo"" },
             ""pusher"": { ""name"": ""test-user"" }
         }";
-        SetupControllerContext("push", "delivery-unknown", null, pushPayload);
+        SetupControllerContext("push", "delivery-unknown", ComputeSignature(pushPayload, TestSecret), pushPayload);
 
         // Act
         var result = await _controller.HandleGitHubWebhook();
@@ -153,7 +179,7 @@ public class GitHubWebhooksControllerTests
     {
         // Arrange - malformed JSON should still return pong
         var malformedPayload = @"not valid json";
-        SetupControllerContext("ping", "delivery-bad", null, malformedPayload);
+        SetupControllerContext("ping", "delivery-bad", ComputeSignature(malformedPayload, TestSecret), malformedPayload);
 
         // Act
         var result = await _controller.HandleGitHubWebhook();
@@ -168,7 +194,7 @@ public class GitHubWebhooksControllerTests
     {
         // Arrange
         var malformedPayload = @"not valid json";
-        SetupControllerContext("push", "delivery-bad-push", null, malformedPayload);
+        SetupControllerContext("push", "delivery-bad-push", ComputeSignature(malformedPayload, TestSecret), malformedPayload);
 
         // Act
         var result = await _controller.HandleGitHubWebhook();
