@@ -16,8 +16,12 @@ public interface IEventBus
         where TEvent : class;
 
     /// <summary>
-    /// Subscribes a handler to events of type TEvent.
-    /// Handlers are invoked in the order they were registered.
+    /// Subscribes a handler to events of type TEvent. Invocation order across
+    /// multiple handlers is NOT guaranteed — <see cref="PublishAsync"/> runs
+    /// them in parallel via <c>Task.WhenAll</c>, so subscribers must not rely
+    /// on their relative ordering. (Earlier wording claimed registration
+    /// order was preserved; that was never true of the parallel dispatch and
+    /// is removed to match the implementation.)
     /// </summary>
     /// <param name="handler">The handler to invoke when event is published.</param>
     /// <returns>Subscription token for unsubscribing.</returns>
