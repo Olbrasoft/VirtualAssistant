@@ -16,9 +16,11 @@ public interface IGdbusWindowDetector
 {
     /// <summary>
     /// Returns info about the currently focused window, or null when the
-    /// gdbus call fails or no focused window is reported. Errors are
-    /// swallowed — this is called on the dictation hot path and a failure
-    /// must never propagate.
+    /// gdbus call fails or no focused window is reported. Detection and
+    /// parsing errors are swallowed — this is called on the dictation hot
+    /// path and such failures must never propagate. Caller-requested
+    /// cancellation is still honored and may propagate as an
+    /// <see cref="OperationCanceledException"/>.
     /// </summary>
     Task<FocusedWindowInfo?> GetFocusedWindowInfoAsync(CancellationToken cancellationToken);
 }

@@ -8,7 +8,7 @@ namespace Olbrasoft.VirtualAssistant.Core.Tests.WindowManagement;
 /// <see cref="CliAgentRegistry"/> during the #973 split; the tests followed
 /// them. The full process-invoking path is tested manually.
 /// </summary>
-public class TerminalCliAppDetectorTmuxTests
+public class TmuxCliAppMatcherTests
 {
     [Fact]
     public void ParseTmuxClients_EmptyOrNull_ReturnsEmptyMap()
