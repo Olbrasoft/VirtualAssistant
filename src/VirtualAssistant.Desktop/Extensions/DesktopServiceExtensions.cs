@@ -54,7 +54,14 @@ public static class DesktopServiceExtensions
             var logger = sp.GetRequiredService<ILogger<IdleMonitorService>>();
             try
             {
-                // Synchronous initialization safe in DI registration context
+                // Documented sync-over-async exception (#976): DI singleton factories
+                // are invoked lazily on first resolution, but always from the host
+                // startup thread, not from an ASP.NET request context. There is no
+                // SynchronizationContext to deadlock against and no thread-pool
+                // pressure at startup, so the narrow risk that normally bans this
+                // pattern does not apply here. An IHostedService wrapper would be
+                // strictly more code with no runtime benefit — the D-Bus handshake
+                // has to complete before the first idle query either way.
                 return IdleMonitorService.CreateAsync().GetAwaiter().GetResult();
             }
             catch (Exception ex)
@@ -91,6 +98,9 @@ public static class DesktopServiceExtensions
             var logger = sp.GetRequiredService<ILogger<WindowService>>();
             try
             {
+                // Documented sync-over-async exception (#976): see IdleService
+                // comment above — same rationale applies (DI startup path,
+                // single-threaded, no SynchronizationContext deadlock risk).
                 return WindowService.CreateAsync(logger).GetAwaiter().GetResult();
             }
             catch (Exception ex)

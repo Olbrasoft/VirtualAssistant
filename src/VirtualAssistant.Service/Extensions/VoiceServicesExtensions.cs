@@ -147,6 +147,11 @@ public static class VoiceServicesExtensions
             return new SpeechTranscriberFactory(providers, queryProcessor, settings, logger);
         });
 
+        // Pre-load the factory's provider-ID cache off the hot path (#976).
+        // Without this, the first GetProviderId call would block on a sync
+        // EF Core round-trip inside the factory's cold-start fallback.
+        services.AddHostedService<SpeechTranscriberFactoryWarmupService>();
+
         // Register FallbackSpeechTranscriber or single provider based on settings.
         // Note: When FallbackSpeechTranscriber is used, LastUsedProviderId tracks which provider
         // was actually used. This is a singleton, so LastUsedProviderId access is thread-safe

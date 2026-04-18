@@ -33,4 +33,12 @@ public interface ISpeechTranscriberFactory
     /// <returns>Database provider ID.</returns>
     /// <exception cref="ArgumentException">If provider name is unknown.</exception>
     int GetProviderId(string providerName);
+
+    /// <summary>
+    /// Pre-loads provider IDs from the database asynchronously. Intended to be
+    /// called at application startup (via an <c>IHostedService</c>) so the
+    /// <see cref="GetProviderId"/> hot path never triggers a synchronous DB
+    /// round-trip.
+    /// </summary>
+    Task WarmupAsync(CancellationToken cancellationToken = default);
 }
