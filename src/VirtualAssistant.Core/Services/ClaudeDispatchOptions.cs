@@ -11,8 +11,12 @@ public class ClaudeDispatchOptions
     public const string SectionName = "ClaudeDispatch";
 
     /// <summary>
-    /// URL for notifications endpoint. Must be supplied via configuration;
-    /// empty string is rejected by the consuming service.
+    /// URL for the notifications endpoint. Intentionally has no default —
+    /// callers must set it via <c>ClaudeDispatch:NotifyUrl</c> in configuration
+    /// (or wire up <see cref="Microsoft.Extensions.Options.IValidateOptions{T}"/>
+    /// to fail fast at startup). If left empty, <c>ClaudeNotificationSender</c>
+    /// logs a warning per attempt and the notification is silently dropped —
+    /// behavior chosen deliberately so a missing config doesn't crash the host.
     /// </summary>
     public string NotifyUrl { get; set; } = string.Empty;
 

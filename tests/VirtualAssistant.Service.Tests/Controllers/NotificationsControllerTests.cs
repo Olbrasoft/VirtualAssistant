@@ -223,4 +223,57 @@ public class NotificationsControllerTests
         var error = Assert.IsType<ErrorResponse>(badResult.Value);
         Assert.Equal("Source (agent name) is required", error.Error);
     }
+
+    [Fact]
+    public async Task CreateNotification_WithTextOverLimit_ReturnsBadRequestAndDoesNotQueue()
+    {
+        // Arrange — 4001 chars exceeds the 4000-char guardrail
+        var request = new CreateNotificationRequest
+        {
+            Text = new string('x', 4001),
+            Source = "claude-code"
+        };
+
+        // Act
+        var result = await _controller.CreateNotification(request, CancellationToken.None);
+
+        // Assert
+        var badResult = Assert.IsType<BadRequestObjectResult>(result);
+        var error = Assert.IsType<ErrorResponse>(badResult.Value);
+        Assert.Contains("4000-character limit", error.Error);
+
+        _notificationServiceMock.Verify(
+            x => x.CreateNotificationAsync(
+                It.IsAny<string>(), It.IsAny<string>(), It.IsAny<IReadOnlyList<int>>(),
+                It.IsAny<string?>(), It.IsAny<string?>(), It.IsAny<CancellationToken>()),
+            Times.Never);
+        _batchingServiceMock.Verify(x => x.QueueNotification(It.IsAny<AgentNotification>()), Times.Never);
+    }
+
+    [Fact]
+    public async Task CreateNotification_WithIssueIdsOverLimit_ReturnsBadRequestAndDoesNotQueue()
+    {
+        // Arrange — 21 IDs exceeds the 20-item guardrail
+        var request = new CreateNotificationRequest
+        {
+            Text = "Valid text",
+            Source = "claude-code",
+            IssueIds = Enumerable.Range(1, 21).ToList()
+        };
+
+        // Act
+        var result = await _controller.CreateNotification(request, CancellationToken.None);
+
+        // Assert
+        var badResult = Assert.IsType<BadRequestObjectResult>(result);
+        var error = Assert.IsType<ErrorResponse>(badResult.Value);
+        Assert.Contains("20-item limit", error.Error);
+
+        _notificationServiceMock.Verify(
+            x => x.CreateNotificationAsync(
+                It.IsAny<string>(), It.IsAny<string>(), It.IsAny<IReadOnlyList<int>>(),
+                It.IsAny<string?>(), It.IsAny<string?>(), It.IsAny<CancellationToken>()),
+            Times.Never);
+        _batchingServiceMock.Verify(x => x.QueueNotification(It.IsAny<AgentNotification>()), Times.Never);
+    }
 }

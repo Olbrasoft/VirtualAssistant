@@ -1,9 +1,13 @@
 namespace Olbrasoft.VirtualAssistant.Voice.Configuration;
 
 /// <summary>
-/// Configuration options for external service endpoints. URLs must be supplied
-/// via appsettings / environment — empty defaults force the consuming service
-/// to bind explicit values instead of silently reaching for localhost.
+/// Configuration options for external service endpoints. Defaults are
+/// intentionally empty so that a missing config section is visible (empty
+/// string returned to HttpClient surfaces as an obvious error message) rather
+/// than silently reaching for <c>http://localhost:…</c>. Consumers log the
+/// failure and return an error result — they do NOT crash the host. Wire up
+/// <see cref="Microsoft.Extensions.Options.IValidateOptions{T}"/> at startup
+/// if a deployment wants fail-fast behavior.
 /// </summary>
 public class ExternalServicesOptions
 {
