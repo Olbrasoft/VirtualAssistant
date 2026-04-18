@@ -125,7 +125,15 @@ public static class VoiceServicesExtensions
 
         // Register STT provider factory with the full ISpeechTranscriber collection.
         // Each provider self-declares its ProviderKey/DatabaseName, so adding a new
-        // provider only requires the DI registration — factory stays untouched.
+        // provider is a factory-free change — just register the concrete provider
+        // here and add it to this array.
+        //
+        // NOTE: we cannot use sp.GetServices<ISpeechTranscriber>() here because the
+        // downstream AddSingleton<ISpeechTranscriber>(...) (FallbackSpeechTranscriber
+        // wrapper) shares the same interface and depends transitively on the factory
+        // — auto-discovery would create a circular DI dependency. The factory is
+        // still registry-driven (no switch statement); this array is the one place
+        // where primary providers are enumerated.
         services.AddSingleton<ISpeechTranscriberFactory>(sp =>
         {
             IEnumerable<ISpeechTranscriber> providers = new ISpeechTranscriber[]

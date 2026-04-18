@@ -40,20 +40,44 @@ public class SpeechTranscriberFactory : ISpeechTranscriberFactory
         _settings = settings?.Value ?? throw new ArgumentNullException(nameof(settings));
         _logger = logger ?? throw new ArgumentNullException(nameof(logger));
 
-        _providersByKey = providers.ToDictionary(
-            p => p.ProviderKey,
-            p => p,
-            StringComparer.OrdinalIgnoreCase);
+        _providersByKey = BuildProviderDictionary(providers);
 
-        if (_providersByKey.Count == 0)
+        _logger.LogInformation(
+            "SpeechTranscriberFactory initialized with providers: {Providers}",
+            string.Join(", ", _providersByKey.Select(p => $"{p.Key}={p.Value.GetType().Name}")));
+    }
+
+    private static IReadOnlyDictionary<string, ISpeechTranscriber> BuildProviderDictionary(
+        IEnumerable<ISpeechTranscriber> providers)
+    {
+        var result = new Dictionary<string, ISpeechTranscriber>(StringComparer.OrdinalIgnoreCase);
+
+        foreach (var provider in providers)
+        {
+            if (string.IsNullOrWhiteSpace(provider.ProviderKey))
+            {
+                throw new InvalidOperationException(
+                    $"Provider '{provider.GetType().FullName}' returned a null/empty ProviderKey. " +
+                    "Each ISpeechTranscriber implementation must expose a non-empty identifier.");
+            }
+
+            if (result.ContainsKey(provider.ProviderKey))
+            {
+                throw new InvalidOperationException(
+                    $"Duplicate ISpeechTranscriber.ProviderKey '{provider.ProviderKey}' " +
+                    $"(clash between {result[provider.ProviderKey].GetType().FullName} and {provider.GetType().FullName}).");
+            }
+
+            result.Add(provider.ProviderKey, provider);
+        }
+
+        if (result.Count == 0)
         {
             throw new InvalidOperationException(
                 "SpeechTranscriberFactory requires at least one ISpeechTranscriber registration.");
         }
 
-        _logger.LogInformation(
-            "SpeechTranscriberFactory initialized with providers: {Providers}",
-            string.Join(", ", _providersByKey.Select(p => $"{p.Key}={p.Value.GetType().Name}")));
+        return result;
     }
 
     /// <summary>
@@ -98,6 +122,11 @@ public class SpeechTranscriberFactory : ISpeechTranscriberFactory
     /// </summary>
     public int GetProviderId(string providerName)
     {
+        if (string.IsNullOrWhiteSpace(providerName))
+        {
+            throw new ArgumentException("Provider name must be a non-empty string.", nameof(providerName));
+        }
+
         EnsureProviderIdCacheLoaded();
 
         // Provider implementations expose their own DatabaseName so the mapping
