@@ -315,4 +315,68 @@ public class SpeechTranscriberFactoryTests
         Assert.Same(_googleMock.Object, factory.GetProvider("GOOGLE"));
         Assert.Same(_googleMock.Object, factory.GetProvider("Google"));
     }
+
+    [Fact]
+    public async Task WarmupAsync_PrePopulatesCache_SoGetProviderIdIssuesNoQuery()
+    {
+        // Arrange
+        SetupProviderIds();
+        var factory = CreateFactory();
+
+        // Act — WarmupAsync should do the single DB round-trip
+        await factory.WarmupAsync(CancellationToken.None);
+
+        // Subsequent GetProviderId calls should read the pre-populated cache
+        var whisperId = factory.GetProviderId("whisper");
+        var googleId = factory.GetProviderId("google");
+
+        // Assert
+        Assert.Equal(13, whisperId);
+        Assert.Equal(14, googleId);
+        _queryProcessorMock.Verify(
+            qp => qp.ProcessAsync(
+                It.IsAny<GetProvidersByTypeQuery>(),
+                It.IsAny<CancellationToken>()),
+            Times.Once); // only the WarmupAsync call, not the GetProviderId ones
+    }
+
+    [Fact]
+    public async Task WarmupAsync_WhenCalledTwice_DoesNotIssueSecondQuery()
+    {
+        // Arrange
+        SetupProviderIds();
+        var factory = CreateFactory();
+
+        // Act
+        await factory.WarmupAsync(CancellationToken.None);
+        await factory.WarmupAsync(CancellationToken.None);
+
+        // Assert — the warmup must be idempotent; the second call is a no-op
+        _queryProcessorMock.Verify(
+            qp => qp.ProcessAsync(
+                It.IsAny<GetProvidersByTypeQuery>(),
+                It.IsAny<CancellationToken>()),
+            Times.Once);
+    }
+
+    [Fact]
+    public async Task WarmupAsync_AfterCacheLoadedByGetProviderId_DoesNotIssueSecondQuery()
+    {
+        // Arrange — touch GetProviderId first to force the sync cold-start
+        // fallback to populate the cache; WarmupAsync must then be a no-op
+        // (Copilot review on PR #1011 asked to pin this idempotency).
+        SetupProviderIds();
+        var factory = CreateFactory();
+
+        // Act
+        factory.GetProviderId("whisper");
+        await factory.WarmupAsync(CancellationToken.None);
+
+        // Assert
+        _queryProcessorMock.Verify(
+            qp => qp.ProcessAsync(
+                It.IsAny<GetProvidersByTypeQuery>(),
+                It.IsAny<CancellationToken>()),
+            Times.Once);
+    }
 }

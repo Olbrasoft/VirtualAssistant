@@ -833,8 +833,8 @@ public class DictationWorker : BackgroundService, IDictationControl, IDictationS
                 // implements IDictationService.CancelTranscription() which is a
                 // void interface method (synchronous cancel semantics). Making it
                 // async would ripple through the hub + state-machine call sites
-                // without any runtime benefit — this runs from the hub thread on
-                // a user cancel click, not from the thread-pool hot path.
+                // without any runtime benefit — this is a user-initiated,
+                // infrequent cancel path, not the transcription/streaming hot path.
                 _recordingCoordinator.EmergencyStopAsync().GetAwaiter().GetResult();
             }
 
