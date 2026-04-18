@@ -87,15 +87,10 @@ public class LlmMenuHandlerTests
         Assert.Null(ex);
     }
 
-    [Fact]
-    public void HandleMercuryBilling_DoesNotThrow()
-    {
-        // The handler shells out to xdg-open which may not exist on CI runners.
-        // The implementation must swallow the subprocess failure, not propagate it.
-        var sut = new LlmMenuHandler(_loggerMock.Object);
-
-        var ex = Record.Exception(() => sut.HandleMercuryBilling());
-
-        Assert.Null(ex);
-    }
+    // Deliberately no test for HandleMercuryBilling: its only side effect
+    // is spawning xdg-open on the billing URL, which on the developer
+    // machine actually opens a browser tab. A "does not throw" assertion
+    // is not worth polluting the developer's session. If the subprocess
+    // contract ever needs verification, wrap the process spawn behind an
+    // IProcessLauncher abstraction first.
 }
