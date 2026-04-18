@@ -13,6 +13,7 @@ public class SpeechToTextClient : ISpeechToTextClient
     private readonly HttpClient _httpClient;
     private readonly ILogger<SpeechToTextClient> _logger;
     private readonly string _statusUrl;
+    private readonly bool _configured;
 
     public SpeechToTextClient(
         HttpClient httpClient,
@@ -21,14 +22,31 @@ public class SpeechToTextClient : ISpeechToTextClient
     {
         _httpClient = httpClient;
         _logger = logger;
-        _statusUrl = $"{settings.Value.BaseUrl.TrimEnd('/')}/api/status";
 
+        var baseUrl = settings.Value.BaseUrl;
+        if (string.IsNullOrWhiteSpace(baseUrl))
+        {
+            // #984/#1012: BaseUrl defaults to empty when the config key is
+            // absent. Log the miss once at construction and turn GetStatusAsync
+            // into a clean no-op rather than letting every call throw
+            // InvalidOperationException from HttpClient on a relative URI.
+            _logger.LogWarning(
+                "SpeechToText:BaseUrl is not configured; GetStatusAsync will return null for every call");
+            _statusUrl = string.Empty;
+            _configured = false;
+            return;
+        }
+
+        _statusUrl = $"{baseUrl.TrimEnd('/')}/api/status";
+        _configured = true;
         _logger.LogDebug("SpeechToTextClient initialized with status URL: {Url}", _statusUrl);
     }
 
     /// <inheritdoc />
     public async Task<SpeechToTextStatus?> GetStatusAsync(CancellationToken cancellationToken = default)
     {
+        if (!_configured) return null;
+
         try
         {
             var response = await _httpClient.GetAsync(_statusUrl, cancellationToken);

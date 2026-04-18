@@ -191,11 +191,21 @@ public static class VoiceServicesExtensions
         });
 
         // Read from "OpenCode:Url" (nested key matching appsettings.json). No
-        // fallback — a missing value surfaces as a clear failure in the
-        // OpenCodeClient constructor rather than silently connecting to
-        // a stale localhost port.
-        var openCodeUrl = configuration["OpenCode:Url"] ?? string.Empty;
-        services.AddSingleton(_ => new OpenCodeClient(openCodeUrl));
+        // hardcoded localhost fallback — a missing value fails fast at startup
+        // with a clear error message naming the config key, rather than
+        // waiting for the first OpenCode call to surface a less actionable
+        // exception from inside the HTTP client. (Copilot review on PR #1012.)
+        services.AddSingleton(sp =>
+        {
+            var openCodeUrl = configuration["OpenCode:Url"];
+            if (string.IsNullOrWhiteSpace(openCodeUrl))
+            {
+                throw new InvalidOperationException(
+                    "OpenCode:Url is not configured. Set it in appsettings.json to the " +
+                    "OpenCode server base URL (e.g. http://localhost:4096).");
+            }
+            return new OpenCodeClient(openCodeUrl);
+        });
         services.AddSingleton<ITextInputService, TextInputService>();
     }
 
