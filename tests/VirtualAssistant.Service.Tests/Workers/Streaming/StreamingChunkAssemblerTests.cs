@@ -113,8 +113,9 @@ public class StreamingChunkAssemblerTests
     [Fact]
     public async Task CancelAndClear_CancelsInFlightTasks_AndClearsState()
     {
-        // Force the chunk task to sit on ct.WaitHandle so we can deterministically
-        // observe the cancellation path without depending on wall-clock delays.
+        // Force the chunk task to wait on an infinite delay canceled by ct so we
+        // can deterministically observe the cancellation path without depending
+        // on wall-clock delays.
         var sut = CreateSut();
         var enteredHandler = new TaskCompletionSource();
         _transcriptionMock

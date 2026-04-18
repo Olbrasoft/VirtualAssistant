@@ -7,8 +7,9 @@ namespace Olbrasoft.VirtualAssistant.Service.Workers.Streaming;
 /// worker calls <see cref="Reset"/> at StartRecording (which clears the
 /// previous session's state and installs a fresh CTS), forwards audio chunks
 /// through <see cref="SubmitChunk"/>, and at Stop awaits <see cref="CombineAsync"/>
-/// for the aggregated text. DI registers a single assembler alongside the
-/// singleton <c>DictationWorker</c>.
+/// for the aggregated text. In the current setup the singleton
+/// <c>DictationWorker</c> factory constructs one assembler inline and reuses
+/// it across sessions; the interface is not itself registered in DI.
 /// </summary>
 public interface IStreamingChunkAssembler
 {
