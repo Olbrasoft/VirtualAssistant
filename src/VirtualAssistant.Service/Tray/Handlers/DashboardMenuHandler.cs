@@ -11,9 +11,13 @@ public sealed class DashboardMenuHandler : IDashboardMenuHandler
 
     public DashboardMenuHandler(
         ILogger<DashboardMenuHandler> logger,
-        string dashboardBaseUrl)
+        string? dashboardBaseUrl)
     {
         _logger = logger ?? throw new ArgumentNullException(nameof(logger));
+        // Nullable on purpose: config wiring in TrayServicesExtensions pulls
+        // the URL from IConfiguration and passes null when no override is
+        // present. Fall back to the in-process default rather than making
+        // every caller hand-roll the same "?? http://localhost:5055".
         _dashboardBaseUrl = dashboardBaseUrl ?? "http://localhost:5055";
     }
 

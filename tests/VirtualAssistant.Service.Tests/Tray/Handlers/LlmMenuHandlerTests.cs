@@ -65,7 +65,11 @@ public class LlmMenuHandlerTests
     {
         // Legacy deployment path where PromptSync isn't configured yet — the
         // menu click must still flush the LLM cache so the user can see effect.
-        var sut = new LlmMenuHandler(_loggerMock.Object, _llmProviderMock.Object, promptSyncService: null, _stateManagerMock.Object);
+        var sut = new LlmMenuHandler(
+            _loggerMock.Object,
+            _llmProviderMock.Object,
+            promptSyncService: null,
+            menuStateManager: _stateManagerMock.Object);
 
         sut.HandleReloadPrompt();
 
@@ -79,6 +83,18 @@ public class LlmMenuHandlerTests
         var sut = new LlmMenuHandler(_loggerMock.Object);
 
         var ex = Record.Exception(() => sut.HandleReloadCorrectionsCache());
+
+        Assert.Null(ex);
+    }
+
+    [Fact]
+    public void HandleMercuryBilling_DoesNotThrow()
+    {
+        // The handler shells out to xdg-open which may not exist on CI runners.
+        // The implementation must swallow the subprocess failure, not propagate it.
+        var sut = new LlmMenuHandler(_loggerMock.Object);
+
+        var ex = Record.Exception(() => sut.HandleMercuryBilling());
 
         Assert.Null(ex);
     }
