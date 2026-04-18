@@ -14,6 +14,28 @@ public sealed class AudioBufferManager : IAudioBufferManager
         }
     }
 
+    /// <summary>
+    /// Array overload — preferred on the capture hot path because it skips the
+    /// extra copy that the span overload has to do to feed
+    /// <see cref="List{T}.AddRange(IEnumerable{T})"/>.
+    /// </summary>
+    public bool TryAppend(byte[] chunk, int maxSizeBytes, out int newByteCount)
+    {
+        ArgumentNullException.ThrowIfNull(chunk);
+        lock (_lock)
+        {
+            if (_buffer.Count + chunk.Length > maxSizeBytes)
+            {
+                newByteCount = _buffer.Count;
+                return false;
+            }
+
+            _buffer.AddRange(chunk);
+            newByteCount = _buffer.Count;
+            return true;
+        }
+    }
+
     public bool TryAppend(ReadOnlySpan<byte> chunk, int maxSizeBytes, out int newByteCount)
     {
         lock (_lock)
@@ -24,9 +46,11 @@ public sealed class AudioBufferManager : IAudioBufferManager
                 return false;
             }
 
-            // List<byte>.AddRange does not accept a span, so copy via a stackalloc-free
-            // temp when the span is small or ToArray when large. The capture chunk sizes
-            // here are on the order of 4-16 kB so ToArray is fine.
+            // List<byte>.AddRange has no span overload, so the ReadOnlySpan path
+            // pays one extra copy via ToArray. Callers that already hold a byte[]
+            // (the capture loop, in practice) should prefer the array overload
+            // above to avoid this clone. Capture chunks are ~4-16 kB so the
+            // clone is acceptable, but not free.
             _buffer.AddRange(chunk.ToArray());
             newByteCount = _buffer.Count;
             return true;

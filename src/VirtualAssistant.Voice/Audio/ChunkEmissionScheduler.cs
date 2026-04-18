@@ -54,8 +54,8 @@ public sealed class ChunkEmissionScheduler : IChunkEmissionScheduler
     public void TryEmitIfDue(IAudioBufferManager buffer)
     {
         ArgumentNullException.ThrowIfNull(buffer);
-        byte[]? bytes = null;
-        int chunkIndex = 0;
+        byte[] bytes;
+        int chunkIndex;
 
         lock (_lock)
         {
@@ -77,8 +77,8 @@ public sealed class ChunkEmissionScheduler : IChunkEmissionScheduler
     public void EmitFinal(IAudioBufferManager buffer)
     {
         ArgumentNullException.ThrowIfNull(buffer);
-        byte[]? bytes = null;
-        int chunkIndex = 0;
+        byte[] bytes;
+        int chunkIndex;
 
         lock (_lock)
         {

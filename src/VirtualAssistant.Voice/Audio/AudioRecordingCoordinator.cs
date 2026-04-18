@@ -42,17 +42,22 @@ public class AudioRecordingCoordinator : IAudioRecordingCoordinator, IDisposable
         _options = options.Value;
         _buffer = buffer ?? throw new ArgumentNullException(nameof(buffer));
         _scheduler = scheduler ?? throw new ArgumentNullException(nameof(scheduler));
+
+        // Re-raise the scheduler's event from this instance so the sender the
+        // subscribers see is the coordinator, matching the pre-split contract
+        // where AudioRecordingCoordinator was the emitter. (Copilot review on
+        // PR #1001.)
+        _scheduler.ChunkAvailable += OnSchedulerChunkAvailable;
     }
+
+    private void OnSchedulerChunkAvailable(object? sender, AudioChunkEventArgs e)
+        => ChunkAvailable?.Invoke(this, e);
 
     /// <inheritdoc />
     public bool IsRecording => _recordingTask != null;
 
     /// <inheritdoc />
-    public event EventHandler<AudioChunkEventArgs>? ChunkAvailable
-    {
-        add => _scheduler.ChunkAvailable += value;
-        remove => _scheduler.ChunkAvailable -= value;
-    }
+    public event EventHandler<AudioChunkEventArgs>? ChunkAvailable;
 
     /// <inheritdoc />
     public void EnableChunking(TimeSpan interval) => _scheduler.Enable(interval);
@@ -216,6 +221,8 @@ public class AudioRecordingCoordinator : IAudioRecordingCoordinator, IDisposable
     {
         if (_disposed) return;
         _disposed = true;
+
+        _scheduler.ChunkAvailable -= OnSchedulerChunkAvailable;
 
         if (IsRecording)
         {
