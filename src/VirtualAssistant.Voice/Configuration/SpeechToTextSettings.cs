@@ -11,10 +11,13 @@ public class SpeechToTextSettings
     public const string SectionName = "SpeechToText";
 
     /// <summary>
-    /// Gets or sets the base URL of the SpeechToText application.
-    /// Default: http://localhost:5050
+    /// Gets or sets the base URL of the SpeechToText application. Intentionally
+    /// defaults to <see cref="string.Empty"/> so that a missing
+    /// <c>SpeechToText:BaseUrl</c> config key produces a visible, logged HTTP
+    /// failure in <see cref="SpeechToTextClient"/> rather than silently reaching
+    /// for a stale localhost endpoint.
     /// </summary>
-    public string BaseUrl { get; set; } = "http://localhost:5050";
+    public string BaseUrl { get; set; } = string.Empty;
 
     /// <summary>
     /// Gets or sets the timeout for status requests in milliseconds.

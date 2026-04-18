@@ -15,14 +15,21 @@ public sealed class DashboardMenuHandler : IDashboardMenuHandler
     {
         _logger = logger ?? throw new ArgumentNullException(nameof(logger));
         // Nullable on purpose: config wiring in TrayServicesExtensions pulls
-        // the URL from IConfiguration and passes null when no override is
-        // present. Fall back to the in-process default rather than making
-        // every caller hand-roll the same "?? http://localhost:5055".
-        _dashboardBaseUrl = dashboardBaseUrl ?? "http://localhost:5055";
+        // the URL from IConfiguration and passes null when the
+        // "Dashboard:BaseUrl" key is absent. Normalize null to empty string so
+        // HandleDashboard can log a clear "not configured" warning instead of
+        // reaching for a hardcoded fallback (#984 — no hardcoded localhost).
+        _dashboardBaseUrl = dashboardBaseUrl ?? string.Empty;
     }
 
     public void HandleDashboard()
     {
+        if (string.IsNullOrWhiteSpace(_dashboardBaseUrl))
+        {
+            _logger.LogWarning("Dashboard:BaseUrl is not configured; tray 'Dashboard' click is a no-op");
+            return;
+        }
+
         try
         {
             var dashboardUrl = $"{_dashboardBaseUrl}/Admin";

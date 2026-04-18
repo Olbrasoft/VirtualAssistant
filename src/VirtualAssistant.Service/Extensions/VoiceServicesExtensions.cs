@@ -185,7 +185,11 @@ public static class VoiceServicesExtensions
             return new TranscriptionService(logger, transcriber, config, textFilter, lightweightTextFilter, llmProviderFactory, racingLlmProvider, llmProviderOptions);
         });
 
-        var openCodeUrl = configuration["OpenCodeUrl"] ?? "http://localhost:4096";
+        // Read from "OpenCode:Url" (nested key matching appsettings.json). No
+        // fallback — a missing value surfaces as a clear failure in the
+        // OpenCodeClient constructor rather than silently connecting to
+        // a stale localhost port.
+        var openCodeUrl = configuration["OpenCode:Url"] ?? string.Empty;
         services.AddSingleton(_ => new OpenCodeClient(openCodeUrl));
         services.AddSingleton<ITextInputService, TextInputService>();
     }

@@ -29,7 +29,8 @@ public class GitHubSettings
 
     /// <summary>
     /// Gets or sets the URL of the GitHub.Issues API for fetching Czech summaries.
-    /// Example: "http://localhost:5000"
+    /// Configure via <c>GitHub:IssuesApiUrl</c> in appsettings.json; no default so a
+    /// missing value is visible instead of silently reaching for a stale endpoint.
     /// </summary>
     public string IssuesApiUrl { get; set; } = string.Empty;
 }
