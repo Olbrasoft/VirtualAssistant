@@ -241,14 +241,27 @@ public class GitHubWebhooksController : ControllerBase
 
     private static bool VerifySignature(string payload, string signature, string secret)
     {
-        if (!signature.StartsWith("sha256="))
+        // GitHub always sends the "sha256=" prefix — reject anything else.
+        const string Prefix = "sha256=";
+        if (!signature.StartsWith(Prefix, StringComparison.Ordinal))
             return false;
 
-        var expectedSignature = signature[7..];
-        using var hmac = new HMACSHA256(Encoding.UTF8.GetBytes(secret));
-        var hash = hmac.ComputeHash(Encoding.UTF8.GetBytes(payload));
-        var actualSignature = Convert.ToHexString(hash).ToLowerInvariant();
+        // Parse the provided hex digest. Malformed input (odd length, non-hex chars) → fail closed.
+        byte[] providedHash;
+        try
+        {
+            providedHash = Convert.FromHexString(signature.AsSpan(Prefix.Length));
+        }
+        catch (FormatException)
+        {
+            return false;
+        }
 
-        return string.Equals(expectedSignature, actualSignature, StringComparison.OrdinalIgnoreCase);
+        using var hmac = new HMACSHA256(Encoding.UTF8.GetBytes(secret));
+        var expectedHash = hmac.ComputeHash(Encoding.UTF8.GetBytes(payload));
+
+        // Constant-time compare on the raw bytes — avoids the timing-side-channel
+        // that a string.Equals comparison would have leaked (Copilot review on #992).
+        return CryptographicOperations.FixedTimeEquals(expectedHash, providedHash);
     }
 }
