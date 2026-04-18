@@ -297,8 +297,9 @@ public class TranscriptionService : ITranscriptionService
     }
 
     /// <summary>
-    /// Accumulator struct so <see cref="TranscribeAsync"/> gets a single return value
-    /// from the LLM-correction step instead of eight out-parameters.
+    /// Accumulator struct that packages the results of the LLM-correction step
+    /// into a single return value for <see cref="TranscribeAsync"/>, replacing
+    /// the nine local accumulator variables the previous inlined version used.
     /// </summary>
     private readonly struct LlmCorrectionOutput
     {
@@ -318,11 +319,11 @@ public class TranscriptionService : ITranscriptionService
 
     /// <summary>
     /// Runs LLM correction on the supplied text, choosing between the racing pipeline
-    /// and the single-active-provider pipeline based on <see cref="LlmRoutingOptions.Enabled"/>.
+    /// and the single-active-provider pipeline based on <see cref="RacingOptions.Enabled"/>.
     /// </summary>
     /// <remarks>
     /// Keeps <see cref="TranscribeAsync"/> readable — previously this logic was inlined
-    /// with two large try/catch blocks and eight local accumulators.
+    /// with two large try/catch blocks and nine local accumulators.
     /// </remarks>
     private async Task<LlmCorrectionOutput> ApplyLlmCorrectionAsync(string processedText, CancellationToken cancellationToken)
     {
@@ -364,6 +365,12 @@ public class TranscriptionService : ITranscriptionService
                     RacingLoserProviderName = hasLoser ? racingResult.LoserProviderName : null,
                 };
             }
+            catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
+            {
+                // Propagate cooperative cancellation — swallowing it here would keep
+                // dictation work running after the user explicitly cancelled.
+                throw;
+            }
             catch (Exception ex)
             {
                 _logger.LogError(ex, "LLM racing correction failed, using filtered text: {Error}", ex.Message);
@@ -394,6 +401,11 @@ public class TranscriptionService : ITranscriptionService
                     OutputTokens = correctionResult.OutputTokens,
                     ReasoningTokens = correctionResult.ReasoningTokens,
                 };
+            }
+            catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
+            {
+                // Same as above — cancellation is cooperative and must propagate.
+                throw;
             }
             catch (Exception ex)
             {
