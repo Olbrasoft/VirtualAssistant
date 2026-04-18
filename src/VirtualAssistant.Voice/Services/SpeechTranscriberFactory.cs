@@ -14,8 +14,7 @@ namespace Olbrasoft.VirtualAssistant.Voice.Services;
 /// </summary>
 public class SpeechTranscriberFactory : ISpeechTranscriberFactory
 {
-    private readonly ISpeechTranscriber _whisperProvider;
-    private readonly ISpeechTranscriber _googleProvider;
+    private readonly IReadOnlyDictionary<string, ISpeechTranscriber> _providersByKey;
     private readonly IQueryProcessor _queryProcessor;
     private readonly SpeechProviderSettings _settings;
     private readonly ILogger<SpeechTranscriberFactory> _logger;
@@ -26,30 +25,35 @@ public class SpeechTranscriberFactory : ISpeechTranscriberFactory
 
     /// <summary>
     /// Initializes a new instance of <see cref="SpeechTranscriberFactory"/>.
-    /// Providers are injected explicitly to avoid .NET keyed services bugs.
+    /// Providers self-declare their <see cref="ISpeechTranscriber.ProviderKey"/> and
+    /// <see cref="ISpeechTranscriber.DatabaseName"/> — the factory just indexes them,
+    /// so adding a new STT provider requires no edits here.
     /// </summary>
-    /// <param name="whisperProvider">The Whisper speech transcriber instance.</param>
-    /// <param name="googleProvider">The Google speech transcriber instance.</param>
-    /// <param name="queryProcessor">Query processor for database access.</param>
-    /// <param name="settings">Speech provider configuration settings.</param>
-    /// <param name="logger">Logger instance.</param>
     public SpeechTranscriberFactory(
-        ISpeechTranscriber whisperProvider,
-        ISpeechTranscriber googleProvider,
+        IEnumerable<ISpeechTranscriber> providers,
         IQueryProcessor queryProcessor,
         IOptions<SpeechProviderSettings> settings,
         ILogger<SpeechTranscriberFactory> logger)
     {
-        _whisperProvider = whisperProvider ?? throw new ArgumentNullException(nameof(whisperProvider));
-        _googleProvider = googleProvider ?? throw new ArgumentNullException(nameof(googleProvider));
+        ArgumentNullException.ThrowIfNull(providers);
         _queryProcessor = queryProcessor ?? throw new ArgumentNullException(nameof(queryProcessor));
         _settings = settings?.Value ?? throw new ArgumentNullException(nameof(settings));
         _logger = logger ?? throw new ArgumentNullException(nameof(logger));
 
+        _providersByKey = providers.ToDictionary(
+            p => p.ProviderKey,
+            p => p,
+            StringComparer.OrdinalIgnoreCase);
+
+        if (_providersByKey.Count == 0)
+        {
+            throw new InvalidOperationException(
+                "SpeechTranscriberFactory requires at least one ISpeechTranscriber registration.");
+        }
+
         _logger.LogInformation(
-            "SpeechTranscriberFactory initialized with Whisper={Whisper}, Google={Google}",
-            _whisperProvider.GetType().Name,
-            _googleProvider.GetType().Name);
+            "SpeechTranscriberFactory initialized with providers: {Providers}",
+            string.Join(", ", _providersByKey.Select(p => $"{p.Key}={p.Value.GetType().Name}")));
     }
 
     /// <summary>
@@ -63,41 +67,30 @@ public class SpeechTranscriberFactory : ISpeechTranscriberFactory
     }
 
     /// <summary>
-    /// Gets a specific provider by name.
-    /// Returns the explicitly injected provider instance - no service locator pattern.
+    /// Gets a specific provider by name. Returns null when no matching provider is registered.
+    /// Lookup is case-insensitive on <see cref="ISpeechTranscriber.ProviderKey"/>.
     /// </summary>
-    /// <param name="providerName">The provider name ("whisper" or "google").</param>
-    /// <returns>The provider instance, or null if not found.</returns>
     public ISpeechTranscriber? GetProvider(string providerName)
     {
         if (string.IsNullOrEmpty(providerName))
             return null;
 
-        var provider = providerName.ToLowerInvariant() switch
-        {
-            "whisper" => (ISpeechTranscriber)_whisperProvider,
-            "google" => _googleProvider,
-            _ => null
-        };
-
-        if (provider != null)
+        if (_providersByKey.TryGetValue(providerName, out var provider))
         {
             _logger.LogDebug(
                 "GetProvider({ProviderName}) returning {ProviderType}",
                 providerName,
                 provider.GetType().Name);
+            return provider;
         }
 
-        return provider;
+        return null;
     }
 
     /// <summary>
-    /// Gets all available provider names.
+    /// Gets all available provider keys.
     /// </summary>
-    public IReadOnlyCollection<string> GetAvailableProviders()
-    {
-        return ["whisper", "google"];
-    }
+    public IReadOnlyCollection<string> GetAvailableProviders() => _providersByKey.Keys.ToArray();
 
     /// <summary>
     /// Gets the database provider ID for tracking.
@@ -107,21 +100,23 @@ public class SpeechTranscriberFactory : ISpeechTranscriberFactory
     {
         EnsureProviderIdCacheLoaded();
 
-        // Map friendly names to database names
-        var dbName = providerName.ToLowerInvariant() switch
+        // Provider implementations expose their own DatabaseName so the mapping
+        // has a single source of truth and new providers don't require factory edits.
+        if (!_providersByKey.TryGetValue(providerName, out var provider))
         {
-            "whisper" => "Whisper Local",
-            "google" => "Google Speech-to-Text",
-            _ => providerName
-        };
+            throw new ArgumentException(
+                $"Unknown STT provider: '{providerName}'. Available: {string.Join(", ", _providersByKey.Keys)}",
+                nameof(providerName));
+        }
 
-        if (_providerIdCache!.TryGetValue(dbName, out var id))
+        if (_providerIdCache!.TryGetValue(provider.DatabaseName, out var id))
         {
             return id;
         }
 
         throw new ArgumentException(
-            $"Unknown STT provider: '{providerName}'. Available: {string.Join(", ", _providerIdCache.Keys)}",
+            $"Provider '{providerName}' has DatabaseName '{provider.DatabaseName}' which is not in the providers table. " +
+            $"Known rows: {string.Join(", ", _providerIdCache.Keys)}",
             nameof(providerName));
     }
 

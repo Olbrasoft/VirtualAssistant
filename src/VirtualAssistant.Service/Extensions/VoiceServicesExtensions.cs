@@ -123,16 +123,20 @@ public static class VoiceServicesExtensions
             return new GoogleSpeechTranscriber(httpClient, options, logger);
         });
 
-        // Register STT provider factory with explicit provider injection (no service locator)
-        // Cast to ISpeechTranscriber to match factory constructor signature
+        // Register STT provider factory with the full ISpeechTranscriber collection.
+        // Each provider self-declares its ProviderKey/DatabaseName, so adding a new
+        // provider only requires the DI registration — factory stays untouched.
         services.AddSingleton<ISpeechTranscriberFactory>(sp =>
         {
-            ISpeechTranscriber whisper = sp.GetRequiredService<WhisperSpeechTranscriber>();
-            ISpeechTranscriber google = sp.GetRequiredService<GoogleSpeechTranscriber>();
+            IEnumerable<ISpeechTranscriber> providers = new ISpeechTranscriber[]
+            {
+                sp.GetRequiredService<WhisperSpeechTranscriber>(),
+                sp.GetRequiredService<GoogleSpeechTranscriber>()
+            };
             var queryProcessor = sp.GetRequiredService<IQueryProcessor>();
             var settings = sp.GetRequiredService<IOptions<SpeechProviderSettings>>();
             var logger = sp.GetRequiredService<ILogger<SpeechTranscriberFactory>>();
-            return new SpeechTranscriberFactory(whisper, google, queryProcessor, settings, logger);
+            return new SpeechTranscriberFactory(providers, queryProcessor, settings, logger);
         });
 
         // Register FallbackSpeechTranscriber or single provider based on settings.

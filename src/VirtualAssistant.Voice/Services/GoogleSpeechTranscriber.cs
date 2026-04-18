@@ -20,6 +20,9 @@ public sealed class GoogleSpeechTranscriber : ISpeechTranscriber
     private readonly ILogger<GoogleSpeechTranscriber> _logger;
     private bool _disposed;
 
+    public string ProviderKey => "google";
+    public string DatabaseName => "Google Speech-to-Text";
+
     /// <summary>
     /// Gets the language code for transcription.
     /// </summary>
