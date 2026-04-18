@@ -1,3 +1,4 @@
+using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
 using Moq;
@@ -18,6 +19,7 @@ public class NotificationBatchingServiceTests : IDisposable
     private readonly Mock<IVirtualAssistantSpeaker> _speakerMock;
     private readonly Mock<INotificationTracker> _notificationTrackerMock;
     private readonly Mock<ISpeechLockService> _speechLockServiceMock;
+    private readonly ServiceProvider _serviceProvider;
     private readonly IOptions<SpeechToTextSettings> _speechToTextSettings;
     private readonly NotificationBatchingService _sut;
 
@@ -31,6 +33,13 @@ public class NotificationBatchingServiceTests : IDisposable
         // Default: speech not locked
         _speechLockServiceMock.Setup(x => x.IsLocked).Returns(false);
 
+        // Real scope factory that resolves the mocked tracker per-scope.
+        // Mirrors production where NotificationBatchingService is Singleton and
+        // creates a fresh scope per notification to resolve Scoped INotificationTracker.
+        var services = new ServiceCollection();
+        services.AddScoped(_ => _notificationTrackerMock.Object);
+        _serviceProvider = services.BuildServiceProvider();
+
         _speechToTextSettings = Options.Create(new SpeechToTextSettings
         {
             BaseUrl = "http://localhost:5050",
@@ -41,7 +50,7 @@ public class NotificationBatchingServiceTests : IDisposable
         _sut = new NotificationBatchingService(
             _loggerMock.Object,
             _speakerMock.Object,
-            _notificationTrackerMock.Object,
+            _serviceProvider.GetRequiredService<IServiceScopeFactory>(),
             _speechLockServiceMock.Object,
             _speechToTextSettings);
     }
@@ -49,6 +58,7 @@ public class NotificationBatchingServiceTests : IDisposable
     public void Dispose()
     {
         _sut.Dispose();
+        _serviceProvider.Dispose();
         GC.SuppressFinalize(this);
     }
 

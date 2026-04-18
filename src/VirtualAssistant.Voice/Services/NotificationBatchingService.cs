@@ -1,4 +1,5 @@
 using System.Collections.Concurrent;
+using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
 using Olbrasoft.VirtualAssistant.Voice.Configuration;
@@ -17,7 +18,7 @@ public class NotificationBatchingService : INotificationBatchingService, IDispos
 {
     private readonly ILogger<NotificationBatchingService> _logger;
     private readonly ISpeechController _speechController;
-    private readonly INotificationTracker _notificationTracker;
+    private readonly IServiceScopeFactory _scopeFactory;
     private readonly ISpeechLockService _speechLockService;
     private readonly SpeechToTextSettings _speechToTextSettings;
 
@@ -28,13 +29,13 @@ public class NotificationBatchingService : INotificationBatchingService, IDispos
     public NotificationBatchingService(
         ILogger<NotificationBatchingService> logger,
         ISpeechController speechController,
-        INotificationTracker notificationTracker,
+        IServiceScopeFactory scopeFactory,
         ISpeechLockService speechLockService,
         IOptions<SpeechToTextSettings> speechToTextSettings)
     {
         _logger = logger;
         _speechController = speechController;
-        _notificationTracker = notificationTracker;
+        _scopeFactory = scopeFactory;
         _speechLockService = speechLockService;
         _speechToTextSettings = speechToTextSettings.Value;
 
@@ -101,10 +102,14 @@ public class NotificationBatchingService : INotificationBatchingService, IDispos
         {
             _logger.LogInformation("Processing notification from {Agent}", notification.Agent);
 
-            // Update status to Processing
+            // Tracker touches scoped dependencies (DbContext via CQRS), so we create a fresh
+            // scope per notification — avoids capturing a scoped service in this Singleton.
+            using var scope = _scopeFactory.CreateScope();
+            var notificationTracker = scope.ServiceProvider.GetRequiredService<INotificationTracker>();
+
             if (notification.NotificationId.HasValue)
             {
-                await _notificationTracker.MarkAsProcessingAsync(notification.NotificationId.Value);
+                await notificationTracker.MarkAsProcessingAsync(notification.NotificationId.Value);
             }
 
             var text = notification.Content;
@@ -114,18 +119,15 @@ public class NotificationBatchingService : INotificationBatchingService, IDispos
                 _logger.LogDebug("Empty notification text, skipping TTS");
                 if (notification.NotificationId.HasValue)
                 {
-                    await _notificationTracker.MarkAsPlayedAsync(notification.NotificationId.Value);
+                    await notificationTracker.MarkAsPlayedAsync(notification.NotificationId.Value);
                 }
                 return;
             }
 
-            // Wait for speech lock to be released before speaking
             await WaitForSpeechUnlockAsync();
 
-            // Speak the text directly - skip cache for notifications (each is unique with timestamps/dynamic content)
             var ttsResult = await _speechController.SpeakAsync(text, notification.Agent, skipCache: true);
 
-            // Record TTS tracking if we have a notification ID
             if (notification.NotificationId.HasValue)
             {
                 var status = ttsResult.Cancelled ? "cancelled_by_dictation"
@@ -133,16 +135,15 @@ public class NotificationBatchingService : INotificationBatchingService, IDispos
                     : ttsResult.Success ? "success"
                     : "error";
 
-                await _notificationTracker.RecordTtsOutcomeAsync(
+                await notificationTracker.RecordTtsOutcomeAsync(
                     notification.NotificationId.Value,
                     ttsResult.ProviderUsed,
                     status,
                     ttsResult.DurationMs);
 
-                // Update status to Played only if TTS succeeded or was skipped
                 if (ttsResult.Success || ttsResult.Skipped)
                 {
-                    await _notificationTracker.MarkAsPlayedAsync(notification.NotificationId.Value);
+                    await notificationTracker.MarkAsPlayedAsync(notification.NotificationId.Value);
                 }
             }
 
