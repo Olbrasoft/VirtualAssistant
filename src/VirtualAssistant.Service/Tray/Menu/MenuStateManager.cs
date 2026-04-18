@@ -1,11 +1,17 @@
+using Olbrasoft.VirtualAssistant.Core.Services;
+
 namespace Olbrasoft.VirtualAssistant.Service.Tray.Menu;
 
 /// <summary>
 /// Manages the state of all menu items.
 /// Tracks mute status, service statuses, and feature toggles.
 /// Notifies listeners when state changes via StateChanged event.
+/// Also implements <see cref="IServiceStatusUpdater"/> directly — the
+/// UpdateXxxStatus surface is identical, so callers like
+/// <see cref="Infrastructure.StateNotificationHandler"/> can depend on
+/// the minimal status-updater contract instead of the D-Bus handler.
 /// </summary>
-public class MenuStateManager : IMenuStateManager
+public class MenuStateManager : IMenuStateManager, IServiceStatusUpdater
 {
     private bool _isMuted;
     private bool _ttsMuted;

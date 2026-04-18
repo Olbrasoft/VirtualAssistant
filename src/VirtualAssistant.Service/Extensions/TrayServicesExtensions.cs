@@ -75,7 +75,13 @@ public static class TrayServicesExtensions
         });
 
         // Menu state manager (issue #468 - SRP refactoring)
-        services.AddSingleton<IMenuStateManager, MenuStateManager>();
+        // Menu state manager (also implements IServiceStatusUpdater after the
+        // #980 DBusMenuHandler split — callers like StateNotificationHandler
+        // and ServiceLifecycleManager now depend on it directly rather than
+        // on the D-Bus handler cast).
+        services.AddSingleton<MenuStateManager>();
+        services.AddSingleton<IMenuStateManager>(sp => sp.GetRequiredService<MenuStateManager>());
+        services.AddSingleton<IServiceStatusUpdater>(sp => sp.GetRequiredService<MenuStateManager>());
 
         // Menu layout builder (issue #468 - SRP refactoring)
         services.AddSingleton<IMenuLayoutBuilder, MenuLayoutBuilder>();
@@ -83,7 +89,16 @@ public static class TrayServicesExtensions
         // Menu event router (issue #468 - SRP refactoring)
         services.AddSingleton<IMenuEventRouter, MenuEventRouter>();
 
-        // D-Bus menu handler for tray icon context menu (facade pattern)
+        // Menu event forwarder (issue #980 - owns the 11 menu-click events
+        // that TrayCoordinatorService subscribes handlers to, plus the stored
+        // delegates needed to unsubscribe cleanly on shutdown).
+        services.AddSingleton<IMenuEventForwarder, MenuEventForwarder>();
+
+        // D-Bus menu handler for tray icon context menu — after the #980
+        // split this class only speaks the com.canonical.dbusmenu protocol
+        // and emits layout-changed signals when MenuStateManager fires
+        // StateChanged. All application-level state updates and event
+        // forwarding moved to the two classes above.
         services.AddSingleton<SystemTrayMenuHandler>(sp =>
         {
             var logger = sp.GetRequiredService<ILogger<VirtualAssistantDBusMenuHandler>>();
@@ -98,15 +113,15 @@ public static class TrayServicesExtensions
         // Systemd service controller for managing systemd services (OCP - issue #650)
         services.AddSingleton<ISystemdServiceController, SystemdServiceController>();
 
-        // Service lifecycle manager for managing dependent services
+        // Service lifecycle manager for managing dependent services.
+        // After the #980 split IServiceStatusUpdater is implemented directly by
+        // MenuStateManager; no longer cast from the D-Bus handler.
         services.AddSingleton<IServiceLifecycleManager>(sp =>
-        {
-            var logger = sp.GetRequiredService<ILogger<ServiceLifecycleManager>>();
-            var options = sp.GetRequiredService<IOptions<ServiceMonitoringOptions>>();
-            var serviceController = sp.GetRequiredService<ISystemdServiceController>();
-            var menuHandler = sp.GetRequiredService<SystemTrayMenuHandler>();
-            return new ServiceLifecycleManager(logger, options, serviceController, menuHandler as IServiceStatusUpdater);
-        });
+            new ServiceLifecycleManager(
+                sp.GetRequiredService<ILogger<ServiceLifecycleManager>>(),
+                sp.GetRequiredService<IOptions<ServiceMonitoringOptions>>(),
+                sp.GetRequiredService<ISystemdServiceController>(),
+                sp.GetRequiredService<IServiceStatusUpdater>()));
 
         // Icon animation service for hand icon animations
         services.AddSingleton<IIconAnimationService, IconAnimationService>();
@@ -117,8 +132,11 @@ public static class TrayServicesExtensions
         // scattered across separate AddSingleton calls.
         services.AddSingleton<IMenuEventDispatcher>(sp =>
         {
-            var configuration = sp.GetRequiredService<IConfiguration>();
-            var dashboardBaseUrl = configuration["Dashboard:BaseUrl"] ?? "http://localhost:5055";
+            // Read Dashboard:BaseUrl as-is and let DashboardMenuHandler apply its
+            // own fallback. Keeping the default in one place (the handler) avoids
+            // the drift that Copilot called out on #1006 where the DI layer
+            // coalesced first and the handler's nullable-arg docs lied about it.
+            var dashboardBaseUrl = sp.GetRequiredService<IConfiguration>()["Dashboard:BaseUrl"];
 
             var mute = new Tray.Handlers.MuteMenuHandler(
                 sp.GetRequiredService<ILogger<Tray.Handlers.MuteMenuHandler>>(),
@@ -186,7 +204,7 @@ public static class TrayServicesExtensions
                 logger,
                 muteService,
                 settingsService,
-                (IServiceStatusUpdater)menuHandler,
+                sp.GetRequiredService<IServiceStatusUpdater>(),
                 iconCoordinator,
                 iconAnimationService,
                 lifecycleManager,
@@ -197,25 +215,23 @@ public static class TrayServicesExtensions
                 recordingStartSoundPlayer);
         });
 
-        // Tray coordinator service (orchestrates 5 specialized tray services)
+        // Tray coordinator service (orchestrates tray subsystems).
+        // Note: requires SystemTrayMenuHandler to be resolved first so the
+        // D-Bus handler is live before menu clicks can be forwarded.
         services.AddSingleton(sp =>
         {
-            var logger = sp.GetRequiredService<ILogger<TrayCoordinatorService>>();
-            var iconCoordinator = sp.GetRequiredService<ITrayIconCoordinator>();
-            var menuDispatcher = sp.GetRequiredService<IMenuEventDispatcher>();
-            var lifecycleManager = sp.GetRequiredService<IServiceLifecycleManager>();
-            var stateHandler = sp.GetRequiredService<IStateNotificationHandler>();
-            var iconAnimationService = sp.GetRequiredService<IIconAnimationService>();
-            var menuHandler = sp.GetRequiredService<SystemTrayMenuHandler>();
+            // Resolve the D-Bus handler up-front so it's registered with D-Bus
+            // by the time the forwarder starts handing us events.
+            _ = sp.GetRequiredService<SystemTrayMenuHandler>();
 
             return new TrayCoordinatorService(
-                logger,
-                iconCoordinator,
-                menuDispatcher,
-                lifecycleManager,
-                stateHandler,
-                iconAnimationService,
-                menuHandler);
+                sp.GetRequiredService<ILogger<TrayCoordinatorService>>(),
+                sp.GetRequiredService<ITrayIconCoordinator>(),
+                sp.GetRequiredService<IMenuEventDispatcher>(),
+                sp.GetRequiredService<IMenuEventForwarder>(),
+                sp.GetRequiredService<IServiceLifecycleManager>(),
+                sp.GetRequiredService<IStateNotificationHandler>(),
+                sp.GetRequiredService<IIconAnimationService>());
         });
 
         return services;
