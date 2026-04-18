@@ -190,9 +190,13 @@ public static class TrayServicesExtensions
             var logger = sp.GetRequiredService<ILogger<StateNotificationHandler>>();
             var muteService = sp.GetRequiredService<IManualMuteService>();
             var settingsService = sp.GetRequiredService<ISettingsService>();
-            // Force-resolve the D-Bus handler so it's registered with D-Bus before
-            // StateNotificationHandler starts publishing updates; the previous
-            // `menuHandler as IServiceStatusUpdater` cast went away with #1007.
+            // Force-resolve the D-Bus handler so the singleton is constructed
+            // before StateNotificationHandler starts publishing updates — the
+            // actual D-Bus registration happens later in
+            // VirtualAssistantDBusMenuHandler.RegisterWithDbus(Connection).
+            // The previous `menuHandler as IServiceStatusUpdater` cast went
+            // away with #1007; this discard keeps the construction-order
+            // dependency explicit.
             _ = sp.GetRequiredService<SystemTrayMenuHandler>();
             var iconCoordinator = sp.GetRequiredService<ITrayIconCoordinator>();
             var iconAnimationService = sp.GetRequiredService<IIconAnimationService>();

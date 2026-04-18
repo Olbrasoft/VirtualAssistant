@@ -26,6 +26,7 @@ public class DashboardMenuHandlerTests
     // side effect is spawning xdg-open / zenity, which on the developer
     // machine actually opens a browser tab and a dialog window. A "does
     // not throw" assertion is not worth polluting the developer's session.
-    // If the subprocess contract ever needs verification, wrap the process
-    // spawn behind an IProcessLauncher abstraction first.
+    // If the subprocess contract ever needs verification, inject
+    // Olbrasoft.VirtualAssistant.Core.Processes.IProcessExecutor — the
+    // codebase already has that abstraction for exactly this case.
 }
