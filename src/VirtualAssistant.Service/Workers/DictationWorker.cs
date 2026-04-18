@@ -11,6 +11,7 @@ using Olbrasoft.VirtualAssistant.Voice.Services;
 using Olbrasoft.VirtualAssistant.Core.StateMachine;
 using Olbrasoft.VirtualAssistant.Voice.StateMachine;
 using Olbrasoft.VirtualAssistant.Service.Hubs;
+using Olbrasoft.VirtualAssistant.Service.Workers.Streaming;
 
 namespace Olbrasoft.VirtualAssistant.Service.Workers;
 
@@ -32,19 +33,13 @@ public class DictationWorker : BackgroundService, IDictationControl, IDictationS
     private readonly IServiceScopeFactory _scopeFactory;
     private readonly IHubContext<DictationHub> _hubContext;
     private readonly ICliAppDetector _cliAppDetector;
+    private readonly IStreamingChunkAssembler _streamingAssembler;
     private readonly DictationOptions _options;
 
     private CancellationTokenSource? _transcriptionCts;
     private bool _dictationEnabled = true;
     private bool _quickDictationMode;
     private volatile bool _streamingTranscriptionEnabled;
-
-    // Streaming chunk transcription state — populated during Recording when streaming is on.
-    // On Stop (quick mode): assembled into the final raw text. On Stop (slow mode): discarded.
-    private readonly System.Collections.Concurrent.ConcurrentDictionary<int, string> _streamChunkResults = new();
-    private readonly System.Collections.Concurrent.ConcurrentDictionary<int, Task> _streamChunkTasks = new();
-    private CancellationTokenSource? _streamChunksCts;
-    private bool _streamingActiveForSession;  // frozen snapshot at StartRecording time
 
     /// <inheritdoc/>
     public DictationState State => _stateMachine.CurrentState;
@@ -64,6 +59,7 @@ public class DictationWorker : BackgroundService, IDictationControl, IDictationS
         IServiceScopeFactory scopeFactory,
         IHubContext<DictationHub> hubContext,
         ICliAppDetector cliAppDetector,
+        IStreamingChunkAssembler streamingAssembler,
         IOptions<DictationOptions> options)
     {
         _logger = logger ?? throw new ArgumentNullException(nameof(logger));
@@ -77,6 +73,7 @@ public class DictationWorker : BackgroundService, IDictationControl, IDictationS
         _scopeFactory = scopeFactory ?? throw new ArgumentNullException(nameof(scopeFactory));
         _hubContext = hubContext ?? throw new ArgumentNullException(nameof(hubContext));
         _cliAppDetector = cliAppDetector ?? throw new ArgumentNullException(nameof(cliAppDetector));
+        _streamingAssembler = streamingAssembler ?? throw new ArgumentNullException(nameof(streamingAssembler));
         ArgumentNullException.ThrowIfNull(options);
         _options = options.Value;
     }
@@ -168,9 +165,9 @@ public class DictationWorker : BackgroundService, IDictationControl, IDictationS
             // If user picked slow mode but streaming was pre-transcribing chunks,
             // cancel those background tasks — they'd be discarded anyway, no point
             // burning GPU/serializing the Whisper semaphore for them.
-            if (!quickMode && _streamingActiveForSession)
+            if (!quickMode && _streamingAssembler.IsActive)
             {
-                try { _streamChunksCts?.Cancel(); } catch { /* best effort */ }
+                _streamingAssembler.CancelAndClear();
                 _recordingCoordinator.DisableChunking();
                 _logger.LogInformation("Slow-mode override: canceled pending streaming chunk transcriptions");
             }
@@ -330,78 +327,14 @@ public class DictationWorker : BackgroundService, IDictationControl, IDictationS
     }
 
     /// <summary>
-    /// Handles a streaming audio chunk by launching a background Whisper call.
-    /// Results are keyed by chunk index in <see cref="_streamChunkResults"/> and assembled
-    /// in order on Stop when quick-mode streaming finalizes. Ignored if streaming is not
-    /// active for this session or if the chunk arrived outside Recording state.
+    /// Forwards a streaming audio chunk to <see cref="IStreamingChunkAssembler"/>
+    /// which runs the per-chunk Whisper call on a background task and stores
+    /// the result keyed by chunk index. Ignored when streaming is not active
+    /// for the current session.
     /// </summary>
     private void OnChunkAvailable(object? sender, AudioChunkEventArgs e)
     {
-        if (!_streamingActiveForSession) return;
-        if (_streamChunksCts == null || _streamChunksCts.IsCancellationRequested) return;
-
-        var ct = _streamChunksCts.Token;
-        var task = Task.Run(async () =>
-        {
-            try
-            {
-                var sw = System.Diagnostics.Stopwatch.StartNew();
-                var text = await _transcriptionService.TranscribeChunkRawAsync(e.PcmBytes, ct);
-                sw.Stop();
-                _streamChunkResults[e.Index] = text ?? string.Empty;
-                _logger.LogInformation(
-                    "Streaming chunk {Index} transcribed in {ElapsedMs}ms: '{Preview}'",
-                    e.Index,
-                    sw.ElapsedMilliseconds,
-                    (text ?? string.Empty).Length > 60 ? (text ?? string.Empty)[..60] + "…" : text);
-            }
-            catch (OperationCanceledException)
-            {
-                _logger.LogDebug("Streaming chunk {Index} canceled", e.Index);
-            }
-            catch (Exception ex)
-            {
-                _logger.LogError(ex, "Streaming chunk {Index} transcription failed", e.Index);
-                _streamChunkResults[e.Index] = string.Empty;
-            }
-        }, ct);
-
-        _streamChunkTasks[e.Index] = task;
-    }
-
-    /// <summary>
-    /// Awaits pending chunk transcription tasks and concatenates their ordered results.
-    /// Returns null if no chunks were produced (streaming not active or no audio).
-    /// </summary>
-    private async Task<string?> CombineStreamingChunksAsync(CancellationToken cancellationToken)
-    {
-        if (!_streamingActiveForSession) return null;
-
-        // Wait for all background chunk transcriptions to complete.
-        var pending = _streamChunkTasks.Values.ToArray();
-        if (pending.Length == 0)
-        {
-            _logger.LogInformation("CombineStreamingChunks: no chunks produced");
-            return null;
-        }
-
-        try
-        {
-            await Task.WhenAll(pending).WaitAsync(cancellationToken);
-        }
-        catch (OperationCanceledException) { throw; }
-        catch (Exception ex)
-        {
-            _logger.LogWarning(ex, "One or more streaming chunk tasks faulted; proceeding with available results");
-        }
-
-        var ordered = _streamChunkResults
-            .OrderBy(kvp => kvp.Key)
-            .Select(kvp => kvp.Value?.Trim() ?? string.Empty)
-            .Where(t => t.Length > 0);
-
-        var combined = string.Join(" ", ordered);
-        return System.Text.RegularExpressions.Regex.Replace(combined, @"\s+", " ").Trim();
+        _streamingAssembler.SubmitChunk(e.Index, e.PcmBytes);
     }
 
     private async Task BroadcastDictationEventAsync(DictationEventType eventType, string? text)
@@ -428,15 +361,11 @@ public class DictationWorker : BackgroundService, IDictationControl, IDictationS
             _stateMachine.TransitionTo(DictationState.Recording);
 
             // Freeze streaming choice for this session — toggles mid-recording have no effect
-            _streamingActiveForSession = _streamingTranscriptionEnabled;
-            _streamChunkResults.Clear();
-            _streamChunkTasks.Clear();
-            _streamChunksCts?.Dispose();
-            _streamChunksCts = null;
+            var streamingActive = _streamingTranscriptionEnabled;
+            _streamingAssembler.Reset(streamingActive);
 
-            if (_streamingActiveForSession)
+            if (streamingActive)
             {
-                _streamChunksCts = new CancellationTokenSource();
                 _recordingCoordinator.EnableChunking(TimeSpan.FromSeconds(8));
                 _logger.LogInformation("Streaming transcription active for this session (8s chunks)");
             }
@@ -541,19 +470,12 @@ public class DictationWorker : BackgroundService, IDictationControl, IDictationS
 
     /// <summary>
     /// Clears streaming chunk state after a dictation session completes (any path).
+    /// Delegates the concurrent-collection cleanup to <see cref="IStreamingChunkAssembler"/>;
+    /// the worker still owns the recording-coordinator's chunking flag.
     /// </summary>
     private void ResetStreamingSessionState()
     {
-        try
-        {
-            _streamChunksCts?.Cancel();
-            _streamChunksCts?.Dispose();
-        }
-        catch { /* best effort */ }
-        _streamChunksCts = null;
-        _streamChunkResults.Clear();
-        _streamChunkTasks.Clear();
-        _streamingActiveForSession = false;
+        _streamingAssembler.CancelAndClear();
         _recordingCoordinator.DisableChunking();
     }
 
@@ -589,9 +511,9 @@ public class DictationWorker : BackgroundService, IDictationControl, IDictationS
         _transcriptionCts = new CancellationTokenSource();
 
         TranscriptionResult result;
-        if (_streamingActiveForSession)
+        if (_streamingAssembler.IsActive)
         {
-            var combined = await CombineStreamingChunksAsync(_transcriptionCts.Token);
+            var combined = await _streamingAssembler.CombineAsync(_transcriptionCts.Token);
             if (string.IsNullOrWhiteSpace(combined))
             {
                 _logger.LogWarning("Streaming quick transcription produced empty text; falling back to full-buffer Whisper");
@@ -601,7 +523,7 @@ public class DictationWorker : BackgroundService, IDictationControl, IDictationS
             {
                 _logger.LogInformation(
                     "Streaming quick transcription: combined {Count} chunks into {Length} chars",
-                    _streamChunkResults.Count, combined.Length);
+                    _streamingAssembler.CompletedChunkCount, combined.Length);
                 result = await _transcriptionService.FinalizePreTranscribedRawAsync(combined, _transcriptionCts.Token);
             }
         }

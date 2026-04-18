@@ -9,6 +9,7 @@ using Microsoft.AspNetCore.SignalR;
 using Olbrasoft.VirtualAssistant.Service.Hubs;
 using Olbrasoft.VirtualAssistant.Service.Infrastructure;
 using Olbrasoft.VirtualAssistant.Service.Workers;
+using Olbrasoft.VirtualAssistant.Service.Workers.Streaming;
 using Olbrasoft.VirtualAssistant.Voice.Configuration;
 using Olbrasoft.VirtualAssistant.Voice.Filters;
 using Olbrasoft.VirtualAssistant.Voice.Services;
@@ -39,18 +40,28 @@ public static class WorkerServicesExtensions
 
         services.AddSingleton(sp =>
         {
+            // Streaming assembler is created inline so it binds to the SAME
+            // keyed ITranscriptionService the worker uses — otherwise a
+            // second (non-keyed) transcription instance would be resolved
+            // for per-chunk calls. (#969 extraction.)
+            var transcription = sp.GetRequiredKeyedService<ITranscriptionService>(DictationKey);
+            var assembler = new StreamingChunkAssembler(
+                sp.GetRequiredService<ILogger<StreamingChunkAssembler>>(),
+                transcription);
+
             return new DictationWorker(
                 sp.GetRequiredService<ILogger<DictationWorker>>(),
                 sp.GetRequiredService<IKeyboardMonitor>(),
                 sp.GetRequiredService<Voice.StateMachine.IDictationStateMachine>(),
                 sp.GetRequiredKeyedService<IAudioRecordingCoordinator>(DictationKey),
-                sp.GetRequiredKeyedService<ITranscriptionService>(DictationKey),
+                transcription,
                 sp.GetRequiredService<IKeyboardSimulationService>(),
                 sp.GetRequiredKeyedService<ISoundEffectPlayer>("typing"),
                 sp.GetRequiredKeyedService<ISoundEffectPlayer>("cancel"),
                 sp.GetRequiredService<IServiceScopeFactory>(),
                 sp.GetRequiredService<IHubContext<DictationHub>>(),
                 sp.GetRequiredService<ICliAppDetector>(),
+                assembler,
                 sp.GetRequiredService<IOptions<DictationOptions>>());
         });
 
