@@ -27,10 +27,12 @@ public sealed class DotoolProcessRunner : IDotoolProcessRunner
             {
                 FileName = "dotool",
                 RedirectStandardInput = true,
-                // StandardOutput is intentionally NOT redirected. dotool produces
-                // no meaningful output on success and leaving the child's stdout
-                // attached to our stdout would let it deadlock if it ever wrote
-                // more than the pipe buffer. (Copilot review on PR #997.)
+                // StandardOutput is intentionally NOT redirected. The pipe-buffer
+                // deadlock risk comes from redirecting without reading — if we
+                // set RedirectStandardOutput = true and never drained the pipe,
+                // dotool would block once its stdout buffer filled. Leaving it
+                // attached to the parent is safe and matches the fact that dotool
+                // has no meaningful output on success. (Copilot review on PR #997.)
                 RedirectStandardError = true,
                 UseShellExecute = false,
                 CreateNoWindow = true,
@@ -54,11 +56,17 @@ public sealed class DotoolProcessRunner : IDotoolProcessRunner
 
         if (done == timeoutTask)
         {
+            // Kill the child BEFORE anything that can throw. If caller cancellation
+            // raced with the timer, the process must still die so we don't leak
+            // a live dotool on the way out via the throw below. (Copilot review
+            // on PR #998.)
+            TryKill(process);
+
             // Caller cancellation takes precedence over timer expiry so the
             // exception surfaced upstream reflects the real cause.
             cancellationToken.ThrowIfCancellationRequested();
-            _logger.LogError("dotool timed out after {Timeout} — killing process", timeout);
-            TryKill(process);
+
+            _logger.LogError("dotool timed out after {Timeout}", timeout);
             return DotoolResult.Timeout();
         }
 
