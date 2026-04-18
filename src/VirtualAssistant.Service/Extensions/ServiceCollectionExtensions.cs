@@ -1,4 +1,5 @@
 using Olbrasoft.VirtualAssistant.Desktop.Extensions;
+using Olbrasoft.VirtualAssistant.Service.Hubs.Services;
 
 namespace Olbrasoft.VirtualAssistant.Service.Extensions;
 
@@ -33,6 +34,13 @@ public static class ServiceCollectionExtensions
 
         // SignalR for Desktop Monitor real-time communication
         services.AddSignalR();
+
+        // Remote Control hub domain services (#970 split — each slice has
+        // ≤5 ctor deps and focuses on one concern so the hub itself stays a
+        // wire-protocol facade).
+        services.AddSingleton<IRemoteRecordingCommands, RemoteRecordingCommands>();
+        services.AddSingleton<IRemoteDesktopCommands, RemoteDesktopCommands>();
+        services.AddSingleton<IRemoteScreenshotCommands, RemoteScreenshotCommands>();
 
         return services;
     }
