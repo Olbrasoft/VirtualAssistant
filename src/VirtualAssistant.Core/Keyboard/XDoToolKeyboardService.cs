@@ -1,4 +1,3 @@
-using System.Diagnostics;
 using Microsoft.Extensions.Logging;
 using Olbrasoft.VirtualAssistant.Core.Clipboard;
 using Olbrasoft.VirtualAssistant.Core.WindowManagement;
@@ -12,22 +11,8 @@ namespace Olbrasoft.VirtualAssistant.Core.Keyboard;
 /// </summary>
 public class XDoToolKeyboardService : IKeyboardSimulationService
 {
-    private readonly IClipboardManager _clipboardManager;
-    private readonly ITerminalDetector _terminalDetector;
-    private readonly ICliAppDetector _cliAppDetector;
-    private readonly ILogger<XDoToolKeyboardService> _logger;
-
-    public XDoToolKeyboardService(
-        IClipboardManager clipboardManager,
-        ITerminalDetector terminalDetector,
-        ICliAppDetector cliAppDetector,
-        ILogger<XDoToolKeyboardService> logger)
-    {
-        _clipboardManager = clipboardManager ?? throw new ArgumentNullException(nameof(clipboardManager));
-        _terminalDetector = terminalDetector ?? throw new ArgumentNullException(nameof(terminalDetector));
-        _cliAppDetector = cliAppDetector ?? throw new ArgumentNullException(nameof(cliAppDetector));
-        _logger = logger ?? throw new ArgumentNullException(nameof(logger));
-    }
+    private static readonly TimeSpan PasteTimeout = TimeSpan.FromSeconds(5);
+    private static readonly TimeSpan SequenceTimeout = TimeSpan.FromSeconds(10);
 
     // Defense-in-depth: paste shortcuts are never passed to a shell, but the
     // value is still used as dotool input. Keep the allowed set explicit so a
@@ -35,8 +20,40 @@ public class XDoToolKeyboardService : IKeyboardSimulationService
     // something unexpected.
     private static readonly HashSet<string> AllowedPasteShortcuts = new(StringComparer.OrdinalIgnoreCase)
     {
-        "ctrl+v", "ctrl+shift+v", "shift+insert"
+        "ctrl+v", "ctrl+shift+v", "shift+insert",
     };
+
+    private static readonly HashSet<string> AllowedKeys = new(StringComparer.OrdinalIgnoreCase)
+    {
+        "enter", "ctrl+u", "ctrl+v", "ctrl+shift+v", "shift+insert",
+        "escape", "tab", "backspace", "delete", "alt+F4",
+        "super+kp1", "super+kp2", "super+kp3", "super+kp4",
+        "super+kp5", "super+kp6", "super+kp7", "super+kp8",
+        "end", "ctrl+a",
+    };
+
+    private readonly IClipboardManager _clipboardManager;
+    private readonly IClipboardPasteOrchestrator _pasteOrchestrator;
+    private readonly IDotoolProcessRunner _dotoolRunner;
+    private readonly ITerminalDetector _terminalDetector;
+    private readonly ICliAppDetector _cliAppDetector;
+    private readonly ILogger<XDoToolKeyboardService> _logger;
+
+    public XDoToolKeyboardService(
+        IClipboardManager clipboardManager,
+        IClipboardPasteOrchestrator pasteOrchestrator,
+        IDotoolProcessRunner dotoolRunner,
+        ITerminalDetector terminalDetector,
+        ICliAppDetector cliAppDetector,
+        ILogger<XDoToolKeyboardService> logger)
+    {
+        _clipboardManager = clipboardManager ?? throw new ArgumentNullException(nameof(clipboardManager));
+        _pasteOrchestrator = pasteOrchestrator ?? throw new ArgumentNullException(nameof(pasteOrchestrator));
+        _dotoolRunner = dotoolRunner ?? throw new ArgumentNullException(nameof(dotoolRunner));
+        _terminalDetector = terminalDetector ?? throw new ArgumentNullException(nameof(terminalDetector));
+        _cliAppDetector = cliAppDetector ?? throw new ArgumentNullException(nameof(cliAppDetector));
+        _logger = logger ?? throw new ArgumentNullException(nameof(logger));
+    }
 
     /// <summary>
     /// Types text into the active window using clipboard + dotool paste.
@@ -59,108 +76,39 @@ public class XDoToolKeyboardService : IKeyboardSimulationService
                 text.Length > 50 ? text.Substring(0, 50) + "..." : text,
                 text.Length);
 
-            // Add space after text
             var textToType = text + " ";
-
             var pasteShortcut = await GetPasteShortcutAsync(cancellationToken);
             var usePrimary = pasteShortcut == "shift+insert";
-
-            // Step 1: Save current selection we are about to overwrite
-            string? originalClipboard = null;
-            string? originalPrimary = null;
-            if (usePrimary)
-            {
-                originalPrimary = await _clipboardManager.GetPrimarySelectionAsync(cancellationToken);
-                await _clipboardManager.SetPrimarySelectionAsync(textToType, cancellationToken);
-            }
-            else
-            {
-                originalClipboard = await _clipboardManager.GetClipboardAsync(cancellationToken);
-                await _clipboardManager.SetClipboardAsync(textToType, cancellationToken);
-            }
-
-            // Small delay to ensure selection is ready before we trigger the paste
-            await Task.Delay(50, cancellationToken);
 
             _logger.LogInformation("Simulating paste with shortcut: {Shortcut} (selection: {Selection})",
                 pasteShortcut, usePrimary ? "PRIMARY" : "CLIPBOARD");
 
-            // Invoke dotool directly and pipe the command over stdin. The previous
-            // implementation composed a `bash -c "echo 'key …' | dotool"` string with
-            // string interpolation — safe only because pasteShortcut came from a
-            // hardcoded set, but a shell-injection foot-gun if that ever changes.
-            using var dotoolProcess = new Process
-            {
-                StartInfo = new ProcessStartInfo
+            var pasted = await _pasteOrchestrator.StageAndRestoreAsync(
+                textToType,
+                usePrimary,
+                async () =>
                 {
-                    FileName = "dotool",
-                    RedirectStandardInput = true,
-                    RedirectStandardOutput = true,
-                    RedirectStandardError = true,
-                    UseShellExecute = false,
-                    CreateNoWindow = true
-                }
-            };
+                    // Small delay to ensure selection is ready before we trigger the paste.
+                    await Task.Delay(50, cancellationToken);
 
-            dotoolProcess.Start();
-            await dotoolProcess.StandardInput.WriteLineAsync($"key {pasteShortcut}");
-            dotoolProcess.StandardInput.Close();
+                    if (!await SendPasteShortcutAsync(pasteShortcut, cancellationToken))
+                        return false;
 
-            // Use an independent timeout CTS. Binding the timer to `cancellationToken`
-            // would conflate "user cancelled" with "dotool hung 5 s", and the timeout
-            // branch below would log a fake timeout when the real cause was cancellation.
-            using var timeoutCts = new CancellationTokenSource(TimeSpan.FromSeconds(5));
-            var dotoolTask = dotoolProcess.WaitForExitAsync(cancellationToken);
-            var timeoutTask = Task.Delay(Timeout.InfiniteTimeSpan, timeoutCts.Token);
-            var completedTask = await Task.WhenAny(dotoolTask, timeoutTask);
+                    // Wait long enough for the terminal/tmux/TUI chain to read the
+                    // selection before we restore it. 100 ms was too short in tmux —
+                    // the terminal paste handler had not yet read the PRIMARY by the
+                    // time we wrote the original value back, so the user saw the old
+                    // content pasted.
+                    await Task.Delay(300, cancellationToken);
+                    return true;
+                },
+                cancellationToken);
 
-            if (completedTask == timeoutTask)
+            if (pasted)
             {
-                cancellationToken.ThrowIfCancellationRequested();
-                _logger.LogError("dotool paste timeout after 5 seconds, killing process");
-                TryKillProcess(dotoolProcess);
-                return false;
+                _logger.LogInformation("✅ Typed {Length} characters into active window", textToType.Length);
             }
-
-            // Surface cancellation as OperationCanceledException (caught below) rather
-            // than as a silent "timeout" false-positive.
-            await dotoolTask;
-
-            if (dotoolProcess.ExitCode != 0)
-            {
-                var error = await dotoolProcess.StandardError.ReadToEndAsync(cancellationToken);
-                _logger.LogError("dotool failed with exit code {ExitCode}: {Error}", dotoolProcess.ExitCode, error);
-                return false;
-            }
-
-            // Wait long enough for the terminal/tmux/TUI chain to read the
-            // selection before we restore it. 100 ms was too short in tmux —
-            // the terminal paste handler had not yet read the PRIMARY by the
-            // time we wrote the original value back, so the user saw the old
-            // content pasted.
-            await Task.Delay(300, cancellationToken);
-
-            // Step 4: Restore the original selection we overwrote
-            try
-            {
-                if (usePrimary && !string.IsNullOrEmpty(originalPrimary))
-                {
-                    await _clipboardManager.SetPrimarySelectionAsync(originalPrimary, cancellationToken);
-                    _logger.LogDebug("Restored original PRIMARY selection");
-                }
-                else if (!usePrimary && !string.IsNullOrEmpty(originalClipboard))
-                {
-                    await _clipboardManager.SetClipboardAsync(originalClipboard, cancellationToken);
-                    _logger.LogDebug("Restored original clipboard content");
-                }
-            }
-            catch (InvalidOperationException ex)
-            {
-                _logger.LogWarning("Could not restore selection: {Message}", ex.Message);
-            }
-
-            _logger.LogInformation("✅ Typed {Length} characters into active window", textToType.Length);
-            return true;
+            return pasted;
         }
         catch (OperationCanceledException)
         {
@@ -173,15 +121,6 @@ public class XDoToolKeyboardService : IKeyboardSimulationService
             return false;
         }
     }
-
-    private static readonly HashSet<string> AllowedKeys = new(StringComparer.OrdinalIgnoreCase)
-    {
-        "enter", "ctrl+u", "ctrl+v", "ctrl+shift+v", "shift+insert",
-        "escape", "tab", "backspace", "delete", "alt+F4",
-        "super+kp1", "super+kp2", "super+kp3", "super+kp4",
-        "super+kp5", "super+kp6", "super+kp7", "super+kp8",
-        "end", "ctrl+a"
-    };
 
     /// <inheritdoc/>
     public async Task SendKeyAsync(string key, CancellationToken cancellationToken = default)
@@ -201,44 +140,14 @@ public class XDoToolKeyboardService : IKeyboardSimulationService
         try
         {
             _logger.LogInformation("Sending key: {Key}", key);
+            var result = await _dotoolRunner.SendKeysAsync(new[] { key }, PasteTimeout, cancellationToken);
 
-            using var dotoolProcess = new Process
-            {
-                StartInfo = new ProcessStartInfo
-                {
-                    FileName = "dotool",
-                    RedirectStandardInput = true,
-                    RedirectStandardOutput = true,
-                    RedirectStandardError = true,
-                    UseShellExecute = false,
-                    CreateNoWindow = true
-                }
-            };
-
-            dotoolProcess.Start();
-            await dotoolProcess.StandardInput.WriteLineAsync($"key {key}");
-            dotoolProcess.StandardInput.Close();
-
-            var dotoolTask = dotoolProcess.WaitForExitAsync(cancellationToken);
-            var timeoutTask = Task.Delay(TimeSpan.FromSeconds(5), cancellationToken);
-            var completedTask = await Task.WhenAny(dotoolTask, timeoutTask);
-
-            if (completedTask == timeoutTask)
-            {
-                _logger.LogError("dotool SendKey timeout after 5 seconds, killing process");
-                try { dotoolProcess.Kill(); } catch { /* best effort */ }
-                return;
-            }
-
-            if (dotoolProcess.ExitCode != 0)
-            {
-                var error = await dotoolProcess.StandardError.ReadToEndAsync(cancellationToken);
-                _logger.LogError("dotool SendKey failed with exit code {ExitCode}: {Error}", dotoolProcess.ExitCode, error);
-            }
+            if (result.TimedOut)
+                _logger.LogError("dotool SendKey timed out after {Timeout}", PasteTimeout);
+            else if (!result.Success)
+                _logger.LogError("dotool SendKey failed: {Error}", result.Error);
             else
-            {
                 _logger.LogDebug("Successfully sent key: {Key}", key);
-            }
         }
         catch (OperationCanceledException)
         {
@@ -268,47 +177,12 @@ public class XDoToolKeyboardService : IKeyboardSimulationService
         try
         {
             _logger.LogInformation("Sending key sequence: {Count} keys", keys.Count);
+            var result = await _dotoolRunner.SendKeysAsync(keys, SequenceTimeout, cancellationToken);
 
-            using var dotoolProcess = new Process
-            {
-                StartInfo = new ProcessStartInfo
-                {
-                    FileName = "dotool",
-                    RedirectStandardInput = true,
-                    RedirectStandardOutput = true,
-                    RedirectStandardError = true,
-                    UseShellExecute = false,
-                    CreateNoWindow = true
-                }
-            };
-
-            dotoolProcess.Start();
-
-            foreach (var key in keys)
-                await dotoolProcess.StandardInput.WriteLineAsync($"key {key}");
-
-            dotoolProcess.StandardInput.Close();
-
-            using var timeoutCts = new CancellationTokenSource(TimeSpan.FromSeconds(10));
-            var dotoolTask = dotoolProcess.WaitForExitAsync(cancellationToken);
-            var timeoutTask = Task.Delay(Timeout.InfiniteTimeSpan, timeoutCts.Token);
-
-            var completedTask = await Task.WhenAny(dotoolTask, timeoutTask);
-
-            cancellationToken.ThrowIfCancellationRequested();
-
-            if (completedTask != dotoolTask)
-            {
-                _logger.LogError("dotool key sequence timeout, killing process");
-                try { dotoolProcess.Kill(); } catch { /* best effort */ }
-                return;
-            }
-
-            if (dotoolProcess.ExitCode != 0)
-            {
-                var error = await dotoolProcess.StandardError.ReadToEndAsync(cancellationToken);
-                _logger.LogError("dotool sequence failed: {Error}", error);
-            }
+            if (result.TimedOut)
+                _logger.LogError("dotool key sequence timed out after {Timeout}", SequenceTimeout);
+            else if (!result.Success)
+                _logger.LogError("dotool sequence failed: {Error}", result.Error);
         }
         catch (OperationCanceledException) { throw; }
         catch (Exception ex)
@@ -326,15 +200,11 @@ public class XDoToolKeyboardService : IKeyboardSimulationService
             return false;
         }
 
-        Process? dotoolProcess = null;
-
         try
         {
-            // 1. Detect paste shortcut first so we know which selection to write to
             var pasteShortcut = await GetPasteShortcutAsync(cancellationToken);
             var usePrimary = pasteShortcut == "shift+insert";
 
-            // 2. Stage the text in the right selection (Shift+Insert reads PRIMARY)
             if (usePrimary)
                 await _clipboardManager.SetPrimarySelectionAsync(text, cancellationToken);
             else
@@ -342,61 +212,21 @@ public class XDoToolKeyboardService : IKeyboardSimulationService
 
             await Task.Delay(30, cancellationToken);
 
-            dotoolProcess = new Process
-            {
-                StartInfo = new ProcessStartInfo
-                {
-                    FileName = "dotool",
-                    RedirectStandardInput = true,
-                    RedirectStandardOutput = true,
-                    RedirectStandardError = true,
-                    UseShellExecute = false,
-                    CreateNoWindow = true
-                }
-            };
-
-            dotoolProcess.Start();
-            await dotoolProcess.StandardInput.WriteLineAsync($"key {pasteShortcut}");
-            dotoolProcess.StandardInput.Close();
-
-            var dotoolTask = dotoolProcess.WaitForExitAsync(cancellationToken);
-            var timeoutTask = Task.Delay(TimeSpan.FromSeconds(5));
-            var completedTask = await Task.WhenAny(dotoolTask, timeoutTask);
-
-            if (completedTask == timeoutTask)
-            {
-                _logger.LogError("FastPaste: dotool timeout");
-                TryKillProcess(dotoolProcess);
+            if (!await SendPasteShortcutAsync(pasteShortcut, cancellationToken))
                 return false;
-            }
-
-            await dotoolTask;
-
-            if (dotoolProcess.ExitCode != 0)
-            {
-                var error = await dotoolProcess.StandardError.ReadToEndAsync(cancellationToken);
-                _logger.LogError("FastPaste failed: {Error}", error);
-                return false;
-            }
 
             _logger.LogInformation("FastPaste: {Length} chars pasted", text.Length);
             return true;
         }
         catch (OperationCanceledException)
         {
-            TryKillProcess(dotoolProcess);
             _logger.LogInformation("FastPaste cancelled");
             return false;
         }
         catch (Exception ex)
         {
-            TryKillProcess(dotoolProcess);
             _logger.LogError(ex, "FastPaste failed");
             return false;
-        }
-        finally
-        {
-            dotoolProcess?.Dispose();
         }
     }
 
@@ -419,36 +249,40 @@ public class XDoToolKeyboardService : IKeyboardSimulationService
                 return;
             }
 
-            var originalPrimary = await _clipboardManager.GetPrimarySelectionAsync(cancellationToken);
-            try
-            {
-                await _clipboardManager.SetPrimarySelectionAsync(clipboard, cancellationToken);
-                await Task.Delay(50, cancellationToken);
-                await SendKeyAsync(pasteShortcut, cancellationToken);
-                await Task.Delay(300, cancellationToken);
-            }
-            finally
-            {
-                if (!string.IsNullOrEmpty(originalPrimary))
+            await _pasteOrchestrator.StageAndRestoreAsync(
+                clipboard,
+                usePrimary: true,
+                async () =>
                 {
-                    try { await _clipboardManager.SetPrimarySelectionAsync(originalPrimary, cancellationToken); }
-                    catch (Exception ex) { _logger.LogWarning(ex, "Could not restore PRIMARY selection"); }
-                }
-            }
+                    await Task.Delay(50, cancellationToken);
+                    await SendKeyAsync(pasteShortcut, cancellationToken);
+                    await Task.Delay(300, cancellationToken);
+                    return true;
+                },
+                cancellationToken);
             return;
         }
 
         await SendKeyAsync(pasteShortcut, cancellationToken);
     }
 
-    private static void TryKillProcess(Process? process)
+    private async Task<bool> SendPasteShortcutAsync(string pasteShortcut, CancellationToken cancellationToken)
     {
-        if (process == null) return;
-        try
+        var result = await _dotoolRunner.SendKeysAsync(new[] { pasteShortcut }, PasteTimeout, cancellationToken);
+
+        if (result.TimedOut)
         {
-            if (!process.HasExited) process.Kill();
+            _logger.LogError("dotool paste timed out after {Timeout}", PasteTimeout);
+            return false;
         }
-        catch { /* best effort */ }
+
+        if (!result.Success)
+        {
+            _logger.LogError("dotool paste failed: {Error}", result.Error);
+            return false;
+        }
+
+        return true;
     }
 
     /// <summary>
