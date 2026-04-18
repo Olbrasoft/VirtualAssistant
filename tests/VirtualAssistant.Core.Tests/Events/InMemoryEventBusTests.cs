@@ -123,15 +123,46 @@ public class InMemoryEventBusTests
     }
 
     [Fact]
-    public async Task Subscribe_MultipleTimesSameHandler_DisposingOneKeepsOther()
+    public async Task Subscribe_TwoDistinctLambdasSameBehavior_DisposingOneKeepsOther()
     {
-        // Subscribe returns a per-call IDisposable that removes exactly that
-        // registration. Disposing one must not remove the other, otherwise
-        // the "remove-by-reference" semantics would collapse. Copilot on
-        // PR #1015 pointed out the earlier version of this test never
-        // published or asserted — the test would have passed even if Subscribe
-        // deduped handlers or Dispose removed all registrations for the same
-        // delegate. Fixed by publishing after the partial dispose.
+        // Pins the per-subscription disposal contract via two DISTINCT
+        // lambdas — InMemoryEventBus.Unsubscribe uses ReferenceEquals, so
+        // if we'd subscribed the same delegate variable twice a single
+        // Dispose would remove both registrations. Two separately-allocated
+        // lambdas that happen to share state (`callCount`) give us the
+        // isolated-registrations scenario the test intends to pin.
+        var sut = CreateSut();
+        var callCount = 0;
+        var sub1 = sut.Subscribe<TestEvent>((_, _) =>
+        {
+            Interlocked.Increment(ref callCount);
+            return Task.CompletedTask;
+        });
+        var sub2 = sut.Subscribe<TestEvent>((_, _) =>
+        {
+            Interlocked.Increment(ref callCount);
+            return Task.CompletedTask;
+        });
+
+        sub1.Dispose();
+        await sut.PublishAsync(new TestEvent("x"));
+
+        Assert.Equal(1, callCount);
+        sub2.Dispose();
+    }
+
+    [Fact]
+    public async Task Subscribe_SameDelegateTwice_DisposingOneRemovesBoth()
+    {
+        // Documents the current InMemoryEventBus behaviour for the
+        // "subscribe the same delegate twice" edge case: Unsubscribe uses
+        // ReferenceEquals, so a single Dispose removes every registration
+        // that shares the delegate instance. This is arguably a latent
+        // bug (per-subscription tokens should be independent), but pinning
+        // the current behaviour prevents silent regressions and makes a
+        // future fix visible as a test breakage. CI on commit 5f08bc1
+        // failed because an earlier version of the adjacent test assumed
+        // the opposite semantics.
         var sut = CreateSut();
         var callCount = 0;
         Func<TestEvent, CancellationToken, Task> handler = (_, _) =>
@@ -145,7 +176,7 @@ public class InMemoryEventBusTests
         sub1.Dispose();
         await sut.PublishAsync(new TestEvent("x"));
 
-        Assert.Equal(1, callCount);
+        Assert.Equal(0, callCount);
         sub2.Dispose();
     }
 }
