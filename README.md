@@ -82,7 +82,6 @@ VirtualAssistant podporuje notifikace z více AI agentů s rozlišením hlasů p
 | `VirtualAssistant.GitHub` | GitHub API klient, synchronizace issues, embeddings (Ollama nomic-embed-text 768d) |
 | `VirtualAssistant.LlmChain` | Multi-provider LLM routing (Groq, Cerebras, Mistral, OpenRouter) with circuit breaker |
 | `VirtualAssistant.Desktop` | Desktop context awareness (GNOME LinuxDesktop integration) |
-| `VirtualAssistant.Api` | Minimal API endpoints |
 
 ## API Endpointy
 

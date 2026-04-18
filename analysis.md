@@ -45,8 +45,7 @@ VirtualAssistant/
 │   ├── VirtualAssistant.Data.EntityFrameworkCore  # DbContext, migrations
 │   ├── VirtualAssistant.GitHub       # GitHub API integrace
 │   ├── VirtualAssistant.Desktop      # GNOME desktop integration
-│   ├── VirtualAssistant.LlmChain     # Multi-provider LLM routing
-│   └── VirtualAssistant.Api          # Minimal API endpoints
+│   └── VirtualAssistant.LlmChain     # Multi-provider LLM routing
 └── tests/
     └── [odpovídající test projekty]
 ```
@@ -344,18 +343,12 @@ VirtualAssistant.Desktop.Tests    40 testů (10%)  ✅ GOOD
 VirtualAssistant.Data.EF.Tests    49 testů (12%)  ✅ GOOD
 VirtualAssistant.GitHub.Tests     22 testů  (5%)  ⚠️ MINIMAL
 VirtualAssistant.Core.Tests       14 testů  (3%)  ⚠️ SPARSE
-VirtualAssistant.Api.Tests         0 testů  (0%)  ❌ EMPTY
 VirtualAssistant.LlmChain.Tests    0 testů  (0%)  ❌ PLACEHOLDER
 ```
 
 ### 6.4 Chybějící testy
 
-1. **VirtualAssistant.Api.Tests** - PRÁZDNÝ
-   - Chybí **unit testy controllerů** s mockovanými závislostmi
-   - **NENÍ** potřeba integrační testy - ty by spotřebovávaly tokeny
-   - **Priorita:** VYSOKÁ
-
-2. **VirtualAssistant.LlmChain** - PLACEHOLDER
+1. **VirtualAssistant.LlmChain** - PLACEHOLDER
    - Chybí unit testy pro provider logic (parsing responses, error handling)
    - **NEDĚLAT** integrační testy proti Groq/Cerebras/Mistral API (tokeny, rate limits)
    - Testovat pouze: response parsing, fallback logic, circuit breaker behavior (vše mockované)
@@ -389,10 +382,9 @@ await Task.Delay(50);  // Může být flaky na pomalých strojích
 
 | # | Akce | Soubor | Effort |
 |---|------|--------|--------|
-| 1 | Přidat unit testy controllerů (mockované, bez HTTP) | `tests/VirtualAssistant.Api.Tests/` | 3h |
-| 2 | Opravit unbounded VAD buffer | `VadService.cs:26` | 30m |
-| 3 | Opravit audio truncation (brát začátek, ne konec) | `TranscriptionService.cs:142` | 30m |
-| 4 | Implementovat background task tracking | `GitHubWebhooksController.cs:173` | 2h |
+| 1 | Opravit unbounded VAD buffer | `VadService.cs:26` | 30m |
+| 2 | Opravit audio truncation (brát začátek, ne konec) | `TranscriptionService.cs:142` | 30m |
+| 3 | Implementovat background task tracking | `GitHubWebhooksController.cs:173` | 2h |
 
 ### 7.2 Vysoké (P1) - Do 2 týdnů
 
