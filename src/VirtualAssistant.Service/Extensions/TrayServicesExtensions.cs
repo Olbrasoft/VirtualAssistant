@@ -111,31 +111,41 @@ public static class TrayServicesExtensions
         // Icon animation service for hand icon animations
         services.AddSingleton<IIconAnimationService, IconAnimationService>();
 
-        // Menu event dispatcher for handling tray menu actions
+        // Menu event dispatcher for handling tray menu actions. The four
+        // domain handlers are constructed inline so the DI graph reads top-
+        // down (which handler owns which optional service) instead of being
+        // scattered across separate AddSingleton calls.
         services.AddSingleton<IMenuEventDispatcher>(sp =>
         {
-            var logger = sp.GetRequiredService<ILogger<MenuEventDispatcher>>();
-            var muteService = sp.GetRequiredService<IManualMuteService>();
-            var settingsService = sp.GetRequiredService<ISettingsService>();
             var configuration = sp.GetRequiredService<IConfiguration>();
-            var llmProvider = sp.GetService<ILlmProvider>();
-            var dictationControl = sp.GetService<IDictationControl>();
-            var promptSyncService = sp.GetService<IPromptSyncService>();
-            var menuStateManager = sp.GetService<IMenuStateManager>();
-            var correctionFilter = sp.GetService<Olbrasoft.VirtualAssistant.Voice.Filters.DatabaseCorrectionFilterStrategy>();
-
             var dashboardBaseUrl = configuration["Dashboard:BaseUrl"] ?? "http://localhost:5055";
 
+            var mute = new Tray.Handlers.MuteMenuHandler(
+                sp.GetRequiredService<ILogger<Tray.Handlers.MuteMenuHandler>>(),
+                sp.GetRequiredService<IManualMuteService>(),
+                sp.GetRequiredService<ISettingsService>());
+
+            var dictation = new Tray.Handlers.DictationMenuHandler(
+                sp.GetRequiredService<ILogger<Tray.Handlers.DictationMenuHandler>>(),
+                sp.GetService<IDictationControl>());
+
+            var llm = new Tray.Handlers.LlmMenuHandler(
+                sp.GetRequiredService<ILogger<Tray.Handlers.LlmMenuHandler>>(),
+                sp.GetService<ILlmProvider>(),
+                sp.GetService<IPromptSyncService>(),
+                sp.GetService<IMenuStateManager>(),
+                sp.GetService<Olbrasoft.VirtualAssistant.Voice.Filters.DatabaseCorrectionFilterStrategy>());
+
+            var dashboard = new Tray.Handlers.DashboardMenuHandler(
+                sp.GetRequiredService<ILogger<Tray.Handlers.DashboardMenuHandler>>(),
+                dashboardBaseUrl);
+
             return new MenuEventDispatcher(
-                logger,
-                muteService,
-                settingsService,
-                dashboardBaseUrl,
-                llmProvider,
-                dictationControl,
-                promptSyncService,
-                menuStateManager,
-                correctionFilter);
+                sp.GetRequiredService<ILogger<MenuEventDispatcher>>(),
+                mute,
+                dictation,
+                llm,
+                dashboard);
         });
 
         // Recording notification service for dictation status (Phase 1 - issue #670)
