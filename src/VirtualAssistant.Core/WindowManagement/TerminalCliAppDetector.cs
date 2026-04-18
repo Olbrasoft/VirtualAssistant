@@ -28,43 +28,28 @@ public class TerminalCliAppDetector : ICliAppDetector
     internal static readonly TimeSpan CacheStaleness = TimeSpan.FromSeconds(10);
 
     /// <summary>
-    /// Known CLI applications to detect, mapped to their prompt configurations.
-    /// Key: process name pattern, Value: (AppName, PromptFileName)
+    /// A CLI agent we know how to detect, plus everything the three detection
+    /// strategies need: the process name we'd find in the terminal's descendants,
+    /// the substrings the TUI sets in the terminal title, and the prefix the
+    /// user's tmux wrapper gives to sessions it spawns for this agent. Keeping
+    /// these together means adding a new agent is a one-line change — there's
+    /// no risk of the three detection paths drifting out of sync.
     /// </summary>
-    private static readonly Dictionary<string, (string AppName, string PromptFileName)> KnownCliApps = new(StringComparer.OrdinalIgnoreCase)
-    {
-        ["claude"] = ("Claude Code", "ClaudeCodeCorrection"),
-        ["opencode"] = ("OpenCode", "OpenCodeCorrection"),
-        ["gemini"] = ("Gemini CLI", "GeminiCorrection")
-    };
+    private sealed record KnownAgent(
+        string AppName,
+        string PromptFileName,
+        string ProcessName,
+        string[] TitleMarkers,
+        string TmuxSessionPrefix);
 
-    /// <summary>
-    /// Title-based fallback for when process-tree detection fails (e.g. claude
-    /// runs inside tmux, whose server is a systemd daemon and not a descendant
-    /// of the focused terminal). Matches on substrings in the terminal window
-    /// title that the TUI agent sets itself.
-    /// </summary>
-    private static readonly (string TitleMarker, string AppName, string PromptFileName)[] TitleMarkers =
+    private static readonly KnownAgent[] KnownAgents =
     {
-        ("Claude Code", "Claude Code", "ClaudeCodeCorrection"),
-        ("OpenCode", "OpenCode", "OpenCodeCorrection"),
-        ("OC |", "OpenCode", "OpenCodeCorrection"),
-        ("Gemini", "Gemini CLI", "GeminiCorrection")
-    };
-
-    /// <summary>
-    /// tmux session-name fallback for when the CLI app runs under the user's
-    /// tmux wrapper (bashrc names sessions <c>claude-&lt;repo&gt;-&lt;tty&gt;</c>,
-    /// <c>opencode-…</c> etc.). The tmux server is a systemd daemon so claude
-    /// is never a descendant of the focused terminal; the tmux *client*
-    /// however is, and tmux can tell us which session that client is attached
-    /// to. We look at the session name prefix to identify the CLI agent.
-    /// </summary>
-    private static readonly (string Prefix, string AppName, string PromptFileName)[] TmuxSessionPrefixes =
-    {
-        ("claude-", "Claude Code", "ClaudeCodeCorrection"),
-        ("opencode-", "OpenCode", "OpenCodeCorrection"),
-        ("gemini-", "Gemini CLI", "GeminiCorrection")
+        new("Claude Code", "ClaudeCodeCorrection", "claude",
+            new[] { "Claude Code" }, "claude-"),
+        new("OpenCode", "OpenCodeCorrection", "opencode",
+            new[] { "OpenCode", "OC |" }, "opencode-"),
+        new("Gemini CLI", "GeminiCorrection", "gemini",
+            new[] { "Gemini" }, "gemini-")
     };
 
     /// <summary>
@@ -116,13 +101,13 @@ public class TerminalCliAppDetector : ICliAppDetector
                 descendantPids.Count, focusedWindow.Value.Pid);
 
             // Check if any known CLI app is among descendants
-            foreach (var (processName, (appName, promptFileName)) in KnownCliApps)
+            foreach (var agent in KnownAgents)
             {
-                if (await IsProcessAmongPidsAsync(processName, descendantPids, cancellationToken))
+                if (await IsProcessAmongPidsAsync(agent.ProcessName, descendantPids, cancellationToken))
                 {
                     _logger.LogInformation("Detected CLI app in terminal: {AppName} (process: {ProcessName})",
-                        appName, processName);
-                    return CacheAndReturn(new CliAppDetectionResult(appName, promptFileName));
+                        agent.AppName, agent.ProcessName);
+                    return CacheAndReturn(new CliAppDetectionResult(agent.AppName, agent.PromptFileName));
                 }
             }
 
@@ -132,14 +117,17 @@ public class TerminalCliAppDetector : ICliAppDetector
             // terminal window title — TUI agents set it themselves (e.g.
             // "Claude Code", "OC | ...").
             var title = focusedWindow.Value.Title ?? "";
-            foreach (var (titleMarker, appName, promptFileName) in TitleMarkers)
+            foreach (var agent in KnownAgents)
             {
-                if (title.Contains(titleMarker, StringComparison.OrdinalIgnoreCase))
+                foreach (var marker in agent.TitleMarkers)
                 {
-                    _logger.LogInformation(
-                        "Detected CLI app by terminal title: {AppName} (title: '{Title}')",
-                        appName, title);
-                    return CacheAndReturn(new CliAppDetectionResult(appName, promptFileName));
+                    if (title.Contains(marker, StringComparison.OrdinalIgnoreCase))
+                    {
+                        _logger.LogInformation(
+                            "Detected CLI app by terminal title: {AppName} (title: '{Title}')",
+                            agent.AppName, title);
+                        return CacheAndReturn(new CliAppDetectionResult(agent.AppName, agent.PromptFileName));
+                    }
                 }
             }
 
@@ -404,16 +392,16 @@ public class TerminalCliAppDetector : ICliAppDetector
     }
 
     /// <summary>
-    /// Matches a tmux session name against <see cref="TmuxSessionPrefixes"/> and
-    /// returns the CLI-app detection result if the prefix is known, otherwise null.
+    /// Matches a tmux session name against the known-agent prefixes and returns
+    /// the CLI-app detection result if the prefix is known, otherwise null.
     /// </summary>
     internal static CliAppDetectionResult? MatchTmuxSessionName(string sessionName)
     {
-        foreach (var (prefix, appName, promptFileName) in TmuxSessionPrefixes)
+        foreach (var agent in KnownAgents)
         {
-            if (sessionName.StartsWith(prefix, StringComparison.OrdinalIgnoreCase))
+            if (sessionName.StartsWith(agent.TmuxSessionPrefix, StringComparison.OrdinalIgnoreCase))
             {
-                return new CliAppDetectionResult(appName, promptFileName);
+                return new CliAppDetectionResult(agent.AppName, agent.PromptFileName);
             }
         }
         return null;
@@ -432,7 +420,7 @@ public class TerminalCliAppDetector : ICliAppDetector
 
         try
         {
-            var process = new Process
+            using var process = new Process
             {
                 StartInfo = new ProcessStartInfo
                 {
@@ -446,34 +434,53 @@ public class TerminalCliAppDetector : ICliAppDetector
             };
 
             process.Start();
-            var output = await process.StandardOutput.ReadToEndAsync(cancellationToken);
-            await process.WaitForExitAsync(cancellationToken);
-
-            if (process.ExitCode != 0 || string.IsNullOrWhiteSpace(output))
+            try
             {
-                _logger.LogDebug("tmux list-clients returned no data (exit {ExitCode})", process.ExitCode);
+                var output = await process.StandardOutput.ReadToEndAsync(cancellationToken);
+                await process.WaitForExitAsync(cancellationToken);
+
+                if (process.ExitCode != 0 || string.IsNullOrWhiteSpace(output))
+                {
+                    _logger.LogDebug("tmux list-clients returned no data (exit {ExitCode})", process.ExitCode);
+                    return null;
+                }
+
+                // Iterate the (small) client list and probe the descendant set
+                // instead of the other way round — a long-running terminal can
+                // accumulate hundreds of descendants while `tmux list-clients`
+                // is at most one row per attached terminal.
+                var clients = ParseTmuxClients(output);
+                foreach (var (clientPid, sessionName) in clients)
+                {
+                    if (!descendantPids.Contains(clientPid))
+                    {
+                        continue;
+                    }
+
+                    var match = MatchTmuxSessionName(sessionName);
+                    if (match != null)
+                    {
+                        _logger.LogInformation(
+                            "Detected CLI app via tmux session '{Session}' (client PID {Pid}): {AppName}",
+                            sessionName, clientPid, match.AppName);
+                        return match;
+                    }
+                }
+
                 return null;
             }
-
-            var clients = ParseTmuxClients(output);
-            foreach (var pid in descendantPids)
+            catch (OperationCanceledException)
             {
-                if (!clients.TryGetValue(pid, out var sessionName))
-                {
-                    continue;
-                }
-
-                var match = MatchTmuxSessionName(sessionName);
-                if (match != null)
-                {
-                    _logger.LogInformation(
-                        "Detected CLI app via tmux session '{Session}' (client PID {Pid}): {AppName}",
-                        sessionName, pid, match.AppName);
-                    return match;
-                }
+                // Caller cancelled mid-probe. Kill the tmux child so it can't
+                // outlive the detection call and leak into ps output. Swallow
+                // kill errors — the process may already have exited.
+                try { process.Kill(entireProcessTree: true); } catch { }
+                throw;
             }
-
-            return null;
+        }
+        catch (OperationCanceledException)
+        {
+            throw;
         }
         catch (Exception ex)
         {
