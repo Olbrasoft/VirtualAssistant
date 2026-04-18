@@ -14,6 +14,7 @@ using Olbrasoft.VirtualAssistant.Core.StateMachine;
 using Olbrasoft.VirtualAssistant.Core.WindowManagement;
 using Olbrasoft.VirtualAssistant.Service.Hubs;
 using Olbrasoft.VirtualAssistant.Service.Workers;
+using Olbrasoft.VirtualAssistant.Service.Workers.Streaming;
 using Olbrasoft.VirtualAssistant.Voice.Services;
 using Olbrasoft.VirtualAssistant.Voice.StateMachine;
 
@@ -35,7 +36,7 @@ public class DictationWorkerTests : IDisposable
     private readonly Mock<IDictationPersistenceService> _persistenceServiceMock;
     private readonly Mock<IHubContext<DictationHub>> _hubContextMock;
     private readonly Mock<ICliAppDetector> _cliAppDetectorMock;
-    private readonly Mock<Olbrasoft.VirtualAssistant.Service.Workers.Streaming.IStreamingChunkAssembler> _streamingAssemblerMock;
+    private readonly Mock<IStreamingChunkAssembler> _streamingAssemblerMock;
     private readonly DictationOptions _options;
     private readonly DictationWorker _sut;
 
@@ -58,7 +59,7 @@ public class DictationWorkerTests : IDisposable
         _hubContextMock = new Mock<IHubContext<DictationHub>>();
         _hubContextMock.Setup(x => x.Clients).Returns(Mock.Of<IHubClients>());
         _cliAppDetectorMock = new Mock<ICliAppDetector>();
-        _streamingAssemblerMock = new Mock<Olbrasoft.VirtualAssistant.Service.Workers.Streaming.IStreamingChunkAssembler>();
+        _streamingAssemblerMock = new Mock<IStreamingChunkAssembler>();
 
         _options = new DictationOptions { KeyboardLedSettleTimeMs = 10 };
 
