@@ -4,7 +4,7 @@
 // Bumped on every script change. Rendered next to the connection status so
 // the user can verify the phone is actually running the latest JS and not a
 // stale cached copy. MUST match the ?v= query string in remote.html.
-const SCRIPT_VERSION = 'v32';
+const SCRIPT_VERSION = 'v33';
 
 const elements = {
     connectionStatus: document.getElementById('connectionStatus'),
@@ -26,6 +26,8 @@ const elements = {
     recordTimer: document.getElementById('recordTimer'),
     transcriptionText: document.getElementById('transcriptionText'),
     btnPaste: document.getElementById('btnPaste'),
+    btnPasteEnter: document.getElementById('btnPasteEnter'),
+    pasteRow: document.getElementById('pasteRow'),
     btnClipboardPaste: document.getElementById('btnClipboardPaste'),
     btnScreenshotPaste: document.getElementById('btnScreenshotPaste'),
     btnDiscord: document.getElementById('btnDiscord'),
@@ -201,6 +203,7 @@ function setConnectionStatus(connected) {
     elements.btnDiscord.disabled = !connected;
     elements.btnFerdium.disabled = !connected;
     elements.btnPaste.disabled = !connected || !lastTranscription;
+    elements.btnPasteEnter.disabled = !connected || !lastTranscription;
     // Force the recording zones disabled while offline. setRecordingState()
     // re-enables them only when a new recording actually starts after the
     // connection is restored, so we never enable them here. Without this,
@@ -281,8 +284,9 @@ function setTranscriptionText(text) {
     elements.transcriptionText.textContent = text;
     elements.transcriptionText.classList.remove('empty');
     lastTranscription = text;
-    elements.btnPaste.classList.add('visible');
+    elements.pasteRow.classList.add('visible');
     elements.btnPaste.disabled = false;
+    elements.btnPasteEnter.disabled = false;
 }
 
 function handleAppFocusChanged(wmClass) {
@@ -684,6 +688,33 @@ elements.btnPaste.addEventListener('click', async () => {
         console.error('Paste failed:', error);
     } finally {
         elements.btnPaste.disabled = false;
+    }
+});
+
+// Paste + Enter handler: types the transcription, then fires Enter so the
+// prompt is submitted without a second tap. Both buttons lock during the
+// round-trip so a double tap can't race PressEnter against an in-flight paste.
+elements.btnPasteEnter.addEventListener('pointerdown', () => {
+    if (elements.btnPasteEnter.disabled) return;
+    if ('vibrate' in navigator) navigator.vibrate(50);
+});
+
+elements.btnPasteEnter.addEventListener('click', async () => {
+    if (!lastTranscription || connection?.state !== signalR.HubConnectionState.Connected) return;
+    try {
+        elements.btnPaste.disabled = true;
+        elements.btnPasteEnter.disabled = true;
+        const pasted = await connection.invoke('PasteTranscription', lastTranscription);
+        if (pasted) {
+            await connection.invoke('PressEnter');
+        } else {
+            console.warn('Paste+Enter: PasteTranscription returned false, skipping Enter');
+        }
+    } catch (error) {
+        console.error('Paste+Enter failed:', error);
+    } finally {
+        elements.btnPaste.disabled = false;
+        elements.btnPasteEnter.disabled = false;
     }
 });
 
