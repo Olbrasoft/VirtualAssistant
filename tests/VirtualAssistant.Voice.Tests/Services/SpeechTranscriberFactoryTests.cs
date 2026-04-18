@@ -19,9 +19,13 @@ public class SpeechTranscriberFactoryTests
 
     public SpeechTranscriberFactoryTests()
     {
-        // Create mocks for ISpeechTranscriber interface
         _whisperMock = new Mock<ISpeechTranscriber>();
+        _whisperMock.SetupGet(x => x.ProviderKey).Returns("whisper");
+        _whisperMock.SetupGet(x => x.DatabaseName).Returns("Whisper Local");
+
         _googleMock = new Mock<ISpeechTranscriber>();
+        _googleMock.SetupGet(x => x.ProviderKey).Returns("google");
+        _googleMock.SetupGet(x => x.DatabaseName).Returns("Google Speech-to-Text");
 
         _queryProcessorMock = new Mock<IQueryProcessor>();
         _loggerMock = new Mock<ILogger<SpeechTranscriberFactory>>();
@@ -38,8 +42,7 @@ public class SpeechTranscriberFactoryTests
         var options = Options.Create(settings);
 
         return new SpeechTranscriberFactory(
-            _whisperMock.Object,
-            _googleMock.Object,
+            new[] { _whisperMock.Object, _googleMock.Object },
             _queryProcessorMock.Object,
             options,
             _loggerMock.Object);
@@ -178,7 +181,7 @@ public class SpeechTranscriberFactoryTests
     }
 
     [Fact]
-    public void Constructor_WithNullWhisperProvider_ThrowsArgumentNullException()
+    public void Constructor_WithNullProviders_ThrowsArgumentNullException()
     {
         // Arrange
         var settings = Options.Create(new SpeechProviderSettings());
@@ -186,22 +189,20 @@ public class SpeechTranscriberFactoryTests
         // Act & Assert
         Assert.Throws<ArgumentNullException>(() => new SpeechTranscriberFactory(
             null!,
-            _googleMock.Object,
             _queryProcessorMock.Object,
             settings,
             _loggerMock.Object));
     }
 
     [Fact]
-    public void Constructor_WithNullGoogleProvider_ThrowsArgumentNullException()
+    public void Constructor_WithEmptyProviders_ThrowsInvalidOperationException()
     {
         // Arrange
         var settings = Options.Create(new SpeechProviderSettings());
 
         // Act & Assert
-        Assert.Throws<ArgumentNullException>(() => new SpeechTranscriberFactory(
-            _whisperMock.Object,
-            null!,
+        Assert.Throws<InvalidOperationException>(() => new SpeechTranscriberFactory(
+            Array.Empty<ISpeechTranscriber>(),
             _queryProcessorMock.Object,
             settings,
             _loggerMock.Object));
@@ -215,8 +216,7 @@ public class SpeechTranscriberFactoryTests
 
         // Act & Assert
         Assert.Throws<ArgumentNullException>(() => new SpeechTranscriberFactory(
-            _whisperMock.Object,
-            _googleMock.Object,
+            new[] { _whisperMock.Object, _googleMock.Object },
             null!,
             settings,
             _loggerMock.Object));
@@ -227,8 +227,7 @@ public class SpeechTranscriberFactoryTests
     {
         // Act & Assert
         Assert.Throws<ArgumentNullException>(() => new SpeechTranscriberFactory(
-            _whisperMock.Object,
-            _googleMock.Object,
+            new[] { _whisperMock.Object, _googleMock.Object },
             _queryProcessorMock.Object,
             null!,
             _loggerMock.Object));
@@ -242,8 +241,7 @@ public class SpeechTranscriberFactoryTests
 
         // Act & Assert
         Assert.Throws<ArgumentNullException>(() => new SpeechTranscriberFactory(
-            _whisperMock.Object,
-            _googleMock.Object,
+            new[] { _whisperMock.Object, _googleMock.Object },
             _queryProcessorMock.Object,
             settings,
             null!));

@@ -23,6 +23,8 @@ public sealed class WhisperSpeechTranscriber : ISpeechTranscriber
 
     private const int SampleRate = 16000;
 
+    public string ProviderKey => "whisper";
+    public string DatabaseName => "Whisper Local";
     public string Language => _options.WhisperLanguage;
 
     /// <summary>

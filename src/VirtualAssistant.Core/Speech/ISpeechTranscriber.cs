@@ -6,6 +6,20 @@ namespace Olbrasoft.VirtualAssistant.Core.Speech;
 public interface ISpeechTranscriber : IDisposable
 {
     /// <summary>
+    /// Gets the provider key used in configuration (lowercase, e.g. "whisper", "google").
+    /// Acts as the identity by which the factory maps a requested provider name to an instance,
+    /// without any switch statement coupled to the set of available providers.
+    /// </summary>
+    string ProviderKey { get; }
+
+    /// <summary>
+    /// Gets the provider name as stored in the <c>providers</c> database table (e.g.,
+    /// "Whisper Local", "Google Speech-to-Text"). Used only for tracking — database
+    /// rows stay human-readable while the factory lookup stays key-driven.
+    /// </summary>
+    string DatabaseName { get; }
+
+    /// <summary>
     /// Gets the language code for transcription (e.g., "cs" for Czech).
     /// </summary>
     string Language { get; }

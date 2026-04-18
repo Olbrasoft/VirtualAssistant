@@ -29,6 +29,9 @@ public sealed class FallbackSpeechTranscriber : ISpeechTranscriber
         private set => System.Threading.Interlocked.Exchange(ref _lastUsedProviderId, value);
     }
 
+    public string ProviderKey => _primary.ProviderKey;
+    public string DatabaseName => _primary.DatabaseName;
+
     /// <summary>
     /// Gets the language code from the primary provider.
     /// </summary>
