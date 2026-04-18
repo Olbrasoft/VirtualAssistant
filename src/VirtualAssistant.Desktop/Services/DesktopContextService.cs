@@ -55,6 +55,11 @@ public class DesktopContextService : IDesktopContextService, IAsyncDisposable
         {
             lock (_stateLock)
             {
+                // Re-check inside the lock — DisposeAsync can flip _disposed
+                // between the outer check and this point, and OnNext-ing into
+                // a completed Subject would throw.
+                if (_disposed) return;
+
                 if (_lastContext == null)
                 {
                     _lastContext = newContext;
@@ -136,14 +141,15 @@ public class DesktopContextService : IDesktopContextService, IAsyncDisposable
 
     public ValueTask DisposeAsync()
     {
-        if (_disposed) return ValueTask.CompletedTask;
-        _disposed = true;
-
-        // Unsubscribe from BackgroundService events
+        // Unsubscribe from BackgroundService events first so no new callbacks
+        // enter OnContextUpdate after _disposed flips.
         _contextSubscription?.Dispose();
 
         lock (_stateLock)
         {
+            if (_disposed) return ValueTask.CompletedTask;
+            _disposed = true;
+
             _contextChanges.OnCompleted();
             _contextChanges.Dispose();
 
