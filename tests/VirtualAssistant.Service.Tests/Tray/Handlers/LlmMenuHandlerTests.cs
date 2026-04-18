@@ -91,6 +91,7 @@ public class LlmMenuHandlerTests
     // is spawning xdg-open on the billing URL, which on the developer
     // machine actually opens a browser tab. A "does not throw" assertion
     // is not worth polluting the developer's session. If the subprocess
-    // contract ever needs verification, wrap the process spawn behind an
-    // IProcessLauncher abstraction first.
+    // contract ever needs verification, inject
+    // Olbrasoft.VirtualAssistant.Core.Processes.IProcessExecutor — the
+    // codebase already has that abstraction for exactly this case.
 }
