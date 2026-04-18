@@ -829,6 +829,12 @@ public class DictationWorker : BackgroundService, IDictationControl, IDictationS
             if (currentState == DictationState.Recording)
             {
                 _logger.LogInformation("Canceling active recording (emergency stop)");
+                // Documented sync-over-async exception (#976): CancelTranscription
+                // implements IDictationService.CancelTranscription() which is a
+                // void interface method (synchronous cancel semantics). Making it
+                // async would ripple through the hub + state-machine call sites
+                // without any runtime benefit — this runs from the hub thread on
+                // a user cancel click, not from the thread-pool hot path.
                 _recordingCoordinator.EmergencyStopAsync().GetAwaiter().GetResult();
             }
 

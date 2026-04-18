@@ -150,17 +150,45 @@ public class SpeechTranscriberFactory : ISpeechTranscriberFactory
     }
 
     /// <summary>
-    /// Loads provider IDs from database into cache. Called ONCE (lazy loading).
-    /// Thread-safe with double-check locking pattern.
+    /// Pre-loads provider IDs from database into the in-memory cache.
+    /// <c>SpeechTranscriberFactoryWarmupService</c> calls this during application
+    /// startup, so the hot path (<see cref="GetProviderId"/>) never has to trigger
+    /// the synchronous fallback below.
     /// </summary>
-    /// <remarks>
-    /// This method uses synchronous blocking (.GetAwaiter().GetResult()) intentionally.
-    /// The cache loading happens only ONCE during first use (startup-time lazy loading),
-    /// not during request processing. This pattern is acceptable here because:
-    /// 1. Single DB query executed at most once per application lifetime
-    /// 2. No synchronization context issues in this singleton factory
-    /// 3. Avoids adding async complexity to GetProviderId API used by transcription pipeline
-    /// </remarks>
+    public async Task WarmupAsync(CancellationToken cancellationToken = default)
+    {
+        if (_providerIdCache != null) return;
+
+        var providers = await _queryProcessor
+            .ProcessAsync(new GetProvidersByTypeQuery("stt"), cancellationToken)
+            .ConfigureAwait(false);
+
+        lock (_cacheLock)
+        {
+            if (_providerIdCache != null) return;
+
+            _providerIdCache = providers.ToDictionary(
+                p => p.Name,
+                p => p.Id,
+                StringComparer.OrdinalIgnoreCase);
+        }
+
+        _logger.LogInformation(
+            "Warmed {Count} STT providers from database: {Providers}",
+            _providerIdCache.Count,
+            string.Join(", ", _providerIdCache.Select(p => $"{p.Key}={p.Value}")));
+    }
+
+    /// <summary>
+    /// Loads provider IDs from database into cache via synchronous blocking.
+    /// In production this is unreachable because the warmup hosted service
+    /// populates the cache at startup before any transcription pipeline runs;
+    /// it remains as a defensive fallback for test environments where
+    /// <see cref="WarmupAsync"/> was not invoked. The sync-over-async is
+    /// acceptable on that cold-start path because the caller is inside a
+    /// double-checked lock and the blocking call happens at most once per
+    /// process lifetime.
+    /// </summary>
     private void EnsureProviderIdCacheLoaded()
     {
         if (_providerIdCache != null) return;
@@ -169,8 +197,6 @@ public class SpeechTranscriberFactory : ISpeechTranscriberFactory
         {
             if (_providerIdCache != null) return;
 
-            // Load all STT providers from database - THIS IS THE ONLY DB QUERY
-            // Synchronous call is acceptable here - see remarks above
             var providers = _queryProcessor.ProcessAsync(
                 new GetProvidersByTypeQuery("stt"), CancellationToken.None).GetAwaiter().GetResult();
 
@@ -180,7 +206,7 @@ public class SpeechTranscriberFactory : ISpeechTranscriberFactory
                 StringComparer.OrdinalIgnoreCase);
 
             _logger.LogInformation(
-                "Loaded {Count} STT providers from database: {Providers}",
+                "Loaded {Count} STT providers from database (cold-start fallback): {Providers}",
                 _providerIdCache.Count,
                 string.Join(", ", _providerIdCache.Select(p => $"{p.Key}={p.Value}")));
         }

@@ -16,7 +16,7 @@ namespace Olbrasoft.VirtualAssistant.Voice.Audio;
 /// Maximum buffer size is configurable via <see cref="AudioRecordingOptions.MaxBufferSizeBytes"/>.
 /// This prevents excessive memory usage during long recording sessions.
 /// </remarks>
-public class AudioRecordingCoordinator : IAudioRecordingCoordinator, IDisposable
+public class AudioRecordingCoordinator : IAudioRecordingCoordinator, IAsyncDisposable, IDisposable
 {
     private readonly ILogger<AudioRecordingCoordinator> _logger;
     private readonly IAudioCaptureService _audioCapture;
@@ -217,6 +217,43 @@ public class AudioRecordingCoordinator : IAudioRecordingCoordinator, IDisposable
         _recordingTask = null;
     }
 
+    /// <summary>
+    /// Async disposal that properly awaits any in-flight emergency stop. Preferred
+    /// path when the DI container is IAsyncDisposable-aware (ASP.NET Core host is).
+    /// </summary>
+    public async ValueTask DisposeAsync()
+    {
+        if (_disposed) return;
+        _disposed = true;
+
+        _scheduler.ChunkAvailable -= OnSchedulerChunkAvailable;
+
+        if (IsRecording)
+        {
+            _logger.LogWarning("AudioRecordingCoordinator DisposeAsync while recording - performing emergency stop");
+            try
+            {
+                await EmergencyStopAsync(CancellationToken.None).ConfigureAwait(false);
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(ex, "Error during emergency stop in DisposeAsync");
+            }
+        }
+
+        CleanupRecording();
+        GC.SuppressFinalize(this);
+    }
+
+    /// <summary>
+    /// Synchronous fallback disposal. Only executes when the container or caller
+    /// invokes <see cref="IDisposable.Dispose"/> instead of <see cref="DisposeAsync"/>.
+    /// The sync-over-async EmergencyStop here is acceptable because this code path
+    /// runs at process shutdown from the host thread — not from a thread-pool
+    /// request handler — so the deadlock risk that normally justifies banning the
+    /// pattern does not apply. Callers that already have an async context should
+    /// prefer <see cref="DisposeAsync"/>.
+    /// </summary>
     public void Dispose()
     {
         if (_disposed) return;
@@ -226,10 +263,9 @@ public class AudioRecordingCoordinator : IAudioRecordingCoordinator, IDisposable
 
         if (IsRecording)
         {
-            _logger.LogWarning("AudioRecordingCoordinator disposed while recording - performing emergency stop");
+            _logger.LogWarning("AudioRecordingCoordinator Dispose while recording - performing emergency stop (prefer DisposeAsync)");
             try
             {
-                // Synchronous emergency stop (can't await in Dispose).
                 EmergencyStopAsync(CancellationToken.None).GetAwaiter().GetResult();
             }
             catch (Exception ex)
@@ -239,5 +275,6 @@ public class AudioRecordingCoordinator : IAudioRecordingCoordinator, IDisposable
         }
 
         CleanupRecording();
+        GC.SuppressFinalize(this);
     }
 }
