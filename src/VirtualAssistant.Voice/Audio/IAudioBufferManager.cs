@@ -17,7 +17,15 @@ public interface IAudioBufferManager
     /// Appends <paramref name="chunk"/> iff doing so would not exceed
     /// <paramref name="maxSizeBytes"/>. Returns <c>false</c> (without mutation)
     /// when the limit would be breached so the caller can stop the capture
-    /// loop cleanly.
+    /// loop cleanly. Preferred over the span overload on the hot path — the
+    /// span overload has to clone into a temp array before feeding
+    /// <see cref="List{T}.AddRange(IEnumerable{T})"/>.
+    /// </summary>
+    bool TryAppend(byte[] chunk, int maxSizeBytes, out int newByteCount);
+
+    /// <summary>
+    /// Span-based overload. Pays one extra copy via <c>ToArray()</c> — only
+    /// use when the caller genuinely holds a span.
     /// </summary>
     bool TryAppend(ReadOnlySpan<byte> chunk, int maxSizeBytes, out int newByteCount);
 
