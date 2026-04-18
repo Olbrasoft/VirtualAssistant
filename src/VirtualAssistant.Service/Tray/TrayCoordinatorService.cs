@@ -14,9 +14,7 @@ public class TrayCoordinatorService : IDisposable
     private readonly ITrayIconCoordinator _iconCoordinator;
     private readonly IMenuEventDispatcher _menuDispatcher;
     private readonly IMenuEventForwarder _menuEventForwarder;
-    private readonly IServiceLifecycleManager _lifecycleManager;
     private readonly IStateNotificationHandler _stateHandler;
-    private readonly IIconAnimationService _iconAnimationService;
 
     // Stored handlers for clean unsubscription in Dispose. Inline lambdas
     // would give each += a fresh delegate instance and -= would not remove it.
@@ -44,17 +42,13 @@ public class TrayCoordinatorService : IDisposable
         ITrayIconCoordinator iconCoordinator,
         IMenuEventDispatcher menuDispatcher,
         IMenuEventForwarder menuEventForwarder,
-        IServiceLifecycleManager lifecycleManager,
-        IStateNotificationHandler stateHandler,
-        IIconAnimationService iconAnimationService)
+        IStateNotificationHandler stateHandler)
     {
         _logger = logger ?? throw new ArgumentNullException(nameof(logger));
         _iconCoordinator = iconCoordinator ?? throw new ArgumentNullException(nameof(iconCoordinator));
         _menuDispatcher = menuDispatcher ?? throw new ArgumentNullException(nameof(menuDispatcher));
         _menuEventForwarder = menuEventForwarder ?? throw new ArgumentNullException(nameof(menuEventForwarder));
-        _lifecycleManager = lifecycleManager ?? throw new ArgumentNullException(nameof(lifecycleManager));
         _stateHandler = stateHandler ?? throw new ArgumentNullException(nameof(stateHandler));
-        _iconAnimationService = iconAnimationService ?? throw new ArgumentNullException(nameof(iconAnimationService));
 
         _quitHandler = () => OnQuitRequested?.Invoke();
         _muteToggleHandler = () => _menuDispatcher.HandleMuteToggle();

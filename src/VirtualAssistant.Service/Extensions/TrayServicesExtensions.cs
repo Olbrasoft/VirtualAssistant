@@ -190,7 +190,10 @@ public static class TrayServicesExtensions
             var logger = sp.GetRequiredService<ILogger<StateNotificationHandler>>();
             var muteService = sp.GetRequiredService<IManualMuteService>();
             var settingsService = sp.GetRequiredService<ISettingsService>();
-            var menuHandler = sp.GetRequiredService<SystemTrayMenuHandler>();
+            // Force-resolve the D-Bus handler so it's registered with D-Bus before
+            // StateNotificationHandler starts publishing updates; the previous
+            // `menuHandler as IServiceStatusUpdater` cast went away with #1007.
+            _ = sp.GetRequiredService<SystemTrayMenuHandler>();
             var iconCoordinator = sp.GetRequiredService<ITrayIconCoordinator>();
             var iconAnimationService = sp.GetRequiredService<IIconAnimationService>();
             var lifecycleManager = sp.GetService<IServiceLifecycleManager>();
@@ -229,9 +232,7 @@ public static class TrayServicesExtensions
                 sp.GetRequiredService<ITrayIconCoordinator>(),
                 sp.GetRequiredService<IMenuEventDispatcher>(),
                 sp.GetRequiredService<IMenuEventForwarder>(),
-                sp.GetRequiredService<IServiceLifecycleManager>(),
-                sp.GetRequiredService<IStateNotificationHandler>(),
-                sp.GetRequiredService<IIconAnimationService>());
+                sp.GetRequiredService<IStateNotificationHandler>());
         });
 
         return services;

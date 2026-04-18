@@ -7,10 +7,10 @@ using Olbrasoft.VirtualAssistant.Service.Tray.Menu;
 namespace Olbrasoft.VirtualAssistant.Service.Tests.Tray;
 
 /// <summary>
-/// Unit tests for <see cref="TrayCoordinatorService"/>. After the #980
-/// DBusMenuHandler split, the coordinator subscribes to menu-click events
-/// via <see cref="IMenuEventForwarder"/> instead of casting the D-Bus
-/// handler, so the tests reflect that dependency shape.
+/// Unit tests for <see cref="TrayCoordinatorService"/>. After the #1007
+/// cleanup the coordinator only keeps the dependencies it actually uses
+/// (icon coordinator, menu dispatcher, menu event forwarder, state
+/// notification handler).
 /// </summary>
 public class TrayCoordinatorServiceTests
 {
@@ -18,58 +18,37 @@ public class TrayCoordinatorServiceTests
     private readonly Mock<ITrayIconCoordinator> _iconCoordinatorMock = new();
     private readonly Mock<IMenuEventDispatcher> _menuDispatcherMock = new();
     private readonly Mock<IMenuEventForwarder> _menuEventForwarderMock = new();
-    private readonly Mock<IServiceLifecycleManager> _lifecycleManagerMock = new();
     private readonly Mock<IStateNotificationHandler> _stateHandlerMock = new();
-    private readonly Mock<IIconAnimationService> _iconAnimationServiceMock = new();
 
     [Fact]
     public void Constructor_WithNullLogger_Throws() =>
         Assert.Equal("logger", Assert.Throws<ArgumentNullException>(() =>
             new TrayCoordinatorService(null!, _iconCoordinatorMock.Object, _menuDispatcherMock.Object,
-                _menuEventForwarderMock.Object, _lifecycleManagerMock.Object,
-                _stateHandlerMock.Object, _iconAnimationServiceMock.Object)).ParamName);
+                _menuEventForwarderMock.Object, _stateHandlerMock.Object)).ParamName);
 
     [Fact]
     public void Constructor_WithNullIconCoordinator_Throws() =>
         Assert.Equal("iconCoordinator", Assert.Throws<ArgumentNullException>(() =>
             new TrayCoordinatorService(_loggerMock.Object, null!, _menuDispatcherMock.Object,
-                _menuEventForwarderMock.Object, _lifecycleManagerMock.Object,
-                _stateHandlerMock.Object, _iconAnimationServiceMock.Object)).ParamName);
+                _menuEventForwarderMock.Object, _stateHandlerMock.Object)).ParamName);
 
     [Fact]
     public void Constructor_WithNullMenuDispatcher_Throws() =>
         Assert.Equal("menuDispatcher", Assert.Throws<ArgumentNullException>(() =>
             new TrayCoordinatorService(_loggerMock.Object, _iconCoordinatorMock.Object, null!,
-                _menuEventForwarderMock.Object, _lifecycleManagerMock.Object,
-                _stateHandlerMock.Object, _iconAnimationServiceMock.Object)).ParamName);
+                _menuEventForwarderMock.Object, _stateHandlerMock.Object)).ParamName);
 
     [Fact]
     public void Constructor_WithNullMenuEventForwarder_Throws() =>
         Assert.Equal("menuEventForwarder", Assert.Throws<ArgumentNullException>(() =>
             new TrayCoordinatorService(_loggerMock.Object, _iconCoordinatorMock.Object, _menuDispatcherMock.Object,
-                null!, _lifecycleManagerMock.Object,
-                _stateHandlerMock.Object, _iconAnimationServiceMock.Object)).ParamName);
-
-    [Fact]
-    public void Constructor_WithNullLifecycleManager_Throws() =>
-        Assert.Equal("lifecycleManager", Assert.Throws<ArgumentNullException>(() =>
-            new TrayCoordinatorService(_loggerMock.Object, _iconCoordinatorMock.Object, _menuDispatcherMock.Object,
-                _menuEventForwarderMock.Object, null!,
-                _stateHandlerMock.Object, _iconAnimationServiceMock.Object)).ParamName);
+                null!, _stateHandlerMock.Object)).ParamName);
 
     [Fact]
     public void Constructor_WithNullStateHandler_Throws() =>
         Assert.Equal("stateHandler", Assert.Throws<ArgumentNullException>(() =>
             new TrayCoordinatorService(_loggerMock.Object, _iconCoordinatorMock.Object, _menuDispatcherMock.Object,
-                _menuEventForwarderMock.Object, _lifecycleManagerMock.Object,
-                null!, _iconAnimationServiceMock.Object)).ParamName);
-
-    [Fact]
-    public void Constructor_WithNullIconAnimationService_Throws() =>
-        Assert.Equal("iconAnimationService", Assert.Throws<ArgumentNullException>(() =>
-            new TrayCoordinatorService(_loggerMock.Object, _iconCoordinatorMock.Object, _menuDispatcherMock.Object,
-                _menuEventForwarderMock.Object, _lifecycleManagerMock.Object,
-                _stateHandlerMock.Object, null!)).ParamName);
+                _menuEventForwarderMock.Object, null!)).ParamName);
 
     [Fact]
     public async Task InitializeAsync_CallsIconCoordinatorInitialize()
@@ -108,15 +87,11 @@ public class TrayCoordinatorServiceTests
     }
 
     [Fact]
-    public void MuteToggleEvent_ForwardsToDispatcher()
+    public void Dispose_UnsubscribesFromMuteToggleEvent()
     {
-        // Raise the forwarder's event with raw Mock.Raise is fiddly on Action-
-        // typed events; the simplest coverage is to subscribe a handler to the
-        // forwarder mock and verify the coordinator-installed handler runs.
-        // Since Moq doesn't expose event invocation on non-EventHandler types
-        // without a little help, we instead pin the behavior by verifying
-        // wiring happens in the ctor (the private stored handler is attached),
-        // which the Dispose test below confirms with -= verification.
+        // Named for what it asserts — Dispose detaches the coordinator's
+        // MuteToggle handler from the forwarder. (Copilot on #1007 flagged
+        // the previous name as misleading.)
         var coordinator = CreateCoordinator();
         coordinator.Dispose();
 
@@ -138,8 +113,6 @@ public class TrayCoordinatorServiceTests
         var coordinator = CreateCoordinator();
         coordinator.Dispose();
 
-        // Key menu-click events must be detached so the forwarder (and the
-        // router behind it) don't keep the coordinator alive and routed.
         _menuEventForwarderMock.VerifyRemove(x => x.OnQuitRequested -= It.IsAny<Action>(), Times.Once);
         _menuEventForwarderMock.VerifyRemove(x => x.OnReloadPromptRequested -= It.IsAny<Action>(), Times.Once);
         _menuEventForwarderMock.VerifyRemove(x => x.OnReloadCorrectionsCacheRequested -= It.IsAny<Action>(), Times.Once);
@@ -159,7 +132,5 @@ public class TrayCoordinatorServiceTests
         _iconCoordinatorMock.Object,
         _menuDispatcherMock.Object,
         _menuEventForwarderMock.Object,
-        _lifecycleManagerMock.Object,
-        _stateHandlerMock.Object,
-        _iconAnimationServiceMock.Object);
+        _stateHandlerMock.Object);
 }
