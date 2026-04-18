@@ -23,120 +23,35 @@ public static class WorkerServicesExtensions
     /// <summary>
     /// Adds background worker services (hosted services).
     /// </summary>
+    private const string DictationKey = "dictation";
+
     public static IServiceCollection AddWorkerServices(this IServiceCollection services)
     {
         services.AddHostedService<KeyboardMonitorWorker>();
 
-        // Dictation worker (Phase 5 - keyboard-triggered dictation)
-        // Uses dedicated AudioCaptureService and TranscriptionService instances (not shared with continuous listening)
-        // Register as singleton first so it can be injected into TrayService
+        // Dictation has its own audio capture + recording coordinator + Whisper
+        // instance so it never contends with the continuous-listening pipeline.
+        // Each dependency gets its own keyed Singleton registration — the
+        // DictationWorker factory below then pulls them from the container
+        // instead of new-ing them inline.
+        services.AddDictationAudioServices();
+        services.AddDictationTranscriberServices();
+
         services.AddSingleton(sp =>
         {
-            var logger = sp.GetRequiredService<ILogger<DictationWorker>>();
-            var keyboardMonitor = sp.GetRequiredService<IKeyboardMonitor>();
-            var stateMachine = sp.GetRequiredService<Voice.StateMachine.IDictationStateMachine>();
-            var keyboardSimulation = sp.GetRequiredService<IKeyboardSimulationService>();
-            var typingSound = sp.GetRequiredKeyedService<ISoundEffectPlayer>("typing");
-            var cancelSound = sp.GetRequiredKeyedService<ISoundEffectPlayer>("cancel");
-            var scopeFactory = sp.GetRequiredService<IServiceScopeFactory>();
-
-            // Create dedicated AudioCaptureService for dictation (independent from continuous listening)
-            var audioCaptureLogger = sp.GetRequiredService<ILogger<AudioCaptureService>>();
-            var configuration = sp.GetRequiredService<IConfiguration>();
-            var audioCaptureService = new AudioCaptureService(audioCaptureLogger, configuration);
-
-            // Create AudioRecordingCoordinator with dedicated audio capture
-            var coordinatorLogger = sp.GetRequiredService<ILogger<Voice.Audio.AudioRecordingCoordinator>>();
-            var audioRecordingOptions = sp.GetRequiredService<IOptions<Voice.Configuration.AudioRecordingOptions>>();
-            var recordingCoordinator = new Voice.Audio.AudioRecordingCoordinator(
-                coordinatorLogger,
-                audioCaptureService,
-                audioRecordingOptions);
-
-            // Create dedicated TranscriptionService for Dictation with Google STT primary + Whisper fallback
-            var dictationOptionsService = sp.GetRequiredService<IOptions<DictationOptions>>();
-            var dictationOptions = dictationOptionsService.Value;
-            var speechSettings = sp.GetRequiredService<IOptions<SpeechProviderSettings>>().Value;
-            var factory = sp.GetRequiredService<ISpeechTranscriberFactory>();
-
-            // Get Google STT from keyed services (primary provider)
-            var googleTranscriber = sp.GetKeyedService<ISpeechTranscriber>("google");
-
-            // Create dedicated WhisperSpeechTranscriber for dictation fallback
-            // Uses DictationOptions.WhisperModelPath (large-v3-turbo) for higher accuracy
-            var continuousOptions = new ContinuousListenerOptions
-            {
-                WhisperModelPath = dictationOptions.WhisperModelPath,
-                WhisperLanguage = dictationOptions.WhisperLanguage,
-                UseGpu = true // Enable GPU acceleration for dictation
-            };
-            var whisperLogger = sp.GetRequiredService<ILogger<WhisperSpeechTranscriber>>();
-            var dictationWhisperTranscriber = new WhisperSpeechTranscriber(
-                whisperLogger,
-                Microsoft.Extensions.Options.Options.Create(continuousOptions));
-
-            // Create transcriber:
-            // - If Google is available and fallback is enabled: FallbackSpeechTranscriber (Google primary + Whisper fallback)
-            // - If Google is available and fallback is disabled: use Google directly
-            // - If Google is not available: use Whisper directly
-            ISpeechTranscriber dictationTranscriber;
-            if (googleTranscriber != null)
-            {
-                if (speechSettings.EnableFallback)
-                {
-                    var fallbackLogger = sp.GetRequiredService<ILogger<FallbackSpeechTranscriber>>();
-                    dictationTranscriber = new FallbackSpeechTranscriber(
-                        googleTranscriber,
-                        dictationWhisperTranscriber,
-                        factory,
-                        fallbackLogger,
-                        speechSettings);
-                }
-                else
-                {
-                    // Fallback disabled and Google available - use Google directly
-                    dictationTranscriber = googleTranscriber;
-                }
-            }
-            else
-            {
-                // Google not available - use Whisper directly
-                dictationTranscriber = dictationWhisperTranscriber;
-            }
-
-            var transcriptionLogger = sp.GetRequiredService<ILogger<TranscriptionService>>();
-            var textFilter = sp.GetRequiredService<ITextFilter>();
-            var lightweightTextFilter = sp.GetRequiredService<ILightweightTextFilter>();
-            var llmProviderFactory = sp.GetRequiredService<ILlmProviderFactory>();
-            var racingLlmProvider = sp.GetRequiredService<IRacingLlmProvider>();
-            var llmProviderOptions = sp.GetRequiredService<IOptions<LlmProviderOptions>>();
-
-            var dictationTranscriptionService = new TranscriptionService(
-                transcriptionLogger,
-                dictationTranscriber,
-                configuration,
-                textFilter,
-                lightweightTextFilter,
-                llmProviderFactory,
-                racingLlmProvider,
-                llmProviderOptions);
-
-            var hubContext = sp.GetRequiredService<IHubContext<DictationHub>>();
-            var cliAppDetector = sp.GetRequiredService<ICliAppDetector>();
-
             return new DictationWorker(
-                logger,
-                keyboardMonitor,
-                stateMachine,
-                recordingCoordinator,
-                dictationTranscriptionService,
-                keyboardSimulation,
-                typingSound,
-                cancelSound,
-                scopeFactory,
-                hubContext,
-                cliAppDetector,
-                dictationOptionsService);
+                sp.GetRequiredService<ILogger<DictationWorker>>(),
+                sp.GetRequiredService<IKeyboardMonitor>(),
+                sp.GetRequiredService<Voice.StateMachine.IDictationStateMachine>(),
+                sp.GetRequiredKeyedService<IAudioRecordingCoordinator>(DictationKey),
+                sp.GetRequiredKeyedService<ITranscriptionService>(DictationKey),
+                sp.GetRequiredService<IKeyboardSimulationService>(),
+                sp.GetRequiredKeyedService<ISoundEffectPlayer>("typing"),
+                sp.GetRequiredKeyedService<ISoundEffectPlayer>("cancel"),
+                sp.GetRequiredService<IServiceScopeFactory>(),
+                sp.GetRequiredService<IHubContext<DictationHub>>(),
+                sp.GetRequiredService<ICliAppDetector>(),
+                sp.GetRequiredService<IOptions<DictationOptions>>());
         });
 
         // Register the same instance as IDictationControl interface (issue #466)
@@ -163,5 +78,91 @@ public static class WorkerServicesExtensions
         services.AddHostedService<ScreenshotWatcherWorker>();
 
         return services;
+    }
+
+    /// <summary>
+    /// Registers the dedicated audio-capture and recording-coordinator instances
+    /// used by dictation. Keyed so they stay isolated from the continuous-listening
+    /// pipeline's shared singletons.
+    /// </summary>
+    private static void AddDictationAudioServices(this IServiceCollection services)
+    {
+        services.AddKeyedSingleton<IAudioCaptureService>(DictationKey, (sp, _) =>
+            new AudioCaptureService(
+                sp.GetRequiredService<ILogger<AudioCaptureService>>(),
+                sp.GetRequiredService<IConfiguration>()));
+
+        // Register under the interface so callers don't need to know the concrete
+        // implementation. Keeps DictationWorker and any future consumer decoupled
+        // from Voice.Audio.AudioRecordingCoordinator specifically.
+        services.AddKeyedSingleton<IAudioRecordingCoordinator>(DictationKey, (sp, _) =>
+            new Voice.Audio.AudioRecordingCoordinator(
+                sp.GetRequiredService<ILogger<Voice.Audio.AudioRecordingCoordinator>>(),
+                sp.GetRequiredKeyedService<IAudioCaptureService>(DictationKey),
+                sp.GetRequiredService<IOptions<Voice.Configuration.AudioRecordingOptions>>()));
+    }
+
+    /// <summary>
+    /// Registers the dedicated Whisper / transcriber chain and the TranscriptionService
+    /// that the dictation pipeline consumes. Keyed so they stay isolated from the
+    /// continuous-listening pipeline; each composition step is its own Singleton
+    /// registration so the graph is flat and individually testable.
+    /// </summary>
+    private static void AddDictationTranscriberServices(this IServiceCollection services)
+    {
+        // Dedicated Whisper tuned with DictationOptions (large-v3-turbo, GPU).
+        services.AddKeyedSingleton(DictationKey, (sp, _) =>
+        {
+            var dictationOptions = sp.GetRequiredService<IOptions<DictationOptions>>().Value;
+            var continuousOptions = new ContinuousListenerOptions
+            {
+                WhisperModelPath = dictationOptions.WhisperModelPath,
+                WhisperLanguage = dictationOptions.WhisperLanguage,
+                UseGpu = true
+            };
+            return new WhisperSpeechTranscriber(
+                sp.GetRequiredService<ILogger<WhisperSpeechTranscriber>>(),
+                Microsoft.Extensions.Options.Options.Create(continuousOptions));
+        });
+
+        // Active transcriber for dictation — Google primary + dedicated Whisper fallback
+        // when configured, otherwise the single available provider.
+        // NOTE: GoogleSpeechTranscriber is registered as a concrete singleton in
+        // VoiceServicesExtensions (NOT as a keyed ISpeechTranscriber), so we pull it
+        // by type here. A previous version of this code used
+        // GetKeyedService<ISpeechTranscriber>("google") which always returned null
+        // and silently fell back to Whisper (pre-existing bug) — Copilot caught it
+        // during the #977 review.
+        services.AddKeyedSingleton<ISpeechTranscriber>(DictationKey, (sp, _) =>
+        {
+            var speechSettings = sp.GetRequiredService<IOptions<SpeechProviderSettings>>().Value;
+            var factory = sp.GetRequiredService<ISpeechTranscriberFactory>();
+            var googleTranscriber = sp.GetService<GoogleSpeechTranscriber>();
+            var whisper = sp.GetRequiredKeyedService<WhisperSpeechTranscriber>(DictationKey);
+
+            if (googleTranscriber == null)
+                return whisper;
+
+            if (!speechSettings.EnableFallback)
+                return googleTranscriber;
+
+            return new FallbackSpeechTranscriber(
+                googleTranscriber,
+                whisper,
+                factory,
+                sp.GetRequiredService<ILogger<FallbackSpeechTranscriber>>(),
+                speechSettings);
+        });
+
+        services.AddKeyedSingleton<ITranscriptionService>(DictationKey, (sp, _) =>
+            new TranscriptionService(
+                sp.GetRequiredService<ILogger<TranscriptionService>>(),
+                sp.GetRequiredKeyedService<ISpeechTranscriber>(DictationKey),
+                sp.GetRequiredService<IConfiguration>(),
+                sp.GetRequiredService<ITextFilter>(),
+                sp.GetRequiredService<ILightweightTextFilter>(),
+                sp.GetRequiredService<ILlmProviderFactory>(),
+                sp.GetRequiredService<IRacingLlmProvider>(),
+                sp.GetRequiredService<IOptions<LlmProviderOptions>>()));
     }
 }
