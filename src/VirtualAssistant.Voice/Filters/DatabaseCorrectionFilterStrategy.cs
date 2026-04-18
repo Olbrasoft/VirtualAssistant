@@ -44,7 +44,12 @@ public class DatabaseCorrectionFilterStrategy : ITextFilterStrategy
         if (string.IsNullOrWhiteSpace(text))
             return text;
 
-        // Refresh database corrections cache if needed
+        // Refresh database corrections cache if needed. The sync-over-async here
+        // is accepted: DatabaseCorrectionCacheWarmupService pre-loads the cache
+        // on startup and refreshes periodically, so this synchronous fallback
+        // only fires on cold start before warmup completes, or immediately after
+        // InvalidateCache() is called from the tray-menu "Obnovit cache" button —
+        // and in that case the user explicitly wants a blocking refresh.
         RefreshCorrectionsCache();
 
         if (_cachedCorrections.Count == 0)
