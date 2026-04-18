@@ -53,6 +53,21 @@ public class TerminalCliAppDetector : ICliAppDetector
     };
 
     /// <summary>
+    /// tmux session-name fallback for when the CLI app runs under the user's
+    /// tmux wrapper (bashrc names sessions <c>claude-&lt;repo&gt;-&lt;tty&gt;</c>,
+    /// <c>opencode-…</c> etc.). The tmux server is a systemd daemon so claude
+    /// is never a descendant of the focused terminal; the tmux *client*
+    /// however is, and tmux can tell us which session that client is attached
+    /// to. We look at the session name prefix to identify the CLI agent.
+    /// </summary>
+    private static readonly (string Prefix, string AppName, string PromptFileName)[] TmuxSessionPrefixes =
+    {
+        ("claude-", "Claude Code", "ClaudeCodeCorrection"),
+        ("opencode-", "OpenCode", "OpenCodeCorrection"),
+        ("gemini-", "Gemini CLI", "GeminiCorrection")
+    };
+
+    /// <summary>
     /// Terminal window classes that we know how to detect CLI apps in.
     /// </summary>
     private static readonly HashSet<string> TerminalClasses = new(StringComparer.OrdinalIgnoreCase)
@@ -128,7 +143,18 @@ public class TerminalCliAppDetector : ICliAppDetector
                 }
             }
 
-            _logger.LogDebug("No known CLI apps detected in terminal descendants or title");
+            // Last fallback: the user's bashrc wrapper runs `tmux new-session -s
+            // claude-<repo>-<tty> -- claude "$@"`, so the tmux *client* is in the
+            // terminal's descendants but the claude process lives under the tmux
+            // server (systemd-scoped, not in the process tree). Ask tmux which
+            // session that client is attached to and match the session name prefix.
+            var cliAppFromTmux = await DetectCliAppViaTmuxAsync(descendantPids, cancellationToken);
+            if (cliAppFromTmux != null)
+            {
+                return CacheAndReturn(cliAppFromTmux);
+            }
+
+            _logger.LogDebug("No known CLI apps detected in terminal descendants, title or tmux sessions");
             // Confirmed terminal without any known CLI app (e.g. plain bash): same
             // invalidation reason as the non-terminal branch.
             ClearCache();
@@ -338,6 +364,122 @@ public class TerminalCliAppDetector : ICliAppDetector
         }
 
         return children;
+    }
+
+    /// <summary>
+    /// Parses the output of <c>tmux list-clients -F "#{client_pid}:#{session_name}"</c>
+    /// into a map of client PID → session name. Blank and malformed lines are
+    /// skipped. Session names may contain colons so we split on the first ':' only.
+    /// </summary>
+    internal static Dictionary<int, string> ParseTmuxClients(string? output)
+    {
+        var map = new Dictionary<int, string>();
+        if (string.IsNullOrWhiteSpace(output))
+        {
+            return map;
+        }
+
+        foreach (var line in output.Split('\n', StringSplitOptions.RemoveEmptyEntries))
+        {
+            var trimmed = line.Trim();
+            var separator = trimmed.IndexOf(':');
+            if (separator <= 0 || separator == trimmed.Length - 1)
+            {
+                continue;
+            }
+
+            if (!int.TryParse(trimmed[..separator], out var pid))
+            {
+                continue;
+            }
+
+            var session = trimmed[(separator + 1)..];
+            if (!string.IsNullOrEmpty(session))
+            {
+                map[pid] = session;
+            }
+        }
+
+        return map;
+    }
+
+    /// <summary>
+    /// Matches a tmux session name against <see cref="TmuxSessionPrefixes"/> and
+    /// returns the CLI-app detection result if the prefix is known, otherwise null.
+    /// </summary>
+    internal static CliAppDetectionResult? MatchTmuxSessionName(string sessionName)
+    {
+        foreach (var (prefix, appName, promptFileName) in TmuxSessionPrefixes)
+        {
+            if (sessionName.StartsWith(prefix, StringComparison.OrdinalIgnoreCase))
+            {
+                return new CliAppDetectionResult(appName, promptFileName);
+            }
+        }
+        return null;
+    }
+
+    /// <summary>
+    /// Runs <c>tmux list-clients</c> and returns the first descendant PID's
+    /// session whose name matches a known CLI-agent prefix.
+    /// </summary>
+    private async Task<CliAppDetectionResult?> DetectCliAppViaTmuxAsync(HashSet<int> descendantPids, CancellationToken cancellationToken)
+    {
+        if (descendantPids.Count == 0)
+        {
+            return null;
+        }
+
+        try
+        {
+            var process = new Process
+            {
+                StartInfo = new ProcessStartInfo
+                {
+                    FileName = "tmux",
+                    Arguments = "list-clients -F \"#{client_pid}:#{session_name}\"",
+                    RedirectStandardOutput = true,
+                    RedirectStandardError = true,
+                    UseShellExecute = false,
+                    CreateNoWindow = true
+                }
+            };
+
+            process.Start();
+            var output = await process.StandardOutput.ReadToEndAsync(cancellationToken);
+            await process.WaitForExitAsync(cancellationToken);
+
+            if (process.ExitCode != 0 || string.IsNullOrWhiteSpace(output))
+            {
+                _logger.LogDebug("tmux list-clients returned no data (exit {ExitCode})", process.ExitCode);
+                return null;
+            }
+
+            var clients = ParseTmuxClients(output);
+            foreach (var pid in descendantPids)
+            {
+                if (!clients.TryGetValue(pid, out var sessionName))
+                {
+                    continue;
+                }
+
+                var match = MatchTmuxSessionName(sessionName);
+                if (match != null)
+                {
+                    _logger.LogInformation(
+                        "Detected CLI app via tmux session '{Session}' (client PID {Pid}): {AppName}",
+                        sessionName, pid, match.AppName);
+                    return match;
+                }
+            }
+
+            return null;
+        }
+        catch (Exception ex)
+        {
+            _logger.LogDebug(ex, "Failed to query tmux clients for CLI app detection");
+            return null;
+        }
     }
 
     /// <summary>
