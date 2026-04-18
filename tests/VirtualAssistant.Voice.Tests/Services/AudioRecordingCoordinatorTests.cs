@@ -30,10 +30,15 @@ public class AudioRecordingCoordinatorTests
             MaxRecordingDurationMinutes = 16
         });
 
+        // Use real buffer and scheduler so these tests continue to assert
+        // end-to-end behavior (byte accumulation + drain). Their individual
+        // units are covered by dedicated test classes.
         _sut = new AudioRecordingCoordinator(
             _loggerMock.Object,
             _audioCaptureMock.Object,
-            _defaultOptions);
+            _defaultOptions,
+            new AudioBufferManager(),
+            new ChunkEmissionScheduler(Mock.Of<ILogger<ChunkEmissionScheduler>>()));
     }
 
     #region StartRecordingAsync Tests
