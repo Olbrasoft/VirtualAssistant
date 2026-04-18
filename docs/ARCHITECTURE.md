@@ -17,9 +17,8 @@ VirtualAssistant is a **Linux voice-controlled virtual assistant** built on .NET
 
 ```
 ~/Olbrasoft/VirtualAssistant/
-├── src/                                    # 9 production projects
+├── src/                                    # 8 production projects
 │   ├── VirtualAssistant.Service            # ASP.NET Core host (port 5055) - ENTRY POINT
-│   ├── VirtualAssistant.Api                # REST API endpoints (Minimal API)
 │   ├── VirtualAssistant.Core               # Business logic, services, events
 │   ├── VirtualAssistant.Voice              # Audio capture, VAD, Whisper STT, TTS
 │   ├── VirtualAssistant.Data               # Entities, DTOs, CQRS commands/queries
@@ -28,11 +27,10 @@ VirtualAssistant is a **Linux voice-controlled virtual assistant** built on .NET
 │   ├── VirtualAssistant.GitHub             # GitHub API, embeddings (pgvector)
 │   └── VirtualAssistant.LlmChain           # Multi-provider LLM routing
 │
-├── tests/                                  # 8 test projects (xUnit + Moq)
+├── tests/                                  # 7 test projects (xUnit + Moq)
 │   ├── VirtualAssistant.Core.Tests
 │   ├── VirtualAssistant.Voice.Tests
 │   ├── VirtualAssistant.Service.Tests
-│   ├── VirtualAssistant.Api.Tests
 │   ├── VirtualAssistant.Data.EntityFrameworkCore.Tests
 │   ├── VirtualAssistant.Desktop.Tests
 │   ├── VirtualAssistant.GitHub.Tests
