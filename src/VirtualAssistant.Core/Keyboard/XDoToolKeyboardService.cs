@@ -29,6 +29,15 @@ public class XDoToolKeyboardService : IKeyboardSimulationService
         _logger = logger ?? throw new ArgumentNullException(nameof(logger));
     }
 
+    // Defense-in-depth: paste shortcuts are never passed to a shell, but the
+    // value is still used as dotool input. Keep the allowed set explicit so a
+    // future refactor that changes the source of this value cannot slip in
+    // something unexpected.
+    private static readonly HashSet<string> AllowedPasteShortcuts = new(StringComparer.OrdinalIgnoreCase)
+    {
+        "ctrl+v", "ctrl+shift+v", "shift+insert"
+    };
+
     /// <summary>
     /// Types text into the active window using clipboard + dotool paste.
     /// For terminal CLI agents (Claude Code, OpenCode, Gemini) the text is
@@ -76,12 +85,16 @@ public class XDoToolKeyboardService : IKeyboardSimulationService
             _logger.LogInformation("Simulating paste with shortcut: {Shortcut} (selection: {Selection})",
                 pasteShortcut, usePrimary ? "PRIMARY" : "CLIPBOARD");
 
-            var dotoolProcess = new Process
+            // Invoke dotool directly and pipe the command over stdin. The previous
+            // implementation composed a `bash -c "echo 'key …' | dotool"` string with
+            // string interpolation — safe only because pasteShortcut came from a
+            // hardcoded set, but a shell-injection foot-gun if that ever changes.
+            using var dotoolProcess = new Process
             {
                 StartInfo = new ProcessStartInfo
                 {
-                    FileName = "/bin/bash",
-                    Arguments = $"-c \"echo 'key {pasteShortcut}' | dotool\"",
+                    FileName = "dotool",
+                    RedirectStandardInput = true,
                     RedirectStandardOutput = true,
                     RedirectStandardError = true,
                     UseShellExecute = false,
@@ -90,6 +103,8 @@ public class XDoToolKeyboardService : IKeyboardSimulationService
             };
 
             dotoolProcess.Start();
+            await dotoolProcess.StandardInput.WriteLineAsync($"key {pasteShortcut}");
+            dotoolProcess.StandardInput.Close();
 
             // Add timeout to prevent hanging (max 5 seconds for paste)
             var dotoolTask = dotoolProcess.WaitForExitAsync(cancellationToken);
@@ -452,7 +467,7 @@ public class XDoToolKeyboardService : IKeyboardSimulationService
             _logger.LogInformation(
                 "Using paste shortcut: shift+insert (CLI app: {AppName} — Ctrl+Shift+V would be hijacked)",
                 cliApp.AppName);
-            return "shift+insert";
+            return EnsureAllowedShortcut("shift+insert");
         }
 
         var isTerminal = await _terminalDetector.IsTerminalActiveAsync(cancellationToken);
@@ -461,6 +476,17 @@ public class XDoToolKeyboardService : IKeyboardSimulationService
         _logger.LogInformation("Using paste shortcut: {Shortcut} (terminal: {IsTerminal})",
             pasteShortcut, isTerminal);
 
-        return pasteShortcut;
+        return EnsureAllowedShortcut(pasteShortcut);
+    }
+
+    private static string EnsureAllowedShortcut(string shortcut)
+    {
+        if (!AllowedPasteShortcuts.Contains(shortcut))
+        {
+            throw new InvalidOperationException(
+                $"Paste shortcut '{shortcut}' is not in the allowed set. " +
+                "Refusing to pass an unvetted value to dotool.");
+        }
+        return shortcut;
     }
 }
