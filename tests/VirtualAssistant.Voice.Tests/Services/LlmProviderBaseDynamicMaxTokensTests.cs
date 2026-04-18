@@ -146,9 +146,8 @@ public class LlmProviderBaseDynamicMaxTokensTests
             httpClient,
             Mock.Of<IPromptCache>(),
             Mock.Of<ILogger>(),
-            Mock.Of<IDesktopContextService>(),
             Mock.Of<IQueryProcessor>(),
-            Mock.Of<ICliAppDetector>(),
+            Mock.Of<ISystemPromptResolver>(),
             Mock.Of<IServiceScopeFactory>());
     }
 
@@ -162,11 +161,10 @@ public class LlmProviderBaseDynamicMaxTokensTests
             HttpClient httpClient,
             IPromptCache promptCache,
             ILogger logger,
-            IDesktopContextService desktopContextService,
             IQueryProcessor queryProcessor,
-            ICliAppDetector cliAppDetector,
+            ISystemPromptResolver promptResolver,
             IServiceScopeFactory scopeFactory)
-            : base(httpClient, promptCache, logger, desktopContextService, queryProcessor, cliAppDetector, scopeFactory, initialEnabled: true)
+            : base(httpClient, promptCache, logger, queryProcessor, promptResolver, scopeFactory, initialEnabled: true)
         {
         }
 

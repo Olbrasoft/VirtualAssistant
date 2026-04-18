@@ -31,11 +31,10 @@ public class ZenProvider : LlmProviderBase
         IOptions<ZenOptions> options,
         IPromptCache promptCache,
         ILogger<ZenProvider> logger,
-        IDesktopContextService desktopContextService,
         IQueryProcessor queryProcessor,
-        ICliAppDetector cliAppDetector,
+        ISystemPromptResolver promptResolver,
         IServiceScopeFactory scopeFactory)
-        : base(httpClient, promptCache, logger, desktopContextService, queryProcessor, cliAppDetector, scopeFactory, options.Value.Enabled)
+        : base(httpClient, promptCache, logger, queryProcessor, promptResolver, scopeFactory, options.Value.Enabled)
     {
         _options = options.Value;
 
