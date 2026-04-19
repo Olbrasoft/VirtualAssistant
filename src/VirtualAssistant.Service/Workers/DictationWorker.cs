@@ -19,7 +19,7 @@ namespace Olbrasoft.VirtualAssistant.Service.Workers;
 public class DictationWorker : BackgroundService, IDictationControl, IDictationService
 {
     private readonly ILogger<DictationWorker> _logger;
-    private readonly IKeyboardMonitor _keyboardMonitor;
+    private readonly IDictationKeyHandler _keyHandler;
     private readonly IDictationStateMachine _stateMachine;
     private readonly IDictationRecordingSession _recordingSession;
     private readonly IDictationTranscriber _transcriber;
@@ -40,7 +40,7 @@ public class DictationWorker : BackgroundService, IDictationControl, IDictationS
 
     public DictationWorker(
         ILogger<DictationWorker> logger,
-        IKeyboardMonitor keyboardMonitor,
+        IDictationKeyHandler keyHandler,
         IDictationStateMachine stateMachine,
         IDictationRecordingSession recordingSession,
         IDictationTranscriber transcriber,
@@ -49,7 +49,7 @@ public class DictationWorker : BackgroundService, IDictationControl, IDictationS
         IOptions<DictationOptions> options)
     {
         _logger = logger ?? throw new ArgumentNullException(nameof(logger));
-        _keyboardMonitor = keyboardMonitor ?? throw new ArgumentNullException(nameof(keyboardMonitor));
+        _keyHandler = keyHandler ?? throw new ArgumentNullException(nameof(keyHandler));
         _stateMachine = stateMachine ?? throw new ArgumentNullException(nameof(stateMachine));
         _recordingSession = recordingSession ?? throw new ArgumentNullException(nameof(recordingSession));
         _transcriber = transcriber ?? throw new ArgumentNullException(nameof(transcriber));
@@ -170,8 +170,11 @@ public class DictationWorker : BackgroundService, IDictationControl, IDictationS
 
         try
         {
-            // Subscribe to keyboard events
-            _keyboardMonitor.KeyReleased += OnKeyReleased;
+            // Wire the key handler to the worker's state + action surface.
+            // The handler owns the IKeyboardMonitor subscription + the
+            // ScrollLock/Pause routing tree; the worker just exposes the
+            // four bindings the handler can trigger via IDictationKeyHandlerBindings.
+            _keyHandler.Start(new KeyHandlerBindings(this));
 
             // Subscribe to state changes for SignalR broadcasting
             _stateMachine.StateChanged += OnStateChangedBroadcast;
@@ -192,7 +195,7 @@ public class DictationWorker : BackgroundService, IDictationControl, IDictationS
         }
         finally
         {
-            _keyboardMonitor.KeyReleased -= OnKeyReleased;
+            _keyHandler.Stop();
             _stateMachine.StateChanged -= OnStateChangedBroadcast;
             TranscriptionCompleted -= OnTranscriptionCompletedBroadcast;
             _transcriber.RawTranscriptionReady -= OnRawTranscriptionReadyBroadcast;
@@ -206,78 +209,28 @@ public class DictationWorker : BackgroundService, IDictationControl, IDictationS
     }
 
     /// <summary>
-    /// Event handler for key release. Uses fire-and-forget pattern
-    /// to delegate to async handler with proper exception handling.
+    /// Tiny adapter that exposes the worker's state + the four key-triggered
+    /// actions to <see cref="IDictationKeyHandler"/> without leaking the
+    /// whole worker into the handler. Keeping it nested avoids polluting the
+    /// namespace with a helper type that only the worker's factory call
+    /// uses. (#969 god-class split.)
     /// </summary>
-    private void OnKeyReleased(object? sender, KeyEventArgs e)
+    private sealed class KeyHandlerBindings(DictationWorker worker) : IDictationKeyHandlerBindings
     {
-        _ = HandleKeyReleasedAsync(e);
-    }
+        public bool IsEnabled => worker._dictationEnabled;
+        public DictationState State => worker._stateMachine.CurrentState;
 
-    /// <summary>
-    /// Handles key release events and manages dictation workflow accordingly.
-    /// </summary>
-    private async Task HandleKeyReleasedAsync(KeyEventArgs e)
-    {
-        try
+        public Task StartAsync()
         {
-            // Ignore all keys when dictation is disabled
-            if (!_dictationEnabled)
-                return;
-
-            // Pause - cancel recording or transcription
-            if (e.Key == KeyCode.Pause)
-            {
-                var state = _stateMachine.CurrentState;
-
-                // Cancel during recording - discard audio, play cancel sound
-                if (state == DictationState.Recording)
-                {
-                    _logger.LogInformation("Pause pressed during recording - canceling dictation");
-                    await CancelRecordingAsync();
-                    return;
-                }
-
-                // Cancel during transcription
-                if (state == DictationState.Transcribing)
-                {
-                    _logger.LogInformation("Pause pressed - canceling transcription");
-                    CancelTranscription();
-                    return;
-                }
-            }
-
-            // Only handle ScrollLock
-            if (e.Key != KeyCode.ScrollLock)
-                return;
-
-            var currentState = _stateMachine.CurrentState;
-            _logger.LogDebug("ScrollLock released - State: {State}", currentState);
-
-            // Toggle logic: ScrollLock toggles between Idle and Recording
-            // Idle → Start recording
-            if (currentState == DictationState.Idle)
-            {
-                _logger.LogInformation("ScrollLock pressed - starting dictation");
-                _quickDictationMode = false;
-                _ = Task.Run(async () => await StartRecordingAsync());
-            }
-            // Recording → Stop and transcribe
-            else if (currentState == DictationState.Recording)
-            {
-                _logger.LogInformation("ScrollLock pressed - stopping dictation");
-                _ = Task.Run(async () => await StopAndTranscribeAsync());
-            }
-            // Transcribing → Ignore (use Pause to cancel)
-            else if (currentState == DictationState.Transcribing)
-            {
-                _logger.LogDebug("ScrollLock pressed during transcription - ignored (use Pause to cancel)");
-            }
+            worker._quickDictationMode = false;
+            return worker.StartRecordingAsync();
         }
-        catch (Exception ex)
-        {
-            _logger.LogError(ex, "Error handling key release");
-        }
+
+        public Task StopAndTranscribeAsync() => worker.StopAndTranscribeAsync();
+
+        public Task CancelRecordingAsync() => worker.CancelRecordingAsync();
+
+        public void CancelTranscription() => worker.CancelTranscription();
     }
 
     private void OnStateChangedBroadcast(object? sender, DictationState state)
