@@ -82,16 +82,25 @@ public class DictationRecordingSessionTests
         _coordinatorMock
             .Setup(x => x.StartRecordingAsync(It.IsAny<CancellationToken>()))
             .ThrowsAsync(new InvalidOperationException("boom"));
+
+        // Order matters: any observer reacting to Idle must already see the
+        // transcriber session closed + chunking off, so cleanup MUST precede
+        // the Idle transition. Callback-based trace pins the sequence.
+        var order = new List<string>();
+        _transcriberMock.Setup(x => x.EndSession()).Callback(() => order.Add("end-session"));
+        _coordinatorMock.Setup(x => x.DisableChunking()).Callback(() => order.Add("disable-chunking"));
+        _stateMachineMock.Setup(x => x.TransitionTo(DictationState.Idle)).Callback(() => order.Add("idle"));
+
         var sut = CreateSut();
 
         await sut.StartAsync(streamingActive: true);
 
         _transcriberMock.Verify(x => x.BeginSession(true), Times.Once);
         _coordinatorMock.Verify(x => x.EnableChunking(TimeSpan.FromSeconds(8)), Times.Once);
-        // Unwind: transcriber session ended and chunking disabled before flipping back to Idle.
         _transcriberMock.Verify(x => x.EndSession(), Times.Once);
         _coordinatorMock.Verify(x => x.DisableChunking(), Times.Once);
         _stateMachineMock.Verify(x => x.TransitionTo(DictationState.Idle), Times.Once);
+        Assert.Equal(new[] { "end-session", "disable-chunking", "idle" }, order);
     }
 
     [Fact]
