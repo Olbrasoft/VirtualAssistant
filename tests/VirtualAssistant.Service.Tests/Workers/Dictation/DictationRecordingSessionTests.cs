@@ -1,33 +1,47 @@
 using Microsoft.Extensions.Logging;
 using Moq;
 using Olbrasoft.VirtualAssistant.Core.Audio;
+using Olbrasoft.VirtualAssistant.Core.StateMachine;
 using Olbrasoft.VirtualAssistant.Service.Workers.Dictation;
+using Olbrasoft.VirtualAssistant.Voice.StateMachine;
 
 namespace Olbrasoft.VirtualAssistant.Service.Tests.Workers.Dictation;
 
 /// <summary>
 /// Pins the recording-session façade lifted out of DictationWorker in #969:
-/// StartAsync toggles chunking (8s on/off) and opens the transcriber's
-/// streaming session before starting audio capture, EmergencyStop discards
-/// audio without side-effects, and ChunkAvailable events are forwarded
-/// internally to the transcriber so the worker never sees them.
+/// StartAsync toggles chunking (8s on/off), opens the transcriber's streaming
+/// session, and transitions the state machine to Recording; StopAndValidateAsync
+/// stops the coordinator, transitions to Transcribing on non-empty buffers or
+/// Idle on empty, and returns null on empty. Session also owns the
+/// ChunkAvailable → transcriber.ForwardChunk forwarding.
 /// </summary>
 public class DictationRecordingSessionTests
 {
     private readonly Mock<ILogger<DictationRecordingSession>> _loggerMock = new();
     private readonly Mock<IAudioRecordingCoordinator> _coordinatorMock = new();
     private readonly Mock<IDictationTranscriber> _transcriberMock = new();
+    private readonly Mock<IDictationStateMachine> _stateMachineMock = new();
 
     private DictationRecordingSession CreateSut() =>
-        new(_loggerMock.Object, _coordinatorMock.Object, _transcriberMock.Object);
+        new(_loggerMock.Object, _coordinatorMock.Object, _transcriberMock.Object, _stateMachineMock.Object);
 
     [Fact]
-    public async Task StartAsync_Streaming_EnablesChunkingAndOpensTranscriberSession()
+    public void CurrentState_DelegatesToStateMachine()
+    {
+        _stateMachineMock.SetupGet(x => x.CurrentState).Returns(DictationState.Transcribing);
+        var sut = CreateSut();
+
+        Assert.Equal(DictationState.Transcribing, sut.CurrentState);
+    }
+
+    [Fact]
+    public async Task StartAsync_Streaming_TransitionsRecordingEnablesChunkingAndOpensSession()
     {
         var sut = CreateSut();
 
         await sut.StartAsync(streamingActive: true);
 
+        _stateMachineMock.Verify(x => x.TransitionTo(DictationState.Recording), Times.Once);
         _transcriberMock.Verify(x => x.BeginSession(true), Times.Once);
         _coordinatorMock.Verify(x => x.EnableChunking(TimeSpan.FromSeconds(8)), Times.Once);
         _coordinatorMock.Verify(x => x.DisableChunking(), Times.Never);
@@ -35,15 +49,13 @@ public class DictationRecordingSessionTests
     }
 
     [Fact]
-    public async Task StartAsync_NonStreaming_DisablesChunkingAndStillOpensTranscriberSession()
+    public async Task StartAsync_NonStreaming_TransitionsRecordingDisablesChunkingAndOpensSession()
     {
-        // Non-streaming is the default path; the transcriber still gets a
-        // BeginSession(false) so the assembler's "is active" flag is reset
-        // from any prior streaming session.
         var sut = CreateSut();
 
         await sut.StartAsync(streamingActive: false);
 
+        _stateMachineMock.Verify(x => x.TransitionTo(DictationState.Recording), Times.Once);
         _transcriberMock.Verify(x => x.BeginSession(false), Times.Once);
         _coordinatorMock.Verify(x => x.DisableChunking(), Times.Once);
         _coordinatorMock.Verify(x => x.EnableChunking(It.IsAny<TimeSpan>()), Times.Never);
@@ -51,15 +63,44 @@ public class DictationRecordingSessionTests
     }
 
     [Fact]
-    public async Task StopAsync_ReturnsCoordinatorBuffer()
+    public async Task StartAsync_StartRecordingThrows_TransitionsBackToIdle()
+    {
+        _coordinatorMock
+            .Setup(x => x.StartRecordingAsync(It.IsAny<CancellationToken>()))
+            .ThrowsAsync(new InvalidOperationException("boom"));
+        var sut = CreateSut();
+
+        await sut.StartAsync(streamingActive: false);
+
+        _stateMachineMock.Verify(x => x.TransitionTo(DictationState.Recording), Times.Once);
+        _stateMachineMock.Verify(x => x.TransitionTo(DictationState.Idle), Times.Once);
+    }
+
+    [Fact]
+    public async Task StopAndValidateAsync_NonEmptyBuffer_TransitionsTranscribingAndReturnsAudio()
     {
         var buffer = new byte[] { 1, 2, 3 };
         _coordinatorMock.Setup(x => x.StopRecordingAsync(It.IsAny<CancellationToken>())).ReturnsAsync(buffer);
         var sut = CreateSut();
 
-        var result = await sut.StopAsync();
+        var result = await sut.StopAndValidateAsync();
 
         Assert.Same(buffer, result);
+        _stateMachineMock.Verify(x => x.TransitionTo(DictationState.Transcribing), Times.Once);
+        _stateMachineMock.Verify(x => x.TransitionTo(DictationState.Idle), Times.Never);
+    }
+
+    [Fact]
+    public async Task StopAndValidateAsync_EmptyBuffer_TransitionsIdleAndReturnsNull()
+    {
+        _coordinatorMock.Setup(x => x.StopRecordingAsync(It.IsAny<CancellationToken>())).ReturnsAsync(Array.Empty<byte>());
+        var sut = CreateSut();
+
+        var result = await sut.StopAndValidateAsync();
+
+        Assert.Null(result);
+        _stateMachineMock.Verify(x => x.TransitionTo(DictationState.Idle), Times.Once);
+        _stateMachineMock.Verify(x => x.TransitionTo(DictationState.Transcribing), Times.Never);
     }
 
     [Fact]
@@ -96,9 +137,6 @@ public class DictationRecordingSessionTests
     [Fact]
     public void ChunkAvailable_ForwardedToTranscriber()
     {
-        // The point of pulling this into the session is that the worker never
-        // sees ChunkAvailable — the session subscribes at construction and
-        // fans out to the transcriber internally.
         var sut = CreateSut();
 
         _coordinatorMock.Raise(x => x.ChunkAvailable += null,
@@ -124,15 +162,20 @@ public class DictationRecordingSessionTests
     [Fact]
     public void Constructor_NullLogger_Throws() =>
         Assert.Throws<ArgumentNullException>(() =>
-            new DictationRecordingSession(null!, _coordinatorMock.Object, _transcriberMock.Object));
+            new DictationRecordingSession(null!, _coordinatorMock.Object, _transcriberMock.Object, _stateMachineMock.Object));
 
     [Fact]
     public void Constructor_NullCoordinator_Throws() =>
         Assert.Throws<ArgumentNullException>(() =>
-            new DictationRecordingSession(_loggerMock.Object, null!, _transcriberMock.Object));
+            new DictationRecordingSession(_loggerMock.Object, null!, _transcriberMock.Object, _stateMachineMock.Object));
 
     [Fact]
     public void Constructor_NullTranscriber_Throws() =>
         Assert.Throws<ArgumentNullException>(() =>
-            new DictationRecordingSession(_loggerMock.Object, _coordinatorMock.Object, null!));
+            new DictationRecordingSession(_loggerMock.Object, _coordinatorMock.Object, null!, _stateMachineMock.Object));
+
+    [Fact]
+    public void Constructor_NullStateMachine_Throws() =>
+        Assert.Throws<ArgumentNullException>(() =>
+            new DictationRecordingSession(_loggerMock.Object, _coordinatorMock.Object, _transcriberMock.Object, null!));
 }

@@ -3,7 +3,6 @@ using Olbrasoft.VirtualAssistant.Core.Services;
 using Olbrasoft.VirtualAssistant.Core.Speech;
 using Olbrasoft.VirtualAssistant.Core.WindowManagement;
 using Olbrasoft.VirtualAssistant.Core.StateMachine;
-using Olbrasoft.VirtualAssistant.Voice.StateMachine;
 using Olbrasoft.VirtualAssistant.Service.Hubs;
 using Olbrasoft.VirtualAssistant.Service.Workers.Dictation;
 
@@ -18,7 +17,6 @@ public class DictationWorker : BackgroundService, IDictationControl, IDictationS
 {
     private readonly ILogger<DictationWorker> _logger;
     private readonly IDictationKeyHandler _keyHandler;
-    private readonly IDictationStateMachine _stateMachine;
     private readonly IDictationRecordingSession _recordingSession;
     private readonly IDictationCompletionPipeline _completionPipeline;
     private readonly IDictationCancellationCoordinator _cancellationCoordinator;
@@ -28,7 +26,7 @@ public class DictationWorker : BackgroundService, IDictationControl, IDictationS
     private volatile bool _streamingTranscriptionEnabled;
 
     /// <inheritdoc/>
-    public DictationState State => _stateMachine.CurrentState;
+    public DictationState State => _recordingSession.CurrentState;
 
     /// <inheritdoc/>
     public event EventHandler<string>? TranscriptionCompleted;
@@ -36,14 +34,12 @@ public class DictationWorker : BackgroundService, IDictationControl, IDictationS
     public DictationWorker(
         ILogger<DictationWorker> logger,
         IDictationKeyHandler keyHandler,
-        IDictationStateMachine stateMachine,
         IDictationRecordingSession recordingSession,
         IDictationCompletionPipeline completionPipeline,
         IDictationCancellationCoordinator cancellationCoordinator)
     {
         _logger = logger ?? throw new ArgumentNullException(nameof(logger));
         _keyHandler = keyHandler ?? throw new ArgumentNullException(nameof(keyHandler));
-        _stateMachine = stateMachine ?? throw new ArgumentNullException(nameof(stateMachine));
         _recordingSession = recordingSession ?? throw new ArgumentNullException(nameof(recordingSession));
         _completionPipeline = completionPipeline ?? throw new ArgumentNullException(nameof(completionPipeline));
         _cancellationCoordinator = cancellationCoordinator ?? throw new ArgumentNullException(nameof(cancellationCoordinator));
@@ -60,7 +56,7 @@ public class DictationWorker : BackgroundService, IDictationControl, IDictationS
         _logger.LogInformation("Dictation {Status}", enabled ? "enabled" : "disabled");
 
         // If disabling and currently recording/transcribing, emergency stop
-        if (!enabled && _stateMachine.CurrentState != DictationState.Idle)
+        if (!enabled && _recordingSession.CurrentState != DictationState.Idle)
         {
             _logger.LogInformation("Dictation disabled while active - performing emergency stop");
             Task.Run(async () => await _cancellationCoordinator.EmergencyStopAsync());
@@ -85,7 +81,7 @@ public class DictationWorker : BackgroundService, IDictationControl, IDictationS
             return;
         }
 
-        if (_stateMachine.CurrentState == DictationState.Idle)
+        if (_recordingSession.CurrentState == DictationState.Idle)
         {
             _quickDictationMode = false;
             await StartRecordingAsync();
@@ -101,7 +97,7 @@ public class DictationWorker : BackgroundService, IDictationControl, IDictationS
             return;
         }
 
-        if (_stateMachine.CurrentState == DictationState.Idle)
+        if (_recordingSession.CurrentState == DictationState.Idle)
         {
             _quickDictationMode = true;
             await StartRecordingAsync();
@@ -111,7 +107,7 @@ public class DictationWorker : BackgroundService, IDictationControl, IDictationS
     /// <inheritdoc/>
     public Task StopDictationAsync()
     {
-        if (_stateMachine.CurrentState == DictationState.Recording)
+        if (_recordingSession.CurrentState == DictationState.Recording)
         {
             _ = Task.Run(async () => await StopAndTranscribeAsync());
         }
@@ -122,7 +118,7 @@ public class DictationWorker : BackgroundService, IDictationControl, IDictationS
     /// <inheritdoc/>
     public Task StopDictationAsync(bool quickMode)
     {
-        if (_stateMachine.CurrentState == DictationState.Recording)
+        if (_recordingSession.CurrentState == DictationState.Recording)
         {
             // Override the mode that was chosen at start time. This is the
             // path used by the Remote Control's unified dictation button:
@@ -185,7 +181,7 @@ public class DictationWorker : BackgroundService, IDictationControl, IDictationS
             _keyHandler.Stop();
 
             // Stop recording if active
-            if (_stateMachine.CurrentState == DictationState.Recording)
+            if (_recordingSession.CurrentState == DictationState.Recording)
             {
                 await _cancellationCoordinator.ShutdownAsync();
             }
@@ -202,7 +198,7 @@ public class DictationWorker : BackgroundService, IDictationControl, IDictationS
     private sealed class KeyHandlerBindings(DictationWorker worker) : IDictationKeyHandlerBindings
     {
         public bool IsEnabled => worker._dictationEnabled;
-        public DictationState State => worker._stateMachine.CurrentState;
+        public DictationState State => worker._recordingSession.CurrentState;
 
         public Task StartAsync()
         {
@@ -217,23 +213,12 @@ public class DictationWorker : BackgroundService, IDictationControl, IDictationS
         public void CancelTranscription() => worker._cancellationCoordinator.CancelTranscription();
     }
 
-    private async Task StartRecordingAsync()
-    {
-        try
-        {
-            // Transition to Recording state
-            _stateMachine.TransitionTo(DictationState.Recording);
-
-            // Freeze streaming choice for this session — toggles mid-recording have no effect.
-            // The session owns transcriber.BeginSession + chunking toggle + audio start.
-            await _recordingSession.StartAsync(_streamingTranscriptionEnabled);
-        }
-        catch (Exception ex)
-        {
-            _logger.LogError(ex, "Failed to start recording");
-            _stateMachine.TransitionTo(DictationState.Idle);
-        }
-    }
+    /// <summary>
+    /// Freezes the streaming-mode choice for this session — toggles mid-
+    /// recording have no effect. Session owns the Recording → Idle fallback
+    /// state transitions internally.
+    /// </summary>
+    private Task StartRecordingAsync() => _recordingSession.StartAsync(_streamingTranscriptionEnabled);
 
     /// <summary>
     /// Orchestrates the dictation workflow: stop recording, transcribe, save, and type text.
@@ -243,7 +228,9 @@ public class DictationWorker : BackgroundService, IDictationControl, IDictationS
     {
         try
         {
-            var audioData = await ValidateAndPrepareAudioAsync();
+            // Session stops the recording, validates the buffer, and handles
+            // the state-machine transitions (null → Idle, non-null → Transcribing).
+            var audioData = await _recordingSession.StopAndValidateAsync();
             if (audioData == null) return;
 
             var token = _cancellationCoordinator.BeginTranscription();
@@ -277,32 +264,11 @@ public class DictationWorker : BackgroundService, IDictationControl, IDictationS
         }
     }
 
-    /// <summary>
-    /// Stops recording and validates audio data.
-    /// Returns null if audio is invalid, otherwise returns audio data.
-    /// </summary>
-    private async Task<byte[]?> ValidateAndPrepareAudioAsync()
-    {
-        var audioData = await _recordingSession.StopAsync();
-
-        if (audioData.Length == 0)
-        {
-            _logger.LogWarning("No audio data recorded");
-            _stateMachine.TransitionTo(DictationState.Idle);
-            return null;
-        }
-
-        _logger.LogInformation("Recording stopped - {Bytes} bytes captured", audioData.Length);
-        _stateMachine.TransitionTo(DictationState.Transcribing);
-
-        return audioData;
-    }
-
     public override async Task StopAsync(CancellationToken cancellationToken)
     {
         _logger.LogInformation("Dictation worker stopping...");
 
-        if (_stateMachine.CurrentState == DictationState.Recording)
+        if (_recordingSession.CurrentState == DictationState.Recording)
         {
             await _cancellationCoordinator.ShutdownAsync();
         }
