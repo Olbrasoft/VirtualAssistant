@@ -27,8 +27,8 @@ public class DictationWorker : BackgroundService, IDictationControl, IDictationS
     private readonly IAudioRecordingCoordinator _recordingCoordinator;
     private readonly ITranscriptionService _transcriptionService;
     private readonly IDictationOutputChannel _outputChannel;
-    private readonly IServiceScopeFactory _scopeFactory;
-    private readonly ICliAppDetector _cliAppDetector;
+    private readonly IDictationTranscriptionPersister _persister;
+    private readonly IClaudeCodeCivilityTrimmer _civilityTrimmer;
     private readonly IStreamingChunkAssembler _streamingAssembler;
     private readonly DictationOptions _options;
 
@@ -50,8 +50,8 @@ public class DictationWorker : BackgroundService, IDictationControl, IDictationS
         IAudioRecordingCoordinator recordingCoordinator,
         ITranscriptionService transcriptionService,
         IDictationOutputChannel outputChannel,
-        IServiceScopeFactory scopeFactory,
-        ICliAppDetector cliAppDetector,
+        IDictationTranscriptionPersister persister,
+        IClaudeCodeCivilityTrimmer civilityTrimmer,
         IStreamingChunkAssembler streamingAssembler,
         IOptions<DictationOptions> options)
     {
@@ -61,8 +61,8 @@ public class DictationWorker : BackgroundService, IDictationControl, IDictationS
         _recordingCoordinator = recordingCoordinator ?? throw new ArgumentNullException(nameof(recordingCoordinator));
         _transcriptionService = transcriptionService ?? throw new ArgumentNullException(nameof(transcriptionService));
         _outputChannel = outputChannel ?? throw new ArgumentNullException(nameof(outputChannel));
-        _scopeFactory = scopeFactory ?? throw new ArgumentNullException(nameof(scopeFactory));
-        _cliAppDetector = cliAppDetector ?? throw new ArgumentNullException(nameof(cliAppDetector));
+        _persister = persister ?? throw new ArgumentNullException(nameof(persister));
+        _civilityTrimmer = civilityTrimmer ?? throw new ArgumentNullException(nameof(civilityTrimmer));
         _streamingAssembler = streamingAssembler ?? throw new ArgumentNullException(nameof(streamingAssembler));
         ArgumentNullException.ThrowIfNull(options);
         _options = options.Value;
@@ -545,104 +545,20 @@ public class DictationWorker : BackgroundService, IDictationControl, IDictationS
     }
 
     /// <summary>
-    /// Saves transcription to database using scoped persistence service.
-    /// Note: Creates scope because DictationWorker is singleton but persistence service is scoped.
+    /// Saves transcription to database via <see cref="IDictationTranscriptionPersister"/>,
+    /// which owns the scoped <c>IDictationPersistenceService</c> resolution and
+    /// the racing/non-racing save dispatch. (#969 extraction.)
     /// </summary>
-    private async Task SaveTranscriptionToDatabaseAsync(byte[] audioData, TranscriptionResult result)
-    {
-        using var scope = _scopeFactory.CreateScope();
-        var persistenceService = scope.ServiceProvider.GetRequiredService<IDictationPersistenceService>();
-
-        var originalText = result.OriginalText ?? result.Text;
-        var correctedText = (result.OriginalText != null && result.Text != result.OriginalText) ? result.Text : null;
-
-        // Construct LlmCorrectionResult if LLM correction was applied
-        LlmCorrectionResult? correctionResult = null;
-        if (correctedText != null && result.ModelId.HasValue && result.LlmDurationMs.GetValueOrDefault() > 0)
-        {
-            correctionResult = new LlmCorrectionResult(
-                CorrectedText: correctedText,
-                PromptId: result.PromptId,  // PromptId from TranscriptionService (context-aware prompt selection)
-                DurationMs: result.LlmDurationMs.Value,
-                ModelId: result.ModelId,  // ModelId from LLM provider
-                InputTokens: result.InputTokens,
-                OutputTokens: result.OutputTokens,
-                ReasoningTokens: result.ReasoningTokens
-            );
-        }
-
-        // Get the STT provider ID from the transcription result (set by the active speech transcriber)
-        // Falls back to Whisper (13) if not set - required because provider_id has FK constraint
-        var sttProviderId = result.SttProviderId.GetValueOrDefault(13);
-
-        // Use racing-aware save if race data is present
-        if (result.RaceGroupId.HasValue)
-        {
-            await persistenceService.SaveTranscriptionWithRacingAsync(
-                audioData,
-                originalText,
-                correctionResult,
-                sttProviderId,
-                result.RaceGroupId.Value,
-                result.RacingLoserTask,
-                _transcriptionCts!.Token);
-        }
-        else
-        {
-            await persistenceService.SaveTranscriptionAsync(
-                audioData,
-                originalText,
-                correctionResult,
-                sttProviderId,
-                _transcriptionCts!.Token);
-        }
-    }
+    private Task SaveTranscriptionToDatabaseAsync(byte[] audioData, TranscriptionResult result) =>
+        _persister.SaveAsync(audioData, result, _transcriptionCts!.Token);
 
     /// <summary>
-    /// Applies <see cref="CivilityTrimmer"/> to the dictated text if the active
-    /// CLI app is Claude Code. For any other CLI agent or a plain GUI focus,
-    /// returns the text unchanged — the trimmer is Claude-Code-scoped per the
-    /// feature request ("Děkuji." is a legitimate message in chat apps).
-    /// Detection errors fall back to leaving the text untouched — the worst
-    /// case here is one stray civility word, worth less than mangling valid
-    /// input when gdbus hiccups.
+    /// Thin wrapper around <see cref="IClaudeCodeCivilityTrimmer.TrimIfClaudeCodeAsync"/>
+    /// that the quick-dictation path calls before pasting. (#969 extraction
+    /// moved the detection + trimming into a dedicated helper.)
     /// </summary>
-    private async Task<string> StripCivilityForClaudeCodeAsync(string text, CancellationToken cancellationToken)
-    {
-        if (string.IsNullOrWhiteSpace(text))
-        {
-            return text;
-        }
-
-        CliAppDetectionResult? cliApp;
-        try
-        {
-            cliApp = await _cliAppDetector.DetectCliAppAsync(cancellationToken);
-        }
-        catch (OperationCanceledException)
-        {
-            throw;
-        }
-        catch (Exception ex)
-        {
-            _logger.LogDebug(ex, "CLI app detection failed before quick paste — skipping civility trim");
-            return text;
-        }
-
-        if (cliApp is null || !string.Equals(cliApp.AppName, "Claude Code", StringComparison.OrdinalIgnoreCase))
-        {
-            return text;
-        }
-
-        var stripped = CivilityTrimmer.StripTrailingCivility(text);
-        if (stripped.Length != text.Length)
-        {
-            _logger.LogInformation(
-                "Quick dictation: stripped trailing civility for Claude Code ({Before} → {After} chars)",
-                text.Length, stripped.Length);
-        }
-        return stripped;
-    }
+    private Task<string> StripCivilityForClaudeCodeAsync(string text, CancellationToken cancellationToken) =>
+        _civilityTrimmer.TrimIfClaudeCodeAsync(text, cancellationToken);
 
     /// <summary>
     /// Types text into active window and transitions to Idle state.
