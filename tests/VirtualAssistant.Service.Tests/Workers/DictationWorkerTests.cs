@@ -26,11 +26,8 @@ public class DictationWorkerTests : IDisposable
     private readonly Mock<IAudioRecordingCoordinator> _recordingCoordinatorMock;
     private readonly Mock<ITranscriptionService> _transcriptionServiceMock;
     private readonly Mock<IDictationOutputChannel> _outputChannelMock;
-    private readonly Mock<IServiceScopeFactory> _scopeFactoryMock;
-    private readonly Mock<IServiceScope> _scopeMock;
-    private readonly Mock<IServiceProvider> _serviceProviderMock;
-    private readonly Mock<IDictationPersistenceService> _persistenceServiceMock;
-    private readonly Mock<ICliAppDetector> _cliAppDetectorMock;
+    private readonly Mock<IDictationTranscriptionPersister> _persisterMock;
+    private readonly Mock<IClaudeCodeCivilityTrimmer> _civilityTrimmerMock;
     private readonly Mock<IStreamingChunkAssembler> _streamingAssemblerMock;
     private readonly DictationOptions _options;
     private readonly DictationWorker _sut;
@@ -45,19 +42,18 @@ public class DictationWorkerTests : IDisposable
         _recordingCoordinatorMock = new Mock<IAudioRecordingCoordinator>();
         _transcriptionServiceMock = new Mock<ITranscriptionService>();
         _outputChannelMock = new Mock<IDictationOutputChannel>();
-        _scopeFactoryMock = new Mock<IServiceScopeFactory>();
-        _scopeMock = new Mock<IServiceScope>();
-        _serviceProviderMock = new Mock<IServiceProvider>();
-        _persistenceServiceMock = new Mock<IDictationPersistenceService>();
-        _cliAppDetectorMock = new Mock<ICliAppDetector>();
+        _persisterMock = new Mock<IDictationTranscriptionPersister>();
+        _civilityTrimmerMock = new Mock<IClaudeCodeCivilityTrimmer>();
         _streamingAssemblerMock = new Mock<IStreamingChunkAssembler>();
 
         _options = new DictationOptions { KeyboardLedSettleTimeMs = 10 };
 
-        _scopeFactoryMock.Setup(x => x.CreateScope()).Returns(_scopeMock.Object);
-        _scopeMock.Setup(x => x.ServiceProvider).Returns(_serviceProviderMock.Object);
-        _serviceProviderMock.Setup(x => x.GetService(typeof(IDictationPersistenceService)))
-            .Returns(_persistenceServiceMock.Object);
+        // The civility trimmer is always on the quick-dictation path; without
+        // an explicit passthrough setup, the Mock default returns null/empty
+        // which trips the "reduced to empty" short-circuit and skips paste.
+        _civilityTrimmerMock
+            .Setup(x => x.TrimIfClaudeCodeAsync(It.IsAny<string>(), It.IsAny<CancellationToken>()))
+            .Returns<string, CancellationToken>((text, _) => Task.FromResult(text));
 
         _keyboardMonitorMock.SetupAdd(x => x.KeyReleased += It.IsAny<EventHandler<KeyEventArgs>>())
             .Callback<EventHandler<KeyEventArgs>>(handler => _capturedKeyReleasedHandler = handler);
@@ -71,8 +67,8 @@ public class DictationWorkerTests : IDisposable
             _recordingCoordinatorMock.Object,
             _transcriptionServiceMock.Object,
             _outputChannelMock.Object,
-            _scopeFactoryMock.Object,
-            _cliAppDetectorMock.Object,
+            _persisterMock.Object,
+            _civilityTrimmerMock.Object,
             _streamingAssemblerMock.Object,
             Options.Create(_options));
     }
@@ -89,8 +85,8 @@ public class DictationWorkerTests : IDisposable
             _recordingCoordinatorMock.Object,
             _transcriptionServiceMock.Object,
             _outputChannelMock.Object,
-            _scopeFactoryMock.Object,
-            _cliAppDetectorMock.Object,
+            _persisterMock.Object,
+            _civilityTrimmerMock.Object,
             _streamingAssemblerMock.Object,
             Options.Create(_options)));
     }
@@ -105,8 +101,8 @@ public class DictationWorkerTests : IDisposable
             _recordingCoordinatorMock.Object,
             _transcriptionServiceMock.Object,
             _outputChannelMock.Object,
-            _scopeFactoryMock.Object,
-            _cliAppDetectorMock.Object,
+            _persisterMock.Object,
+            _civilityTrimmerMock.Object,
             _streamingAssemblerMock.Object,
             Options.Create(_options)));
     }
@@ -121,8 +117,8 @@ public class DictationWorkerTests : IDisposable
             _recordingCoordinatorMock.Object,
             _transcriptionServiceMock.Object,
             _outputChannelMock.Object,
-            _scopeFactoryMock.Object,
-            _cliAppDetectorMock.Object,
+            _persisterMock.Object,
+            _civilityTrimmerMock.Object,
             _streamingAssemblerMock.Object,
             Options.Create(_options)));
     }
@@ -137,8 +133,8 @@ public class DictationWorkerTests : IDisposable
             _recordingCoordinatorMock.Object,
             _transcriptionServiceMock.Object,
             _outputChannelMock.Object,
-            _scopeFactoryMock.Object,
-            _cliAppDetectorMock.Object,
+            _persisterMock.Object,
+            _civilityTrimmerMock.Object,
             _streamingAssemblerMock.Object,
             null!));
     }
@@ -153,8 +149,8 @@ public class DictationWorkerTests : IDisposable
             null!,
             _transcriptionServiceMock.Object,
             _outputChannelMock.Object,
-            _scopeFactoryMock.Object,
-            _cliAppDetectorMock.Object,
+            _persisterMock.Object,
+            _civilityTrimmerMock.Object,
             _streamingAssemblerMock.Object,
             Options.Create(_options)));
     }
@@ -169,8 +165,8 @@ public class DictationWorkerTests : IDisposable
             _recordingCoordinatorMock.Object,
             null!,
             _outputChannelMock.Object,
-            _scopeFactoryMock.Object,
-            _cliAppDetectorMock.Object,
+            _persisterMock.Object,
+            _civilityTrimmerMock.Object,
             _streamingAssemblerMock.Object,
             Options.Create(_options)));
     }
@@ -185,14 +181,14 @@ public class DictationWorkerTests : IDisposable
             _recordingCoordinatorMock.Object,
             _transcriptionServiceMock.Object,
             null!,
-            _scopeFactoryMock.Object,
-            _cliAppDetectorMock.Object,
+            _persisterMock.Object,
+            _civilityTrimmerMock.Object,
             _streamingAssemblerMock.Object,
             Options.Create(_options)));
     }
 
     [Fact]
-    public void Constructor_NullScopeFactory_ThrowsArgumentNullException()
+    public void Constructor_NullPersister_ThrowsArgumentNullException()
     {
         Assert.Throws<ArgumentNullException>(() => new DictationWorker(
             _loggerMock.Object,
@@ -202,13 +198,13 @@ public class DictationWorkerTests : IDisposable
             _transcriptionServiceMock.Object,
             _outputChannelMock.Object,
             null!,
-            _cliAppDetectorMock.Object,
+            _civilityTrimmerMock.Object,
             _streamingAssemblerMock.Object,
             Options.Create(_options)));
     }
 
     [Fact]
-    public void Constructor_NullCliAppDetector_ThrowsArgumentNullException()
+    public void Constructor_NullCivilityTrimmer_ThrowsArgumentNullException()
     {
         Assert.Throws<ArgumentNullException>(() => new DictationWorker(
             _loggerMock.Object,
@@ -217,7 +213,7 @@ public class DictationWorkerTests : IDisposable
             _recordingCoordinatorMock.Object,
             _transcriptionServiceMock.Object,
             _outputChannelMock.Object,
-            _scopeFactoryMock.Object,
+            _persisterMock.Object,
             null!,
             _streamingAssemblerMock.Object,
             Options.Create(_options)));
@@ -233,8 +229,8 @@ public class DictationWorkerTests : IDisposable
             _recordingCoordinatorMock.Object,
             _transcriptionServiceMock.Object,
             _outputChannelMock.Object,
-            _scopeFactoryMock.Object,
-            _cliAppDetectorMock.Object,
+            _persisterMock.Object,
+            _civilityTrimmerMock.Object,
             null!,
             Options.Create(_options)));
     }
@@ -435,9 +431,6 @@ public class DictationWorkerTests : IDisposable
             .ReturnsAsync(transcriptionResult);
         _outputChannelMock.Setup(x => x.TypeIntoActiveWindowAsync(It.IsAny<string>(), It.IsAny<CancellationToken>()))
             .ReturnsAsync(true);
-        _persistenceServiceMock.Setup(x => x.SaveTranscriptionAsync(
-                It.IsAny<byte[]>(), It.IsAny<string>(), It.IsAny<LlmCorrectionResult?>(), It.IsAny<int>(), It.IsAny<CancellationToken>()))
-            .ReturnsAsync(1);
 
         _capturedKeyReleasedHandler?.Invoke(this, new KeyEventArgs { Key = KeyCode.ScrollLock, IsPressed = false });
         await Task.Delay(300);
@@ -532,16 +525,18 @@ public class DictationWorkerTests : IDisposable
             .ReturnsAsync(transcriptionResult);
         _outputChannelMock.Setup(x => x.TypeIntoActiveWindowAsync("Hello world", It.IsAny<CancellationToken>()))
             .ReturnsAsync(true);
-        _persistenceServiceMock.Setup(x => x.SaveTranscriptionAsync(
-                audioData, "Hello world", null, expectedProviderId, It.IsAny<CancellationToken>()))
-            .ReturnsAsync(1);
 
         _capturedKeyReleasedHandler?.Invoke(this, new KeyEventArgs { Key = KeyCode.ScrollLock, IsPressed = false });
         await Task.Delay(400);
 
         _outputChannelMock.Verify(x => x.TypeIntoActiveWindowAsync("Hello world", It.IsAny<CancellationToken>()), Times.Once);
-        _persistenceServiceMock.Verify(x => x.SaveTranscriptionAsync(
-            audioData, "Hello world", null, expectedProviderId, It.IsAny<CancellationToken>()), Times.Once);
+        // The LlmCorrectionResult building + STT-provider fallback live in the
+        // persister now; the worker's contract is just "forward the raw
+        // TranscriptionResult". DictationTranscriptionPersisterTests cover the
+        // details.
+        _persisterMock.Verify(x => x.SaveAsync(
+            audioData, It.Is<TranscriptionResult>(r => r.Text == "Hello world" && r.SttProviderId == expectedProviderId), It.IsAny<CancellationToken>()),
+            Times.Once);
         _outputChannelMock.Verify(x => x.StopTypingFeedback(), Times.AtLeastOnce);
     }
 
@@ -568,23 +563,23 @@ public class DictationWorkerTests : IDisposable
             .ReturnsAsync(transcriptionResult);
         _outputChannelMock.Setup(x => x.TypeIntoActiveWindowAsync(It.IsAny<string>(), It.IsAny<CancellationToken>()))
             .ReturnsAsync(true);
-        _persistenceServiceMock.Setup(x => x.SaveTranscriptionAsync(
-                It.IsAny<byte[]>(), It.IsAny<string>(), It.IsAny<LlmCorrectionResult?>(), It.IsAny<int>(), It.IsAny<CancellationToken>()))
-            .ReturnsAsync(1);
 
         _capturedKeyReleasedHandler?.Invoke(this, new KeyEventArgs { Key = KeyCode.ScrollLock, IsPressed = false });
         await Task.Delay(400);
 
-        _persistenceServiceMock.Verify(x => x.SaveTranscriptionAsync(
+        // Worker just forwards the TranscriptionResult (incl. LLM-correction
+        // metadata) to the persister; the LlmCorrectionResult construction is
+        // pinned in DictationTranscriptionPersisterTests.
+        _persisterMock.Verify(x => x.SaveAsync(
             audioData,
-            "hello world",
-            It.Is<LlmCorrectionResult?>(r =>
-                r != null &&
-                r.CorrectedText == "Hello world corrected" &&
+            It.Is<TranscriptionResult>(r =>
+                r.Text == "Hello world corrected" &&
+                r.OriginalText == "hello world" &&
                 r.PromptId == 42 &&
-                r.DurationMs == 150),
-            It.IsAny<int>(),
-            It.IsAny<CancellationToken>()), Times.Once);
+                r.ModelId == 1 &&
+                r.LlmDurationMs == 150),
+            It.IsAny<CancellationToken>()),
+            Times.Once);
     }
 
     [SkipOnCIFact]
@@ -607,9 +602,6 @@ public class DictationWorkerTests : IDisposable
             .ReturnsAsync(transcriptionResult);
         _outputChannelMock.Setup(x => x.TypeIntoActiveWindowAsync(It.IsAny<string>(), It.IsAny<CancellationToken>()))
             .ReturnsAsync(false);
-        _persistenceServiceMock.Setup(x => x.SaveTranscriptionAsync(
-                It.IsAny<byte[]>(), It.IsAny<string>(), It.IsAny<LlmCorrectionResult?>(), It.IsAny<int>(), It.IsAny<CancellationToken>()))
-            .ReturnsAsync(1);
 
         _capturedKeyReleasedHandler?.Invoke(this, new KeyEventArgs { Key = KeyCode.ScrollLock, IsPressed = false });
         await Task.Delay(400);

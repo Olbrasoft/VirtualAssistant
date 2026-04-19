@@ -60,6 +60,16 @@ public static class WorkerServicesExtensions
                 sp.GetRequiredKeyedService<ISoundEffectPlayer>("cancel"),
                 sp.GetRequiredService<IHubContext<DictationHub>>());
 
+            // Persistence + civility trimmer are constructed inline alongside
+            // the worker so each step in the DictationWorker factory is
+            // flat and individually testable. (#969 extractions.)
+            var persister = new DictationTranscriptionPersister(
+                sp.GetRequiredService<IServiceScopeFactory>());
+
+            var civilityTrimmer = new ClaudeCodeCivilityTrimmer(
+                sp.GetRequiredService<ILogger<ClaudeCodeCivilityTrimmer>>(),
+                sp.GetRequiredService<ICliAppDetector>());
+
             return new DictationWorker(
                 sp.GetRequiredService<ILogger<DictationWorker>>(),
                 sp.GetRequiredService<IKeyboardMonitor>(),
@@ -67,8 +77,8 @@ public static class WorkerServicesExtensions
                 sp.GetRequiredKeyedService<IAudioRecordingCoordinator>(DictationKey),
                 transcription,
                 outputChannel,
-                sp.GetRequiredService<IServiceScopeFactory>(),
-                sp.GetRequiredService<ICliAppDetector>(),
+                persister,
+                civilityTrimmer,
                 assembler,
                 sp.GetRequiredService<IOptions<DictationOptions>>());
         });
