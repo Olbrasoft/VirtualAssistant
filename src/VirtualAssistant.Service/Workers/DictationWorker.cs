@@ -22,9 +22,9 @@ public class DictationWorker : BackgroundService, IDictationControl, IDictationS
     private readonly IDictationKeyHandler _keyHandler;
     private readonly IDictationStateMachine _stateMachine;
     private readonly IDictationRecordingSession _recordingSession;
-    private readonly IDictationTranscriber _transcriber;
     private readonly IDictationOutputChannel _outputChannel;
     private readonly IDictationCompletionPipeline _completionPipeline;
+    private readonly IDictationStateBroadcaster _stateBroadcaster;
     private readonly DictationOptions _options;
 
     private CancellationTokenSource? _transcriptionCts;
@@ -43,18 +43,18 @@ public class DictationWorker : BackgroundService, IDictationControl, IDictationS
         IDictationKeyHandler keyHandler,
         IDictationStateMachine stateMachine,
         IDictationRecordingSession recordingSession,
-        IDictationTranscriber transcriber,
         IDictationOutputChannel outputChannel,
         IDictationCompletionPipeline completionPipeline,
+        IDictationStateBroadcaster stateBroadcaster,
         IOptions<DictationOptions> options)
     {
         _logger = logger ?? throw new ArgumentNullException(nameof(logger));
         _keyHandler = keyHandler ?? throw new ArgumentNullException(nameof(keyHandler));
         _stateMachine = stateMachine ?? throw new ArgumentNullException(nameof(stateMachine));
         _recordingSession = recordingSession ?? throw new ArgumentNullException(nameof(recordingSession));
-        _transcriber = transcriber ?? throw new ArgumentNullException(nameof(transcriber));
         _outputChannel = outputChannel ?? throw new ArgumentNullException(nameof(outputChannel));
         _completionPipeline = completionPipeline ?? throw new ArgumentNullException(nameof(completionPipeline));
+        _stateBroadcaster = stateBroadcaster ?? throw new ArgumentNullException(nameof(stateBroadcaster));
         ArgumentNullException.ThrowIfNull(options);
         _options = options.Value;
     }
@@ -176,10 +176,12 @@ public class DictationWorker : BackgroundService, IDictationControl, IDictationS
             // four bindings the handler can trigger via IDictationKeyHandlerBindings.
             _keyHandler.Start(new KeyHandlerBindings(this));
 
-            // Subscribe to state changes for SignalR broadcasting
-            _stateMachine.StateChanged += OnStateChangedBroadcast;
-            TranscriptionCompleted += OnTranscriptionCompletedBroadcast;
-            _transcriber.RawTranscriptionReady += OnRawTranscriptionReadyBroadcast;
+            // Broadcaster owns the state-machine + transcriber event
+            // subscriptions; TranscriptionCompleted is worker-scoped so the
+            // broadcaster gets add/remove hooks for it.
+            _stateBroadcaster.Start(
+                handler => TranscriptionCompleted += handler,
+                handler => TranscriptionCompleted -= handler);
 
             // Wait for cancellation
             await Task.Delay(Timeout.Infinite, stoppingToken);
@@ -196,9 +198,7 @@ public class DictationWorker : BackgroundService, IDictationControl, IDictationS
         finally
         {
             _keyHandler.Stop();
-            _stateMachine.StateChanged -= OnStateChangedBroadcast;
-            TranscriptionCompleted -= OnTranscriptionCompletedBroadcast;
-            _transcriber.RawTranscriptionReady -= OnRawTranscriptionReadyBroadcast;
+            _stateBroadcaster.Stop();
 
             // Stop recording if active
             if (_stateMachine.CurrentState == DictationState.Recording)
@@ -232,31 +232,6 @@ public class DictationWorker : BackgroundService, IDictationControl, IDictationS
 
         public void CancelTranscription() => worker.CancelTranscription();
     }
-
-    private void OnStateChangedBroadcast(object? sender, DictationState state)
-    {
-        var eventType = state switch
-        {
-            DictationState.Recording => DictationEventType.RecordingStarted,
-            DictationState.Transcribing => DictationEventType.TranscriptionStarted,
-            _ => DictationEventType.RecordingStopped
-        };
-
-        _ = BroadcastDictationEventAsync(eventType, null);
-    }
-
-    private void OnTranscriptionCompletedBroadcast(object? sender, string text)
-    {
-        _ = BroadcastDictationEventAsync(DictationEventType.TranscriptionCompleted, text);
-    }
-
-    private void OnRawTranscriptionReadyBroadcast(string text)
-    {
-        _ = BroadcastDictationEventAsync(DictationEventType.RawTranscriptionCompleted, text);
-    }
-
-    private Task BroadcastDictationEventAsync(DictationEventType eventType, string? text) =>
-        _outputChannel.BroadcastEventAsync(eventType, text);
 
     private async Task StartRecordingAsync()
     {
