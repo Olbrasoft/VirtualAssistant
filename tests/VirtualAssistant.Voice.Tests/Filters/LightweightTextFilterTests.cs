@@ -41,10 +41,12 @@ public class LightweightTextFilterTests : IDisposable
         var dbCorrections = new DatabaseCorrectionFilterStrategy(
             Mock.Of<ILogger<DatabaseCorrectionFilterStrategy>>(),
             repository: null);
+        var pathSeparator = new PathSeparatorFilterStrategy(
+            Mock.Of<ILogger<PathSeparatorFilterStrategy>>());
         var whitespace = new WhitespaceFilterStrategy(
             Mock.Of<ILogger<WhitespaceFilterStrategy>>());
         var logger = Mock.Of<ILogger<LightweightTextFilter>>();
-        return new LightweightTextFilter(hallucination, dbCorrections, whitespace, logger);
+        return new LightweightTextFilter(hallucination, dbCorrections, pathSeparator, whitespace, logger);
     }
 
     [Fact]
@@ -152,11 +154,14 @@ public class LightweightTextFilterTests : IDisposable
         var dbCorrections = new DatabaseCorrectionFilterStrategy(
             Mock.Of<ILogger<DatabaseCorrectionFilterStrategy>>(),
             fakeRepo.Object);
+        var pathSeparator = new PathSeparatorFilterStrategy(
+            Mock.Of<ILogger<PathSeparatorFilterStrategy>>());
         var whitespace = new WhitespaceFilterStrategy(
             Mock.Of<ILogger<WhitespaceFilterStrategy>>());
         var filter = new LightweightTextFilter(
             hallucination,
             dbCorrections,
+            pathSeparator,
             whitespace,
             Mock.Of<ILogger<LightweightTextFilter>>());
 
@@ -178,5 +183,20 @@ public class LightweightTextFilterTests : IDisposable
 
         // WhitespaceFilterStrategy.IsEnabled is always true.
         Assert.True(filter.IsEnabled);
+    }
+
+    [Fact]
+    public void Apply_LomenoBetweenWords_ProducesJoinedPath()
+    {
+        // End-to-end pin for the Quick Dictation path scenario that triggered
+        // this feature: user dictates "Dokumenty lomeno přístupy" and expects
+        // "Dokumenty/přístupy" — no spaces around the slash — even without
+        // LLM correction in the loop.
+        WriteConfig(new TextFiltersConfig());
+        var filter = CreateFilter();
+
+        var result = filter.Apply("Dokumenty lomeno přístupy");
+
+        Assert.Equal("Dokumenty/přístupy", result);
     }
 }

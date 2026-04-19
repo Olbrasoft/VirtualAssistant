@@ -412,6 +412,16 @@ public static class VoiceServicesExtensions
         services.AddSingleton<ITextFilterStrategy>(sp =>
             sp.GetRequiredService<WhitespaceFilterStrategy>());
 
+        // Path separator ("lomeno" → "/"). Shared by lightweight + full composite so
+        // both Quick and Normal dictation produce the same path output.
+        services.AddSingleton<PathSeparatorFilterStrategy>(sp =>
+        {
+            var logger = sp.GetRequiredService<ILogger<PathSeparatorFilterStrategy>>();
+            return new PathSeparatorFilterStrategy(logger);
+        });
+        services.AddSingleton<ITextFilterStrategy>(sp =>
+            sp.GetRequiredService<PathSeparatorFilterStrategy>());
+
         services.AddSingleton<ITextFilter, CompositeTextFilter>();
         services.AddSingleton<ILightweightTextFilter, LightweightTextFilter>();
     }
