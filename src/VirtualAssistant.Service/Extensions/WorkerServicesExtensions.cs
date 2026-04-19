@@ -106,14 +106,22 @@ public static class WorkerServicesExtensions
                 sp.GetRequiredService<ILogger<DictationKeyHandler>>(),
                 sp.GetRequiredService<IKeyboardMonitor>());
 
+            // State broadcaster owns the SignalR fan-out for state-changed,
+            // raw-transcription-ready, and transcription-completed events so
+            // the worker drops the direct transcriber dep. (#969 extraction.)
+            var stateBroadcaster = new DictationStateBroadcaster(
+                sp.GetRequiredService<Voice.StateMachine.IDictationStateMachine>(),
+                transcriber,
+                outputChannel);
+
             return new DictationWorker(
                 sp.GetRequiredService<ILogger<DictationWorker>>(),
                 keyHandler,
                 sp.GetRequiredService<Voice.StateMachine.IDictationStateMachine>(),
                 recordingSession,
-                transcriber,
                 outputChannel,
                 completionPipeline,
+                stateBroadcaster,
                 sp.GetRequiredService<IOptions<DictationOptions>>());
         });
 

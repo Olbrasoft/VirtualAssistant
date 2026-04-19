@@ -29,9 +29,15 @@ public sealed class DictationKeyHandler : IDictationKeyHandler, IDisposable
 
     public void Stop()
     {
-        if (!_subscribed) return;
-        _keyboardMonitor.KeyReleased -= OnKeyReleased;
-        _subscribed = false;
+        if (_subscribed)
+        {
+            _keyboardMonitor.KeyReleased -= OnKeyReleased;
+            _subscribed = false;
+        }
+
+        // Clear bindings so the handler doesn't pin the worker reference
+        // past Stop — Copilot review on PR #1034.
+        _bindings = null;
     }
 
     public void Dispose() => Stop();
@@ -81,15 +87,20 @@ public sealed class DictationKeyHandler : IDictationKeyHandler, IDisposable
 
             // Toggle logic: Idle → start, Recording → stop + transcribe,
             // Transcribing → ignored (use Pause to cancel).
+            //
+            // HandleKeyReleasedAsync is itself fire-and-forget from OnKeyReleased,
+            // so awaiting directly here is safe: it keeps exceptions inside the
+            // outer catch block instead of orphaning them on a detached Task.Run.
+            // (Copilot review on PR #1034.)
             switch (currentState)
             {
                 case DictationState.Idle:
                     _logger.LogInformation("ScrollLock pressed - starting dictation");
-                    _ = Task.Run(() => bindings.StartAsync());
+                    await bindings.StartAsync();
                     break;
                 case DictationState.Recording:
                     _logger.LogInformation("ScrollLock pressed - stopping dictation");
-                    _ = Task.Run(() => bindings.StopAndTranscribeAsync());
+                    await bindings.StopAndTranscribeAsync();
                     break;
                 case DictationState.Transcribing:
                     _logger.LogDebug("ScrollLock pressed during transcription - ignored (use Pause to cancel)");
