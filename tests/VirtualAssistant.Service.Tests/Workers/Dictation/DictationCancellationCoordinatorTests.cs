@@ -35,13 +35,28 @@ public class DictationCancellationCoordinatorTests
     }
 
     [Fact]
-    public void BeginTranscription_Twice_ReplacesPreviousCts()
+    public void BeginTranscription_Twice_WithoutEnd_ReturnsSameToken()
     {
-        // Two back-to-back sessions: the first token should stay cancellable
-        // only until the second Begin replaces it (dispose of prior CTS is
-        // implicit in the coordinator).
+        // Regression: two overlapping Begin calls (if two StopAndTranscribe
+        // flows ever race past the state-machine guard in the worker) must
+        // share the same CTS instead of disposing it under a still-running
+        // pipeline call. (Copilot review on PR #1036.)
         var sut = CreateSut();
         var first = sut.BeginTranscription();
+        var second = sut.BeginTranscription();
+
+        Assert.Equal(first, second);
+    }
+
+    [Fact]
+    public void BeginTranscription_AfterEnd_ReturnsFreshToken()
+    {
+        // The second Begin *does* rotate the CTS after the first finishes via
+        // EndTranscription — otherwise cancel semantics would leak across
+        // sessions.
+        var sut = CreateSut();
+        var first = sut.BeginTranscription();
+        sut.EndTranscription();
         var second = sut.BeginTranscription();
 
         Assert.NotEqual(first, second);
@@ -69,6 +84,20 @@ public class DictationCancellationCoordinatorTests
         _recordingSessionMock.Verify(x => x.EmergencyStopAsync(), Times.Once);
         _outputChannelMock.Verify(x => x.PlayCancelCue(), Times.Once);
         _stateMachineMock.Verify(x => x.TransitionTo(DictationState.Idle), Times.Once);
+    }
+
+    [Fact]
+    public async Task CancelRecordingAsync_EndsStreamingSession()
+    {
+        // Regression: Pause-while-recording must reset streaming chunk state
+        // alongside the emergency stop — otherwise per-chunk transcription
+        // tasks can leak into the next session. (Copilot review on PR #1036.)
+        _recordingSessionMock.Setup(x => x.EmergencyStopAsync()).Returns(Task.CompletedTask);
+        var sut = CreateSut();
+
+        await sut.CancelRecordingAsync();
+
+        _recordingSessionMock.Verify(x => x.EndSession(), Times.Once);
     }
 
     [Fact]

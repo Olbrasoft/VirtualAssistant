@@ -26,8 +26,12 @@ public sealed class DictationCancellationCoordinator : IDictationCancellationCoo
 
     public CancellationToken BeginTranscription()
     {
-        _transcriptionCts?.Dispose();
-        _transcriptionCts = new CancellationTokenSource();
+        // Idempotent while a prior transcription hasn't ended yet — we return
+        // the existing token instead of disposing the CTS under the still-
+        // running pipeline call, which would ObjectDisposedException on any
+        // Register/CancelAfter/etc. the pipeline does with the token.
+        // (Copilot review on PR #1036.)
+        _transcriptionCts ??= new CancellationTokenSource();
         return _transcriptionCts.Token;
     }
 
@@ -51,6 +55,13 @@ public sealed class DictationCancellationCoordinator : IDictationCancellationCoo
         {
             _logger.LogError(ex, "Error canceling recording");
             _stateMachine.TransitionTo(DictationState.Idle);
+        }
+        finally
+        {
+            // End the streaming session so the chunk assembler doesn't keep
+            // per-chunk transcription tasks running into the next session.
+            // (Copilot review on PR #1036.)
+            _recordingSession.EndSession();
         }
     }
 

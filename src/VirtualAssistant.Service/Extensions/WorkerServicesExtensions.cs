@@ -39,100 +39,57 @@ public static class WorkerServicesExtensions
         services.AddDictationAudioServices();
         services.AddDictationTranscriberServices();
 
-        services.AddSingleton(sp =>
+        // Each #969 helper is its own top-level singleton so cross-cutting
+        // consumers (the worker + the broadcaster hosted service) share a
+        // single instance of each facade — e.g. the transcriber's
+        // RawTranscriptionReady event must fire to exactly one subscriber tree.
+        services.AddSingleton<IDictationTranscriber>(sp =>
         {
-            // Streaming assembler and transcriber are constructed inline so
-            // they bind to the SAME keyed ITranscriptionService — otherwise a
-            // second (non-keyed) transcription instance would be resolved for
-            // per-chunk calls. (#969 extraction.)
             var transcription = sp.GetRequiredKeyedService<ITranscriptionService>(DictationKey);
             var assembler = new StreamingChunkAssembler(
                 sp.GetRequiredService<ILogger<StreamingChunkAssembler>>(),
                 transcription);
-
-            // Bundle ITranscriptionService + IStreamingChunkAssembler behind
-            // the transcriber abstraction so the worker talks to one façade
-            // for both streaming-lifecycle and transcription calls. (#969.)
-            var transcriber = new DictationTranscriber(
+            return new DictationTranscriber(
                 sp.GetRequiredService<ILogger<DictationTranscriber>>(),
                 transcription,
                 assembler);
+        });
 
-            // Bundle the audio-recording coordinator + streaming-chunk
-            // forwarding behind a single IDictationRecordingSession so the
-            // worker no longer subscribes to ChunkAvailable or toggles
-            // chunking directly. (#969 extraction.)
-            var recordingSession = new DictationRecordingSession(
+        services.AddSingleton<IDictationRecordingSession>(sp =>
+            new DictationRecordingSession(
                 sp.GetRequiredService<ILogger<DictationRecordingSession>>(),
                 sp.GetRequiredKeyedService<IAudioRecordingCoordinator>(DictationKey),
-                transcriber);
+                sp.GetRequiredService<IDictationTranscriber>()));
 
-            // Bundle the four output-surface dependencies (sounds, keyboard,
-            // SignalR) behind a single IDictationOutputChannel so the worker
-            // ctor shrinks by three deps. (#969 god-class split.)
-            var outputChannel = new DictationOutputChannel(
+        services.AddSingleton<IDictationOutputChannel>(sp =>
+            new DictationOutputChannel(
                 sp.GetRequiredService<ILogger<DictationOutputChannel>>(),
                 sp.GetRequiredService<IKeyboardSimulationService>(),
                 sp.GetRequiredKeyedService<ISoundEffectPlayer>("typing"),
                 sp.GetRequiredKeyedService<ISoundEffectPlayer>("cancel"),
-                sp.GetRequiredService<IHubContext<DictationHub>>());
+                sp.GetRequiredService<IHubContext<DictationHub>>()));
 
-            // Persistence + civility trimmer are constructed inline alongside
-            // the worker so each step in the DictationWorker factory is
-            // flat and individually testable. (#969 extractions.)
-            var persister = new DictationTranscriptionPersister(
-                sp.GetRequiredService<IServiceScopeFactory>());
+        services.AddSingleton<IDictationTranscriptionPersister>(sp =>
+            new DictationTranscriptionPersister(sp.GetRequiredService<IServiceScopeFactory>()));
 
-            var civilityTrimmer = new ClaudeCodeCivilityTrimmer(
+        services.AddSingleton<IClaudeCodeCivilityTrimmer>(sp =>
+            new ClaudeCodeCivilityTrimmer(
                 sp.GetRequiredService<ILogger<ClaudeCodeCivilityTrimmer>>(),
-                sp.GetRequiredService<ICliAppDetector>());
+                sp.GetRequiredService<ICliAppDetector>()));
 
-            // Bundle the post-recording transcribe → save → trim → paste/type
-            // pipeline behind one IDictationCompletionPipeline so the worker
-            // drops the persister + civility-trimmer deps and ~170 LOC of
-            // inline orchestration. (#969 extraction.)
-            var completionPipeline = new DictationCompletionPipeline(
-                sp.GetRequiredService<ILogger<DictationCompletionPipeline>>(),
-                sp.GetRequiredService<Voice.StateMachine.IDictationStateMachine>(),
-                transcriber,
-                outputChannel,
-                persister,
-                civilityTrimmer);
+        services.AddSingleton<IDictationCompletionPipeline, DictationCompletionPipeline>();
 
-            // Key handler owns the IKeyboardMonitor subscription + the
-            // ScrollLock/Pause routing tree so the worker no longer has a
-            // direct IKeyboardMonitor dep. (#969 extraction.)
-            var keyHandler = new DictationKeyHandler(
-                sp.GetRequiredService<ILogger<DictationKeyHandler>>(),
-                sp.GetRequiredService<IKeyboardMonitor>());
+        services.AddSingleton<IDictationKeyHandler, DictationKeyHandler>();
 
-            // State broadcaster owns the SignalR fan-out for state-changed,
-            // raw-transcription-ready, and transcription-completed events so
-            // the worker drops the direct transcriber dep. (#969 extraction.)
-            var stateBroadcaster = new DictationStateBroadcaster(
-                sp.GetRequiredService<Voice.StateMachine.IDictationStateMachine>(),
-                transcriber,
-                outputChannel);
+        services.AddSingleton<IDictationCancellationCoordinator, DictationCancellationCoordinator>();
 
-            // Cancellation coordinator owns all teardown flows (cancel
-            // recording / cancel transcription / emergency stop / shutdown)
-            // + the transcription CTS lifecycle, so the worker no longer
-            // needs a direct IDictationOutputChannel dep. (#969 extraction.)
-            var cancellationCoordinator = new DictationCancellationCoordinator(
-                sp.GetRequiredService<ILogger<DictationCancellationCoordinator>>(),
-                sp.GetRequiredService<Voice.StateMachine.IDictationStateMachine>(),
-                recordingSession,
-                outputChannel);
-
-            return new DictationWorker(
-                sp.GetRequiredService<ILogger<DictationWorker>>(),
-                keyHandler,
-                sp.GetRequiredService<Voice.StateMachine.IDictationStateMachine>(),
-                recordingSession,
-                completionPipeline,
-                stateBroadcaster,
-                cancellationCoordinator);
-        });
+        services.AddSingleton(sp => new DictationWorker(
+            sp.GetRequiredService<ILogger<DictationWorker>>(),
+            sp.GetRequiredService<IDictationKeyHandler>(),
+            sp.GetRequiredService<Voice.StateMachine.IDictationStateMachine>(),
+            sp.GetRequiredService<IDictationRecordingSession>(),
+            sp.GetRequiredService<IDictationCompletionPipeline>(),
+            sp.GetRequiredService<IDictationCancellationCoordinator>()));
 
         // Register the same instance as IDictationControl interface (issue #466)
         // This allows MenuEventDispatcher to control dictation functionality
@@ -144,6 +101,12 @@ public static class WorkerServicesExtensions
 
         // Register the same singleton instance as hosted service
         services.AddHostedService(sp => sp.GetRequiredService<DictationWorker>());
+
+        // State broadcaster runs as its own BackgroundService and subscribes
+        // to the worker's TranscriptionCompleted via IDictationService —
+        // worker doesn't inject or manage it, so its ctor dep count stays
+        // lower. (#969 god-class split.)
+        services.AddHostedService<DictationStateBroadcaster>();
 
         // Dictation-TTS coordination (prevents TTS during dictation)
         services.AddHostedService<DictationSpeechCoordinator>();
