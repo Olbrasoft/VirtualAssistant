@@ -92,13 +92,33 @@ public class DictationTranscriberTests
     }
 
     [Fact]
-    public async Task TranscribeRawAsync_StreamingActive_WithEmptyCombine_FallsBackToFullBuffer()
+    public async Task TranscribeRawAsync_StreamingActive_WithWhitespaceCombine_FallsBackToFullBuffer()
     {
-        // Per the xmldoc fallback contract: empty streaming result means
-        // "chunks were faulted or produced no text" — rerun Whisper on the
-        // full buffer so dictation still produces something.
+        // Whitespace-only combine means chunks ran but produced no usable
+        // text — rerun Whisper on the full buffer so dictation still produces
+        // something.
         _assemblerMock.SetupGet(x => x.IsActive).Returns(true);
         _assemblerMock.Setup(x => x.CombineAsync(It.IsAny<CancellationToken>())).ReturnsAsync("   ");
+        _transcriptionMock
+            .Setup(x => x.TranscribeRawAsync(It.IsAny<byte[]>(), It.IsAny<CancellationToken>()))
+            .ReturnsAsync(new TranscriptionResult("rescued", 0.9f));
+
+        var sut = CreateSut();
+        var result = await sut.TranscribeRawAsync(new byte[] { 1 }, CancellationToken.None);
+
+        Assert.Equal("rescued", result.Text);
+        _transcriptionMock.Verify(x => x.FinalizePreTranscribedRawAsync(It.IsAny<string>(), It.IsAny<CancellationToken>()), Times.Never);
+    }
+
+    [Fact]
+    public async Task TranscribeRawAsync_StreamingActive_WithNullCombine_FallsBackToFullBuffer()
+    {
+        // Null combine means no chunks were produced (normal for very short
+        // recordings) — distinct from whitespace (chunks ran but were empty).
+        // Both paths fall back, but the null case is informational, not a
+        // warning.
+        _assemblerMock.SetupGet(x => x.IsActive).Returns(true);
+        _assemblerMock.Setup(x => x.CombineAsync(It.IsAny<CancellationToken>())).ReturnsAsync((string?)null);
         _transcriptionMock
             .Setup(x => x.TranscribeRawAsync(It.IsAny<byte[]>(), It.IsAny<CancellationToken>()))
             .ReturnsAsync(new TranscriptionResult("rescued", 0.9f));

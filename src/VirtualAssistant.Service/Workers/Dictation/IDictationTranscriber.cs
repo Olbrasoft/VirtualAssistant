@@ -19,7 +19,9 @@ public interface IDictationTranscriber
     /// Raised when a raw transcription (pre-LLM-correction) becomes available.
     /// Forwarded from the underlying <c>ITranscriptionService</c> so the worker
     /// can broadcast without having to know which transcription backend is
-    /// wired up. Delivery is one-per-transcription, on the threadpool.
+    /// wired up. Raised once per transcription before any LLM correction.
+    /// Handlers should be fast and non-blocking; no specific thread affinity
+    /// is guaranteed.
     /// </summary>
     event Action<string>? RawTranscriptionReady;
 

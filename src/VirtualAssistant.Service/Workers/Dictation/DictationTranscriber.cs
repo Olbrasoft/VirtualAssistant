@@ -44,9 +44,17 @@ public sealed class DictationTranscriber : IDictationTranscriber
         if (_streamingAssembler.IsActive)
         {
             var combined = await _streamingAssembler.CombineAsync(cancellationToken);
+            if (combined is null)
+            {
+                _logger.LogInformation(
+                    "Streaming quick transcription produced no chunks; falling back to full-buffer Whisper");
+                return await _transcriptionService.TranscribeRawAsync(audio, cancellationToken);
+            }
+
             if (string.IsNullOrWhiteSpace(combined))
             {
-                _logger.LogWarning("Streaming quick transcription produced empty text; falling back to full-buffer Whisper");
+                _logger.LogWarning(
+                    "Streaming quick transcription produced whitespace-only text; falling back to full-buffer Whisper");
                 return await _transcriptionService.TranscribeRawAsync(audio, cancellationToken);
             }
 
