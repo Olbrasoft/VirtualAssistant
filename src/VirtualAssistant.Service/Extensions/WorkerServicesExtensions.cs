@@ -41,14 +41,22 @@ public static class WorkerServicesExtensions
 
         services.AddSingleton(sp =>
         {
-            // Streaming assembler is created inline so it binds to the SAME
-            // keyed ITranscriptionService the worker uses — otherwise a
-            // second (non-keyed) transcription instance would be resolved
-            // for per-chunk calls. (#969 extraction.)
+            // Streaming assembler and transcriber are constructed inline so
+            // they bind to the SAME keyed ITranscriptionService — otherwise a
+            // second (non-keyed) transcription instance would be resolved for
+            // per-chunk calls. (#969 extraction.)
             var transcription = sp.GetRequiredKeyedService<ITranscriptionService>(DictationKey);
             var assembler = new StreamingChunkAssembler(
                 sp.GetRequiredService<ILogger<StreamingChunkAssembler>>(),
                 transcription);
+
+            // Bundle ITranscriptionService + IStreamingChunkAssembler behind
+            // the transcriber abstraction so the worker talks to one façade
+            // for both streaming-lifecycle and transcription calls. (#969.)
+            var transcriber = new DictationTranscriber(
+                sp.GetRequiredService<ILogger<DictationTranscriber>>(),
+                transcription,
+                assembler);
 
             // Bundle the four output-surface dependencies (sounds, keyboard,
             // SignalR) behind a single IDictationOutputChannel so the worker
@@ -75,11 +83,10 @@ public static class WorkerServicesExtensions
                 sp.GetRequiredService<IKeyboardMonitor>(),
                 sp.GetRequiredService<Voice.StateMachine.IDictationStateMachine>(),
                 sp.GetRequiredKeyedService<IAudioRecordingCoordinator>(DictationKey),
-                transcription,
+                transcriber,
                 outputChannel,
                 persister,
                 civilityTrimmer,
-                assembler,
                 sp.GetRequiredService<IOptions<DictationOptions>>());
         });
 
