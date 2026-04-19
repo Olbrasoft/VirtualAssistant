@@ -114,15 +114,24 @@ public static class WorkerServicesExtensions
                 transcriber,
                 outputChannel);
 
+            // Cancellation coordinator owns all teardown flows (cancel
+            // recording / cancel transcription / emergency stop / shutdown)
+            // + the transcription CTS lifecycle, so the worker no longer
+            // needs a direct IDictationOutputChannel dep. (#969 extraction.)
+            var cancellationCoordinator = new DictationCancellationCoordinator(
+                sp.GetRequiredService<ILogger<DictationCancellationCoordinator>>(),
+                sp.GetRequiredService<Voice.StateMachine.IDictationStateMachine>(),
+                recordingSession,
+                outputChannel);
+
             return new DictationWorker(
                 sp.GetRequiredService<ILogger<DictationWorker>>(),
                 keyHandler,
                 sp.GetRequiredService<Voice.StateMachine.IDictationStateMachine>(),
                 recordingSession,
-                outputChannel,
                 completionPipeline,
                 stateBroadcaster,
-                sp.GetRequiredService<IOptions<DictationOptions>>());
+                cancellationCoordinator);
         });
 
         // Register the same instance as IDictationControl interface (issue #466)

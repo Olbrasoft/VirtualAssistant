@@ -1,8 +1,6 @@
 using Microsoft.Extensions.Logging;
-using Microsoft.Extensions.Options;
 using Moq;
 using Olbrasoft.Testing.Xunit.Attributes;
-using Olbrasoft.VirtualAssistant.Core.Configuration;
 using Olbrasoft.VirtualAssistant.Core.Models;
 using Olbrasoft.VirtualAssistant.Core.Services;
 using Olbrasoft.VirtualAssistant.Core.Speech;
@@ -19,18 +17,18 @@ public class DictationWorkerTests : IDisposable
     private readonly Mock<IDictationKeyHandler> _keyHandlerMock;
     private readonly Mock<IDictationStateMachine> _stateMachineMock;
     private readonly Mock<IDictationRecordingSession> _recordingSessionMock;
-    private readonly Mock<IDictationOutputChannel> _outputChannelMock;
     private readonly Mock<IDictationCompletionPipeline> _completionPipelineMock;
     private readonly Mock<IDictationStateBroadcaster> _stateBroadcasterMock;
-    private readonly DictationOptions _options;
+    private readonly Mock<IDictationCancellationCoordinator> _cancellationCoordinatorMock;
     private readonly DictationWorker _sut;
 
-    // Bindings captured from _keyHandler.Start(bindings); the tests invoke this
-    // to simulate key events instead of reaching into an IKeyboardMonitor mock.
-    // TaskCompletionSource replaces Task.Delay-based waits so tests don't race
-    // with the worker's ExecuteAsync scheduling. (Copilot review on PR #1034.)
+    // Bindings captured from _keyHandler.Start(bindings); tests await
+    // _bindingsReady.Task to block until ExecuteAsync wired everything up.
+    // RunContinuationsAsynchronously so continuations don't run inline on the
+    // worker's ExecuteAsync thread. (Copilot review on PR #1035.)
     private IDictationKeyHandlerBindings? _capturedBindings;
-    private readonly TaskCompletionSource<IDictationKeyHandlerBindings> _bindingsReady = new();
+    private readonly TaskCompletionSource<IDictationKeyHandlerBindings> _bindingsReady =
+        new(TaskCreationOptions.RunContinuationsAsynchronously);
 
     public DictationWorkerTests()
     {
@@ -38,11 +36,9 @@ public class DictationWorkerTests : IDisposable
         _keyHandlerMock = new Mock<IDictationKeyHandler>();
         _stateMachineMock = new Mock<IDictationStateMachine>();
         _recordingSessionMock = new Mock<IDictationRecordingSession>();
-        _outputChannelMock = new Mock<IDictationOutputChannel>();
         _completionPipelineMock = new Mock<IDictationCompletionPipeline>();
         _stateBroadcasterMock = new Mock<IDictationStateBroadcaster>();
-
-        _options = new DictationOptions { KeyboardLedSettleTimeMs = 10 };
+        _cancellationCoordinatorMock = new Mock<IDictationCancellationCoordinator>();
 
         _keyHandlerMock
             .Setup(x => x.Start(It.IsAny<IDictationKeyHandlerBindings>()))
@@ -59,10 +55,20 @@ public class DictationWorkerTests : IDisposable
             _keyHandlerMock.Object,
             _stateMachineMock.Object,
             _recordingSessionMock.Object,
-            _outputChannelMock.Object,
             _completionPipelineMock.Object,
             _stateBroadcasterMock.Object,
-            Options.Create(_options));
+            _cancellationCoordinatorMock.Object);
+    }
+
+    /// <summary>
+    /// Starts the worker and blocks deterministically until the key handler's
+    /// Start(bindings) callback fires via the TaskCompletionSource. Replaces
+    /// flaky Task.Delay(50) waits. (Copilot reviews on PR #1034 + #1035.)
+    /// </summary>
+    private async Task<IDictationKeyHandlerBindings> StartAndAwaitBindingsAsync(CancellationToken stoppingToken = default)
+    {
+        _ = _sut.StartAsync(stoppingToken);
+        return await _bindingsReady.Task.WaitAsync(TimeSpan.FromSeconds(5));
     }
 
     #region Constructor Tests
@@ -71,71 +77,45 @@ public class DictationWorkerTests : IDisposable
     public void Constructor_NullLogger_ThrowsArgumentNullException() =>
         Assert.Throws<ArgumentNullException>(() => new DictationWorker(
             null!, _keyHandlerMock.Object, _stateMachineMock.Object, _recordingSessionMock.Object,
-            _outputChannelMock.Object, _completionPipelineMock.Object, _stateBroadcasterMock.Object,
-            Options.Create(_options)));
+            _completionPipelineMock.Object, _stateBroadcasterMock.Object, _cancellationCoordinatorMock.Object));
 
     [Fact]
     public void Constructor_NullKeyHandler_ThrowsArgumentNullException() =>
         Assert.Throws<ArgumentNullException>(() => new DictationWorker(
             _loggerMock.Object, null!, _stateMachineMock.Object, _recordingSessionMock.Object,
-            _outputChannelMock.Object, _completionPipelineMock.Object, _stateBroadcasterMock.Object,
-            Options.Create(_options)));
+            _completionPipelineMock.Object, _stateBroadcasterMock.Object, _cancellationCoordinatorMock.Object));
 
     [Fact]
     public void Constructor_NullStateMachine_ThrowsArgumentNullException() =>
         Assert.Throws<ArgumentNullException>(() => new DictationWorker(
             _loggerMock.Object, _keyHandlerMock.Object, null!, _recordingSessionMock.Object,
-            _outputChannelMock.Object, _completionPipelineMock.Object, _stateBroadcasterMock.Object,
-            Options.Create(_options)));
+            _completionPipelineMock.Object, _stateBroadcasterMock.Object, _cancellationCoordinatorMock.Object));
 
     [Fact]
     public void Constructor_NullRecordingSession_ThrowsArgumentNullException() =>
         Assert.Throws<ArgumentNullException>(() => new DictationWorker(
             _loggerMock.Object, _keyHandlerMock.Object, _stateMachineMock.Object, null!,
-            _outputChannelMock.Object, _completionPipelineMock.Object, _stateBroadcasterMock.Object,
-            Options.Create(_options)));
-
-    [Fact]
-    public void Constructor_NullOutputChannel_ThrowsArgumentNullException() =>
-        Assert.Throws<ArgumentNullException>(() => new DictationWorker(
-            _loggerMock.Object, _keyHandlerMock.Object, _stateMachineMock.Object, _recordingSessionMock.Object,
-            null!, _completionPipelineMock.Object, _stateBroadcasterMock.Object,
-            Options.Create(_options)));
+            _completionPipelineMock.Object, _stateBroadcasterMock.Object, _cancellationCoordinatorMock.Object));
 
     [Fact]
     public void Constructor_NullCompletionPipeline_ThrowsArgumentNullException() =>
         Assert.Throws<ArgumentNullException>(() => new DictationWorker(
             _loggerMock.Object, _keyHandlerMock.Object, _stateMachineMock.Object, _recordingSessionMock.Object,
-            _outputChannelMock.Object, null!, _stateBroadcasterMock.Object,
-            Options.Create(_options)));
+            null!, _stateBroadcasterMock.Object, _cancellationCoordinatorMock.Object));
 
     [Fact]
     public void Constructor_NullStateBroadcaster_ThrowsArgumentNullException() =>
         Assert.Throws<ArgumentNullException>(() => new DictationWorker(
             _loggerMock.Object, _keyHandlerMock.Object, _stateMachineMock.Object, _recordingSessionMock.Object,
-            _outputChannelMock.Object, _completionPipelineMock.Object, null!,
-            Options.Create(_options)));
+            _completionPipelineMock.Object, null!, _cancellationCoordinatorMock.Object));
 
     [Fact]
-    public void Constructor_NullOptions_ThrowsArgumentNullException() =>
+    public void Constructor_NullCancellationCoordinator_ThrowsArgumentNullException() =>
         Assert.Throws<ArgumentNullException>(() => new DictationWorker(
             _loggerMock.Object, _keyHandlerMock.Object, _stateMachineMock.Object, _recordingSessionMock.Object,
-            _outputChannelMock.Object, _completionPipelineMock.Object, _stateBroadcasterMock.Object,
-            null!));
+            _completionPipelineMock.Object, _stateBroadcasterMock.Object, null!));
 
     #endregion
-
-    /// <summary>
-    /// Starts the worker and blocks until the key-handler's Start(bindings)
-    /// callback fires via the TaskCompletionSource rigged in the ctor. Keeps
-    /// tests deterministic instead of racing against Task.Delay(50).
-    /// (Copilot review on PR #1034.)
-    /// </summary>
-    private async Task<IDictationKeyHandlerBindings> StartAndAwaitBindingsAsync(CancellationToken stoppingToken = default)
-    {
-        _ = _sut.StartAsync(stoppingToken);
-        return await _bindingsReady.Task.WaitAsync(TimeSpan.FromSeconds(5));
-    }
 
     #region ExecuteAsync Tests
 
@@ -154,8 +134,7 @@ public class DictationWorkerTests : IDisposable
     public async Task StopAsync_StopsKeyHandler()
     {
         using var cts = new CancellationTokenSource();
-        await _sut.StartAsync(cts.Token);
-        await Task.Delay(50);
+        await StartAndAwaitBindingsAsync(cts.Token);
 
         await _sut.StopAsync(CancellationToken.None);
 
@@ -165,13 +144,9 @@ public class DictationWorkerTests : IDisposable
     [Fact]
     public async Task ExecuteAsync_StartsStateBroadcaster()
     {
-        // Broadcaster owns the state-machine + transcriber event subscriptions;
-        // worker only wires its own TranscriptionCompleted event into the
-        // broadcaster via the Start callback pair.
         using var cts = new CancellationTokenSource();
 
-        _ = _sut.StartAsync(cts.Token);
-        await Task.Delay(50);
+        await StartAndAwaitBindingsAsync(cts.Token);
 
         _stateBroadcasterMock.Verify(
             x => x.Start(It.IsAny<Action<EventHandler<string>>>(), It.IsAny<Action<EventHandler<string>>>()),
@@ -182,8 +157,7 @@ public class DictationWorkerTests : IDisposable
     public async Task StopAsync_StopsStateBroadcaster()
     {
         using var cts = new CancellationTokenSource();
-        await _sut.StartAsync(cts.Token);
-        await Task.Delay(50);
+        await StartAndAwaitBindingsAsync(cts.Token);
 
         await _sut.StopAsync(CancellationToken.None);
 
@@ -194,48 +168,39 @@ public class DictationWorkerTests : IDisposable
 
     #region Bindings Adapter Tests
 
-    // The worker's nested KeyHandlerBindings adapter is the only place the
-    // worker's internal state reaches the key handler. Exercise it via the
-    // captured IDictationKeyHandlerBindings instance.
-
     [Fact]
     public async Task Bindings_StateMirrorsStateMachineCurrentState()
     {
         using var cts = new CancellationTokenSource();
-        _ = _sut.StartAsync(cts.Token);
-        await Task.Delay(50);
+        var bindings = await StartAndAwaitBindingsAsync(cts.Token);
 
         _stateMachineMock.SetupGet(x => x.CurrentState).Returns(DictationState.Transcribing);
 
-        Assert.NotNull(_capturedBindings);
-        Assert.Equal(DictationState.Transcribing, _capturedBindings!.State);
+        Assert.Equal(DictationState.Transcribing, bindings.State);
     }
 
     [Fact]
     public async Task Bindings_IsEnabledReflectsSetDictationEnabled()
     {
         using var cts = new CancellationTokenSource();
-        _ = _sut.StartAsync(cts.Token);
-        await Task.Delay(50);
+        var bindings = await StartAndAwaitBindingsAsync(cts.Token);
 
-        Assert.NotNull(_capturedBindings);
-        Assert.True(_capturedBindings!.IsEnabled);
+        Assert.True(bindings.IsEnabled);
 
         _sut.SetDictationEnabled(false);
-        Assert.False(_capturedBindings.IsEnabled);
+        Assert.False(bindings.IsEnabled);
     }
 
     [SkipOnCIFact]
     public async Task Bindings_StartAsync_TriggersNormalModeRecording()
     {
         using var cts = new CancellationTokenSource();
-        _ = _sut.StartAsync(cts.Token);
-        await Task.Delay(50);
+        var bindings = await StartAndAwaitBindingsAsync(cts.Token);
 
         _stateMachineMock.SetupGet(x => x.CurrentState).Returns(DictationState.Idle);
         _recordingSessionMock.Setup(x => x.StartAsync(It.IsAny<bool>())).Returns(Task.CompletedTask);
 
-        await _capturedBindings!.StartAsync();
+        await bindings.StartAsync();
 
         _stateMachineMock.Verify(x => x.TransitionTo(DictationState.Recording), Times.Once);
         _recordingSessionMock.Verify(x => x.StartAsync(It.IsAny<bool>()), Times.Once);
@@ -245,14 +210,13 @@ public class DictationWorkerTests : IDisposable
     public async Task Bindings_StopAndTranscribeAsync_InvokesCompletionPipelineFullMode()
     {
         using var cts = new CancellationTokenSource();
-        _ = _sut.StartAsync(cts.Token);
-        await Task.Delay(50);
+        var bindings = await StartAndAwaitBindingsAsync(cts.Token);
 
         var audio = new byte[] { 1, 2, 3, 4 };
         _stateMachineMock.SetupGet(x => x.CurrentState).Returns(DictationState.Recording);
         _recordingSessionMock.Setup(x => x.StopAsync()).ReturnsAsync(audio);
 
-        await _capturedBindings!.StopAndTranscribeAsync();
+        await bindings.StopAndTranscribeAsync();
         await Task.Delay(100);
 
         _completionPipelineMock.Verify(
@@ -260,34 +224,26 @@ public class DictationWorkerTests : IDisposable
             Times.Once);
     }
 
-    [SkipOnCIFact]
-    public async Task Bindings_CancelRecordingAsync_EmergencyStopsAndPlaysCancelCue()
+    [Fact]
+    public async Task Bindings_CancelRecordingAsync_DelegatesToCoordinator()
     {
         using var cts = new CancellationTokenSource();
-        _ = _sut.StartAsync(cts.Token);
-        await Task.Delay(50);
+        var bindings = await StartAndAwaitBindingsAsync(cts.Token);
 
-        await _capturedBindings!.CancelRecordingAsync();
+        await bindings.CancelRecordingAsync();
 
-        _recordingSessionMock.Verify(x => x.EmergencyStopAsync(), Times.Once);
-        _outputChannelMock.Verify(x => x.PlayCancelCue(), Times.Once);
-        _stateMachineMock.Verify(x => x.TransitionTo(DictationState.Idle), Times.Once);
+        _cancellationCoordinatorMock.Verify(x => x.CancelRecordingAsync(), Times.Once);
     }
 
-    [SkipOnCIFact]
-    public async Task Bindings_CancelTranscription_DelegatesToWorker()
+    [Fact]
+    public async Task Bindings_CancelTranscription_DelegatesToCoordinator()
     {
         using var cts = new CancellationTokenSource();
-        _ = _sut.StartAsync(cts.Token);
-        await Task.Delay(50);
+        var bindings = await StartAndAwaitBindingsAsync(cts.Token);
 
-        _stateMachineMock.SetupGet(x => x.CurrentState).Returns(DictationState.Transcribing);
+        bindings.CancelTranscription();
 
-        _capturedBindings!.CancelTranscription();
-
-        _outputChannelMock.Verify(x => x.StopTypingFeedback(), Times.Once);
-        _outputChannelMock.Verify(x => x.PlayCancelCue(), Times.Once);
-        _stateMachineMock.Verify(x => x.TransitionTo(DictationState.Idle), Times.Once);
+        _cancellationCoordinatorMock.Verify(x => x.CancelTranscription(), Times.Once);
     }
 
     #endregion
@@ -295,38 +251,37 @@ public class DictationWorkerTests : IDisposable
     #region SetDictationEnabled Tests
 
     [Fact]
-    public void SetDictationEnabled_DisablingWhileIdle_DoesNotPerformEmergencyStop()
+    public void SetDictationEnabled_DisablingWhileIdle_DoesNotCallCoordinator()
     {
         _stateMachineMock.SetupGet(x => x.CurrentState).Returns(DictationState.Idle);
 
         _sut.SetDictationEnabled(false);
 
-        _recordingSessionMock.Verify(x => x.EmergencyStopAsync(), Times.Never);
+        _cancellationCoordinatorMock.Verify(x => x.EmergencyStopAsync(), Times.Never);
     }
 
     [Fact]
-    public async Task SetDictationEnabled_DisablingWhileRecording_PerformsEmergencyStop()
+    public async Task SetDictationEnabled_DisablingWhileRecording_TriggersCoordinatorEmergencyStop()
     {
         _stateMachineMock.SetupGet(x => x.CurrentState).Returns(DictationState.Recording);
-        _recordingSessionMock.Setup(x => x.EmergencyStopAsync()).Returns(Task.CompletedTask);
+        _cancellationCoordinatorMock.Setup(x => x.EmergencyStopAsync()).Returns(Task.CompletedTask);
 
         _sut.SetDictationEnabled(false);
         await Task.Delay(100);
 
-        _recordingSessionMock.Verify(x => x.EmergencyStopAsync(), Times.Once);
-        _stateMachineMock.Verify(x => x.TransitionTo(DictationState.Idle), Times.Once);
+        _cancellationCoordinatorMock.Verify(x => x.EmergencyStopAsync(), Times.Once);
     }
 
     [Fact]
-    public async Task SetDictationEnabled_DisablingWhileTranscribing_PerformsEmergencyStop()
+    public async Task SetDictationEnabled_DisablingWhileTranscribing_TriggersCoordinatorEmergencyStop()
     {
         _stateMachineMock.SetupGet(x => x.CurrentState).Returns(DictationState.Transcribing);
-        _recordingSessionMock.Setup(x => x.EmergencyStopAsync()).Returns(Task.CompletedTask);
+        _cancellationCoordinatorMock.Setup(x => x.EmergencyStopAsync()).Returns(Task.CompletedTask);
 
         _sut.SetDictationEnabled(false);
         await Task.Delay(100);
 
-        _recordingSessionMock.Verify(x => x.EmergencyStopAsync(), Times.Once);
+        _cancellationCoordinatorMock.Verify(x => x.EmergencyStopAsync(), Times.Once);
     }
 
     #endregion
@@ -337,8 +292,7 @@ public class DictationWorkerTests : IDisposable
     public async Task StopAndTranscribe_EmptyAudio_TransitionsIdleAndSkipsCompletionPipeline()
     {
         using var cts = new CancellationTokenSource();
-        await _sut.StartAsync(cts.Token);
-        await Task.Delay(50);
+        await StartAndAwaitBindingsAsync(cts.Token);
 
         _stateMachineMock.SetupGet(x => x.CurrentState).Returns(DictationState.Recording);
         _recordingSessionMock.Setup(x => x.StopAsync()).ReturnsAsync(Array.Empty<byte>());
@@ -356,13 +310,14 @@ public class DictationWorkerTests : IDisposable
     }
 
     [SkipOnCIFact]
-    public async Task StopAndTranscribe_NormalMode_InvokesCompleteFullAsync()
+    public async Task StopAndTranscribe_NormalMode_BeginsTranscriptionAndInvokesCompleteFullAsync()
     {
         using var cts = new CancellationTokenSource();
-        await _sut.StartAsync(cts.Token);
-        await Task.Delay(50);
+        await StartAndAwaitBindingsAsync(cts.Token);
 
         var audioData = new byte[] { 1, 2, 3, 4 };
+        var token = new CancellationToken();
+        _cancellationCoordinatorMock.Setup(x => x.BeginTranscription()).Returns(token);
 
         _stateMachineMock.SetupGet(x => x.CurrentState).Returns(DictationState.Recording);
         _recordingSessionMock.Setup(x => x.StopAsync()).ReturnsAsync(audioData);
@@ -370,24 +325,18 @@ public class DictationWorkerTests : IDisposable
         await _sut.StopDictationAsync();
         await Task.Delay(200);
 
+        _cancellationCoordinatorMock.Verify(x => x.BeginTranscription(), Times.Once);
         _completionPipelineMock.Verify(
             x => x.CompleteFullAsync(audioData, It.IsAny<Action<string>>(), It.IsAny<CancellationToken>()),
             Times.Once);
-        _completionPipelineMock.Verify(
-            x => x.CompleteQuickAsync(It.IsAny<byte[]>(), It.IsAny<CancellationToken>()),
-            Times.Never);
+        _cancellationCoordinatorMock.Verify(x => x.EndTranscription(), Times.Once);
     }
 
     [SkipOnCIFact]
     public async Task StopAndTranscribe_NormalMode_TranscriptionCompletedCallbackRaisesWorkerEvent()
     {
-        // The worker's public TranscriptionCompleted event must fire for any
-        // text the pipeline hands back via the callback — this is how the
-        // SignalR broadcast + remote UI see the text before the keystrokes
-        // land.
         using var cts = new CancellationTokenSource();
-        await _sut.StartAsync(cts.Token);
-        await Task.Delay(50);
+        await StartAndAwaitBindingsAsync(cts.Token);
 
         var audioData = new byte[] { 1, 2, 3, 4 };
         Action<string>? capturedCallback = null;
@@ -416,33 +365,30 @@ public class DictationWorkerTests : IDisposable
     #region StopAsync Tests
 
     [Fact]
-    public async Task StopAsync_WhileIdle_DoesNotPerformEmergencyStop()
+    public async Task StopAsync_WhileIdle_DoesNotTriggerCoordinatorShutdown()
     {
         using var cts = new CancellationTokenSource();
-        await _sut.StartAsync(cts.Token);
-        await Task.Delay(50);
+        await StartAndAwaitBindingsAsync(cts.Token);
 
         _stateMachineMock.SetupGet(x => x.CurrentState).Returns(DictationState.Idle);
 
         await _sut.StopAsync(CancellationToken.None);
 
-        _recordingSessionMock.Verify(x => x.EmergencyStopAsync(), Times.Never);
+        _cancellationCoordinatorMock.Verify(x => x.ShutdownAsync(), Times.Never);
     }
 
     [Fact]
-    public async Task StopAsync_WhileRecording_StopsRecording()
+    public async Task StopAsync_WhileRecording_TriggersCoordinatorShutdown()
     {
         using var cts = new CancellationTokenSource();
-        await _sut.StartAsync(cts.Token);
-        await Task.Delay(50);
+        await StartAndAwaitBindingsAsync(cts.Token);
 
         _stateMachineMock.SetupGet(x => x.CurrentState).Returns(DictationState.Recording);
-        _recordingSessionMock.Setup(x => x.EmergencyStopAsync()).Returns(Task.CompletedTask);
+        _cancellationCoordinatorMock.Setup(x => x.ShutdownAsync()).Returns(Task.CompletedTask);
 
         await _sut.StopAsync(CancellationToken.None);
 
-        _recordingSessionMock.Verify(x => x.EmergencyStopAsync(), Times.AtLeastOnce);
-        _stateMachineMock.Verify(x => x.TransitionTo(DictationState.Idle), Times.AtLeastOnce);
+        _cancellationCoordinatorMock.Verify(x => x.ShutdownAsync(), Times.AtLeastOnce);
     }
 
     #endregion
@@ -464,8 +410,7 @@ public class DictationWorkerTests : IDisposable
     public async Task QuickDictation_InvokesCompleteQuickAsync()
     {
         using var cts = new CancellationTokenSource();
-        await _sut.StartAsync(cts.Token);
-        await Task.Delay(50);
+        await StartAndAwaitBindingsAsync(cts.Token);
 
         var audioData = new byte[] { 1, 2, 3, 4 };
 
@@ -491,9 +436,7 @@ public class DictationWorkerTests : IDisposable
     {
         // After a quick-mode session is canceled, the next keyboard-triggered
         // dictation (routed through bindings.StartAsync) must reset the mode
-        // flag and run CompleteFullAsync, not CompleteQuickAsync. Regression
-        // coverage for the pre-extraction behavior lost in PR #1034.
-        // (Copilot review on PR #1034.)
+        // flag and run CompleteFullAsync, not CompleteQuickAsync.
         using var cts = new CancellationTokenSource();
         var bindings = await StartAndAwaitBindingsAsync(cts.Token);
 
@@ -503,13 +446,10 @@ public class DictationWorkerTests : IDisposable
         _stateMachineMock.SetupGet(x => x.CurrentState).Returns(DictationState.Recording);
         ((IDictationService)_sut).CancelTranscription();
 
-        // Simulate keyboard ScrollLock from Idle: handler invokes bindings.StartAsync
-        // which must reset quick mode back to false.
         _stateMachineMock.SetupGet(x => x.CurrentState).Returns(DictationState.Idle);
         _recordingSessionMock.Setup(x => x.StartAsync(It.IsAny<bool>())).Returns(Task.CompletedTask);
         await bindings.StartAsync();
 
-        // Now stop + transcribe — should use full mode since quick flag is cleared.
         var audioData = new byte[] { 1, 2, 3 };
         _stateMachineMock.SetupGet(x => x.CurrentState).Returns(DictationState.Recording);
         _recordingSessionMock.Setup(x => x.StopAsync()).ReturnsAsync(audioData);
