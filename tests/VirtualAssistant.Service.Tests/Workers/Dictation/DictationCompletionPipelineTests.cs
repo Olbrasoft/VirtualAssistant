@@ -207,6 +207,37 @@ public class DictationCompletionPipelineTests
     }
 
     [Fact]
+    public async Task CompleteQuickAsync_TranscriberThrows_StillStopsFeedbackAndIdles()
+    {
+        // Copilot review on PR #1031: the pipeline's contract says it owns
+        // StopTypingFeedback + Idle transition on every exit path, so if an
+        // awaited dep throws (incl. cancellation), the finally block must
+        // still run. Otherwise the typing sound loops forever and the state
+        // machine stays stuck on Transcribing.
+        _transcriberMock.Setup(x => x.TranscribeRawAsync(It.IsAny<byte[]>(), It.IsAny<CancellationToken>()))
+            .ThrowsAsync(new OperationCanceledException());
+
+        await Assert.ThrowsAsync<OperationCanceledException>(() =>
+            CreateSut().CompleteQuickAsync(new byte[] { 1 }, CancellationToken.None));
+
+        _outputChannelMock.Verify(x => x.StopTypingFeedback(), Times.Once);
+        _stateMachineMock.Verify(x => x.TransitionTo(DictationState.Idle), Times.Once);
+    }
+
+    [Fact]
+    public async Task CompleteFullAsync_TranscriberThrows_StillStopsFeedbackAndIdles()
+    {
+        _transcriberMock.Setup(x => x.TranscribeFullAsync(It.IsAny<byte[]>(), It.IsAny<CancellationToken>()))
+            .ThrowsAsync(new InvalidOperationException("boom"));
+
+        await Assert.ThrowsAsync<InvalidOperationException>(() =>
+            CreateSut().CompleteFullAsync(new byte[] { 1 }, _ => { }, CancellationToken.None));
+
+        _outputChannelMock.Verify(x => x.StopTypingFeedback(), Times.Once);
+        _stateMachineMock.Verify(x => x.TransitionTo(DictationState.Idle), Times.Once);
+    }
+
+    [Fact]
     public async Task CompleteQuickAsync_NullAudio_Throws() =>
         await Assert.ThrowsAsync<ArgumentNullException>(() => CreateSut().CompleteQuickAsync(null!, CancellationToken.None));
 

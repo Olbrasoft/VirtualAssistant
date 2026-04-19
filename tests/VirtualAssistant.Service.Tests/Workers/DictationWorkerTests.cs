@@ -395,12 +395,11 @@ public class DictationWorkerTests : IDisposable
     #region Transcription Workflow Tests
 
     [SkipOnCIFact]
-    public async Task StopAndTranscribe_EmptyAudio_SkipsCompletionPipeline()
+    public async Task StopAndTranscribe_EmptyAudio_TransitionsIdleAndSkipsCompletionPipeline()
     {
-        // ValidateAndPrepareAudioAsync returns null on empty buffer; the
-        // pipeline must never be invoked. Transcription workflow internals
-        // (save + type + state transitions) are covered in
-        // DictationCompletionPipelineTests.
+        // Worker's ValidateAndPrepareAudioAsync owns the empty-buffer branch:
+        // it transitions the state machine back to Idle (since the pipeline
+        // won't run) and the pipeline must never be invoked.
         using var cts = new CancellationTokenSource();
         await _sut.StartAsync(cts.Token);
         await Task.Delay(50);
@@ -418,6 +417,7 @@ public class DictationWorkerTests : IDisposable
         _completionPipelineMock.Verify(
             x => x.CompleteQuickAsync(It.IsAny<byte[]>(), It.IsAny<CancellationToken>()),
             Times.Never);
+        _stateMachineMock.Verify(x => x.TransitionTo(DictationState.Idle), Times.AtLeastOnce);
     }
 
     [SkipOnCIFact]

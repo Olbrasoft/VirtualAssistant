@@ -37,50 +37,50 @@ public sealed class DictationCompletionPipeline : IDictationCompletionPipeline
         ArgumentNullException.ThrowIfNull(audio);
 
         _outputChannel.StartTypingFeedback();
-
-        var result = await _transcriber.TranscribeRawAsync(audio, cancellationToken);
-
-        if (!result.Success || string.IsNullOrWhiteSpace(result.Text))
+        try
         {
-            _logger.LogWarning("Quick transcription failed or empty");
+            var result = await _transcriber.TranscribeRawAsync(audio, cancellationToken);
+
+            if (!result.Success || string.IsNullOrWhiteSpace(result.Text))
+            {
+                _logger.LogWarning("Quick transcription failed or empty");
+                return;
+            }
+
+            _logger.LogInformation("Quick transcription: '{Text}'", result.Text);
+
+            await _persister.SaveAsync(audio, result, cancellationToken);
+
+            // Strip trailing civility ("… Děkuji.", "… Ahoj.", Whisper hallucinated
+            // sign-offs) when pasting into a CLI agent that reads the text as a
+            // prompt. Scoped to Claude Code only — in chat apps "Děkuji." is a
+            // legitimate message and must stay.
+            var textToPaste = await _civilityTrimmer.TrimIfClaudeCodeAsync(result.Text, cancellationToken);
+            if (string.IsNullOrWhiteSpace(textToPaste))
+            {
+                _logger.LogInformation("Quick dictation: transcription reduced to empty after civility trim — skipping paste");
+                return;
+            }
+
+            // Quick mode: fast paste without clipboard save/restore.
+            var pasteSucceeded = await _outputChannel.FastPasteAsync(textToPaste, cancellationToken);
+
+            if (!pasteSucceeded)
+            {
+                _logger.LogWarning("Quick dictation: fast paste failed");
+                return;
+            }
+
+            // Broadcast QuickTranscriptionCompleted BEFORE idle transition so the
+            // client sets the pending flag first.
+            await _outputChannel.BroadcastEventAsync(DictationEventType.QuickTranscriptionCompleted, textToPaste);
+            _logger.LogInformation("Quick dictation: text pasted, QuickTranscriptionCompleted sent");
+        }
+        finally
+        {
             _outputChannel.StopTypingFeedback();
             _stateMachine.TransitionTo(DictationState.Idle);
-            return;
         }
-
-        _logger.LogInformation("Quick transcription: '{Text}'", result.Text);
-
-        await _persister.SaveAsync(audio, result, cancellationToken);
-
-        // Strip trailing civility ("… Děkuji.", "… Ahoj.", Whisper hallucinated
-        // sign-offs) when pasting into a CLI agent that reads the text as a
-        // prompt. Scoped to Claude Code only — in chat apps "Děkuji." is a
-        // legitimate message and must stay.
-        var textToPaste = await _civilityTrimmer.TrimIfClaudeCodeAsync(result.Text, cancellationToken);
-        if (string.IsNullOrWhiteSpace(textToPaste))
-        {
-            _logger.LogInformation("Quick dictation: transcription reduced to empty after civility trim — skipping paste");
-            _outputChannel.StopTypingFeedback();
-            _stateMachine.TransitionTo(DictationState.Idle);
-            return;
-        }
-
-        // Quick mode: fast paste without clipboard save/restore.
-        var pasteSucceeded = await _outputChannel.FastPasteAsync(textToPaste, cancellationToken);
-        _outputChannel.StopTypingFeedback();
-
-        if (!pasteSucceeded)
-        {
-            _logger.LogWarning("Quick dictation: fast paste failed");
-            _stateMachine.TransitionTo(DictationState.Idle);
-            return;
-        }
-
-        // Broadcast QuickTranscriptionCompleted BEFORE idle transition so the
-        // client sets the pending flag first.
-        await _outputChannel.BroadcastEventAsync(DictationEventType.QuickTranscriptionCompleted, textToPaste);
-        _stateMachine.TransitionTo(DictationState.Idle);
-        _logger.LogInformation("Quick dictation: text pasted, QuickTranscriptionCompleted sent");
     }
 
     public async Task CompleteFullAsync(
@@ -92,35 +92,37 @@ public sealed class DictationCompletionPipeline : IDictationCompletionPipeline
         ArgumentNullException.ThrowIfNull(onTranscriptionReady);
 
         _outputChannel.StartTypingFeedback();
-
-        var result = await _transcriber.TranscribeFullAsync(audio, cancellationToken);
-
-        if (!result.Success || string.IsNullOrWhiteSpace(result.Text))
+        try
         {
-            _logger.LogWarning("Transcription failed or empty");
+            var result = await _transcriber.TranscribeFullAsync(audio, cancellationToken);
+
+            if (!result.Success || string.IsNullOrWhiteSpace(result.Text))
+            {
+                _logger.LogWarning("Transcription failed or empty");
+                return;
+            }
+
+            _logger.LogInformation("Transcription result: '{Text}'", result.Text);
+
+            await _persister.SaveAsync(audio, result, cancellationToken);
+
+            // Raise TranscriptionCompleted before typing so remote UI gets the text immediately.
+            onTranscriptionReady(result.Text);
+
+            var typed = await _outputChannel.TypeIntoActiveWindowAsync(result.Text, cancellationToken);
+
+            if (!typed)
+            {
+                _logger.LogWarning("Failed to type text into active window");
+                return;
+            }
+
+            _logger.LogInformation("Text typed successfully into active window");
+        }
+        finally
+        {
             _outputChannel.StopTypingFeedback();
             _stateMachine.TransitionTo(DictationState.Idle);
-            return;
         }
-
-        _logger.LogInformation("Transcription result: '{Text}'", result.Text);
-
-        await _persister.SaveAsync(audio, result, cancellationToken);
-
-        // Raise TranscriptionCompleted before typing so remote UI gets the text immediately.
-        onTranscriptionReady(result.Text);
-
-        var typed = await _outputChannel.TypeIntoActiveWindowAsync(result.Text, cancellationToken);
-        _outputChannel.StopTypingFeedback();
-
-        if (!typed)
-        {
-            _logger.LogWarning("Failed to type text into active window");
-            _stateMachine.TransitionTo(DictationState.Idle);
-            return;
-        }
-
-        _logger.LogInformation("Text typed successfully into active window");
-        _stateMachine.TransitionTo(DictationState.Idle);
     }
 }

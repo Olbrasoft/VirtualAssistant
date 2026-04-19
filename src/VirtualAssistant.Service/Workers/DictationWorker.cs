@@ -350,15 +350,13 @@ public class DictationWorker : BackgroundService, IDictationControl, IDictationS
         }
         catch (OperationCanceledException)
         {
+            // Pipeline's finally already ran StopTypingFeedback + Idle transition
+            // (on both successful and faulted exit); worker only logs here.
             _logger.LogInformation("Transcription canceled by user");
-            _outputChannel.StopTypingFeedback();
-            _stateMachine.TransitionTo(DictationState.Idle);
         }
         catch (Exception ex)
         {
             _logger.LogError(ex, "Error during transcription");
-            _outputChannel.StopTypingFeedback();
-            _stateMachine.TransitionTo(DictationState.Idle);
         }
         finally
         {
