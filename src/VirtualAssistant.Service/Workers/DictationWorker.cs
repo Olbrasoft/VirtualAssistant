@@ -5,12 +5,10 @@ using Olbrasoft.VirtualAssistant.Core.Models;
 using Olbrasoft.VirtualAssistant.Core.Services;
 using Olbrasoft.VirtualAssistant.Core.Speech;
 using Olbrasoft.VirtualAssistant.Core.WindowManagement;
-using Olbrasoft.VirtualAssistant.Voice.Services;
 using Olbrasoft.VirtualAssistant.Core.StateMachine;
 using Olbrasoft.VirtualAssistant.Voice.StateMachine;
 using Olbrasoft.VirtualAssistant.Service.Hubs;
 using Olbrasoft.VirtualAssistant.Service.Workers.Dictation;
-using Olbrasoft.VirtualAssistant.Service.Workers.Streaming;
 
 namespace Olbrasoft.VirtualAssistant.Service.Workers;
 
@@ -25,11 +23,10 @@ public class DictationWorker : BackgroundService, IDictationControl, IDictationS
     private readonly IKeyboardMonitor _keyboardMonitor;
     private readonly IDictationStateMachine _stateMachine;
     private readonly IAudioRecordingCoordinator _recordingCoordinator;
-    private readonly ITranscriptionService _transcriptionService;
+    private readonly IDictationTranscriber _transcriber;
     private readonly IDictationOutputChannel _outputChannel;
     private readonly IDictationTranscriptionPersister _persister;
     private readonly IClaudeCodeCivilityTrimmer _civilityTrimmer;
-    private readonly IStreamingChunkAssembler _streamingAssembler;
     private readonly DictationOptions _options;
 
     private CancellationTokenSource? _transcriptionCts;
@@ -48,22 +45,20 @@ public class DictationWorker : BackgroundService, IDictationControl, IDictationS
         IKeyboardMonitor keyboardMonitor,
         IDictationStateMachine stateMachine,
         IAudioRecordingCoordinator recordingCoordinator,
-        ITranscriptionService transcriptionService,
+        IDictationTranscriber transcriber,
         IDictationOutputChannel outputChannel,
         IDictationTranscriptionPersister persister,
         IClaudeCodeCivilityTrimmer civilityTrimmer,
-        IStreamingChunkAssembler streamingAssembler,
         IOptions<DictationOptions> options)
     {
         _logger = logger ?? throw new ArgumentNullException(nameof(logger));
         _keyboardMonitor = keyboardMonitor ?? throw new ArgumentNullException(nameof(keyboardMonitor));
         _stateMachine = stateMachine ?? throw new ArgumentNullException(nameof(stateMachine));
         _recordingCoordinator = recordingCoordinator ?? throw new ArgumentNullException(nameof(recordingCoordinator));
-        _transcriptionService = transcriptionService ?? throw new ArgumentNullException(nameof(transcriptionService));
+        _transcriber = transcriber ?? throw new ArgumentNullException(nameof(transcriber));
         _outputChannel = outputChannel ?? throw new ArgumentNullException(nameof(outputChannel));
         _persister = persister ?? throw new ArgumentNullException(nameof(persister));
         _civilityTrimmer = civilityTrimmer ?? throw new ArgumentNullException(nameof(civilityTrimmer));
-        _streamingAssembler = streamingAssembler ?? throw new ArgumentNullException(nameof(streamingAssembler));
         ArgumentNullException.ThrowIfNull(options);
         _options = options.Value;
     }
@@ -155,9 +150,9 @@ public class DictationWorker : BackgroundService, IDictationControl, IDictationS
             // If user picked slow mode but streaming was pre-transcribing chunks,
             // cancel those background tasks — they'd be discarded anyway, no point
             // burning GPU/serializing the Whisper semaphore for them.
-            if (!quickMode && _streamingAssembler.IsActive)
+            if (!quickMode && _transcriber.IsStreamingActive)
             {
-                _streamingAssembler.CancelAndClear();
+                _transcriber.EndSession();
                 _recordingCoordinator.DisableChunking();
                 _logger.LogInformation("Slow-mode override: canceled pending streaming chunk transcriptions");
             }
@@ -186,7 +181,7 @@ public class DictationWorker : BackgroundService, IDictationControl, IDictationS
             // Subscribe to state changes for SignalR broadcasting
             _stateMachine.StateChanged += OnStateChangedBroadcast;
             TranscriptionCompleted += OnTranscriptionCompletedBroadcast;
-            _transcriptionService.RawTranscriptionReady += OnRawTranscriptionReadyBroadcast;
+            _transcriber.RawTranscriptionReady += OnRawTranscriptionReadyBroadcast;
 
             // Subscribe to streaming chunk emissions — transcribes each chunk in background
             _recordingCoordinator.ChunkAvailable += OnChunkAvailable;
@@ -208,7 +203,7 @@ public class DictationWorker : BackgroundService, IDictationControl, IDictationS
             _keyboardMonitor.KeyReleased -= OnKeyReleased;
             _stateMachine.StateChanged -= OnStateChangedBroadcast;
             TranscriptionCompleted -= OnTranscriptionCompletedBroadcast;
-            _transcriptionService.RawTranscriptionReady -= OnRawTranscriptionReadyBroadcast;
+            _transcriber.RawTranscriptionReady -= OnRawTranscriptionReadyBroadcast;
             _recordingCoordinator.ChunkAvailable -= OnChunkAvailable;
 
             // Stop recording if active
@@ -317,14 +312,13 @@ public class DictationWorker : BackgroundService, IDictationControl, IDictationS
     }
 
     /// <summary>
-    /// Forwards a streaming audio chunk to <see cref="IStreamingChunkAssembler"/>
-    /// which runs the per-chunk Whisper call on a background task and stores
-    /// the result keyed by chunk index. Ignored when streaming is not active
-    /// for the current session.
+    /// Forwards a streaming audio chunk to <see cref="IDictationTranscriber"/>,
+    /// which runs the per-chunk Whisper call on a background task. Ignored when
+    /// streaming is not active for the current session.
     /// </summary>
     private void OnChunkAvailable(object? sender, AudioChunkEventArgs e)
     {
-        _streamingAssembler.SubmitChunk(e.Index, e.PcmBytes);
+        _transcriber.ForwardChunk(e.Index, e.PcmBytes);
     }
 
     private Task BroadcastDictationEventAsync(DictationEventType eventType, string? text) =>
@@ -339,7 +333,7 @@ public class DictationWorker : BackgroundService, IDictationControl, IDictationS
 
             // Freeze streaming choice for this session — toggles mid-recording have no effect
             var streamingActive = _streamingTranscriptionEnabled;
-            _streamingAssembler.Reset(streamingActive);
+            _transcriber.BeginSession(streamingActive);
 
             if (streamingActive)
             {
@@ -447,12 +441,12 @@ public class DictationWorker : BackgroundService, IDictationControl, IDictationS
 
     /// <summary>
     /// Clears streaming chunk state after a dictation session completes (any path).
-    /// Delegates the concurrent-collection cleanup to <see cref="IStreamingChunkAssembler"/>;
+    /// Delegates the concurrent-collection cleanup to <see cref="IDictationTranscriber"/>;
     /// the worker still owns the recording-coordinator's chunking flag.
     /// </summary>
     private void ResetStreamingSessionState()
     {
-        _streamingAssembler.CancelAndClear();
+        _transcriber.EndSession();
         _recordingCoordinator.DisableChunking();
     }
 
@@ -478,36 +472,17 @@ public class DictationWorker : BackgroundService, IDictationControl, IDictationS
     }
 
     /// <summary>
-    /// Transcribes audio using raw STT only (no LLM correction) with typing sound effect.
-    /// Used for quick dictation mode. When streaming was active for this session,
-    /// assembles the cached chunk transcriptions instead of running Whisper on the full buffer.
+    /// Raw (no-LLM) transcription with typing sound effect. The streaming-aware
+    /// raw pass lives in <see cref="IDictationTranscriber"/>; this method only
+    /// owns the UX side-effects (sound cue, CTS lifecycle, state-machine
+    /// fallback on failure).
     /// </summary>
     private async Task<TranscriptionResult?> TranscribeRawWithSoundAsync(byte[] audioData)
     {
         _outputChannel.StartTypingFeedback();
         _transcriptionCts = new CancellationTokenSource();
 
-        TranscriptionResult result;
-        if (_streamingAssembler.IsActive)
-        {
-            var combined = await _streamingAssembler.CombineAsync(_transcriptionCts.Token);
-            if (string.IsNullOrWhiteSpace(combined))
-            {
-                _logger.LogWarning("Streaming quick transcription produced empty text; falling back to full-buffer Whisper");
-                result = await _transcriptionService.TranscribeRawAsync(audioData, _transcriptionCts.Token);
-            }
-            else
-            {
-                _logger.LogInformation(
-                    "Streaming quick transcription: combined {Count} chunks into {Length} chars",
-                    _streamingAssembler.CompletedChunkCount, combined.Length);
-                result = await _transcriptionService.FinalizePreTranscribedRawAsync(combined, _transcriptionCts.Token);
-            }
-        }
-        else
-        {
-            result = await _transcriptionService.TranscribeRawAsync(audioData, _transcriptionCts.Token);
-        }
+        var result = await _transcriber.TranscribeRawAsync(audioData, _transcriptionCts.Token);
 
         if (!result.Success || string.IsNullOrWhiteSpace(result.Text))
         {
@@ -522,15 +497,15 @@ public class DictationWorker : BackgroundService, IDictationControl, IDictationS
     }
 
     /// <summary>
-    /// Transcribes audio with typing sound effect.
-    /// Returns null if transcription failed, otherwise returns transcription result.
+    /// Full-pipeline transcription (with LLM correction, filters, racing) plus
+    /// typing sound feedback and the state-machine fallback on failure.
     /// </summary>
     private async Task<TranscriptionResult?> TranscribeAudioWithSoundAsync(byte[] audioData)
     {
         _outputChannel.StartTypingFeedback();
         _transcriptionCts = new CancellationTokenSource();
 
-        var result = await _transcriptionService.TranscribeAsync(audioData, _transcriptionCts.Token);
+        var result = await _transcriber.TranscribeFullAsync(audioData, _transcriptionCts.Token);
 
         if (!result.Success || string.IsNullOrWhiteSpace(result.Text))
         {
