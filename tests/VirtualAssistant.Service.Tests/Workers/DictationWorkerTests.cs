@@ -18,7 +18,6 @@ public class DictationWorkerTests : IDisposable
     private readonly Mock<IDictationStateMachine> _stateMachineMock;
     private readonly Mock<IDictationRecordingSession> _recordingSessionMock;
     private readonly Mock<IDictationCompletionPipeline> _completionPipelineMock;
-    private readonly Mock<IDictationStateBroadcaster> _stateBroadcasterMock;
     private readonly Mock<IDictationCancellationCoordinator> _cancellationCoordinatorMock;
     private readonly DictationWorker _sut;
 
@@ -37,7 +36,6 @@ public class DictationWorkerTests : IDisposable
         _stateMachineMock = new Mock<IDictationStateMachine>();
         _recordingSessionMock = new Mock<IDictationRecordingSession>();
         _completionPipelineMock = new Mock<IDictationCompletionPipeline>();
-        _stateBroadcasterMock = new Mock<IDictationStateBroadcaster>();
         _cancellationCoordinatorMock = new Mock<IDictationCancellationCoordinator>();
 
         _keyHandlerMock
@@ -56,7 +54,6 @@ public class DictationWorkerTests : IDisposable
             _stateMachineMock.Object,
             _recordingSessionMock.Object,
             _completionPipelineMock.Object,
-            _stateBroadcasterMock.Object,
             _cancellationCoordinatorMock.Object);
     }
 
@@ -77,43 +74,37 @@ public class DictationWorkerTests : IDisposable
     public void Constructor_NullLogger_ThrowsArgumentNullException() =>
         Assert.Throws<ArgumentNullException>(() => new DictationWorker(
             null!, _keyHandlerMock.Object, _stateMachineMock.Object, _recordingSessionMock.Object,
-            _completionPipelineMock.Object, _stateBroadcasterMock.Object, _cancellationCoordinatorMock.Object));
+            _completionPipelineMock.Object, _cancellationCoordinatorMock.Object));
 
     [Fact]
     public void Constructor_NullKeyHandler_ThrowsArgumentNullException() =>
         Assert.Throws<ArgumentNullException>(() => new DictationWorker(
             _loggerMock.Object, null!, _stateMachineMock.Object, _recordingSessionMock.Object,
-            _completionPipelineMock.Object, _stateBroadcasterMock.Object, _cancellationCoordinatorMock.Object));
+            _completionPipelineMock.Object, _cancellationCoordinatorMock.Object));
 
     [Fact]
     public void Constructor_NullStateMachine_ThrowsArgumentNullException() =>
         Assert.Throws<ArgumentNullException>(() => new DictationWorker(
             _loggerMock.Object, _keyHandlerMock.Object, null!, _recordingSessionMock.Object,
-            _completionPipelineMock.Object, _stateBroadcasterMock.Object, _cancellationCoordinatorMock.Object));
+            _completionPipelineMock.Object, _cancellationCoordinatorMock.Object));
 
     [Fact]
     public void Constructor_NullRecordingSession_ThrowsArgumentNullException() =>
         Assert.Throws<ArgumentNullException>(() => new DictationWorker(
             _loggerMock.Object, _keyHandlerMock.Object, _stateMachineMock.Object, null!,
-            _completionPipelineMock.Object, _stateBroadcasterMock.Object, _cancellationCoordinatorMock.Object));
+            _completionPipelineMock.Object, _cancellationCoordinatorMock.Object));
 
     [Fact]
     public void Constructor_NullCompletionPipeline_ThrowsArgumentNullException() =>
         Assert.Throws<ArgumentNullException>(() => new DictationWorker(
             _loggerMock.Object, _keyHandlerMock.Object, _stateMachineMock.Object, _recordingSessionMock.Object,
-            null!, _stateBroadcasterMock.Object, _cancellationCoordinatorMock.Object));
-
-    [Fact]
-    public void Constructor_NullStateBroadcaster_ThrowsArgumentNullException() =>
-        Assert.Throws<ArgumentNullException>(() => new DictationWorker(
-            _loggerMock.Object, _keyHandlerMock.Object, _stateMachineMock.Object, _recordingSessionMock.Object,
-            _completionPipelineMock.Object, null!, _cancellationCoordinatorMock.Object));
+            null!, _cancellationCoordinatorMock.Object));
 
     [Fact]
     public void Constructor_NullCancellationCoordinator_ThrowsArgumentNullException() =>
         Assert.Throws<ArgumentNullException>(() => new DictationWorker(
             _loggerMock.Object, _keyHandlerMock.Object, _stateMachineMock.Object, _recordingSessionMock.Object,
-            _completionPipelineMock.Object, _stateBroadcasterMock.Object, null!));
+            _completionPipelineMock.Object, null!));
 
     #endregion
 
@@ -139,29 +130,6 @@ public class DictationWorkerTests : IDisposable
         await _sut.StopAsync(CancellationToken.None);
 
         _keyHandlerMock.Verify(x => x.Stop(), Times.Once);
-    }
-
-    [Fact]
-    public async Task ExecuteAsync_StartsStateBroadcaster()
-    {
-        using var cts = new CancellationTokenSource();
-
-        await StartAndAwaitBindingsAsync(cts.Token);
-
-        _stateBroadcasterMock.Verify(
-            x => x.Start(It.IsAny<Action<EventHandler<string>>>(), It.IsAny<Action<EventHandler<string>>>()),
-            Times.Once);
-    }
-
-    [Fact]
-    public async Task StopAsync_StopsStateBroadcaster()
-    {
-        using var cts = new CancellationTokenSource();
-        await StartAndAwaitBindingsAsync(cts.Token);
-
-        await _sut.StopAsync(CancellationToken.None);
-
-        _stateBroadcasterMock.Verify(x => x.Stop(), Times.Once);
     }
 
     #endregion
@@ -263,11 +231,18 @@ public class DictationWorkerTests : IDisposable
     [Fact]
     public async Task SetDictationEnabled_DisablingWhileRecording_TriggersCoordinatorEmergencyStop()
     {
+        // Deterministic wait for the fire-and-forget Task.Run inside
+        // SetDictationEnabled via a TaskCompletionSource callback on the mock.
+        // (Copilot review on PR #1036 — avoids flaky Task.Delay.)
         _stateMachineMock.SetupGet(x => x.CurrentState).Returns(DictationState.Recording);
-        _cancellationCoordinatorMock.Setup(x => x.EmergencyStopAsync()).Returns(Task.CompletedTask);
+        var emergencyStopped = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+        _cancellationCoordinatorMock
+            .Setup(x => x.EmergencyStopAsync())
+            .Callback(() => emergencyStopped.TrySetResult())
+            .Returns(Task.CompletedTask);
 
         _sut.SetDictationEnabled(false);
-        await Task.Delay(100);
+        await emergencyStopped.Task.WaitAsync(TimeSpan.FromSeconds(5));
 
         _cancellationCoordinatorMock.Verify(x => x.EmergencyStopAsync(), Times.Once);
     }
@@ -276,10 +251,14 @@ public class DictationWorkerTests : IDisposable
     public async Task SetDictationEnabled_DisablingWhileTranscribing_TriggersCoordinatorEmergencyStop()
     {
         _stateMachineMock.SetupGet(x => x.CurrentState).Returns(DictationState.Transcribing);
-        _cancellationCoordinatorMock.Setup(x => x.EmergencyStopAsync()).Returns(Task.CompletedTask);
+        var emergencyStopped = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+        _cancellationCoordinatorMock
+            .Setup(x => x.EmergencyStopAsync())
+            .Callback(() => emergencyStopped.TrySetResult())
+            .Returns(Task.CompletedTask);
 
         _sut.SetDictationEnabled(false);
-        await Task.Delay(100);
+        await emergencyStopped.Task.WaitAsync(TimeSpan.FromSeconds(5));
 
         _cancellationCoordinatorMock.Verify(x => x.EmergencyStopAsync(), Times.Once);
     }

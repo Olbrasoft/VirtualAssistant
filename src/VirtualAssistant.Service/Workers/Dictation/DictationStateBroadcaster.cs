@@ -1,66 +1,62 @@
+using Olbrasoft.VirtualAssistant.Core.Services;
 using Olbrasoft.VirtualAssistant.Core.StateMachine;
 using Olbrasoft.VirtualAssistant.Service.Hubs;
 using Olbrasoft.VirtualAssistant.Voice.StateMachine;
 
 namespace Olbrasoft.VirtualAssistant.Service.Workers.Dictation;
 
-/// <inheritdoc />
-public sealed class DictationStateBroadcaster : IDictationStateBroadcaster, IDisposable
+/// <summary>
+/// SignalR broadcast bridge for dictation events. Subscribes to the state
+/// machine's <c>StateChanged</c>, the transcriber's <c>RawTranscriptionReady</c>,
+/// and the worker's public <c>TranscriptionCompleted</c> (via
+/// <see cref="IDictationService"/>) and fans every emission into
+/// <see cref="IDictationOutputChannel.BroadcastEventAsync"/>.
+///
+/// Runs as a standalone <see cref="BackgroundService"/> rather than being
+/// injected into <c>DictationWorker</c> so the worker's ctor-dep count stays
+/// low — the broadcaster is self-starting off the worker singleton it pulls
+/// via <see cref="IDictationService"/>. (#969 god-class split.)
+/// </summary>
+public sealed class DictationStateBroadcaster : BackgroundService
 {
     private readonly IDictationStateMachine _stateMachine;
     private readonly IDictationTranscriber _transcriber;
     private readonly IDictationOutputChannel _outputChannel;
-    private Action<EventHandler<string>>? _unsubscribeCompleted;
-    private EventHandler<string>? _completedHandler;
-    private bool _subscribed;
+    private readonly IDictationService _dictationService;
 
     public DictationStateBroadcaster(
         IDictationStateMachine stateMachine,
         IDictationTranscriber transcriber,
-        IDictationOutputChannel outputChannel)
+        IDictationOutputChannel outputChannel,
+        IDictationService dictationService)
     {
         _stateMachine = stateMachine ?? throw new ArgumentNullException(nameof(stateMachine));
         _transcriber = transcriber ?? throw new ArgumentNullException(nameof(transcriber));
         _outputChannel = outputChannel ?? throw new ArgumentNullException(nameof(outputChannel));
+        _dictationService = dictationService ?? throw new ArgumentNullException(nameof(dictationService));
     }
 
-    public void Start(
-        Action<EventHandler<string>> subscribeTranscriptionCompleted,
-        Action<EventHandler<string>> unsubscribeTranscriptionCompleted)
+    protected override async Task ExecuteAsync(CancellationToken stoppingToken)
     {
-        ArgumentNullException.ThrowIfNull(subscribeTranscriptionCompleted);
-        ArgumentNullException.ThrowIfNull(unsubscribeTranscriptionCompleted);
-
-        if (_subscribed) return;
-
         _stateMachine.StateChanged += OnStateChanged;
         _transcriber.RawTranscriptionReady += OnRawTranscriptionReady;
+        _dictationService.TranscriptionCompleted += OnTranscriptionCompleted;
 
-        _completedHandler = OnTranscriptionCompleted;
-        subscribeTranscriptionCompleted(_completedHandler);
-        _unsubscribeCompleted = unsubscribeTranscriptionCompleted;
-
-        _subscribed = true;
-    }
-
-    public void Stop()
-    {
-        if (!_subscribed) return;
-
-        _stateMachine.StateChanged -= OnStateChanged;
-        _transcriber.RawTranscriptionReady -= OnRawTranscriptionReady;
-
-        if (_completedHandler is not null)
+        try
         {
-            _unsubscribeCompleted?.Invoke(_completedHandler);
-            _completedHandler = null;
+            await Task.Delay(Timeout.Infinite, stoppingToken);
         }
-        _unsubscribeCompleted = null;
-
-        _subscribed = false;
+        catch (OperationCanceledException)
+        {
+            // Expected on shutdown.
+        }
+        finally
+        {
+            _stateMachine.StateChanged -= OnStateChanged;
+            _transcriber.RawTranscriptionReady -= OnRawTranscriptionReady;
+            _dictationService.TranscriptionCompleted -= OnTranscriptionCompleted;
+        }
     }
-
-    public void Dispose() => Stop();
 
     private void OnStateChanged(object? sender, DictationState state)
     {

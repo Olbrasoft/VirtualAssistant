@@ -21,7 +21,6 @@ public class DictationWorker : BackgroundService, IDictationControl, IDictationS
     private readonly IDictationStateMachine _stateMachine;
     private readonly IDictationRecordingSession _recordingSession;
     private readonly IDictationCompletionPipeline _completionPipeline;
-    private readonly IDictationStateBroadcaster _stateBroadcaster;
     private readonly IDictationCancellationCoordinator _cancellationCoordinator;
 
     private bool _dictationEnabled = true;
@@ -40,7 +39,6 @@ public class DictationWorker : BackgroundService, IDictationControl, IDictationS
         IDictationStateMachine stateMachine,
         IDictationRecordingSession recordingSession,
         IDictationCompletionPipeline completionPipeline,
-        IDictationStateBroadcaster stateBroadcaster,
         IDictationCancellationCoordinator cancellationCoordinator)
     {
         _logger = logger ?? throw new ArgumentNullException(nameof(logger));
@@ -48,7 +46,6 @@ public class DictationWorker : BackgroundService, IDictationControl, IDictationS
         _stateMachine = stateMachine ?? throw new ArgumentNullException(nameof(stateMachine));
         _recordingSession = recordingSession ?? throw new ArgumentNullException(nameof(recordingSession));
         _completionPipeline = completionPipeline ?? throw new ArgumentNullException(nameof(completionPipeline));
-        _stateBroadcaster = stateBroadcaster ?? throw new ArgumentNullException(nameof(stateBroadcaster));
         _cancellationCoordinator = cancellationCoordinator ?? throw new ArgumentNullException(nameof(cancellationCoordinator));
     }
 
@@ -164,14 +161,12 @@ public class DictationWorker : BackgroundService, IDictationControl, IDictationS
             // The handler owns the IKeyboardMonitor subscription + the
             // ScrollLock/Pause routing tree; the worker just exposes the
             // four bindings the handler can trigger via IDictationKeyHandlerBindings.
+            //
+            // State broadcaster runs as a standalone BackgroundService
+            // (DictationStateBroadcaster) and subscribes to
+            // TranscriptionCompleted via this worker's IDictationService
+            // surface — worker doesn't inject or manage it.
             _keyHandler.Start(new KeyHandlerBindings(this));
-
-            // Broadcaster owns the state-machine + transcriber event
-            // subscriptions; TranscriptionCompleted is worker-scoped so the
-            // broadcaster gets add/remove hooks for it.
-            _stateBroadcaster.Start(
-                handler => TranscriptionCompleted += handler,
-                handler => TranscriptionCompleted -= handler);
 
             // Wait for cancellation
             await Task.Delay(Timeout.Infinite, stoppingToken);
@@ -188,7 +183,6 @@ public class DictationWorker : BackgroundService, IDictationControl, IDictationS
         finally
         {
             _keyHandler.Stop();
-            _stateBroadcaster.Stop();
 
             // Stop recording if active
             if (_stateMachine.CurrentState == DictationState.Recording)

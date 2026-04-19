@@ -1,4 +1,5 @@
 using Moq;
+using Olbrasoft.VirtualAssistant.Core.Services;
 using Olbrasoft.VirtualAssistant.Core.StateMachine;
 using Olbrasoft.VirtualAssistant.Service.Hubs;
 using Olbrasoft.VirtualAssistant.Service.Workers.Dictation;
@@ -7,74 +8,70 @@ using Olbrasoft.VirtualAssistant.Voice.StateMachine;
 namespace Olbrasoft.VirtualAssistant.Service.Tests.Workers.Dictation;
 
 /// <summary>
-/// Pins the SignalR fan-out lifted out of DictationWorker in #969. The
-/// broadcaster subscribes to the state machine's StateChanged, the
-/// transcriber's RawTranscriptionReady, and the worker's
-/// TranscriptionCompleted (via subscribe/unsubscribe hooks), and maps each
-/// emission to the matching DictationEventType broadcast.
+/// Pins the SignalR fan-out BackgroundService. Subscribes to state machine's
+/// StateChanged, transcriber's RawTranscriptionReady, and the worker's
+/// TranscriptionCompleted (via IDictationService) and maps each emission to
+/// the matching DictationEventType broadcast. Runs as a standalone hosted
+/// service so DictationWorker doesn't need to inject or manage it.
 /// </summary>
-public class DictationStateBroadcasterTests
+public class DictationStateBroadcasterTests : IDisposable
 {
     private readonly Mock<IDictationStateMachine> _stateMachineMock = new();
     private readonly Mock<IDictationTranscriber> _transcriberMock = new();
     private readonly Mock<IDictationOutputChannel> _outputChannelMock = new();
+    private readonly Mock<IDictationService> _dictationServiceMock = new();
 
-    // Proxy for the worker's TranscriptionCompleted event — tests register
-    // add/remove hooks and then raise the event to exercise the broadcaster.
-    private event EventHandler<string>? TranscriptionCompleted;
+    private readonly DictationStateBroadcaster _sut;
+    private readonly CancellationTokenSource _cts = new();
 
-    private DictationStateBroadcaster CreateSut() =>
-        new(_stateMachineMock.Object, _transcriberMock.Object, _outputChannelMock.Object);
+    public DictationStateBroadcasterTests()
+    {
+        _sut = new DictationStateBroadcaster(
+            _stateMachineMock.Object,
+            _transcriberMock.Object,
+            _outputChannelMock.Object,
+            _dictationServiceMock.Object);
+    }
 
-    private void StartWith(DictationStateBroadcaster sut) =>
-        sut.Start(h => TranscriptionCompleted += h, h => TranscriptionCompleted -= h);
+    /// <summary>
+    /// Starts the broadcaster and yields briefly so ExecuteAsync wires up
+    /// its event subscriptions before the test raises events.
+    /// </summary>
+    private async Task StartAsync()
+    {
+        _ = _sut.StartAsync(_cts.Token);
+        // Yield so ExecuteAsync's event subscriptions register before the test
+        // raises an event. One Task.Yield + short delay is enough because
+        // BackgroundService kicks ExecuteAsync on the thread pool.
+        await Task.Delay(20);
+    }
 
     [Fact]
-    public void Start_SubscribesToAllEvents()
+    public async Task ExecuteAsync_SubscribesToAllEvents()
     {
-        var sut = CreateSut();
-        StartWith(sut);
+        await StartAsync();
 
         _stateMachineMock.VerifyAdd(x => x.StateChanged += It.IsAny<EventHandler<DictationState>>(), Times.Once);
         _transcriberMock.VerifyAdd(x => x.RawTranscriptionReady += It.IsAny<Action<string>>(), Times.Once);
+        _dictationServiceMock.VerifyAdd(x => x.TranscriptionCompleted += It.IsAny<EventHandler<string>>(), Times.Once);
     }
 
     [Fact]
-    public void Start_Twice_SubscribesOnlyOnce()
+    public async Task StopAsync_UnsubscribesFromAllEvents()
     {
-        var sut = CreateSut();
-        StartWith(sut);
-        StartWith(sut);
+        await StartAsync();
 
-        _stateMachineMock.VerifyAdd(x => x.StateChanged += It.IsAny<EventHandler<DictationState>>(), Times.Once);
-    }
-
-    [Fact]
-    public void Stop_UnsubscribesFromAllEvents()
-    {
-        var sut = CreateSut();
-        StartWith(sut);
-
-        sut.Stop();
+        await _sut.StopAsync(CancellationToken.None);
 
         _stateMachineMock.VerifyRemove(x => x.StateChanged -= It.IsAny<EventHandler<DictationState>>(), Times.Once);
         _transcriberMock.VerifyRemove(x => x.RawTranscriptionReady -= It.IsAny<Action<string>>(), Times.Once);
+        _dictationServiceMock.VerifyRemove(x => x.TranscriptionCompleted -= It.IsAny<EventHandler<string>>(), Times.Once);
     }
 
     [Fact]
-    public void Stop_WithoutStart_DoesNotThrow()
+    public async Task StateChanged_Recording_BroadcastsRecordingStarted()
     {
-        var sut = CreateSut();
-        sut.Stop(); // must be idempotent for DI shutdown
-
-        _stateMachineMock.VerifyRemove(x => x.StateChanged -= It.IsAny<EventHandler<DictationState>>(), Times.Never);
-    }
-
-    [Fact]
-    public void StateChanged_Recording_BroadcastsRecordingStarted()
-    {
-        var sut = CreateSut();
-        StartWith(sut);
+        await StartAsync();
 
         _stateMachineMock.Raise(x => x.StateChanged += null, this, DictationState.Recording);
 
@@ -84,10 +81,9 @@ public class DictationStateBroadcasterTests
     }
 
     [Fact]
-    public void StateChanged_Transcribing_BroadcastsTranscriptionStarted()
+    public async Task StateChanged_Transcribing_BroadcastsTranscriptionStarted()
     {
-        var sut = CreateSut();
-        StartWith(sut);
+        await StartAsync();
 
         _stateMachineMock.Raise(x => x.StateChanged += null, this, DictationState.Transcribing);
 
@@ -97,12 +93,9 @@ public class DictationStateBroadcasterTests
     }
 
     [Fact]
-    public void StateChanged_Idle_BroadcastsRecordingStopped()
+    public async Task StateChanged_Idle_BroadcastsRecordingStopped()
     {
-        // Idle is the catch-all — any non-Recording, non-Transcribing state
-        // transition maps to RecordingStopped so the UI clears its pending flag.
-        var sut = CreateSut();
-        StartWith(sut);
+        await StartAsync();
 
         _stateMachineMock.Raise(x => x.StateChanged += null, this, DictationState.Idle);
 
@@ -112,10 +105,9 @@ public class DictationStateBroadcasterTests
     }
 
     [Fact]
-    public void RawTranscriptionReady_BroadcastsRawTranscriptionCompleted()
+    public async Task RawTranscriptionReady_BroadcastsRawTranscriptionCompleted()
     {
-        var sut = CreateSut();
-        StartWith(sut);
+        await StartAsync();
 
         _transcriberMock.Raise(x => x.RawTranscriptionReady += null, "raw text");
 
@@ -125,12 +117,11 @@ public class DictationStateBroadcasterTests
     }
 
     [Fact]
-    public void TranscriptionCompleted_BroadcastsTranscriptionCompleted()
+    public async Task TranscriptionCompleted_BroadcastsTranscriptionCompleted()
     {
-        var sut = CreateSut();
-        StartWith(sut);
+        await StartAsync();
 
-        TranscriptionCompleted?.Invoke(this, "final text");
+        _dictationServiceMock.Raise(x => x.TranscriptionCompleted += null, this, "final text");
 
         _outputChannelMock.Verify(
             x => x.BroadcastEventAsync(DictationEventType.TranscriptionCompleted, "final text", It.IsAny<CancellationToken>()),
@@ -138,15 +129,12 @@ public class DictationStateBroadcasterTests
     }
 
     [Fact]
-    public void Stop_UnsubscribesTranscriptionCompletedToo()
+    public async Task Stop_UnsubscribesTranscriptionCompletedToo()
     {
-        // After Stop, raising TranscriptionCompleted must not broadcast —
-        // the worker may still exist but the broadcaster is done.
-        var sut = CreateSut();
-        StartWith(sut);
-        sut.Stop();
+        await StartAsync();
+        await _sut.StopAsync(CancellationToken.None);
 
-        TranscriptionCompleted?.Invoke(this, "after stop");
+        _dictationServiceMock.Raise(x => x.TranscriptionCompleted += null, this, "after stop");
 
         _outputChannelMock.Verify(
             x => x.BroadcastEventAsync(It.IsAny<DictationEventType>(), It.IsAny<string?>(), It.IsAny<CancellationToken>()),
@@ -156,29 +144,28 @@ public class DictationStateBroadcasterTests
     [Fact]
     public void Constructor_NullStateMachine_Throws() =>
         Assert.Throws<ArgumentNullException>(() =>
-            new DictationStateBroadcaster(null!, _transcriberMock.Object, _outputChannelMock.Object));
+            new DictationStateBroadcaster(null!, _transcriberMock.Object, _outputChannelMock.Object, _dictationServiceMock.Object));
 
     [Fact]
     public void Constructor_NullTranscriber_Throws() =>
         Assert.Throws<ArgumentNullException>(() =>
-            new DictationStateBroadcaster(_stateMachineMock.Object, null!, _outputChannelMock.Object));
+            new DictationStateBroadcaster(_stateMachineMock.Object, null!, _outputChannelMock.Object, _dictationServiceMock.Object));
 
     [Fact]
     public void Constructor_NullOutputChannel_Throws() =>
         Assert.Throws<ArgumentNullException>(() =>
-            new DictationStateBroadcaster(_stateMachineMock.Object, _transcriberMock.Object, null!));
+            new DictationStateBroadcaster(_stateMachineMock.Object, _transcriberMock.Object, null!, _dictationServiceMock.Object));
 
     [Fact]
-    public void Start_NullSubscribeHook_Throws()
-    {
-        var sut = CreateSut();
-        Assert.Throws<ArgumentNullException>(() => sut.Start(null!, _ => { }));
-    }
+    public void Constructor_NullDictationService_Throws() =>
+        Assert.Throws<ArgumentNullException>(() =>
+            new DictationStateBroadcaster(_stateMachineMock.Object, _transcriberMock.Object, _outputChannelMock.Object, null!));
 
-    [Fact]
-    public void Start_NullUnsubscribeHook_Throws()
+    public void Dispose()
     {
-        var sut = CreateSut();
-        Assert.Throws<ArgumentNullException>(() => sut.Start(_ => { }, null!));
+        _cts.Cancel();
+        _sut.StopAsync(CancellationToken.None).GetAwaiter().GetResult();
+        _sut.Dispose();
+        _cts.Dispose();
     }
 }
