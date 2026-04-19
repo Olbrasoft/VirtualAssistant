@@ -189,14 +189,19 @@ public static class WorkerServicesExtensions
                 Microsoft.Extensions.Options.Options.Create(continuousOptions));
         });
 
-        // Active transcriber for dictation — Google primary + dedicated Whisper fallback
-        // when configured, otherwise the single available provider.
-        // NOTE: GoogleSpeechTranscriber is registered as a concrete singleton in
-        // VoiceServicesExtensions (NOT as a keyed ISpeechTranscriber), so we pull it
-        // by type here. A previous version of this code used
-        // GetKeyedService<ISpeechTranscriber>("google") which always returned null
-        // and silently fell back to Whisper (pre-existing bug) — Copilot caught it
-        // during the #977 review.
+        // Active transcriber for dictation — honors appsettings
+        // SpeechProvider.PrimaryProvider so the config-declared primary really
+        // gets hit first. Previously this was hardcoded to Google-primary +
+        // Whisper-fallback regardless of config, which meant a ~7s Google API
+        // round-trip for every quick dictation even on hosts configured for
+        // local Whisper Turbo.
+        //
+        // NOTE: GoogleSpeechTranscriber is registered as a concrete singleton
+        // in VoiceServicesExtensions (NOT as a keyed ISpeechTranscriber), so we
+        // pull it by type here. A previous version of this code used
+        // GetKeyedService<ISpeechTranscriber>("google") which always returned
+        // null and silently fell back to Whisper — Copilot caught it during
+        // the #977 review.
         services.AddKeyedSingleton<ISpeechTranscriber>(DictationKey, (sp, _) =>
         {
             var speechSettings = sp.GetRequiredService<IOptions<SpeechProviderSettings>>().Value;
@@ -207,12 +212,22 @@ public static class WorkerServicesExtensions
             if (googleTranscriber == null)
                 return whisper;
 
+            // Map config provider names to concrete transcribers. Unknown
+            // names fall back to Whisper so misconfiguration can't degrade
+            // quick dictation into a remote API round-trip.
+            var primaryName = (speechSettings.PrimaryProvider ?? "whisper").Trim().ToLowerInvariant();
+            var (primary, fallback) = primaryName switch
+            {
+                "google" => ((ISpeechTranscriber)googleTranscriber, (ISpeechTranscriber)whisper),
+                _ => ((ISpeechTranscriber)whisper, (ISpeechTranscriber)googleTranscriber),
+            };
+
             if (!speechSettings.EnableFallback)
-                return googleTranscriber;
+                return primary;
 
             return new FallbackSpeechTranscriber(
-                googleTranscriber,
-                whisper,
+                primary,
+                fallback,
                 factory,
                 sp.GetRequiredService<ILogger<FallbackSpeechTranscriber>>(),
                 speechSettings);

@@ -11,14 +11,16 @@ public class SpeechProviderSettings
     public const string SectionName = "SpeechProvider";
 
     /// <summary>
-    /// Primary STT provider name ("google" or "whisper").
+    /// Primary STT provider name ("google" or "whisper"). Defaults to local
+    /// Whisper — no remote API round-trip for the default deployment.
     /// </summary>
-    public string PrimaryProvider { get; set; } = "google";
+    public string PrimaryProvider { get; set; } = "whisper";
 
     /// <summary>
-    /// Fallback STT provider name when primary fails.
+    /// Fallback STT provider name when primary fails. Defaults to "google"
+    /// since Whisper is primary by default.
     /// </summary>
-    public string FallbackProvider { get; set; } = "whisper";
+    public string FallbackProvider { get; set; } = "google";
 
     /// <summary>
     /// Enable automatic fallback to secondary provider on failure.
