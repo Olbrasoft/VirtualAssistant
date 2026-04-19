@@ -13,8 +13,9 @@ namespace Olbrasoft.VirtualAssistant.Service.Workers.Dictation;
 public interface IDictationStateBroadcaster
 {
     /// <summary>
-    /// Wire event subscriptions. <paramref name="transcriptionCompleted"/>
-    /// is the worker-scoped event raise hook (worker owns the event so the
+    /// Wire event subscriptions. <paramref name="subscribeTranscriptionCompleted"/>
+    /// and <paramref name="unsubscribeTranscriptionCompleted"/> are the
+    /// worker-scoped event subscription hooks (worker owns the event so the
     /// broadcaster subscribes via add/remove callbacks rather than a direct
     /// reference to the event itself).
     /// </summary>

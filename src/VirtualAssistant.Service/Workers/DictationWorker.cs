@@ -1,5 +1,3 @@
-using Microsoft.Extensions.Options;
-using Olbrasoft.VirtualAssistant.Core.Configuration;
 using Olbrasoft.VirtualAssistant.Core.Models;
 using Olbrasoft.VirtualAssistant.Core.Services;
 using Olbrasoft.VirtualAssistant.Core.Speech;
@@ -22,12 +20,10 @@ public class DictationWorker : BackgroundService, IDictationControl, IDictationS
     private readonly IDictationKeyHandler _keyHandler;
     private readonly IDictationStateMachine _stateMachine;
     private readonly IDictationRecordingSession _recordingSession;
-    private readonly IDictationOutputChannel _outputChannel;
     private readonly IDictationCompletionPipeline _completionPipeline;
     private readonly IDictationStateBroadcaster _stateBroadcaster;
-    private readonly DictationOptions _options;
+    private readonly IDictationCancellationCoordinator _cancellationCoordinator;
 
-    private CancellationTokenSource? _transcriptionCts;
     private bool _dictationEnabled = true;
     private bool _quickDictationMode;
     private volatile bool _streamingTranscriptionEnabled;
@@ -43,20 +39,17 @@ public class DictationWorker : BackgroundService, IDictationControl, IDictationS
         IDictationKeyHandler keyHandler,
         IDictationStateMachine stateMachine,
         IDictationRecordingSession recordingSession,
-        IDictationOutputChannel outputChannel,
         IDictationCompletionPipeline completionPipeline,
         IDictationStateBroadcaster stateBroadcaster,
-        IOptions<DictationOptions> options)
+        IDictationCancellationCoordinator cancellationCoordinator)
     {
         _logger = logger ?? throw new ArgumentNullException(nameof(logger));
         _keyHandler = keyHandler ?? throw new ArgumentNullException(nameof(keyHandler));
         _stateMachine = stateMachine ?? throw new ArgumentNullException(nameof(stateMachine));
         _recordingSession = recordingSession ?? throw new ArgumentNullException(nameof(recordingSession));
-        _outputChannel = outputChannel ?? throw new ArgumentNullException(nameof(outputChannel));
         _completionPipeline = completionPipeline ?? throw new ArgumentNullException(nameof(completionPipeline));
         _stateBroadcaster = stateBroadcaster ?? throw new ArgumentNullException(nameof(stateBroadcaster));
-        ArgumentNullException.ThrowIfNull(options);
-        _options = options.Value;
+        _cancellationCoordinator = cancellationCoordinator ?? throw new ArgumentNullException(nameof(cancellationCoordinator));
     }
 
     /// <summary>
@@ -73,7 +66,7 @@ public class DictationWorker : BackgroundService, IDictationControl, IDictationS
         if (!enabled && _stateMachine.CurrentState != DictationState.Idle)
         {
             _logger.LogInformation("Dictation disabled while active - performing emergency stop");
-            Task.Run(async () => await EmergencyStopAsync());
+            Task.Run(async () => await _cancellationCoordinator.EmergencyStopAsync());
         }
     }
 
@@ -159,10 +152,7 @@ public class DictationWorker : BackgroundService, IDictationControl, IDictationS
     }
 
     /// <inheritdoc/>
-    void IDictationService.CancelTranscription()
-    {
-        CancelTranscription();
-    }
+    void IDictationService.CancelTranscription() => _cancellationCoordinator.CancelTranscription();
 
     protected override async Task ExecuteAsync(CancellationToken stoppingToken)
     {
@@ -203,7 +193,7 @@ public class DictationWorker : BackgroundService, IDictationControl, IDictationS
             // Stop recording if active
             if (_stateMachine.CurrentState == DictationState.Recording)
             {
-                await StopRecordingAsync();
+                await _cancellationCoordinator.ShutdownAsync();
             }
         }
     }
@@ -228,9 +218,9 @@ public class DictationWorker : BackgroundService, IDictationControl, IDictationS
 
         public Task StopAndTranscribeAsync() => worker.StopAndTranscribeAsync();
 
-        public Task CancelRecordingAsync() => worker.CancelRecordingAsync();
+        public Task CancelRecordingAsync() => worker._cancellationCoordinator.CancelRecordingAsync();
 
-        public void CancelTranscription() => worker.CancelTranscription();
+        public void CancelTranscription() => worker._cancellationCoordinator.CancelTranscription();
     }
 
     private async Task StartRecordingAsync()
@@ -262,18 +252,18 @@ public class DictationWorker : BackgroundService, IDictationControl, IDictationS
             var audioData = await ValidateAndPrepareAudioAsync();
             if (audioData == null) return;
 
-            _transcriptionCts = new CancellationTokenSource();
+            var token = _cancellationCoordinator.BeginTranscription();
 
             if (_quickDictationMode)
             {
-                await _completionPipeline.CompleteQuickAsync(audioData, _transcriptionCts.Token);
+                await _completionPipeline.CompleteQuickAsync(audioData, token);
             }
             else
             {
                 await _completionPipeline.CompleteFullAsync(
                     audioData,
                     text => TranscriptionCompleted?.Invoke(this, text),
-                    _transcriptionCts.Token);
+                    token);
             }
         }
         catch (OperationCanceledException)
@@ -288,8 +278,7 @@ public class DictationWorker : BackgroundService, IDictationControl, IDictationS
         }
         finally
         {
-            _transcriptionCts?.Dispose();
-            _transcriptionCts = null;
+            _cancellationCoordinator.EndTranscription();
             _recordingSession.EndSession();
         }
     }
@@ -315,123 +304,13 @@ public class DictationWorker : BackgroundService, IDictationControl, IDictationS
         return audioData;
     }
 
-    private async Task CancelRecordingAsync()
-    {
-        try
-        {
-            _logger.LogInformation("Canceling recording");
-
-            // Emergency stop recording (discards audio data)
-            await _recordingSession.EmergencyStopAsync();
-
-            // Play cancel sound (paper-rip effect)
-            _outputChannel.PlayCancelCue();
-
-            // Return to Idle without transcription
-            _stateMachine.TransitionTo(DictationState.Idle);
-
-            _logger.LogInformation("Recording canceled");
-        }
-        catch (Exception ex)
-        {
-            _logger.LogError(ex, "Error canceling recording");
-            _stateMachine.TransitionTo(DictationState.Idle);
-        }
-    }
-
-    private async Task EmergencyStopAsync()
-    {
-        try
-        {
-            // Emergency stop recording (discards audio data)
-            await _recordingSession.EmergencyStopAsync();
-
-            // Return to Idle without transcription
-            _stateMachine.TransitionTo(DictationState.Idle);
-        }
-        catch (Exception ex)
-        {
-            _logger.LogError(ex, "Error during emergency stop");
-            _stateMachine.TransitionTo(DictationState.Idle);
-        }
-        finally
-        {
-            _recordingSession.EndSession();
-        }
-    }
-
-    private void CancelTranscription()
-    {
-        try
-        {
-            var currentState = _stateMachine.CurrentState;
-            _logger.LogInformation("CancelTranscription called in state {State}", currentState);
-
-            // Stop typing sound immediately
-            _outputChannel.StopTypingFeedback();
-
-            // Play cancel sound (paper-rip effect)
-            _outputChannel.PlayCancelCue();
-
-            // If still recording, stop audio capture and discard buffer.
-            // Must complete before resetting streaming state so no more
-            // chunk events arrive after the reset.
-            if (currentState == DictationState.Recording)
-            {
-                _logger.LogInformation("Canceling active recording (emergency stop)");
-                // Documented sync-over-async exception (#976): CancelTranscription
-                // implements IDictationService.CancelTranscription() which is a
-                // void interface method (synchronous cancel semantics). Making it
-                // async would ripple through the hub + state-machine call sites
-                // without any runtime benefit — this is a user-initiated,
-                // infrequent cancel path, not the transcription/streaming hot path.
-                _recordingSession.EmergencyStopAsync().GetAwaiter().GetResult();
-            }
-
-            // Cancel transcription if in progress
-            _transcriptionCts?.Cancel();
-            _transcriptionCts?.Dispose();
-            _transcriptionCts = null;
-
-            // Cancel in-flight streaming chunk tasks and clear chunk state,
-            // otherwise they keep running into the next session.
-            _recordingSession.EndSession();
-
-            // Return to Idle
-            _stateMachine.TransitionTo(DictationState.Idle);
-
-            _logger.LogInformation("Dictation canceled from state {State}", currentState);
-        }
-        catch (Exception ex)
-        {
-            _logger.LogError(ex, "Error canceling transcription");
-        }
-    }
-
-    private async Task StopRecordingAsync()
-    {
-        _logger.LogInformation("Stopping recording on worker shutdown");
-
-        try
-        {
-            // Stop recording (discards audio data on shutdown)
-            await _recordingSession.EmergencyStopAsync();
-        }
-        catch (Exception ex)
-        {
-            _logger.LogDebug(ex, "Error stopping recording on shutdown");
-        }
-
-        _stateMachine.TransitionTo(DictationState.Idle);
-    }
-
     public override async Task StopAsync(CancellationToken cancellationToken)
     {
         _logger.LogInformation("Dictation worker stopping...");
 
         if (_stateMachine.CurrentState == DictationState.Recording)
         {
-            await StopRecordingAsync();
+            await _cancellationCoordinator.ShutdownAsync();
         }
 
         await base.StopAsync(cancellationToken);
