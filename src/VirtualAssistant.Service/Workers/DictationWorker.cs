@@ -24,8 +24,7 @@ public class DictationWorker : BackgroundService, IDictationControl, IDictationS
     private readonly IDictationRecordingSession _recordingSession;
     private readonly IDictationTranscriber _transcriber;
     private readonly IDictationOutputChannel _outputChannel;
-    private readonly IDictationTranscriptionPersister _persister;
-    private readonly IClaudeCodeCivilityTrimmer _civilityTrimmer;
+    private readonly IDictationCompletionPipeline _completionPipeline;
     private readonly DictationOptions _options;
 
     private CancellationTokenSource? _transcriptionCts;
@@ -46,8 +45,7 @@ public class DictationWorker : BackgroundService, IDictationControl, IDictationS
         IDictationRecordingSession recordingSession,
         IDictationTranscriber transcriber,
         IDictationOutputChannel outputChannel,
-        IDictationTranscriptionPersister persister,
-        IClaudeCodeCivilityTrimmer civilityTrimmer,
+        IDictationCompletionPipeline completionPipeline,
         IOptions<DictationOptions> options)
     {
         _logger = logger ?? throw new ArgumentNullException(nameof(logger));
@@ -56,8 +54,7 @@ public class DictationWorker : BackgroundService, IDictationControl, IDictationS
         _recordingSession = recordingSession ?? throw new ArgumentNullException(nameof(recordingSession));
         _transcriber = transcriber ?? throw new ArgumentNullException(nameof(transcriber));
         _outputChannel = outputChannel ?? throw new ArgumentNullException(nameof(outputChannel));
-        _persister = persister ?? throw new ArgumentNullException(nameof(persister));
-        _civilityTrimmer = civilityTrimmer ?? throw new ArgumentNullException(nameof(civilityTrimmer));
+        _completionPipeline = completionPipeline ?? throw new ArgumentNullException(nameof(completionPipeline));
         ArgumentNullException.ThrowIfNull(options);
         _options = options.Value;
     }
@@ -337,70 +334,29 @@ public class DictationWorker : BackgroundService, IDictationControl, IDictationS
             var audioData = await ValidateAndPrepareAudioAsync();
             if (audioData == null) return;
 
-            TranscriptionResult? transcriptionResult;
+            _transcriptionCts = new CancellationTokenSource();
 
             if (_quickDictationMode)
             {
-                transcriptionResult = await TranscribeRawWithSoundAsync(audioData);
+                await _completionPipeline.CompleteQuickAsync(audioData, _transcriptionCts.Token);
             }
             else
             {
-                transcriptionResult = await TranscribeAudioWithSoundAsync(audioData);
-            }
-
-            if (transcriptionResult == null) return;
-
-            await SaveTranscriptionToDatabaseAsync(audioData, transcriptionResult);
-
-            if (_quickDictationMode)
-            {
-                // Strip trailing civility ("… Děkuji.", "… Ahoj.", Whisper
-                // hallucinated sign-offs) when pasting into a CLI agent that
-                // reads the text as a prompt. Scoped to Claude Code only — in
-                // chat apps "Děkuji." is a legitimate message and must stay.
-                var textToPaste = await StripCivilityForClaudeCodeAsync(transcriptionResult.Text, _transcriptionCts!.Token);
-                if (string.IsNullOrWhiteSpace(textToPaste))
-                {
-                    _logger.LogInformation("Quick dictation: transcription reduced to empty after civility trim — skipping paste");
-                    _outputChannel.StopTypingFeedback();
-                    _stateMachine.TransitionTo(DictationState.Idle);
-                    return;
-                }
-
-                // Quick mode: fast paste without clipboard save/restore
-                var pasteSucceeded = await _outputChannel.FastPasteAsync(textToPaste, _transcriptionCts!.Token);
-                _outputChannel.StopTypingFeedback();
-
-                if (!pasteSucceeded)
-                {
-                    _logger.LogWarning("Quick dictation: fast paste failed");
-                    _stateMachine.TransitionTo(DictationState.Idle);
-                    return;
-                }
-
-                // Broadcast QuickTranscriptionCompleted BEFORE idle transition so client sets pending flag first
-                await BroadcastDictationEventAsync(DictationEventType.QuickTranscriptionCompleted, textToPaste);
-                _stateMachine.TransitionTo(DictationState.Idle);
-                _logger.LogInformation("Quick dictation: text pasted, QuickTranscriptionCompleted sent");
-            }
-            else
-            {
-                // Raise TranscriptionCompleted before typing so remote UI gets the text immediately
-                TranscriptionCompleted?.Invoke(this, transcriptionResult.Text);
-                await TypeTextAndFinishAsync(transcriptionResult.Text);
+                await _completionPipeline.CompleteFullAsync(
+                    audioData,
+                    text => TranscriptionCompleted?.Invoke(this, text),
+                    _transcriptionCts.Token);
             }
         }
         catch (OperationCanceledException)
         {
+            // Pipeline's finally already ran StopTypingFeedback + Idle transition
+            // (on both successful and faulted exit); worker only logs here.
             _logger.LogInformation("Transcription canceled by user");
-            _outputChannel.StopTypingFeedback();
-            _stateMachine.TransitionTo(DictationState.Idle);
         }
         catch (Exception ex)
         {
             _logger.LogError(ex, "Error during transcription");
-            _outputChannel.StopTypingFeedback();
-            _stateMachine.TransitionTo(DictationState.Idle);
         }
         finally
         {
@@ -429,90 +385,6 @@ public class DictationWorker : BackgroundService, IDictationControl, IDictationS
         _stateMachine.TransitionTo(DictationState.Transcribing);
 
         return audioData;
-    }
-
-    /// <summary>
-    /// Raw (no-LLM) transcription with typing sound effect. The streaming-aware
-    /// raw pass lives in <see cref="IDictationTranscriber"/>; this method only
-    /// owns the UX side-effects (sound cue, CTS lifecycle, state-machine
-    /// fallback on failure).
-    /// </summary>
-    private async Task<TranscriptionResult?> TranscribeRawWithSoundAsync(byte[] audioData)
-    {
-        _outputChannel.StartTypingFeedback();
-        _transcriptionCts = new CancellationTokenSource();
-
-        var result = await _transcriber.TranscribeRawAsync(audioData, _transcriptionCts.Token);
-
-        if (!result.Success || string.IsNullOrWhiteSpace(result.Text))
-        {
-            _logger.LogWarning("Quick transcription failed or empty");
-            _outputChannel.StopTypingFeedback();
-            _stateMachine.TransitionTo(DictationState.Idle);
-            return null;
-        }
-
-        _logger.LogInformation("Quick transcription: '{Text}'", result.Text);
-        return result;
-    }
-
-    /// <summary>
-    /// Full-pipeline transcription (with LLM correction, filters, racing) plus
-    /// typing sound feedback and the state-machine fallback on failure.
-    /// </summary>
-    private async Task<TranscriptionResult?> TranscribeAudioWithSoundAsync(byte[] audioData)
-    {
-        _outputChannel.StartTypingFeedback();
-        _transcriptionCts = new CancellationTokenSource();
-
-        var result = await _transcriber.TranscribeFullAsync(audioData, _transcriptionCts.Token);
-
-        if (!result.Success || string.IsNullOrWhiteSpace(result.Text))
-        {
-            _logger.LogWarning("Transcription failed or empty");
-            _outputChannel.StopTypingFeedback();
-            _stateMachine.TransitionTo(DictationState.Idle);
-            return null;
-        }
-
-        _logger.LogInformation("Transcription result: '{Text}'", result.Text);
-        return result;
-    }
-
-    /// <summary>
-    /// Saves transcription to database via <see cref="IDictationTranscriptionPersister"/>,
-    /// which owns the scoped <c>IDictationPersistenceService</c> resolution and
-    /// the racing/non-racing save dispatch. (#969 extraction.)
-    /// </summary>
-    private Task SaveTranscriptionToDatabaseAsync(byte[] audioData, TranscriptionResult result) =>
-        _persister.SaveAsync(audioData, result, _transcriptionCts!.Token);
-
-    /// <summary>
-    /// Thin wrapper around <see cref="IClaudeCodeCivilityTrimmer.TrimIfClaudeCodeAsync"/>
-    /// that the quick-dictation path calls before pasting. (#969 extraction
-    /// moved the detection + trimming into a dedicated helper.)
-    /// </summary>
-    private Task<string> StripCivilityForClaudeCodeAsync(string text, CancellationToken cancellationToken) =>
-        _civilityTrimmer.TrimIfClaudeCodeAsync(text, cancellationToken);
-
-    /// <summary>
-    /// Types text into active window and transitions to Idle state.
-    /// </summary>
-    private async Task TypeTextAndFinishAsync(string text)
-    {
-        var typed = await _outputChannel.TypeIntoActiveWindowAsync(text, _transcriptionCts!.Token);
-
-        _outputChannel.StopTypingFeedback();
-
-        if (!typed)
-        {
-            _logger.LogWarning("Failed to type text into active window");
-            _stateMachine.TransitionTo(DictationState.Idle);
-            return;
-        }
-
-        _logger.LogInformation("Text typed successfully into active window");
-        _stateMachine.TransitionTo(DictationState.Idle);
     }
 
     private async Task CancelRecordingAsync()
