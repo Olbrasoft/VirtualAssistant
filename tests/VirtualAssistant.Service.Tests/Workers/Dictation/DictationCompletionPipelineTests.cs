@@ -23,6 +23,7 @@ public class DictationCompletionPipelineTests
     private readonly Mock<IDictationOutputChannel> _outputChannelMock = new();
     private readonly Mock<IDictationTranscriptionPersister> _persisterMock = new();
     private readonly Mock<IClaudeCodeCivilityTrimmer> _civilityTrimmerMock = new();
+    private readonly Mock<IDictationFocusRouter> _focusRouterMock = new();
 
     public DictationCompletionPipelineTests()
     {
@@ -31,11 +32,18 @@ public class DictationCompletionPipelineTests
         _civilityTrimmerMock
             .Setup(x => x.TrimIfClaudeCodeAsync(It.IsAny<string>(), It.IsAny<CancellationToken>()))
             .Returns<string, CancellationToken>((text, _) => Task.FromResult(text));
+
+        // Default focus router: no-op (no switch). Individual tests override
+        // when they need to assert the router was consulted / fired.
+        _focusRouterMock
+            .Setup(x => x.TryFocusClaudeCodeIfApplicableAsync(It.IsAny<CancellationToken>()))
+            .ReturnsAsync(false);
     }
 
     private DictationCompletionPipeline CreateSut() =>
         new(_loggerMock.Object, _stateMachineMock.Object, _transcriberMock.Object,
-            _outputChannelMock.Object, _persisterMock.Object, _civilityTrimmerMock.Object);
+            _outputChannelMock.Object, _persisterMock.Object, _civilityTrimmerMock.Object,
+            _focusRouterMock.Object);
 
     [Fact]
     public async Task CompleteQuickAsync_Success_PastesAndBroadcasts()
@@ -97,6 +105,53 @@ public class DictationCompletionPipelineTests
             x => x.BroadcastEventAsync(It.IsAny<DictationEventType>(), It.IsAny<string?>(), It.IsAny<CancellationToken>()),
             Times.Never);
         _stateMachineMock.Verify(x => x.TransitionTo(DictationState.Idle), Times.Once);
+    }
+
+    [Fact]
+    public async Task CompleteQuickAsync_ConsultsFocusRouterBeforeCivilityTrim()
+    {
+        // Ordering contract: focus router runs BEFORE civility trim so the
+        // trimmer's "am I in Claude Code?" heuristic sees the post-focus
+        // state. If we trimmed first, then focus-switched into Claude Code,
+        // the civility "Děkuji." sign-off could leak into the prompt.
+        var audio = new byte[] { 1 };
+        _transcriberMock.Setup(x => x.TranscribeRawAsync(audio, It.IsAny<CancellationToken>()))
+            .ReturnsAsync(new TranscriptionResult("quick text", 0.9f));
+        _outputChannelMock.Setup(x => x.FastPasteAsync(It.IsAny<string>(), It.IsAny<CancellationToken>()))
+            .ReturnsAsync(true);
+
+        var order = new List<string>();
+        _focusRouterMock
+            .Setup(x => x.TryFocusClaudeCodeIfApplicableAsync(It.IsAny<CancellationToken>()))
+            .Callback(() => order.Add("focus"))
+            .ReturnsAsync(false);
+        _civilityTrimmerMock
+            .Setup(x => x.TrimIfClaudeCodeAsync(It.IsAny<string>(), It.IsAny<CancellationToken>()))
+            .Callback<string, CancellationToken>((_, _) => order.Add("trim"))
+            .Returns<string, CancellationToken>((text, _) => Task.FromResult(text));
+
+        await CreateSut().CompleteQuickAsync(audio, CancellationToken.None);
+
+        _focusRouterMock.Verify(x => x.TryFocusClaudeCodeIfApplicableAsync(It.IsAny<CancellationToken>()), Times.Once);
+        Assert.Equal(new[] { "focus", "trim" }, order);
+    }
+
+    [Fact]
+    public async Task CompleteFullAsync_DoesNotConsultFocusRouter()
+    {
+        // Normal Dictation keeps today's behavior: it types into the active
+        // window as-is, with no auto-focus switching. The router is Quick-only.
+        var audio = new byte[] { 1 };
+        _transcriberMock.Setup(x => x.TranscribeFullAsync(audio, It.IsAny<CancellationToken>()))
+            .ReturnsAsync(new TranscriptionResult("full text", 0.9f));
+        _outputChannelMock.Setup(x => x.TypeIntoActiveWindowAsync("full text", It.IsAny<CancellationToken>()))
+            .ReturnsAsync(true);
+
+        await CreateSut().CompleteFullAsync(audio, _ => { }, CancellationToken.None);
+
+        _focusRouterMock.Verify(
+            x => x.TryFocusClaudeCodeIfApplicableAsync(It.IsAny<CancellationToken>()),
+            Times.Never);
     }
 
     [Fact]

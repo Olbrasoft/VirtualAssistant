@@ -15,6 +15,7 @@ public sealed class DictationCompletionPipeline : IDictationCompletionPipeline
     private readonly IDictationOutputChannel _outputChannel;
     private readonly IDictationTranscriptionPersister _persister;
     private readonly IClaudeCodeCivilityTrimmer _civilityTrimmer;
+    private readonly IDictationFocusRouter _focusRouter;
 
     public DictationCompletionPipeline(
         ILogger<DictationCompletionPipeline> logger,
@@ -22,7 +23,8 @@ public sealed class DictationCompletionPipeline : IDictationCompletionPipeline
         IDictationTranscriber transcriber,
         IDictationOutputChannel outputChannel,
         IDictationTranscriptionPersister persister,
-        IClaudeCodeCivilityTrimmer civilityTrimmer)
+        IClaudeCodeCivilityTrimmer civilityTrimmer,
+        IDictationFocusRouter focusRouter)
     {
         _logger = logger ?? throw new ArgumentNullException(nameof(logger));
         _stateMachine = stateMachine ?? throw new ArgumentNullException(nameof(stateMachine));
@@ -30,6 +32,7 @@ public sealed class DictationCompletionPipeline : IDictationCompletionPipeline
         _outputChannel = outputChannel ?? throw new ArgumentNullException(nameof(outputChannel));
         _persister = persister ?? throw new ArgumentNullException(nameof(persister));
         _civilityTrimmer = civilityTrimmer ?? throw new ArgumentNullException(nameof(civilityTrimmer));
+        _focusRouter = focusRouter ?? throw new ArgumentNullException(nameof(focusRouter));
     }
 
     public async Task CompleteQuickAsync(byte[] audio, CancellationToken cancellationToken)
@@ -50,6 +53,13 @@ public sealed class DictationCompletionPipeline : IDictationCompletionPipeline
             _logger.LogInformation("Quick transcription: '{Text}'", result.Text);
 
             await _persister.SaveAsync(audio, result, cancellationToken);
+
+            // Auto-focus Claude Code if the user pressed fast from a non-Claude
+            // non-TextEditor surface and there's exactly one Claude on the
+            // current workspace. Runs BEFORE civility trim so the trimmer's
+            // "am I in Claude Code?" check sees the post-focus state and
+            // correctly applies the trim.
+            await _focusRouter.TryFocusClaudeCodeIfApplicableAsync(cancellationToken);
 
             // Strip trailing civility ("… Děkuji.", "… Ahoj.", Whisper hallucinated
             // sign-offs) when pasting into a CLI agent that reads the text as a
