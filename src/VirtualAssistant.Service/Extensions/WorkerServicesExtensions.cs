@@ -59,7 +59,8 @@ public static class WorkerServicesExtensions
             new DictationRecordingSession(
                 sp.GetRequiredService<ILogger<DictationRecordingSession>>(),
                 sp.GetRequiredKeyedService<IAudioRecordingCoordinator>(DictationKey),
-                sp.GetRequiredService<IDictationTranscriber>()));
+                sp.GetRequiredService<IDictationTranscriber>(),
+                sp.GetRequiredService<Voice.StateMachine.IDictationStateMachine>()));
 
         services.AddSingleton<IDictationOutputChannel>(sp =>
             new DictationOutputChannel(
@@ -86,7 +87,6 @@ public static class WorkerServicesExtensions
         services.AddSingleton(sp => new DictationWorker(
             sp.GetRequiredService<ILogger<DictationWorker>>(),
             sp.GetRequiredService<IDictationKeyHandler>(),
-            sp.GetRequiredService<Voice.StateMachine.IDictationStateMachine>(),
             sp.GetRequiredService<IDictationRecordingSession>(),
             sp.GetRequiredService<IDictationCompletionPipeline>(),
             sp.GetRequiredService<IDictationCancellationCoordinator>()));

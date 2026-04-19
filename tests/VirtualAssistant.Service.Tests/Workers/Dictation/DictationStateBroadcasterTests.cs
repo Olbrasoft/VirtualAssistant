@@ -34,16 +34,37 @@ public class DictationStateBroadcasterTests : IDisposable
     }
 
     /// <summary>
-    /// Starts the broadcaster and yields briefly so ExecuteAsync wires up
-    /// its event subscriptions before the test raises events.
+    /// Starts the broadcaster and waits deterministically until ExecuteAsync
+    /// has wired up its three event subscriptions. Uses SetupAdd callbacks
+    /// to decrement a counter — once all three fire, a TaskCompletionSource
+    /// flips and the test proceeds. Replaces a fragile Task.Delay(20) wait.
+    /// (Copilot review on PR #1037.)
     /// </summary>
     private async Task StartAsync()
     {
+        var subscriptionsRegistered = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+        var remainingSubscriptions = 3;
+
+        void MarkSubscribed()
+        {
+            if (Interlocked.Decrement(ref remainingSubscriptions) == 0)
+                subscriptionsRegistered.TrySetResult();
+        }
+
+        _stateMachineMock
+            .SetupAdd(x => x.StateChanged += It.IsAny<EventHandler<DictationState>>())
+            .Callback(MarkSubscribed);
+
+        _transcriberMock
+            .SetupAdd(x => x.RawTranscriptionReady += It.IsAny<Action<string>>())
+            .Callback(MarkSubscribed);
+
+        _dictationServiceMock
+            .SetupAdd(x => x.TranscriptionCompleted += It.IsAny<EventHandler<string>>())
+            .Callback(MarkSubscribed);
+
         _ = _sut.StartAsync(_cts.Token);
-        // Yield so ExecuteAsync's event subscriptions register before the test
-        // raises an event. One Task.Yield + short delay is enough because
-        // BackgroundService kicks ExecuteAsync on the thread pool.
-        await Task.Delay(20);
+        await subscriptionsRegistered.Task.WaitAsync(TimeSpan.FromSeconds(5));
     }
 
     [Fact]
