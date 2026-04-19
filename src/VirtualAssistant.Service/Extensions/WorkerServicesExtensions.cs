@@ -99,9 +99,16 @@ public static class WorkerServicesExtensions
                 persister,
                 civilityTrimmer);
 
+            // Key handler owns the IKeyboardMonitor subscription + the
+            // ScrollLock/Pause routing tree so the worker no longer has a
+            // direct IKeyboardMonitor dep. (#969 extraction.)
+            var keyHandler = new DictationKeyHandler(
+                sp.GetRequiredService<ILogger<DictationKeyHandler>>(),
+                sp.GetRequiredService<IKeyboardMonitor>());
+
             return new DictationWorker(
                 sp.GetRequiredService<ILogger<DictationWorker>>(),
-                sp.GetRequiredService<IKeyboardMonitor>(),
+                keyHandler,
                 sp.GetRequiredService<Voice.StateMachine.IDictationStateMachine>(),
                 recordingSession,
                 transcriber,
