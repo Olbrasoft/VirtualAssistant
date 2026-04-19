@@ -402,8 +402,24 @@ public static class VoiceServicesExtensions
         services.AddSingleton<ITextFilterStrategy>(sp =>
             sp.GetRequiredService<WhisperHallucinationFilterStrategy>());
 
+        // Path separator ("lomeno" → "/"). Shared by lightweight + full composite so
+        // both Quick and Normal dictation produce the same path output. MUST be
+        // registered BEFORE WhitespaceFilterStrategy — CompositeTextFilter applies
+        // ITextFilterStrategy instances in registration order, and whitespace
+        // normalization needs to stay the final pass so any residual double-spaces
+        // introduced by upstream strategies are collapsed last.
+        services.AddSingleton<PathSeparatorFilterStrategy>(sp =>
+        {
+            var logger = sp.GetRequiredService<ILogger<PathSeparatorFilterStrategy>>();
+            return new PathSeparatorFilterStrategy(logger);
+        });
+        services.AddSingleton<ITextFilterStrategy>(sp =>
+            sp.GetRequiredService<PathSeparatorFilterStrategy>());
+
         // Register WhitespaceFilterStrategy as both concrete (for lightweight filter) and as
         // ITextFilterStrategy (for full composite). Single instance shared by both.
+        // Kept LAST in the ITextFilterStrategy sequence so it runs as the final
+        // normalization pass in CompositeTextFilter.
         services.AddSingleton<WhitespaceFilterStrategy>(sp =>
         {
             var logger = sp.GetRequiredService<ILogger<WhitespaceFilterStrategy>>();

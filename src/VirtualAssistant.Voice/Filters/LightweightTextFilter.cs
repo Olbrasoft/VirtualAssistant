@@ -13,6 +13,9 @@ namespace Olbrasoft.VirtualAssistant.Voice.Filters;
 ///         on application startup and refreshed every 4 minutes (just under the
 ///         strategy's 5-minute internal TTL), so the Quick Dictation hot path
 ///         always finds an in-memory cache and never blocks on a DB round-trip.</item>
+///   <item>Path separator — rewrites <c>"X lomeno Y"</c> into <c>"X/Y"</c>
+///         (no surrounding spaces). Runs AFTER DB corrections so any
+///         "llomeno → lomeno" Whisper fixup stored in the DB lands first.</item>
 ///   <item>Whitespace normalization — trim + collapse double spaces.</item>
 /// </list>
 /// LLM correction is intentionally skipped — that is the difference between Quick
@@ -22,17 +25,20 @@ public class LightweightTextFilter : ILightweightTextFilter
 {
     private readonly WhisperHallucinationFilterStrategy _hallucinationStrategy;
     private readonly DatabaseCorrectionFilterStrategy _databaseCorrectionStrategy;
+    private readonly PathSeparatorFilterStrategy _pathSeparatorStrategy;
     private readonly WhitespaceFilterStrategy _whitespaceStrategy;
     private readonly ILogger<LightweightTextFilter> _logger;
 
     public LightweightTextFilter(
         WhisperHallucinationFilterStrategy hallucinationStrategy,
         DatabaseCorrectionFilterStrategy databaseCorrectionStrategy,
+        PathSeparatorFilterStrategy pathSeparatorStrategy,
         WhitespaceFilterStrategy whitespaceStrategy,
         ILogger<LightweightTextFilter> logger)
     {
         _hallucinationStrategy = hallucinationStrategy ?? throw new ArgumentNullException(nameof(hallucinationStrategy));
         _databaseCorrectionStrategy = databaseCorrectionStrategy ?? throw new ArgumentNullException(nameof(databaseCorrectionStrategy));
+        _pathSeparatorStrategy = pathSeparatorStrategy ?? throw new ArgumentNullException(nameof(pathSeparatorStrategy));
         _whitespaceStrategy = whitespaceStrategy ?? throw new ArgumentNullException(nameof(whitespaceStrategy));
         _logger = logger ?? throw new ArgumentNullException(nameof(logger));
     }
@@ -41,6 +47,7 @@ public class LightweightTextFilter : ILightweightTextFilter
     public bool IsEnabled =>
         _hallucinationStrategy.IsEnabled
         || _databaseCorrectionStrategy.IsEnabled
+        || _pathSeparatorStrategy.IsEnabled
         || _whitespaceStrategy.IsEnabled;
 
     /// <inheritdoc/>
@@ -70,7 +77,12 @@ public class LightweightTextFilter : ILightweightTextFilter
         // sub-millisecond after warm-up.
         var afterDbCorrections = _databaseCorrectionStrategy.Apply(afterHallucination);
 
-        var afterWhitespace = _whitespaceStrategy.Apply(afterDbCorrections);
+        // Path separator: rewrite "X lomeno Y" → "X/Y". Runs AFTER DB corrections
+        // so any DB-seeded Whisper fixups (e.g. "llomeno" → "lomeno") land before
+        // we look for the word.
+        var afterPathSeparator = _pathSeparatorStrategy.Apply(afterDbCorrections);
+
+        var afterWhitespace = _whitespaceStrategy.Apply(afterPathSeparator);
 
         if (afterWhitespace != text)
         {
