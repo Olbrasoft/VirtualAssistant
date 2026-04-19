@@ -1,5 +1,4 @@
 using Microsoft.Extensions.Options;
-using Olbrasoft.VirtualAssistant.Core.Audio;
 using Olbrasoft.VirtualAssistant.Core.Configuration;
 using Olbrasoft.VirtualAssistant.Core.Models;
 using Olbrasoft.VirtualAssistant.Core.Services;
@@ -22,7 +21,7 @@ public class DictationWorker : BackgroundService, IDictationControl, IDictationS
     private readonly ILogger<DictationWorker> _logger;
     private readonly IKeyboardMonitor _keyboardMonitor;
     private readonly IDictationStateMachine _stateMachine;
-    private readonly IAudioRecordingCoordinator _recordingCoordinator;
+    private readonly IDictationRecordingSession _recordingSession;
     private readonly IDictationTranscriber _transcriber;
     private readonly IDictationOutputChannel _outputChannel;
     private readonly IDictationTranscriptionPersister _persister;
@@ -44,7 +43,7 @@ public class DictationWorker : BackgroundService, IDictationControl, IDictationS
         ILogger<DictationWorker> logger,
         IKeyboardMonitor keyboardMonitor,
         IDictationStateMachine stateMachine,
-        IAudioRecordingCoordinator recordingCoordinator,
+        IDictationRecordingSession recordingSession,
         IDictationTranscriber transcriber,
         IDictationOutputChannel outputChannel,
         IDictationTranscriptionPersister persister,
@@ -54,7 +53,7 @@ public class DictationWorker : BackgroundService, IDictationControl, IDictationS
         _logger = logger ?? throw new ArgumentNullException(nameof(logger));
         _keyboardMonitor = keyboardMonitor ?? throw new ArgumentNullException(nameof(keyboardMonitor));
         _stateMachine = stateMachine ?? throw new ArgumentNullException(nameof(stateMachine));
-        _recordingCoordinator = recordingCoordinator ?? throw new ArgumentNullException(nameof(recordingCoordinator));
+        _recordingSession = recordingSession ?? throw new ArgumentNullException(nameof(recordingSession));
         _transcriber = transcriber ?? throw new ArgumentNullException(nameof(transcriber));
         _outputChannel = outputChannel ?? throw new ArgumentNullException(nameof(outputChannel));
         _persister = persister ?? throw new ArgumentNullException(nameof(persister));
@@ -150,10 +149,9 @@ public class DictationWorker : BackgroundService, IDictationControl, IDictationS
             // If user picked slow mode but streaming was pre-transcribing chunks,
             // cancel those background tasks — they'd be discarded anyway, no point
             // burning GPU/serializing the Whisper semaphore for them.
-            if (!quickMode && _transcriber.IsStreamingActive)
+            if (!quickMode && _recordingSession.IsStreamingActive)
             {
-                _transcriber.EndSession();
-                _recordingCoordinator.DisableChunking();
+                _recordingSession.EndSession();
                 _logger.LogInformation("Slow-mode override: canceled pending streaming chunk transcriptions");
             }
 
@@ -183,9 +181,6 @@ public class DictationWorker : BackgroundService, IDictationControl, IDictationS
             TranscriptionCompleted += OnTranscriptionCompletedBroadcast;
             _transcriber.RawTranscriptionReady += OnRawTranscriptionReadyBroadcast;
 
-            // Subscribe to streaming chunk emissions — transcribes each chunk in background
-            _recordingCoordinator.ChunkAvailable += OnChunkAvailable;
-
             // Wait for cancellation
             await Task.Delay(Timeout.Infinite, stoppingToken);
         }
@@ -204,7 +199,6 @@ public class DictationWorker : BackgroundService, IDictationControl, IDictationS
             _stateMachine.StateChanged -= OnStateChangedBroadcast;
             TranscriptionCompleted -= OnTranscriptionCompletedBroadcast;
             _transcriber.RawTranscriptionReady -= OnRawTranscriptionReadyBroadcast;
-            _recordingCoordinator.ChunkAvailable -= OnChunkAvailable;
 
             // Stop recording if active
             if (_stateMachine.CurrentState == DictationState.Recording)
@@ -311,16 +305,6 @@ public class DictationWorker : BackgroundService, IDictationControl, IDictationS
         _ = BroadcastDictationEventAsync(DictationEventType.RawTranscriptionCompleted, text);
     }
 
-    /// <summary>
-    /// Forwards a streaming audio chunk to <see cref="IDictationTranscriber"/>,
-    /// which runs the per-chunk Whisper call on a background task. Ignored when
-    /// streaming is not active for the current session.
-    /// </summary>
-    private void OnChunkAvailable(object? sender, AudioChunkEventArgs e)
-    {
-        _transcriber.ForwardChunk(e.Index, e.PcmBytes);
-    }
-
     private Task BroadcastDictationEventAsync(DictationEventType eventType, string? text) =>
         _outputChannel.BroadcastEventAsync(eventType, text);
 
@@ -331,22 +315,9 @@ public class DictationWorker : BackgroundService, IDictationControl, IDictationS
             // Transition to Recording state
             _stateMachine.TransitionTo(DictationState.Recording);
 
-            // Freeze streaming choice for this session — toggles mid-recording have no effect
-            var streamingActive = _streamingTranscriptionEnabled;
-            _transcriber.BeginSession(streamingActive);
-
-            if (streamingActive)
-            {
-                _recordingCoordinator.EnableChunking(TimeSpan.FromSeconds(8));
-                _logger.LogInformation("Streaming transcription active for this session (8s chunks)");
-            }
-            else
-            {
-                _recordingCoordinator.DisableChunking();
-            }
-
-            // Start audio recording via coordinator
-            await _recordingCoordinator.StartRecordingAsync();
+            // Freeze streaming choice for this session — toggles mid-recording have no effect.
+            // The session owns transcriber.BeginSession + chunking toggle + audio start.
+            await _recordingSession.StartAsync(_streamingTranscriptionEnabled);
         }
         catch (Exception ex)
         {
@@ -435,19 +406,8 @@ public class DictationWorker : BackgroundService, IDictationControl, IDictationS
         {
             _transcriptionCts?.Dispose();
             _transcriptionCts = null;
-            ResetStreamingSessionState();
+            _recordingSession.EndSession();
         }
-    }
-
-    /// <summary>
-    /// Clears streaming chunk state after a dictation session completes (any path).
-    /// Delegates the concurrent-collection cleanup to <see cref="IDictationTranscriber"/>;
-    /// the worker still owns the recording-coordinator's chunking flag.
-    /// </summary>
-    private void ResetStreamingSessionState()
-    {
-        _transcriber.EndSession();
-        _recordingCoordinator.DisableChunking();
     }
 
     /// <summary>
@@ -456,7 +416,7 @@ public class DictationWorker : BackgroundService, IDictationControl, IDictationS
     /// </summary>
     private async Task<byte[]?> ValidateAndPrepareAudioAsync()
     {
-        var audioData = await _recordingCoordinator.StopRecordingAsync();
+        var audioData = await _recordingSession.StopAsync();
 
         if (audioData.Length == 0)
         {
@@ -561,8 +521,8 @@ public class DictationWorker : BackgroundService, IDictationControl, IDictationS
         {
             _logger.LogInformation("Canceling recording");
 
-            // Emergency stop recording via coordinator (discards audio data)
-            await _recordingCoordinator.EmergencyStopAsync();
+            // Emergency stop recording (discards audio data)
+            await _recordingSession.EmergencyStopAsync();
 
             // Play cancel sound (paper-rip effect)
             _outputChannel.PlayCancelCue();
@@ -583,8 +543,8 @@ public class DictationWorker : BackgroundService, IDictationControl, IDictationS
     {
         try
         {
-            // Emergency stop recording via coordinator (discards audio data)
-            await _recordingCoordinator.EmergencyStopAsync();
+            // Emergency stop recording (discards audio data)
+            await _recordingSession.EmergencyStopAsync();
 
             // Return to Idle without transcription
             _stateMachine.TransitionTo(DictationState.Idle);
@@ -596,7 +556,7 @@ public class DictationWorker : BackgroundService, IDictationControl, IDictationS
         }
         finally
         {
-            ResetStreamingSessionState();
+            _recordingSession.EndSession();
         }
     }
 
@@ -625,7 +585,7 @@ public class DictationWorker : BackgroundService, IDictationControl, IDictationS
                 // async would ripple through the hub + state-machine call sites
                 // without any runtime benefit — this is a user-initiated,
                 // infrequent cancel path, not the transcription/streaming hot path.
-                _recordingCoordinator.EmergencyStopAsync().GetAwaiter().GetResult();
+                _recordingSession.EmergencyStopAsync().GetAwaiter().GetResult();
             }
 
             // Cancel transcription if in progress
@@ -635,7 +595,7 @@ public class DictationWorker : BackgroundService, IDictationControl, IDictationS
 
             // Cancel in-flight streaming chunk tasks and clear chunk state,
             // otherwise they keep running into the next session.
-            ResetStreamingSessionState();
+            _recordingSession.EndSession();
 
             // Return to Idle
             _stateMachine.TransitionTo(DictationState.Idle);
@@ -654,8 +614,8 @@ public class DictationWorker : BackgroundService, IDictationControl, IDictationS
 
         try
         {
-            // Stop recording via coordinator (discards audio data on shutdown)
-            await _recordingCoordinator.EmergencyStopAsync();
+            // Stop recording (discards audio data on shutdown)
+            await _recordingSession.EmergencyStopAsync();
         }
         catch (Exception ex)
         {
