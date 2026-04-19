@@ -6,12 +6,17 @@ namespace Olbrasoft.VirtualAssistant.Core.Tests.Models;
 /// Coverage pass for the plain data records under
 /// <c>src/VirtualAssistant.Core/Models</c>: properties assign verbatim,
 /// optional params have the documented defaults, and record value-
-/// equality holds across every record in the namespace. These models
-/// cross every service boundary (desktop context, LLM results, TTS
-/// results, notification routing) so pinning their shape + equality
-/// semantics in one place catches accidental required/optional flips
-/// AND any future record→class refactor that would silently lose
-/// value-equality. Part of #979 Phase C.
+/// equality is pinned for the records where equality is meaningful
+/// (<see cref="DesktopContext"/>, <see cref="LlmCorrectionResult"/>,
+/// <see cref="TtsResult"/>, <see cref="NotificationContext"/>).
+/// <c>RacingResult</c> is intentionally skipped — it holds a
+/// <c>Task&lt;T&gt;</c> whose reference-equality defeats the point —
+/// and <c>AgentNotification</c> is a plain class, not a record.
+/// These models cross every service boundary (desktop context, LLM
+/// results, TTS results, notification routing) so pinning their
+/// shape catches accidental required/optional flips, and the
+/// equality asserts guard against a future record→class refactor
+/// silently losing value-equality. Part of #979 Phase C.
 /// </summary>
 public class ModelRecordsTests
 {
