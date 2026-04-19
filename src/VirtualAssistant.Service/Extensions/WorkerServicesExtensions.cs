@@ -78,6 +78,8 @@ public static class WorkerServicesExtensions
                 sp.GetRequiredService<ILogger<ClaudeCodeCivilityTrimmer>>(),
                 sp.GetRequiredService<ICliAppDetector>()));
 
+        services.AddSingleton<IDictationFocusRouter, DictationFocusRouter>();
+
         services.AddSingleton<IDictationCompletionPipeline, DictationCompletionPipeline>();
 
         services.AddSingleton<IDictationKeyHandler, DictationKeyHandler>();
