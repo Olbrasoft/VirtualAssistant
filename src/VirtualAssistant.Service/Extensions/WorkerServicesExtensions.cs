@@ -225,12 +225,27 @@ public static class WorkerServicesExtensions
             if (!speechSettings.EnableFallback)
                 return primary;
 
+            // Build effective settings with provider-key names that actually
+            // match the wired instances. The raw config may be mistyped (wrong
+            // case, unknown value, extra whitespace) and we normalize above;
+            // FallbackSpeechTranscriber then feeds these into
+            // ISpeechTranscriberFactory.GetProviderId for DB tracking and
+            // log messages, and that call throws on an unknown name.
+            // Using each transcriber's own ProviderKey as the source of truth
+            // avoids the divergence. (Copilot review on PR #1032.)
+            var effectiveSettings = new SpeechProviderSettings
+            {
+                PrimaryProvider = primary.ProviderKey,
+                FallbackProvider = fallback.ProviderKey,
+                EnableFallback = speechSettings.EnableFallback
+            };
+
             return new FallbackSpeechTranscriber(
                 primary,
                 fallback,
                 factory,
                 sp.GetRequiredService<ILogger<FallbackSpeechTranscriber>>(),
-                speechSettings);
+                effectiveSettings);
         });
 
         services.AddKeyedSingleton<ITranscriptionService>(DictationKey, (sp, _) =>
