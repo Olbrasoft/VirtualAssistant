@@ -13,10 +13,10 @@ public sealed class DictationFocusRouter : IDictationFocusRouter
     // ".desktop" suffix and returns "org.gnome.TextEditor" in WmClass.
     private const string GnomeTextEditorWmClass = "org.gnome.TextEditor";
 
-    // Empirical delay: below ~150 ms xdotool occasionally keystrokes
-    // into the outgoing window because GNOME hasn't activated the
-    // target yet. 200 ms keeps the hot path snappy while still winning
-    // the race reliably on this hardware.
+    // Empirical delay: below ~150 ms the keyboard paste occasionally
+    // keystrokes into the outgoing window because GNOME hasn't activated
+    // the target yet. 200 ms keeps the hot path snappy while still
+    // winning the race reliably on this hardware.
     private static readonly TimeSpan FocusSettleDelay = TimeSpan.FromMilliseconds(200);
 
     private readonly IWindowQueryService _windowQuery;
@@ -40,6 +40,12 @@ public sealed class DictationFocusRouter : IDictationFocusRouter
         try
         {
             windows = await _windowQuery.GetWindowsAsync(cancellationToken);
+        }
+        catch (OperationCanceledException)
+        {
+            // Never swallow cancellation — the pipeline's finally block needs
+            // to unwind state-machine + feedback even if we get clipped here.
+            throw;
         }
         catch (Exception ex)
         {
@@ -84,16 +90,35 @@ public sealed class DictationFocusRouter : IDictationFocusRouter
             "Focus router: activating Claude Code '{Title}' (id {Id}) from '{FromClass}'",
             target.Title, target.Id, focused.WmClass);
 
-        await _windowAction.ActivateWindowAsync(target.Id, cancellationToken);
-        await Task.Delay(FocusSettleDelay, cancellationToken);
-        return true;
+        try
+        {
+            await _windowAction.ActivateWindowAsync(target.Id, cancellationToken);
+            await Task.Delay(FocusSettleDelay, cancellationToken);
+            return true;
+        }
+        catch (OperationCanceledException)
+        {
+            throw;
+        }
+        catch (Exception ex)
+        {
+            // Activation failures (D-Bus error, window closed mid-call, etc.)
+            // mirror the enumeration failure path: log + fall through to paste
+            // against the currently-focused window. Quick Dictation must
+            // never be killed by a flaky window-calls extension.
+            _logger.LogWarning(
+                ex,
+                "Focus router: failed to activate Claude Code window {Id}, skipping focus switch",
+                target.Id);
+            return false;
+        }
     }
 
     private static bool IsClaudeCode(WindowInfo w) =>
         string.Equals(
             CliAgentRegistry.FindByTitle(w.Title)?.AppName,
             "Claude Code",
-            StringComparison.Ordinal);
+            StringComparison.OrdinalIgnoreCase);
 
     private static bool IsGnomeTextEditor(WindowInfo w) =>
         string.Equals(w.WmClass, GnomeTextEditorWmClass, StringComparison.OrdinalIgnoreCase);

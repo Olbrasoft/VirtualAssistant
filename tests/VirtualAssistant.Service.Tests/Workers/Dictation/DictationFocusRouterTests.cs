@@ -149,17 +149,62 @@ public class DictationFocusRouterTests
     }
 
     [Fact]
-    public async Task Ctor_NullWindowQuery_Throws() =>
-        await Task.Run(() => Assert.Throws<ArgumentNullException>(() =>
-            new DictationFocusRouter(null!, _windowActionMock.Object, _loggerMock.Object)));
+    public async Task TryFocus_WindowQueryCancelled_Propagates()
+    {
+        // Cancellation is a control-flow signal, not an error — pass it up so
+        // the pipeline's finally block can unwind state-machine + feedback.
+        _windowQueryMock
+            .Setup(x => x.GetWindowsAsync(It.IsAny<CancellationToken>()))
+            .ThrowsAsync(new OperationCanceledException());
+
+        await Assert.ThrowsAsync<OperationCanceledException>(
+            () => CreateSut().TryFocusClaudeCodeIfApplicableAsync(CancellationToken.None));
+    }
 
     [Fact]
-    public async Task Ctor_NullWindowAction_Throws() =>
-        await Task.Run(() => Assert.Throws<ArgumentNullException>(() =>
-            new DictationFocusRouter(_windowQueryMock.Object, null!, _loggerMock.Object)));
+    public async Task TryFocus_ActivateWindowThrows_SkipsSilently()
+    {
+        // Activation failures (window closed mid-call, transient D-Bus error)
+        // fall through same as query failures — Quick Dictation must keep
+        // working against the currently-focused window.
+        var claude = MakeWindow(42, "Alacritty", "Claude Code — ~/project");
+        var browser = MakeWindow(7, "Google-chrome", "Browser", hasFocus: true);
+        SetupWindows(claude, browser);
+        _windowActionMock
+            .Setup(x => x.ActivateWindowAsync(It.IsAny<uint>(), It.IsAny<CancellationToken>()))
+            .ThrowsAsync(new InvalidOperationException("window gone"));
+
+        var switched = await CreateSut().TryFocusClaudeCodeIfApplicableAsync(CancellationToken.None);
+
+        Assert.False(switched);
+    }
 
     [Fact]
-    public async Task Ctor_NullLogger_Throws() =>
-        await Task.Run(() => Assert.Throws<ArgumentNullException>(() =>
-            new DictationFocusRouter(_windowQueryMock.Object, _windowActionMock.Object, null!)));
+    public async Task TryFocus_ActivateCancelled_Propagates()
+    {
+        var claude = MakeWindow(42, "Alacritty", "Claude Code — ~/project");
+        var browser = MakeWindow(7, "Google-chrome", "Browser", hasFocus: true);
+        SetupWindows(claude, browser);
+        _windowActionMock
+            .Setup(x => x.ActivateWindowAsync(It.IsAny<uint>(), It.IsAny<CancellationToken>()))
+            .ThrowsAsync(new OperationCanceledException());
+
+        await Assert.ThrowsAsync<OperationCanceledException>(
+            () => CreateSut().TryFocusClaudeCodeIfApplicableAsync(CancellationToken.None));
+    }
+
+    [Fact]
+    public void Ctor_NullWindowQuery_Throws() =>
+        Assert.Throws<ArgumentNullException>(() =>
+            new DictationFocusRouter(null!, _windowActionMock.Object, _loggerMock.Object));
+
+    [Fact]
+    public void Ctor_NullWindowAction_Throws() =>
+        Assert.Throws<ArgumentNullException>(() =>
+            new DictationFocusRouter(_windowQueryMock.Object, null!, _loggerMock.Object));
+
+    [Fact]
+    public void Ctor_NullLogger_Throws() =>
+        Assert.Throws<ArgumentNullException>(() =>
+            new DictationFocusRouter(_windowQueryMock.Object, _windowActionMock.Object, null!));
 }

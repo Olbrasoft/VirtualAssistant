@@ -15,7 +15,7 @@ public interface IDictationFocusRouter
     /// <summary>
     /// Inspects the current workspace and, if the conditions above hold,
     /// activates the single Claude Code window and waits briefly for
-    /// GNOME to settle focus so the subsequent xdotool paste lands in
+    /// GNOME to settle focus so the subsequent keyboard paste lands in
     /// the new target instead of the outgoing window. Returns true when
     /// a switch happened.
     /// </summary>
