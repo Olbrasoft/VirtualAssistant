@@ -87,6 +87,18 @@ public static class WorkerServicesExtensions
                 sp.GetRequiredService<ILogger<ClaudeCodeCivilityTrimmer>>(),
                 sp.GetRequiredService<ICliAppDetector>());
 
+            // Bundle the post-recording transcribe → save → trim → paste/type
+            // pipeline behind one IDictationCompletionPipeline so the worker
+            // drops the persister + civility-trimmer deps and ~170 LOC of
+            // inline orchestration. (#969 extraction.)
+            var completionPipeline = new DictationCompletionPipeline(
+                sp.GetRequiredService<ILogger<DictationCompletionPipeline>>(),
+                sp.GetRequiredService<Voice.StateMachine.IDictationStateMachine>(),
+                transcriber,
+                outputChannel,
+                persister,
+                civilityTrimmer);
+
             return new DictationWorker(
                 sp.GetRequiredService<ILogger<DictationWorker>>(),
                 sp.GetRequiredService<IKeyboardMonitor>(),
@@ -94,8 +106,7 @@ public static class WorkerServicesExtensions
                 recordingSession,
                 transcriber,
                 outputChannel,
-                persister,
-                civilityTrimmer,
+                completionPipeline,
                 sp.GetRequiredService<IOptions<DictationOptions>>());
         });
 
