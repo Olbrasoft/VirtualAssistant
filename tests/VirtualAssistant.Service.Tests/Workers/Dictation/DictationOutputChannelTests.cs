@@ -120,4 +120,23 @@ public class DictationOutputChannelTests
 
         Assert.Null(ex);
     }
+
+    [Fact]
+    public async Task BroadcastEventAsync_RethrowsCancellation_WhenTokenCancelled()
+    {
+        // Host shutdown and cooperative cancellation must NOT be swallowed as
+        // transport failures — otherwise the caller can't tell its own cancel
+        // landed and the shutdown may hang waiting for "success". The channel
+        // only swallows transport errors. (Copilot review on PR #1025.)
+        using var cts = new CancellationTokenSource();
+        cts.Cancel();
+        _allClientsMock
+            .Setup(x => x.SendCoreAsync(It.IsAny<string>(), It.IsAny<object?[]>(), It.IsAny<CancellationToken>()))
+            .ThrowsAsync(new OperationCanceledException(cts.Token));
+
+        var sut = CreateSut();
+
+        await Assert.ThrowsAsync<OperationCanceledException>(() =>
+            sut.BroadcastEventAsync(DictationEventType.RecordingStarted, null, cts.Token));
+    }
 }

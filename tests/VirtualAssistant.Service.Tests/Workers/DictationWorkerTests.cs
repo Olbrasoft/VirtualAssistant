@@ -10,6 +10,7 @@ using Olbrasoft.VirtualAssistant.Core.Services;
 using Olbrasoft.VirtualAssistant.Core.Speech;
 using Olbrasoft.VirtualAssistant.Core.StateMachine;
 using Olbrasoft.VirtualAssistant.Core.WindowManagement;
+using Olbrasoft.VirtualAssistant.Service.Hubs;
 using Olbrasoft.VirtualAssistant.Service.Workers;
 using Olbrasoft.VirtualAssistant.Service.Workers.Dictation;
 using Olbrasoft.VirtualAssistant.Service.Workers.Streaming;
@@ -719,8 +720,14 @@ public class DictationWorkerTests : IDisposable
         await _sut.StopDictationAsync();
         await Task.Delay(400);
 
-        // Should still transition to Idle on failure
+        // Should still transition to Idle on failure — AND must not emit the
+        // QuickTranscriptionCompleted broadcast, since the paste didn't land
+        // (remote UI would otherwise light up as if the text went through).
+        // (Copilot review on PR #1025.)
         _stateMachineMock.Verify(x => x.TransitionTo(DictationState.Idle), Times.AtLeastOnce);
+        _outputChannelMock.Verify(
+            x => x.BroadcastEventAsync(DictationEventType.QuickTranscriptionCompleted, It.IsAny<string?>(), It.IsAny<CancellationToken>()),
+            Times.Never);
     }
 
     [SkipOnCIFact]

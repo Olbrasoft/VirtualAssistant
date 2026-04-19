@@ -49,6 +49,13 @@ public sealed class DictationOutputChannel : IDictationOutputChannel
                 new DictationEvent { EventType = eventType, Text = text },
                 cancellationToken);
         }
+        catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
+        {
+            // Host shutdown / cooperative cancel: rethrow so callers see the
+            // cancellation rather than swallowing it as a transport failure.
+            // (Copilot review on PR #1025.)
+            throw;
+        }
         catch (Exception ex)
         {
             // Broadcasting is best-effort — a SignalR client-side failure must
