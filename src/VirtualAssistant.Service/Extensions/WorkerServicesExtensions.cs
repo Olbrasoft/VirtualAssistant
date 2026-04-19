@@ -58,6 +58,15 @@ public static class WorkerServicesExtensions
                 transcription,
                 assembler);
 
+            // Bundle the audio-recording coordinator + streaming-chunk
+            // forwarding behind a single IDictationRecordingSession so the
+            // worker no longer subscribes to ChunkAvailable or toggles
+            // chunking directly. (#969 extraction.)
+            var recordingSession = new DictationRecordingSession(
+                sp.GetRequiredService<ILogger<DictationRecordingSession>>(),
+                sp.GetRequiredKeyedService<IAudioRecordingCoordinator>(DictationKey),
+                transcriber);
+
             // Bundle the four output-surface dependencies (sounds, keyboard,
             // SignalR) behind a single IDictationOutputChannel so the worker
             // ctor shrinks by three deps. (#969 god-class split.)
@@ -82,7 +91,7 @@ public static class WorkerServicesExtensions
                 sp.GetRequiredService<ILogger<DictationWorker>>(),
                 sp.GetRequiredService<IKeyboardMonitor>(),
                 sp.GetRequiredService<Voice.StateMachine.IDictationStateMachine>(),
-                sp.GetRequiredKeyedService<IAudioRecordingCoordinator>(DictationKey),
+                recordingSession,
                 transcriber,
                 outputChannel,
                 persister,
