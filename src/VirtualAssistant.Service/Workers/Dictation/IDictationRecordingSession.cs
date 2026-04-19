@@ -34,8 +34,9 @@ public interface IDictationRecordingSession
     /// Start a new recording session. Transitions the state machine to
     /// <see cref="DictationState.Recording"/>, opens the transcriber's
     /// streaming session, toggles chunking on the coordinator, and starts
-    /// the audio capture. On failure, transitions back to Idle and logs;
-    /// caller should not re-throw.
+    /// the audio capture. Failures are caught and logged internally — the
+    /// session cleans up any partial side-effects and transitions back to
+    /// Idle, so this method does not throw.
     /// </summary>
     Task StartAsync(bool streamingActive);
 

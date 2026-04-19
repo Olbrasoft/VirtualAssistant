@@ -77,6 +77,24 @@ public class DictationRecordingSessionTests
     }
 
     [Fact]
+    public async Task StartAsync_StreamingFails_UnwindsBeginSessionAndChunking()
+    {
+        _coordinatorMock
+            .Setup(x => x.StartRecordingAsync(It.IsAny<CancellationToken>()))
+            .ThrowsAsync(new InvalidOperationException("boom"));
+        var sut = CreateSut();
+
+        await sut.StartAsync(streamingActive: true);
+
+        _transcriberMock.Verify(x => x.BeginSession(true), Times.Once);
+        _coordinatorMock.Verify(x => x.EnableChunking(TimeSpan.FromSeconds(8)), Times.Once);
+        // Unwind: transcriber session ended and chunking disabled before flipping back to Idle.
+        _transcriberMock.Verify(x => x.EndSession(), Times.Once);
+        _coordinatorMock.Verify(x => x.DisableChunking(), Times.Once);
+        _stateMachineMock.Verify(x => x.TransitionTo(DictationState.Idle), Times.Once);
+    }
+
+    [Fact]
     public async Task StopAndValidateAsync_NonEmptyBuffer_TransitionsTranscribingAndReturnsAudio()
     {
         var buffer = new byte[] { 1, 2, 3 };

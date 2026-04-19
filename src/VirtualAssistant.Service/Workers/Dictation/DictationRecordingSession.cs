@@ -54,6 +54,11 @@ public sealed class DictationRecordingSession : IDictationRecordingSession, IDis
         catch (Exception ex)
         {
             _logger.LogError(ex, "Failed to start recording");
+            // BeginSession + EnableChunking may already have fired before the
+            // throw; unwind them before flipping state back to Idle so a
+            // failed start doesn't leave the transcriber's streaming session
+            // or coordinator chunking stuck on.
+            EndSession();
             _stateMachine.TransitionTo(DictationState.Idle);
         }
     }
@@ -69,7 +74,8 @@ public sealed class DictationRecordingSession : IDictationRecordingSession, IDis
             return null;
         }
 
-        _logger.LogInformation("Recording stopped - {Bytes} bytes captured", audioData.Length);
+        // AudioRecordingCoordinator.StopRecordingAsync already logs the byte
+        // count at Information — don't duplicate it here.
         _stateMachine.TransitionTo(DictationState.Transcribing);
 
         return audioData;
