@@ -5,40 +5,44 @@ namespace Olbrasoft.VirtualAssistant.Core.Tests.Models;
 /// <summary>
 /// Coverage pass for the plain data records under
 /// <c>src/VirtualAssistant.Core/Models</c>: properties assign verbatim,
-/// optional params have the documented defaults, and record equality
-/// treats same-valued instances as equal. These models cross every
-/// service boundary (desktop context, LLM results, TTS results,
-/// notification routing) so pinning their shape catches accidental
-/// required/optional flips in one place. Part of #979 Phase C.
+/// optional params have the documented defaults, and record value-
+/// equality holds across every record in the namespace. These models
+/// cross every service boundary (desktop context, LLM results, TTS
+/// results, notification routing) so pinning their shape + equality
+/// semantics in one place catches accidental required/optional flips
+/// AND any future record→class refactor that would silently lose
+/// value-equality. Part of #979 Phase C.
 /// </summary>
 public class ModelRecordsTests
 {
+    // Stable UTC constant for any test that needs a timestamp but doesn't
+    // care about its value — avoids DateTime.UtcNow non-determinism.
+    private static readonly DateTime FixedTimestamp = DateTime.UnixEpoch;
+
     [Fact]
     public void DesktopContext_CtorAssignsAllProperties()
     {
-        var ts = new DateTime(2026, 4, 19, 10, 0, 0, DateTimeKind.Utc);
         var sut = new DesktopContext(
             CurrentWorkspace: 2,
             TotalWorkspaces: 4,
             ActiveWindowTitle: "VSCode",
             ActiveWindowClass: "code",
             ActiveApplication: "code",
-            Timestamp: ts);
+            Timestamp: FixedTimestamp);
 
         Assert.Equal(2, sut.CurrentWorkspace);
         Assert.Equal(4, sut.TotalWorkspaces);
         Assert.Equal("VSCode", sut.ActiveWindowTitle);
         Assert.Equal("code", sut.ActiveWindowClass);
         Assert.Equal("code", sut.ActiveApplication);
-        Assert.Equal(ts, sut.Timestamp);
+        Assert.Equal(FixedTimestamp, sut.Timestamp);
     }
 
     [Fact]
     public void DesktopContext_RecordEquality_SameValues_AreEqual()
     {
-        var ts = DateTime.UtcNow;
-        var a = new DesktopContext(1, 2, "t", "c", "app", ts);
-        var b = new DesktopContext(1, 2, "t", "c", "app", ts);
+        var a = new DesktopContext(1, 2, "t", "c", "app", FixedTimestamp);
+        var b = new DesktopContext(1, 2, "t", "c", "app", FixedTimestamp);
 
         Assert.Equal(a, b);
         Assert.Equal(a.GetHashCode(), b.GetHashCode());
@@ -50,9 +54,8 @@ public class ModelRecordsTests
     [InlineData(ChangeType.ApplicationChanged)]
     public void DesktopContextChange_RetainsChangeType(ChangeType type)
     {
-        var ts = DateTime.UtcNow;
-        var prev = new DesktopContext(0, 1, "", "", "", ts);
-        var next = new DesktopContext(1, 1, "", "", "", ts);
+        var prev = new DesktopContext(0, 1, "", "", "", FixedTimestamp);
+        var next = new DesktopContext(1, 1, "", "", "", FixedTimestamp);
 
         var change = new DesktopContextChange(prev, next, type);
 
@@ -117,6 +120,16 @@ public class ModelRecordsTests
     }
 
     [Fact]
+    public void LlmCorrectionResult_RecordEquality_SameValues_AreEqual()
+    {
+        var a = new LlmCorrectionResult("x", 1, 10, 2, 3, 4, 5);
+        var b = new LlmCorrectionResult("x", 1, 10, 2, 3, 4, 5);
+
+        Assert.Equal(a, b);
+        Assert.Equal(a.GetHashCode(), b.GetHashCode());
+    }
+
+    [Fact]
     public void TtsResult_SuccessPath_CarriesProviderAndDuration()
     {
         var sut = new TtsResult(Success: true, ProviderUsed: "azure", DurationMs: 850);
@@ -139,6 +152,16 @@ public class ModelRecordsTests
         Assert.Null(skipped.DurationMs);
         Assert.True(cancelled.Cancelled);
         Assert.Null(cancelled.ProviderUsed);
+    }
+
+    [Fact]
+    public void TtsResult_RecordEquality_SameValues_AreEqual()
+    {
+        var a = new TtsResult(true, "azure", 500, false, false);
+        var b = new TtsResult(true, "azure", 500, false, false);
+
+        Assert.Equal(a, b);
+        Assert.Equal(a.GetHashCode(), b.GetHashCode());
     }
 
     [Fact]
@@ -187,6 +210,16 @@ public class ModelRecordsTests
         Assert.Equal(target, sut.TargetApplication);
         Assert.Equal(urgent, sut.IsUrgent);
         Assert.Equal(source, sut.Source);
+    }
+
+    [Fact]
+    public void NotificationContext_RecordEquality_SameValues_AreEqual()
+    {
+        var a = new NotificationContext("code", true, NotificationSource.TaskCompletion);
+        var b = new NotificationContext("code", true, NotificationSource.TaskCompletion);
+
+        Assert.Equal(a, b);
+        Assert.Equal(a.GetHashCode(), b.GetHashCode());
     }
 
     [Fact]
