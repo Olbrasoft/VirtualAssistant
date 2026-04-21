@@ -1,3 +1,5 @@
+using System.Diagnostics.CodeAnalysis;
+
 namespace Olbrasoft.VirtualAssistant.Core.WindowManagement;
 
 /// <summary>
@@ -37,24 +39,43 @@ public static class GdbusJsonHelper
     /// Any other <c>\x</c> sequence is left alone so genuine JSON escapes
     /// inside string values (<c>\n</c>, <c>\t</c>, <c>\uXXXX</c>, …) survive.
     /// </summary>
-    /// <param name="json">JSON snippet extracted from gdbus output.</param>
-    /// <returns>The same JSON with one layer of gdbus escaping removed.</returns>
-    public static string UnescapeQuotes(string json)
+    /// <param name="json">JSON snippet extracted from gdbus output, or
+    /// <c>null</c>/empty if no payload was available.</param>
+    /// <returns>The same JSON with one layer of gdbus escaping removed, or
+    /// the original <paramref name="json"/> (including <c>null</c>) when the
+    /// input is empty.</returns>
+    [return: NotNullIfNotNull(nameof(json))]
+    public static string? UnescapeQuotes(string? json)
     {
         if (string.IsNullOrEmpty(json))
         {
             return json;
         }
 
-        // Handle `\\` before `\"` via a marker so that the input `\\"` (literal
-        // backslash followed by gdbus-escaped quote, which arises when a JSON
-        // value itself contained a quote) collapses to `\"` (JSON escape),
-        // not to the ambiguous `"` which would corrupt the surrounding JSON.
-        const string marker = "￿";
-        return json
-            .Replace("\\\\", marker)
-            .Replace("\\\"", "\"")
-            .Replace(marker, "\\");
+        // Single-pass scan: `\\` collapses to `\` and `\"` collapses to `"`.
+        // Anything else — including genuine JSON escapes like `\n` or `\uXXXX`
+        // and lone trailing backslashes — is emitted unchanged. A sentinel-
+        // marker approach was considered first but would misbehave if the
+        // marker ever appeared in the payload (e.g. inside a window title),
+        // so we iterate characters directly.
+        var builder = new System.Text.StringBuilder(json.Length);
+        for (var i = 0; i < json.Length; i++)
+        {
+            var current = json[i];
+            if (current == '\\' && i + 1 < json.Length)
+            {
+                var next = json[i + 1];
+                if (next == '\\' || next == '"')
+                {
+                    builder.Append(next);
+                    i++;
+                    continue;
+                }
+            }
+            builder.Append(current);
+        }
+
+        return builder.ToString();
     }
 
     /// <summary>
