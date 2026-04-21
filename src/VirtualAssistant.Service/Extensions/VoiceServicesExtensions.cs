@@ -220,6 +220,7 @@ public static class VoiceServicesExtensions
         services.AddSingleton<ICliAppDetector, TerminalCliAppDetector>();
         services.AddSingleton<IDotoolProcessRunner, DotoolProcessRunner>();
         services.AddSingleton<IClipboardPasteOrchestrator, ClipboardPasteOrchestrator>();
+        services.AddSingleton<ITmuxCopyModeGuard, TmuxCopyModeGuard>();
         services.AddSingleton<IKeyboardSimulationService, XDoToolKeyboardService>();
 
         services.AddSingleton<IKeyboardLedReader, LinuxKeyboardLedReader>();

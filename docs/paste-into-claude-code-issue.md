@@ -1,7 +1,8 @@
 # Paste into Claude Code (inside tmux) — the recurring "No image found in clipboard" bug
 
-**Status:** Actively managed. A structural fix landed in PR #953 (2026-04-16)
-and a root-cause gdbus-parse fix landed in PR #1048 (2026-04-21, closes #1047)
+**Status:** Actively managed. Structural fix in PR #953 (2026-04-16),
+root-cause gdbus-parse fix in PR #1048 (2026-04-21 afternoon, closes #1047),
+and tmux copy-mode guard in PR #1052 (2026-04-21 evening, closes #1050)
 — but the class of bugs this document describes keeps recurring, so any future
 regression should start here instead of from scratch.
 
@@ -191,6 +192,94 @@ What is **not** covered:
 
 ---
 
+## 2026-04-21 evening: tmux copy-mode hijacks paste input (PR #1052, issue #1050)
+
+**What was broken.** With `set -g mouse on` in `~/.tmux.conf` (the user's
+setup for wheel-scroll scrollback), any mouse wheel scroll inside a Claude
+Code pane makes tmux auto-enter **copy-mode**. In copy-mode every
+keystroke — including the `Shift+Insert` paste VA emits after dictation —
+is consumed by tmux's own scroll/search bindings and **never reaches the
+program running in the pane**. User-visible signal: the pane cursor blinks
+**inverted (black/white)** instead of solid white. The bug is localised to
+whichever pane the user last scrolled in; other tmux sessions on other
+workspaces behave normally. The symptom "Claude Code paste doesn't land
+but the service log says FastPaste succeeded" is therefore a *tmux-layer*
+failure, not a clipboard / CopyQ / detection one.
+
+**Why it went undetected before.** The user confirmed: "mně se to
+nestávalo, dokud jsem nezačal používat ten T-Mux." Before tmux was in the
+stack, copy-mode did not exist and terminator handled scrollback natively
+without trapping keystrokes. The new fix from PR #1048 (which corrected
+gdbus JSON parsing and made the paste-shortcut selection work) unmasked
+this downstream tmux issue because now the shortcut DOES reach tmux — and
+tmux in copy-mode drops it.
+
+**Recovery today (before PR #1052).** User had to **double-click** inside
+the pane: single click only moved the copy-mode cursor; the drag-release
+of the double click triggered `bind -T copy-mode MouseDragEnd1Pane
+send-keys -X copy-pipe-and-cancel`, which selected a word and, crucially,
+**cancelled copy-mode**. Then the next paste landed.
+
+**Live evidence captured 2026-04-21 16:xx.**
+
+```
+$ tmux list-panes -a -F '#{session_name}:…  in_mode=#{pane_in_mode}  mode=#{pane_mode}'
+claude-VirtualAssistant-pts-8:0.0  in_mode=0  mode=
+claude-cr-pts-4:0.0                in_mode=0  mode=
+claude-jirka-pts-2:0.0             in_mode=1  mode=copy-mode       ← stuck
+claude-prehrajto-sync-pts-6:0.0    in_mode=0  mode=
+```
+
+Exactly one pane was "stuck" — the one the user had wheel-scrolled. The
+VA log for the most recent failed paste showed everything *looking*
+healthy: `Using paste shortcut: shift+insert (CLI app: Claude Code)` and
+`FastPaste: 731 chars pasted`. Bytes were emitted; tmux ate them.
+
+**Fix (service-side).** New `ITmuxCopyModeGuard` + `TmuxCopyModeGuard`:
+before every paste entry point (`FastPasteAsync`, `TypeIntoActiveWindowAsync`,
+`PasteFromClipboardAsync`) the service probes
+`tmux list-panes -a -F '#{pane_active}\t#{pane_in_mode}\t#{target}'`.
+For every pane with both `pane_active=1` and `pane_in_mode=1` it issues
+`tmux send-keys -X -t <target> cancel`. The guard is best-effort: tmux
+missing, IO error, or internal timeout are all swallowed — the paste
+pipeline is never blocked by the guard. Active-only filter is deliberate,
+touching an inactive pane would pull the user out of a scrollback they
+may be reading, and the paste wouldn't land there anyway. Wired with
+the guard running **before** PRIMARY/CLIPBOARD staging in `FastPaste`
+to keep the stage → paste race window short (Copilot review on #1052).
+
+**Fix (user-side, complementary).** The user added to `~/.tmux.conf`:
+
+```tmux
+bind -T copy-mode    MouseDown1Pane send-keys -X cancel
+bind -T copy-mode-vi MouseDown1Pane send-keys -X cancel
+```
+
+so a **single mouse click** also exits copy-mode (default behaviour
+is just to move the cursor). This matters for manual paste flows
+(Shift+Insert from the physical keyboard, Ctrl+Shift+V from the IDE
+keymap, middle-click from another window) where the service-side
+guard isn't involved.
+
+**Live-verify signals after deploy.**
+
+Healthy log during a paste into a previously-stuck pane:
+
+```
+TmuxCopyModeGuard: sent 'cancel' to pane claude-jirka-pts-2:0.0 (was in copy-mode)
+Using paste shortcut: shift+insert (CLI app: Claude Code — Ctrl+Shift+V would be hijacked)
+FastPaste: 298 chars pasted
+```
+
+If you still see the "cursor blinks inverted, paste dropped" symptom
+AFTER this fix is deployed, the class of bug has moved somewhere
+new (likely another tmux input-interception mode — search, command-
+prompt, copy-mode-emacs bindings that don't honour `cancel`). At
+that point escalate to the "not in scope" list in the parent
+`2026-04-21 afternoon` section above.
+
+---
+
 ## 2026-04-21: gdbus JSON parse regression (PR #1048, issue #1047)
 
 **What was broken.** `GdbusJsonHelper.UnescapeQuotes` (at
@@ -350,6 +439,19 @@ leaves the text in the selection.
    Presence of that line means gdbus parsing regressed again. Cross-check
    against step 1b.
 
+   **1c. Is any tmux pane stuck in copy-mode?** (added 2026-04-21 after
+   PR #1052.) Run
+   ```
+   tmux list-panes -a -F '#{session_name}:#{window_index}.#{pane_index}  active=#{pane_active}  in_mode=#{pane_in_mode}  mode=#{pane_mode}'
+   ```
+   Any row with `mode=copy-mode` + `active=1` is the "cursor blinks inverted,
+   paste dropped" pane. That alone explains the symptom regardless of what the
+   VA log says about `FastPaste: N chars pasted`. Also check the service log
+   for the `TmuxCopyModeGuard: sent 'cancel' to pane <target>` line — its
+   presence means the guard is firing (good), absence when `mode=copy-mode`
+   exists means the guard is disabled / broken and paste-into-copy-mode drops
+   are back.
+
 2. What does VA detect? Hit
    `http://localhost:5055/Admin/DesktopMonitor` and check `APP NAME`,
    `CORRECTION PROMPT`. If they don't say `Claude Code` /
@@ -474,7 +576,11 @@ In rough order of complexity:
   + PRIMARY-selection staging. (2026-04-16)
 - PR #1048 (closes #1047) — `GdbusJsonHelper.UnescapeQuotes` single-vs-double
   escape fix. Single-pass scanner, regression test pinning the real gdbus
-  byte pattern. *The current state.* (2026-04-21)
+  byte pattern. (2026-04-21 afternoon)
+- PR #1052 (closes #1050) — `ITmuxCopyModeGuard` probes
+  `tmux list-panes -a` and issues `send-keys -X cancel` to every active pane
+  in copy-mode before paste. Complementary `~/.tmux.conf` bind for single-
+  click copy-mode exit. *The current state.* (2026-04-21 evening)
 
 ---
 
