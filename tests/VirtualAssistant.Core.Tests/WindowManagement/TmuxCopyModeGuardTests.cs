@@ -205,6 +205,52 @@ public class TmuxCopyModeGuardTests
     }
 
     [Fact]
+    public async Task EnsureNotInCopyMode_InternalTimeout_SwallowedNotPropagated()
+    {
+        // The internal tmux runner uses a linked CTS with CancelAfter(2s) and
+        // will throw OperationCanceledException when tmux hangs. That must NOT
+        // bubble up and abort the outer paste pipeline — guard's contract is
+        // best-effort. We simulate this by having the fake runner throw OCE
+        // while the caller's cancellationToken is NOT cancelled.
+        var guard = new TmuxCopyModeGuard(
+            NullLogger<TmuxCopyModeGuard>.Instance,
+            (_, _) => throw new OperationCanceledException());
+
+        // Must complete normally, no exception.
+        await guard.EnsureNotInCopyModeAsync(CancellationToken.None);
+    }
+
+    [Fact]
+    public async Task EnsureNotInCopyMode_CancelInvocationInternalTimeout_OtherTargetsStillAttempted()
+    {
+        // Same logic for the per-pane cancel: one pane's internal timeout must
+        // not stop the guard from trying the next stuck pane.
+        var listOutput = string.Join('\n', new[]
+        {
+            "1\t1\tclaude-a:0.0",
+            "1\t1\tclaude-b:0.0",
+        });
+        var attempts = new List<string>();
+        Task<string?> Runner(IReadOnlyList<string> args, CancellationToken _)
+        {
+            if (args[0] == "list-panes")
+                return Task.FromResult<string?>(listOutput);
+
+            var target = args[3];
+            attempts.Add(target);
+            if (target == "claude-a:0.0")
+                throw new OperationCanceledException();
+            return Task.FromResult<string?>("");
+        }
+
+        var guard = new TmuxCopyModeGuard(NullLogger<TmuxCopyModeGuard>.Instance, Runner);
+
+        await guard.EnsureNotInCopyModeAsync(CancellationToken.None);
+
+        Assert.Equal(new[] { "claude-a:0.0", "claude-b:0.0" }, attempts);
+    }
+
+    [Fact]
     public void Ctor_NullLogger_Throws() =>
         Assert.Throws<ArgumentNullException>(() => new TmuxCopyModeGuard(null!));
 

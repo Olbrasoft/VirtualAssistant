@@ -214,16 +214,21 @@ public class XDoToolKeyboardService : IKeyboardSimulationService
             var pasteShortcut = await GetPasteShortcutAsync(cancellationToken);
             var usePrimary = pasteShortcut == "shift+insert";
 
+            // #1050: cancel any tmux copy-mode on the active pane BEFORE we
+            // stage the PRIMARY/CLIPBOARD selection. The guard can take up to
+            // its internal timeout (~2 s), and if we staged first, a concurrent
+            // clipboard owner (CopyQ auto-sync, another app) could overwrite
+            // the selection during that window and our paste would emit stale
+            // text. Running the guard first keeps the stage → paste interval
+            // as short as possible.
+            await _copyModeGuard.EnsureNotInCopyModeAsync(cancellationToken);
+
             if (usePrimary)
                 await _clipboardManager.SetPrimarySelectionAsync(text, cancellationToken);
             else
                 await _clipboardManager.SetClipboardAsync(text, cancellationToken);
 
             await Task.Delay(30, cancellationToken);
-
-            // #1050: cancel any tmux copy-mode on the active pane so the paste
-            // keystroke below is not hijacked by tmux's scroll/search bindings.
-            await _copyModeGuard.EnsureNotInCopyModeAsync(cancellationToken);
 
             if (!await SendPasteShortcutAsync(pasteShortcut, cancellationToken))
                 return false;

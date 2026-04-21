@@ -41,8 +41,18 @@ public sealed class TmuxCopyModeGuard : ITmuxCopyModeGuard
                 cancellationToken);
             stuckPanes = ParseActivePanesInCopyMode(listOutput);
         }
+        catch (OperationCanceledException) when (!cancellationToken.IsCancellationRequested)
+        {
+            // Internal tmux-invoker timeout (not an external cancel from the
+            // caller) is a transient failure — log and skip. Rethrowing would
+            // abort the outer paste pipeline, contradicting the best-effort
+            // contract documented on the interface.
+            _logger.LogDebug("TmuxCopyModeGuard: list-panes probe timed out; skipping");
+            return;
+        }
         catch (OperationCanceledException)
         {
+            // Caller cancelled — surface it so the pipeline unwinds cleanly.
             throw;
         }
         catch (Exception ex)
@@ -67,6 +77,13 @@ public sealed class TmuxCopyModeGuard : ITmuxCopyModeGuard
                     new[] { "send-keys", "-X", "-t", target, "cancel" },
                     cancellationToken);
                 _logger.LogInformation("TmuxCopyModeGuard: sent 'cancel' to pane {Target} (was in copy-mode)", target);
+            }
+            catch (OperationCanceledException) when (!cancellationToken.IsCancellationRequested)
+            {
+                // Same timeout-vs-cancel distinction as above — if the tmux
+                // invoker's internal timeout fires we continue with the other
+                // stuck panes rather than aborting the whole paste.
+                _logger.LogDebug("TmuxCopyModeGuard: send-keys cancel timed out for {Target}", target);
             }
             catch (OperationCanceledException)
             {
@@ -139,11 +156,20 @@ public sealed class TmuxCopyModeGuard : ITmuxCopyModeGuard
         using var timeoutCts = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
         timeoutCts.CancelAfter(TmuxTimeout);
 
+        // Drain both stdout and stderr concurrently. If stderr were redirected
+        // but not read, a chatty tmux (e.g. "unknown option" spam on a future
+        // tmux version) could fill the pipe buffer and deadlock the child —
+        // we would then only recover on the timeout. We throw the stderr text
+        // away because the exit code is the signal we actually care about.
+        var stdoutTask = process.StandardOutput.ReadToEndAsync(timeoutCts.Token);
+        var stderrTask = process.StandardError.ReadToEndAsync(timeoutCts.Token);
+
         string output;
         try
         {
-            output = await process.StandardOutput.ReadToEndAsync(timeoutCts.Token);
+            await Task.WhenAll(stdoutTask, stderrTask);
             await process.WaitForExitAsync(timeoutCts.Token);
+            output = await stdoutTask;
         }
         catch (OperationCanceledException)
         {
