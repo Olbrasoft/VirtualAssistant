@@ -37,6 +37,7 @@ public class XDoToolKeyboardService : IKeyboardSimulationService
     private readonly IDotoolProcessRunner _dotoolRunner;
     private readonly ITerminalDetector _terminalDetector;
     private readonly ICliAppDetector _cliAppDetector;
+    private readonly ITmuxCopyModeGuard _copyModeGuard;
     private readonly ILogger<XDoToolKeyboardService> _logger;
 
     public XDoToolKeyboardService(
@@ -45,6 +46,7 @@ public class XDoToolKeyboardService : IKeyboardSimulationService
         IDotoolProcessRunner dotoolRunner,
         ITerminalDetector terminalDetector,
         ICliAppDetector cliAppDetector,
+        ITmuxCopyModeGuard copyModeGuard,
         ILogger<XDoToolKeyboardService> logger)
     {
         _clipboardManager = clipboardManager ?? throw new ArgumentNullException(nameof(clipboardManager));
@@ -52,6 +54,7 @@ public class XDoToolKeyboardService : IKeyboardSimulationService
         _dotoolRunner = dotoolRunner ?? throw new ArgumentNullException(nameof(dotoolRunner));
         _terminalDetector = terminalDetector ?? throw new ArgumentNullException(nameof(terminalDetector));
         _cliAppDetector = cliAppDetector ?? throw new ArgumentNullException(nameof(cliAppDetector));
+        _copyModeGuard = copyModeGuard ?? throw new ArgumentNullException(nameof(copyModeGuard));
         _logger = logger ?? throw new ArgumentNullException(nameof(logger));
     }
 
@@ -79,6 +82,12 @@ public class XDoToolKeyboardService : IKeyboardSimulationService
             var textToType = text + " ";
             var pasteShortcut = await GetPasteShortcutAsync(cancellationToken);
             var usePrimary = pasteShortcut == "shift+insert";
+
+            // #1050: if any active tmux pane is stuck in copy-mode (user wheel-
+            // scrolled earlier), the upcoming Shift+Insert would be swallowed by
+            // tmux's own bindings and never reach the CLI TUI. Exit copy-mode
+            // first so the paste actually lands.
+            await _copyModeGuard.EnsureNotInCopyModeAsync(cancellationToken);
 
             _logger.LogInformation("Simulating paste with shortcut: {Shortcut} (selection: {Selection})",
                 pasteShortcut, usePrimary ? "PRIMARY" : "CLIPBOARD");
@@ -212,6 +221,10 @@ public class XDoToolKeyboardService : IKeyboardSimulationService
 
             await Task.Delay(30, cancellationToken);
 
+            // #1050: cancel any tmux copy-mode on the active pane so the paste
+            // keystroke below is not hijacked by tmux's scroll/search bindings.
+            await _copyModeGuard.EnsureNotInCopyModeAsync(cancellationToken);
+
             if (!await SendPasteShortcutAsync(pasteShortcut, cancellationToken))
                 return false;
 
@@ -235,6 +248,10 @@ public class XDoToolKeyboardService : IKeyboardSimulationService
     {
         var pasteShortcut = await GetPasteShortcutAsync(cancellationToken);
         _logger.LogInformation("PasteFromClipboard: sending {Shortcut}", pasteShortcut);
+
+        // #1050: exit any lingering tmux copy-mode on the active pane so the
+        // paste below is delivered to the CLI TUI, not consumed by tmux.
+        await _copyModeGuard.EnsureNotInCopyModeAsync(cancellationToken);
 
         // Shift+Insert path (CLI agent TUIs) reads PRIMARY, not CLIPBOARD.
         // The user clicked "Paste from clipboard" intending to paste the
