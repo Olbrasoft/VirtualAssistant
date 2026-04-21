@@ -103,9 +103,14 @@ public class AudioPlaybackServiceTests : IDisposable
     // playback yet. Two sister tests (`Dispose_StopsPlayback`,
     // `PlayAsync_MonitorsSpeechLockEvery50Ms`) already carry SkipOnCIFact for
     // the same timing reason; this one slipped through and blocked the
-    // 2026-04-21 evening deploy of PR #1052. No code change is needed; the
-    // behaviour is already covered by `PlayAsync_WhenSpeechLockAcquired_
-    // StopsPlayback`, which deterministically drives the lock callback.
+    // 2026-04-21 evening deploy of PR #1052. No production code change is
+    // needed — but note that the direct-external `_sut.Stop()`-while-playing
+    // path is only exercised by this flaky local test today.
+    // `PlayAsync_WhenSpeechLockAcquired_StopsPlayback` covers an internal Stop
+    // triggered via the speech-lock callback, not an external Stop() call, so
+    // it is NOT equivalent coverage. A future deterministic rewrite (e.g.
+    // gating PlayAsync with a TaskCompletionSource the test controls) should
+    // restore reliable CI coverage for the direct-Stop path.
     public void Stop_WhenPlaying_CallsPlayerStop()
     {
         // Arrange
