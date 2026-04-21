@@ -5,12 +5,12 @@ and a root-cause gdbus-parse fix landed in PR #1048 (2026-04-21, closes #1047)
 — but the class of bugs this document describes keeps recurring, so any future
 regression should start here instead of from scratch.
 
-> **⚠️ Service-restart fallacy.** Right after a `systemctl --user restart
-> virtual-assistant.service` (or an auto-deploy) the system *always* looks
-> healthy for a few minutes — the test environment is reset, caches are
-> cold, the first few interactions go through the happy path. That tells
-> you nothing about whether the underlying regression is gone. Trust the
-> log signals in the debug checklist, not the post-restart vibe check.
+> **⚠️ Service-restart fallacy.** Right after a `systemctl --user restart virtual-assistant.service`
+> (or an auto-deploy) the system *always* looks healthy for a few minutes —
+> the test environment is reset, caches are cold, the first few interactions
+> go through the happy path. That tells you nothing about whether the
+> underlying regression is gone. Trust the log signals in the debug
+> checklist, not the post-restart vibe check.
 
 ---
 
