@@ -2,6 +2,7 @@ using Microsoft.Extensions.Logging;
 using Moq;
 using Olbrasoft.LinuxDesktop.Core.Models;
 using Olbrasoft.LinuxDesktop.Core.Services;
+using Olbrasoft.VirtualAssistant.Core.WindowManagement;
 using Olbrasoft.VirtualAssistant.Service.Workers.Dictation;
 
 namespace Olbrasoft.VirtualAssistant.Service.Tests.Workers.Dictation;
@@ -17,17 +18,32 @@ public class DictationFocusRouterTests
 {
     private readonly Mock<IWindowQueryService> _windowQueryMock = new();
     private readonly Mock<IWindowActionService> _windowActionMock = new();
+    private readonly Mock<ITerminalAgentIdentifier> _terminalAgentIdentifierMock = new();
     private readonly Mock<ILogger<DictationFocusRouter>> _loggerMock = new();
 
     private DictationFocusRouter CreateSut() =>
-        new(_windowQueryMock.Object, _windowActionMock.Object, _loggerMock.Object);
+        new(_windowQueryMock.Object,
+            _windowActionMock.Object,
+            _terminalAgentIdentifierMock.Object,
+            _loggerMock.Object);
+
+    private static readonly KnownAgent ClaudeCodeAgent = CliAgentRegistry.KnownAgents
+        .First(a => a.AppName == "Claude Code");
+
+    private void SetupIdentifierReturns(int pid, KnownAgent? agent)
+    {
+        _terminalAgentIdentifierMock
+            .Setup(x => x.IdentifyAsync(It.IsAny<string?>(), pid, It.IsAny<CancellationToken>()))
+            .ReturnsAsync(agent);
+    }
 
     private static WindowInfo MakeWindow(
         uint id,
         string wmClass,
         string title,
         bool inCurrentWorkspace = true,
-        bool hasFocus = false)
+        bool hasFocus = false,
+        int pid = 0)
     {
         // LinuxDesktop.Core.Models.WindowInfo is init-only with a sizeable
         // surface. Tests only care about the fields the router inspects, so
@@ -38,7 +54,7 @@ public class DictationFocusRouterTests
             WmClass = wmClass,
             WmClassInstance = wmClass,
             Title = title,
-            Pid = 0,
+            Pid = pid,
             InCurrentWorkspace = inCurrentWorkspace,
             HasFocus = hasFocus,
             FrameType = 0,
@@ -194,17 +210,141 @@ public class DictationFocusRouterTests
     }
 
     [Fact]
+    public async Task TryFocus_TerminatorWithShellTitleHostsClaudeInTmux_Activates()
+    {
+        // The real-world regression from #1056: terminator window shows title
+        // "/bin/bash" because tmux does not propagate the Ink TUI title, but
+        // a `claude` process (or `claude-*` tmux session) lives under its
+        // PID. Title match fails → the identifier's process-tree / tmux path
+        // must pick it up so the router still recognises Claude Code on this
+        // workspace.
+        var terminator = MakeWindow(
+            id: 101,
+            wmClass: "terminator",
+            title: "/bin/bash",
+            hasFocus: false,
+            pid: 5000);
+        var browser = MakeWindow(
+            id: 7,
+            wmClass: "Google-chrome",
+            title: "Seznam – Edge",
+            hasFocus: true,
+            pid: 6000);
+        SetupWindows(terminator, browser);
+        SetupIdentifierReturns(terminator.Pid, ClaudeCodeAgent);
+
+        var switched = await CreateSut().TryFocusClaudeCodeIfApplicableAsync(CancellationToken.None);
+
+        Assert.True(switched);
+        _windowActionMock.Verify(x => x.ActivateWindowAsync(101u, It.IsAny<CancellationToken>()), Times.Once);
+        _terminalAgentIdentifierMock.Verify(
+            x => x.IdentifyAsync("/bin/bash", terminator.Pid, It.IsAny<CancellationToken>()),
+            Times.AtLeastOnce);
+    }
+
+    [Fact]
+    public async Task TryFocus_TerminatorShellTitle_NoClaudeProcess_Skips()
+    {
+        // A terminator showing "/bin/bash" with nothing interesting under it
+        // must NOT be treated as a Claude Code host — the identifier returns
+        // null and the router falls through.
+        var terminator = MakeWindow(101, "terminator", "/bin/bash", hasFocus: false, pid: 5000);
+        var browser = MakeWindow(7, "Google-chrome", "Seznam – Edge", hasFocus: true, pid: 6000);
+        SetupWindows(terminator, browser);
+        SetupIdentifierReturns(terminator.Pid, null);
+
+        var switched = await CreateSut().TryFocusClaudeCodeIfApplicableAsync(CancellationToken.None);
+
+        Assert.False(switched);
+        _windowActionMock.Verify(x => x.ActivateWindowAsync(It.IsAny<uint>(), It.IsAny<CancellationToken>()), Times.Never);
+    }
+
+    [Fact]
+    public async Task TryFocus_TitleAlreadyMatches_SkipsIdentifierProbe()
+    {
+        // Performance guard: when the terminal's outer title already contains
+        // "Claude Code" (ws=3 in the user's setup), the router must not run
+        // the pgrep-based identifier. Keeps the hot path cheap.
+        var alacritty = MakeWindow(42, "Alacritty", "Claude Code — ~/project", pid: 5000);
+        var browser = MakeWindow(7, "Google-chrome", "Browser", hasFocus: true, pid: 6000);
+        SetupWindows(alacritty, browser);
+
+        var switched = await CreateSut().TryFocusClaudeCodeIfApplicableAsync(CancellationToken.None);
+
+        Assert.True(switched);
+        _terminalAgentIdentifierMock.Verify(
+            x => x.IdentifyAsync(It.IsAny<string?>(), It.IsAny<int>(), It.IsAny<CancellationToken>()),
+            Times.Never);
+    }
+
+    [Fact]
+    public async Task TryFocus_NonTerminalWithoutTitleMatch_SkipsIdentifierProbe()
+    {
+        // A Chrome window titled "My notes" is not a terminal and its title
+        // doesn't match — the router must reject it without calling into the
+        // process-tree code (which would waste pgrep cycles on a browser).
+        var browser1 = MakeWindow(7, "Google-chrome", "My notes", hasFocus: true, pid: 6000);
+        var browser2 = MakeWindow(8, "Google-chrome", "Another tab", pid: 6001);
+        SetupWindows(browser1, browser2);
+
+        var switched = await CreateSut().TryFocusClaudeCodeIfApplicableAsync(CancellationToken.None);
+
+        Assert.False(switched);
+        _terminalAgentIdentifierMock.Verify(
+            x => x.IdentifyAsync(It.IsAny<string?>(), It.IsAny<int>(), It.IsAny<CancellationToken>()),
+            Times.Never);
+    }
+
+    [Fact]
+    public async Task TryFocus_IdentifierThrows_TreatsWindowAsNonClaude()
+    {
+        // Identifier failures (pgrep missing, process disappeared mid-walk)
+        // must never kill the router. The window is logged as non-Claude and
+        // paste falls through to the currently-focused window.
+        var terminator = MakeWindow(101, "terminator", "/bin/bash", pid: 5000);
+        var browser = MakeWindow(7, "Google-chrome", "Browser", hasFocus: true, pid: 6000);
+        SetupWindows(terminator, browser);
+        _terminalAgentIdentifierMock
+            .Setup(x => x.IdentifyAsync(It.IsAny<string?>(), It.IsAny<int>(), It.IsAny<CancellationToken>()))
+            .ThrowsAsync(new InvalidOperationException("pgrep failed"));
+
+        var switched = await CreateSut().TryFocusClaudeCodeIfApplicableAsync(CancellationToken.None);
+
+        Assert.False(switched);
+        _windowActionMock.Verify(x => x.ActivateWindowAsync(It.IsAny<uint>(), It.IsAny<CancellationToken>()), Times.Never);
+    }
+
+    [Fact]
+    public async Task TryFocus_IdentifierCancelled_Propagates()
+    {
+        var terminator = MakeWindow(101, "terminator", "/bin/bash", pid: 5000);
+        var browser = MakeWindow(7, "Google-chrome", "Browser", hasFocus: true, pid: 6000);
+        SetupWindows(terminator, browser);
+        _terminalAgentIdentifierMock
+            .Setup(x => x.IdentifyAsync(It.IsAny<string?>(), It.IsAny<int>(), It.IsAny<CancellationToken>()))
+            .ThrowsAsync(new OperationCanceledException());
+
+        await Assert.ThrowsAsync<OperationCanceledException>(
+            () => CreateSut().TryFocusClaudeCodeIfApplicableAsync(CancellationToken.None));
+    }
+
+    [Fact]
     public void Ctor_NullWindowQuery_Throws() =>
         Assert.Throws<ArgumentNullException>(() =>
-            new DictationFocusRouter(null!, _windowActionMock.Object, _loggerMock.Object));
+            new DictationFocusRouter(null!, _windowActionMock.Object, _terminalAgentIdentifierMock.Object, _loggerMock.Object));
 
     [Fact]
     public void Ctor_NullWindowAction_Throws() =>
         Assert.Throws<ArgumentNullException>(() =>
-            new DictationFocusRouter(_windowQueryMock.Object, null!, _loggerMock.Object));
+            new DictationFocusRouter(_windowQueryMock.Object, null!, _terminalAgentIdentifierMock.Object, _loggerMock.Object));
+
+    [Fact]
+    public void Ctor_NullTerminalAgentIdentifier_Throws() =>
+        Assert.Throws<ArgumentNullException>(() =>
+            new DictationFocusRouter(_windowQueryMock.Object, _windowActionMock.Object, null!, _loggerMock.Object));
 
     [Fact]
     public void Ctor_NullLogger_Throws() =>
         Assert.Throws<ArgumentNullException>(() =>
-            new DictationFocusRouter(_windowQueryMock.Object, _windowActionMock.Object, null!));
+            new DictationFocusRouter(_windowQueryMock.Object, _windowActionMock.Object, _terminalAgentIdentifierMock.Object, null!));
 }
