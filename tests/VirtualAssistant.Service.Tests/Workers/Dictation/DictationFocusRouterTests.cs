@@ -315,6 +315,56 @@ public class DictationFocusRouterTests
     }
 
     [Fact]
+    public async Task TryFocus_FocusedTerminatorNotClaude_IdentifierProbedOnce()
+    {
+        // Performance guard: when the focused window is a terminal (so the
+        // "already on Claude?" check calls the identifier), the subsequent
+        // candidate scan must not probe the focused window a second time —
+        // a redundant process-tree walk on the hot path.
+        var focusedTerm = MakeWindow(99, "terminator", "/bin/bash", hasFocus: true, pid: 4000);
+        var otherTerm = MakeWindow(101, "terminator", "/bin/bash", pid: 5000);
+        SetupWindows(focusedTerm, otherTerm);
+        SetupIdentifierReturns(focusedTerm.Pid, agent: null);
+        SetupIdentifierReturns(otherTerm.Pid, ClaudeCodeAgent);
+
+        var switched = await CreateSut().TryFocusClaudeCodeIfApplicableAsync(CancellationToken.None);
+
+        Assert.True(switched);
+        _terminalAgentIdentifierMock.Verify(
+            x => x.IdentifyAsync(It.IsAny<string?>(), focusedTerm.Pid, It.IsAny<CancellationToken>()),
+            Times.Once);
+        _windowActionMock.Verify(
+            x => x.ActivateWindowAsync(otherTerm.Id, It.IsAny<CancellationToken>()),
+            Times.Once);
+    }
+
+    [Fact]
+    public async Task TryFocus_MultipleClaudeTerminators_ShortCircuitsAfterSecond()
+    {
+        // Once two Claude candidates are found, the outcome is already
+        // "ambiguous, skip" — the loop must break before probing the rest
+        // so a workspace with many terminators stays cheap.
+        var browser = MakeWindow(7, "Google-chrome", "Browser", hasFocus: true, pid: 6000);
+        var claude1 = MakeWindow(101, "terminator", "/bin/bash", pid: 5000);
+        var claude2 = MakeWindow(102, "terminator", "/bin/bash", pid: 5001);
+        var claude3 = MakeWindow(103, "terminator", "/bin/bash", pid: 5002);
+        SetupWindows(browser, claude1, claude2, claude3);
+        SetupIdentifierReturns(claude1.Pid, ClaudeCodeAgent);
+        SetupIdentifierReturns(claude2.Pid, ClaudeCodeAgent);
+        SetupIdentifierReturns(claude3.Pid, ClaudeCodeAgent);
+
+        var switched = await CreateSut().TryFocusClaudeCodeIfApplicableAsync(CancellationToken.None);
+
+        Assert.False(switched);
+        _terminalAgentIdentifierMock.Verify(
+            x => x.IdentifyAsync(It.IsAny<string?>(), claude3.Pid, It.IsAny<CancellationToken>()),
+            Times.Never);
+        _windowActionMock.Verify(
+            x => x.ActivateWindowAsync(It.IsAny<uint>(), It.IsAny<CancellationToken>()),
+            Times.Never);
+    }
+
+    [Fact]
     public async Task TryFocus_IdentifierCancelled_Propagates()
     {
         var terminator = MakeWindow(101, "terminator", "/bin/bash", pid: 5000);

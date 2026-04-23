@@ -78,16 +78,26 @@ public sealed class DictationFocusRouter : IDictationFocusRouter
             return false;
         }
 
-        // Identify Claude Code candidates on this workspace. We walk every
-        // window (not just the focused one) because the whole point of the
-        // router is to move focus TO a Claude Code window somewhere else on
-        // the workspace.
+        // Scan non-focused windows for Claude Code candidates. The focused
+        // window was already checked above (and we know it is not Claude),
+        // so reprobing would waste a pgrep tree walk per loop. Break as soon
+        // as a second candidate turns up — 2+ is unconditionally ambiguous
+        // below, no point probing further.
         var claudeWindows = new List<WindowInfo>();
         foreach (var candidate in currentWorkspace)
         {
+            if (candidate.Id == focused.Id)
+            {
+                continue;
+            }
+
             if (await IsClaudeCodeAsync(candidate, cancellationToken))
             {
                 claudeWindows.Add(candidate);
+                if (claudeWindows.Count > 1)
+                {
+                    break;
+                }
             }
         }
 

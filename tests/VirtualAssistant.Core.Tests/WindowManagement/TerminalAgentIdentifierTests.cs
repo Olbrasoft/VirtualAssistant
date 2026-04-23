@@ -92,6 +92,35 @@ public class TerminalAgentIdentifierTests
     }
 
     [Fact]
+    public async Task Identify_ZeroPid_TitleMatchStillWorks()
+    {
+        // A WindowInfo whose Pid is 0 (toolkit didn't expose one) must not
+        // trigger `pgrep -P 0` — that would scan every reparented init
+        // descendant and peg CPU. Title-marker fallback still runs.
+        var agent = await CreateSut().IdentifyAsync(
+            "Claude Code — ~/project",
+            terminalPid: 0,
+            CancellationToken.None);
+
+        Assert.NotNull(agent);
+        Assert.Equal("Claude Code", agent!.AppName);
+    }
+
+    [Fact]
+    public async Task Identify_NegativePid_ReturnsNullWhenNoTitleMatch()
+    {
+        // Defensive guard against a future DTO change that might hand us a
+        // negative PID. Same reasoning as pid 0: skip the BFS and fall
+        // through to the remaining (pid-free) signals.
+        var agent = await CreateSut().IdentifyAsync(
+            "/bin/bash",
+            terminalPid: -42,
+            CancellationToken.None);
+
+        Assert.Null(agent);
+    }
+
+    [Fact]
     public void Ctor_NullLogger_Throws() =>
         Assert.Throws<ArgumentNullException>(() =>
             new TerminalAgentIdentifier(null!, _tmuxMatcherMock.Object));

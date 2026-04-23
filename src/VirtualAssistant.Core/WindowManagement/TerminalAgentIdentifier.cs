@@ -20,6 +20,11 @@ public sealed class TerminalAgentIdentifier : ITerminalAgentIdentifier
     /// <inheritdoc />
     public async Task<KnownAgent?> IdentifyAsync(string? title, int terminalPid, CancellationToken cancellationToken)
     {
+        // Fail fast if the caller has already cancelled — otherwise the
+        // helpers swallow internal failures and we could end up doing real
+        // pgrep work even when the pipeline is tearing down.
+        cancellationToken.ThrowIfCancellationRequested();
+
         // Order: process-tree → title → tmux session. Process-tree is the
         // strongest signal (the actual process is literally running under us),
         // title is cheapest when it works, tmux is the fallback for
@@ -66,11 +71,21 @@ public sealed class TerminalAgentIdentifier : ITerminalAgentIdentifier
     private async Task<HashSet<int>> GetDescendantProcessesAsync(int parentPid, CancellationToken cancellationToken)
     {
         var descendants = new HashSet<int>();
+
+        // pgrep -P 0 matches every process that has been reparented to init,
+        // i.e. a sizeable slice of the whole system. A WindowInfo with Pid 0
+        // (or negative, from a future DTO change) would make us BFS that whole
+        // tree and peg CPU during a Quick Dictation trigger — the very hot
+        // path the router wants to stay snappy.
+        if (parentPid <= 0) return descendants;
+
         var toProcess = new Queue<int>();
         toProcess.Enqueue(parentPid);
 
         while (toProcess.Count > 0)
         {
+            cancellationToken.ThrowIfCancellationRequested();
+
             var currentPid = toProcess.Dequeue();
             var children = await GetChildPidsAsync(currentPid, cancellationToken);
 
