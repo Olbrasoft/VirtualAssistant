@@ -21,15 +21,18 @@ public sealed class DictationFocusRouter : IDictationFocusRouter
 
     private readonly IWindowQueryService _windowQuery;
     private readonly IWindowActionService _windowAction;
+    private readonly ITerminalAgentIdentifier _terminalAgentIdentifier;
     private readonly ILogger<DictationFocusRouter> _logger;
 
     public DictationFocusRouter(
         IWindowQueryService windowQuery,
         IWindowActionService windowAction,
+        ITerminalAgentIdentifier terminalAgentIdentifier,
         ILogger<DictationFocusRouter> logger)
     {
         _windowQuery = windowQuery ?? throw new ArgumentNullException(nameof(windowQuery));
         _windowAction = windowAction ?? throw new ArgumentNullException(nameof(windowAction));
+        _terminalAgentIdentifier = terminalAgentIdentifier ?? throw new ArgumentNullException(nameof(terminalAgentIdentifier));
         _logger = logger ?? throw new ArgumentNullException(nameof(logger));
     }
 
@@ -69,13 +72,35 @@ public sealed class DictationFocusRouter : IDictationFocusRouter
             return false;
         }
 
-        if (IsClaudeCode(focused))
+        if (await IsClaudeCodeAsync(focused, cancellationToken))
         {
             // Already on the right target — nothing to do.
             return false;
         }
 
-        var claudeWindows = currentWorkspace.Where(IsClaudeCode).ToList();
+        // Scan non-focused windows for Claude Code candidates. The focused
+        // window was already checked above (and we know it is not Claude),
+        // so reprobing would waste a pgrep tree walk per loop. Break as soon
+        // as a second candidate turns up — 2+ is unconditionally ambiguous
+        // below, no point probing further.
+        var claudeWindows = new List<WindowInfo>();
+        foreach (var candidate in currentWorkspace)
+        {
+            if (candidate.Id == focused.Id)
+            {
+                continue;
+            }
+
+            if (await IsClaudeCodeAsync(candidate, cancellationToken))
+            {
+                claudeWindows.Add(candidate);
+                if (claudeWindows.Count > 1)
+                {
+                    break;
+                }
+            }
+        }
+
         if (claudeWindows.Count != 1)
         {
             // 0 → nothing to route to; 2+ → ambiguous, leave focus alone.
@@ -114,11 +139,49 @@ public sealed class DictationFocusRouter : IDictationFocusRouter
         }
     }
 
-    private static bool IsClaudeCode(WindowInfo w) =>
-        string.Equals(
-            CliAgentRegistry.FindByTitle(w.Title)?.AppName,
-            "Claude Code",
-            StringComparison.OrdinalIgnoreCase);
+    /// <summary>
+    /// Checks whether a window is hosting Claude Code. Cheap path first
+    /// (outer title contains a Claude Code marker — works for Alacritty and
+    /// for terminators whose tmux propagates titles); if that misses and the
+    /// window is a known terminal, fall through to the full identifier so a
+    /// terminator hosting <c>tmux → claude</c> with an un-propagated
+    /// <c>/bin/bash</c> title is still recognised. Non-terminal windows that
+    /// don't match by title are rejected without any pgrep work.
+    /// </summary>
+    private async Task<bool> IsClaudeCodeAsync(WindowInfo window, CancellationToken cancellationToken)
+    {
+        if (string.Equals(
+                CliAgentRegistry.FindByTitle(window.Title)?.AppName,
+                "Claude Code",
+                StringComparison.OrdinalIgnoreCase))
+        {
+            return true;
+        }
+
+        if (!TerminalWindowClasses.IsTerminal(window.WmClass))
+        {
+            return false;
+        }
+
+        try
+        {
+            var agent = await _terminalAgentIdentifier.IdentifyAsync(
+                window.Title, window.Pid, cancellationToken);
+            return string.Equals(agent?.AppName, "Claude Code", StringComparison.OrdinalIgnoreCase);
+        }
+        catch (OperationCanceledException)
+        {
+            throw;
+        }
+        catch (Exception ex)
+        {
+            _logger.LogDebug(
+                ex,
+                "Focus router: agent identification failed for window {Id} ({WmClass}), treating as non-Claude",
+                window.Id, window.WmClass);
+            return false;
+        }
+    }
 
     private static bool IsGnomeTextEditor(WindowInfo w) =>
         string.Equals(w.WmClass, GnomeTextEditorWmClass, StringComparison.OrdinalIgnoreCase);

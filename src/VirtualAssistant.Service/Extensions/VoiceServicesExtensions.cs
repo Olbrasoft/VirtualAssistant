@@ -216,6 +216,7 @@ public static class VoiceServicesExtensions
         services.AddSingleton<ITerminalDetector, WaylandTerminalDetector>();
         services.AddSingleton<IGdbusWindowDetector, GdbusWindowDetector>();
         services.AddSingleton<ITmuxCliAppMatcher, TmuxCliAppMatcher>();
+        services.AddSingleton<ITerminalAgentIdentifier, TerminalAgentIdentifier>();
         services.AddSingleton<CliAppDetectionCache>();
         services.AddSingleton<ICliAppDetector, TerminalCliAppDetector>();
         services.AddSingleton<IDotoolProcessRunner, DotoolProcessRunner>();
