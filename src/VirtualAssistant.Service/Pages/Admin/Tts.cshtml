@@ -1,0 +1,299 @@
+@page
+@model Olbrasoft.VirtualAssistant.Service.Pages.Admin.TtsModel
+@{
+    ViewData["Title"] = "TTS Multi-Key";
+}
+
+<div class="tts-summary">
+    <div class="summary-tile">
+        <div class="summary-label">Active keys</div>
+        <div class="summary-value" id="summary-active">—</div>
+    </div>
+    <div class="summary-tile">
+        <div class="summary-label">Parked keys</div>
+        <div class="summary-value" id="summary-parked">—</div>
+    </div>
+    <div class="summary-tile">
+        <div class="summary-label">Monthly chars used</div>
+        <div class="summary-value" id="summary-used">—</div>
+    </div>
+    <div class="summary-tile">
+        <div class="summary-label">Monthly capacity</div>
+        <div class="summary-value" id="summary-cap">—</div>
+    </div>
+</div>
+
+<div class="card">
+    <div class="card-header">
+        <span class="card-icon" role="img" aria-label="Keys">🔑</span>
+        <h3>Per-key usage</h3>
+        <span class="last-refresh" id="last-refresh"></span>
+    </div>
+    <div class="card-body" style="padding: 0;">
+        <table class="keys-table" id="keys-table">
+            <thead>
+                <tr>
+                    <th>#</th>
+                    <th>Key</th>
+                    <th>State</th>
+                    <th>Monthly</th>
+                    <th>Successes</th>
+                    <th>Failures</th>
+                    <th>Streak</th>
+                    <th>Last success (UTC)</th>
+                    <th>Last error</th>
+                </tr>
+            </thead>
+            <tbody id="keys-tbody">
+                <tr><td colspan="9" class="placeholder">Loading…</td></tr>
+            </tbody>
+        </table>
+    </div>
+</div>
+
+@section Styles {
+<style>
+    .tts-summary {
+        display: grid;
+        grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+        gap: 12px;
+        margin-bottom: 20px;
+    }
+
+    .summary-tile {
+        background: var(--bg-secondary);
+        border: 1px solid var(--border-color);
+        border-radius: 6px;
+        padding: 12px 14px;
+    }
+
+    .summary-label {
+        font-size: 11px;
+        text-transform: uppercase;
+        letter-spacing: 0.5px;
+        color: var(--text-secondary);
+    }
+
+    .summary-value {
+        font-size: 22px;
+        font-weight: 500;
+        margin-top: 4px;
+    }
+
+    .card {
+        background: var(--bg-secondary);
+        border: 1px solid var(--border-color);
+        border-radius: 8px;
+        overflow: hidden;
+    }
+
+    .card-header {
+        display: flex;
+        align-items: center;
+        gap: 10px;
+        padding: 15px;
+        background: var(--bg-tertiary);
+        border-bottom: 1px solid var(--border-color);
+    }
+
+    .card-header h3 {
+        font-size: 14px;
+        font-weight: 500;
+        flex: 1;
+    }
+
+    .last-refresh {
+        font-size: 11px;
+        color: var(--text-secondary);
+    }
+
+    .card-icon { font-size: 18px; }
+
+    .keys-table {
+        width: 100%;
+        border-collapse: collapse;
+        font-size: 13px;
+    }
+
+    .keys-table th, .keys-table td {
+        padding: 10px 14px;
+        text-align: left;
+        border-bottom: 1px solid var(--border-color);
+        white-space: nowrap;
+    }
+
+    .keys-table th {
+        background: var(--bg-tertiary);
+        font-weight: 500;
+        color: var(--text-secondary);
+    }
+
+    .keys-table tr:last-child td { border-bottom: none; }
+
+    .placeholder { color: var(--text-secondary); font-style: italic; text-align: center; }
+
+    .state-badge {
+        display: inline-block;
+        padding: 2px 10px;
+        border-radius: 12px;
+        font-size: 11px;
+        font-weight: 500;
+        text-transform: uppercase;
+        letter-spacing: 0.3px;
+    }
+
+    .state-Available     { background: rgba(106, 153, 85, 0.18); color: #a4c98e; }
+    .state-RateLimited   { background: rgba(206, 145, 120, 0.18); color: #ce9178; }
+    .state-QuotaExceeded { background: rgba(206, 145, 120, 0.18); color: #ce9178; }
+    .state-MonthlyLimitExceeded { background: rgba(206, 145, 120, 0.18); color: #ce9178; }
+    .state-TemporaryError { background: rgba(220, 220, 0, 0.15); color: #d7ba7d; }
+    .state-Invalid       { background: rgba(244, 135, 113, 0.18); color: #f48771; }
+
+    .meter {
+        position: relative;
+        background: var(--bg-tertiary);
+        border-radius: 4px;
+        height: 18px;
+        width: 200px;
+        overflow: hidden;
+        font-size: 11px;
+    }
+
+    .meter-fill {
+        position: absolute;
+        top: 0;
+        left: 0;
+        bottom: 0;
+        background: var(--accent-blue);
+        transition: width 0.3s;
+    }
+
+    .meter-fill.warn { background: #d7ba7d; }
+    .meter-fill.full { background: #ce9178; }
+
+    .meter-text {
+        position: relative;
+        display: block;
+        text-align: center;
+        line-height: 18px;
+        color: var(--text-primary);
+        z-index: 1;
+        text-shadow: 0 0 4px rgba(0,0,0,0.5);
+    }
+
+    td.fail.warn { color: #d7ba7d; }
+    td.fail.bad  { color: #f48771; }
+    td.muted     { color: var(--text-secondary); }
+</style>
+}
+
+@section Scripts {
+<script>
+    let pollingTimer = null;
+    let isPageVisible = true;
+
+    function fmtTime(iso) {
+        if (!iso) return '—';
+        try {
+            const d = new Date(iso);
+            const ago = Math.round((Date.now() - d.getTime()) / 1000);
+            if (ago < 60) return ago + 's ago';
+            if (ago < 3600) return Math.round(ago / 60) + 'm ago';
+            if (ago < 86400) return Math.round(ago / 3600) + 'h ago';
+            return d.toISOString().slice(0, 19).replace('T', ' ');
+        } catch { return iso; }
+    }
+
+    function fmtNum(n) {
+        if (n === null || n === undefined) return '—';
+        return n.toLocaleString('cs-CZ');
+    }
+
+    function meterCell(used, limit) {
+        if (!limit || limit === 0) {
+            return `<span class="muted">${fmtNum(used)} / ∞</span>`;
+        }
+        const pct = Math.min(100, (used / limit) * 100);
+        const cls = pct >= 100 ? 'full' : pct >= 80 ? 'warn' : '';
+        return `
+            <div class="meter">
+                <div class="meter-fill ${cls}" style="width: ${pct}%"></div>
+                <span class="meter-text">${fmtNum(used)} / ${fmtNum(limit)} (${pct.toFixed(1)}%)</span>
+            </div>`;
+    }
+
+    async function refresh() {
+        if (!isPageVisible) return;
+        try {
+            const res = await fetch('/api/tts/keys-usage');
+            if (!res.ok) throw new Error(res.status);
+            const keys = await res.json();
+            renderTable(keys);
+            renderSummary(keys);
+            const el = document.getElementById('last-refresh');
+            if (el) el.textContent = 'updated ' + new Date().toLocaleTimeString('cs-CZ');
+        } catch (err) {
+            console.error('refresh failed', err);
+            const el = document.getElementById('last-refresh');
+            if (el) el.textContent = 'error: ' + err.message;
+        }
+    }
+
+    function renderSummary(keys) {
+        const active = keys.filter(k => k.state === 'Available').length;
+        const parked = keys.length - active;
+        const used = keys.reduce((s, k) => s + (k.monthlyCharacterCount || 0), 0);
+        const cap = keys.reduce((s, k) => s + (k.monthlyCharacterLimit || 0), 0);
+        document.getElementById('summary-active').textContent = active + ' / ' + keys.length;
+        document.getElementById('summary-parked').textContent = parked;
+        document.getElementById('summary-used').textContent = fmtNum(used);
+        document.getElementById('summary-cap').textContent = cap > 0 ? fmtNum(cap) : 'unlimited';
+    }
+
+    function renderTable(keys) {
+        const tbody = document.getElementById('keys-tbody');
+        if (!keys.length) {
+            tbody.innerHTML = '<tr><td colspan="9" class="placeholder">No keys configured</td></tr>';
+            return;
+        }
+        tbody.innerHTML = keys.map(k => {
+            const failClass = k.consecutiveFailures >= 5 ? 'bad'
+                            : k.consecutiveFailures >= 2 ? 'warn'
+                            : '';
+            const lastErr = k.lastErrorReason
+                ? `<span title="${fmtTime(k.lastErrorUtc)}">${k.lastErrorReason} · ${fmtTime(k.lastErrorUtc)}</span>`
+                : '<span class="muted">—</span>';
+            return `
+                <tr>
+                    <td class="muted">#${k.index}</td>
+                    <td>${escapeHtml(k.name)}</td>
+                    <td><span class="state-badge state-${k.state}">${k.state}</span></td>
+                    <td>${meterCell(k.monthlyCharacterCount, k.monthlyCharacterLimit)}</td>
+                    <td>${fmtNum(k.totalSuccesses)}</td>
+                    <td>${fmtNum(k.totalFailures)}</td>
+                    <td class="fail ${failClass}">${k.consecutiveFailures}</td>
+                    <td class="muted">${fmtTime(k.lastSuccessUtc)}</td>
+                    <td>${lastErr}</td>
+                </tr>`;
+        }).join('');
+    }
+
+    function escapeHtml(s) {
+        return String(s).replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+    }
+
+    function start() {
+        if (pollingTimer) return;
+        refresh();
+        pollingTimer = setInterval(refresh, 10000);
+    }
+    function stop() {
+        if (pollingTimer) { clearInterval(pollingTimer); pollingTimer = null; }
+    }
+    document.addEventListener('visibilitychange', () => {
+        isPageVisible = !document.hidden;
+        if (isPageVisible) start(); else stop();
+    });
+    start();
+</script>
+}

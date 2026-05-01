@@ -1,5 +1,6 @@
 using System.Diagnostics;
 using Microsoft.AspNetCore.Mvc;
+using Olbrasoft.TextToSpeech.Providers.GoogleCloud;
 
 namespace Olbrasoft.VirtualAssistant.Service.Controllers;
 
@@ -31,6 +32,34 @@ public class TtsController : ControllerBase
 
     // Note: /api/tts/notify endpoint removed - use /api/notifications instead
     // The NotificationsController stores to database and uses batching/queue
+
+    /// <summary>
+    /// Returns the current per-key usage snapshot for the Google Cloud
+    /// multi-key TTS provider (round-robin state, monthly counters, last call,
+    /// failure counts). Used by the /Admin/Tts dashboard for live polling.
+    /// </summary>
+    [HttpGet("keys-usage")]
+    public ActionResult<IReadOnlyList<TtsKeyUsageDto>> GetKeysUsage(
+        [FromServices] GoogleCloudMultiKeyTtsProvider provider)
+    {
+        var snapshots = provider.GetKeysUsage();
+        var dtos = snapshots.Select(s => new TtsKeyUsageDto
+        {
+            Index = s.Index,
+            Name = s.Name,
+            State = s.State.ToString(),
+            CooldownUntilUtc = s.CooldownUntilUtc,
+            MonthlyCharacterCount = s.MonthlyCharacterCount,
+            MonthlyCharacterLimit = s.MonthlyCharacterLimit,
+            TotalSuccesses = s.TotalSuccesses,
+            TotalFailures = s.TotalFailures,
+            ConsecutiveFailures = s.ConsecutiveFailures,
+            LastSuccessUtc = s.LastSuccessUtc,
+            LastErrorUtc = s.LastErrorUtc,
+            LastErrorReason = s.LastErrorReason
+        }).ToList();
+        return Ok(dtos);
+    }
 
     private void SpeakWithPiper(string text)
     {
@@ -96,6 +125,25 @@ public class TtsController : ControllerBase
             _logger.LogError(ex, "Piper TTS failed");
         }
     }
+}
+
+/// <summary>
+/// DTO for per-key TTS usage snapshot exposed at /api/tts/keys-usage.
+/// </summary>
+public sealed class TtsKeyUsageDto
+{
+    public int Index { get; set; }
+    public required string Name { get; set; }
+    public required string State { get; set; }
+    public DateTime? CooldownUntilUtc { get; set; }
+    public long MonthlyCharacterCount { get; set; }
+    public long MonthlyCharacterLimit { get; set; }
+    public long TotalSuccesses { get; set; }
+    public long TotalFailures { get; set; }
+    public int ConsecutiveFailures { get; set; }
+    public DateTime? LastSuccessUtc { get; set; }
+    public DateTime? LastErrorUtc { get; set; }
+    public string? LastErrorReason { get; set; }
 }
 
 /// <summary>
