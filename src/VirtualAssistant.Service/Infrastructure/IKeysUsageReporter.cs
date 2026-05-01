@@ -11,14 +11,3 @@ public interface IKeysUsageReporter
 {
     IReadOnlyList<ApiKeyUsageSnapshot> GetKeysUsage();
 }
-
-/// <summary>
-/// Default implementation that delegates to the registered
-/// <see cref="GoogleCloudMultiKeyTtsProvider"/> singleton.
-/// </summary>
-public sealed class GoogleCloudKeysUsageReporter : IKeysUsageReporter
-{
-    private readonly GoogleCloudMultiKeyTtsProvider _provider;
-    public GoogleCloudKeysUsageReporter(GoogleCloudMultiKeyTtsProvider provider) => _provider = provider;
-    public IReadOnlyList<ApiKeyUsageSnapshot> GetKeysUsage() => _provider.GetKeysUsage();
-}

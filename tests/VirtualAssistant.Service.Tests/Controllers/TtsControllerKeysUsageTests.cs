@@ -10,11 +10,11 @@ namespace Olbrasoft.VirtualAssistant.Service.Tests.Controllers;
 
 public class TtsControllerKeysUsageTests
 {
-    private static TtsController CreateController()
+    private static TtsController CreateController(IKeysUsageReporter reporter)
     {
         var logger = new Mock<ILogger<TtsController>>();
         var config = new ConfigurationBuilder().AddInMemoryCollection().Build();
-        return new TtsController(logger.Object, config);
+        return new TtsController(logger.Object, config, reporter);
     }
 
     [Fact]
@@ -38,9 +38,9 @@ public class TtsControllerKeysUsageTests
         var reporter = new Mock<IKeysUsageReporter>();
         reporter.Setup(r => r.GetKeysUsage()).Returns(new[] { snapshot });
 
-        var controller = CreateController();
+        var controller = CreateController(reporter.Object);
 
-        var result = controller.GetKeysUsage(reporter.Object);
+        var result = controller.GetKeysUsage();
 
         var ok = Assert.IsType<OkObjectResult>(result.Result);
         var dtos = Assert.IsAssignableFrom<IReadOnlyList<TtsKeyUsageDto>>(ok.Value);
@@ -71,8 +71,8 @@ public class TtsControllerKeysUsageTests
         var reporter = new Mock<IKeysUsageReporter>();
         reporter.Setup(r => r.GetKeysUsage()).Returns(snapshots);
 
-        var controller = CreateController();
-        var result = controller.GetKeysUsage(reporter.Object);
+        var controller = CreateController(reporter.Object);
+        var result = controller.GetKeysUsage();
 
         var ok = Assert.IsType<OkObjectResult>(result.Result);
         var dtos = Assert.IsAssignableFrom<IReadOnlyList<TtsKeyUsageDto>>(ok.Value);
@@ -89,8 +89,8 @@ public class TtsControllerKeysUsageTests
         var reporter = new Mock<IKeysUsageReporter>();
         reporter.Setup(r => r.GetKeysUsage()).Returns(Array.Empty<ApiKeyUsageSnapshot>());
 
-        var controller = CreateController();
-        var result = controller.GetKeysUsage(reporter.Object);
+        var controller = CreateController(reporter.Object);
+        var result = controller.GetKeysUsage();
 
         var ok = Assert.IsType<OkObjectResult>(result.Result);
         var dtos = Assert.IsAssignableFrom<IReadOnlyList<TtsKeyUsageDto>>(ok.Value);
