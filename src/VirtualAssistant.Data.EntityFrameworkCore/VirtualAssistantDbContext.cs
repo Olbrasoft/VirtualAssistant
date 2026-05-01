@@ -94,6 +94,11 @@ public class VirtualAssistantDbContext : DbContext
     /// </summary>
     public DbSet<ModelProviderMapping> ModelProviderMappings => Set<ModelProviderMapping>();
 
+    /// <summary>
+    /// Gets or sets the TtsKeyUsage DbSet (per-key counter/health for Google Cloud multi-key TTS).
+    /// </summary>
+    public DbSet<TtsKeyUsage> TtsKeyUsages => Set<TtsKeyUsage>();
+
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {
         base.OnModelCreating(modelBuilder);

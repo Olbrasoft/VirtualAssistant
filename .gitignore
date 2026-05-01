@@ -422,3 +422,6 @@ FodyWeavers.xsd
 secrets/*.key
 keys/*.key
 .config/virtual-assistant/keys/*.key
+
+# Local-dev NuGet sources (do not commit)
+NuGet.config
