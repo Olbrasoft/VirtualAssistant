@@ -67,7 +67,13 @@ public static class TtsServicesExtensions
         // API keys are loaded from SecureStore vault via IConfiguration
         services.Configure<GoogleCloudMultiKeyConfiguration>(
             configuration.GetSection(GoogleCloudMultiKeyConfiguration.SectionName));
-        services.AddSingleton<ITtsProvider, GoogleCloudMultiKeyTtsProvider>();
+
+        // Persistence store for per-key counters/health (survives restarts).
+        // Resolved by GoogleCloudMultiKeyTtsProvider's optional ctor parameter.
+        services.AddSingleton<IApiKeyUsageStore, EfCoreApiKeyUsageStore>();
+
+        services.AddSingleton<GoogleCloudMultiKeyTtsProvider>();
+        services.AddSingleton<ITtsProvider>(sp => sp.GetRequiredService<GoogleCloudMultiKeyTtsProvider>());
 
         // Register Piper provider (separate package)
         services.AddPiperTts(configuration);
