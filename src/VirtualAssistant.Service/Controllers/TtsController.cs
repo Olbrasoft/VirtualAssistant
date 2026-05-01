@@ -1,6 +1,6 @@
 using System.Diagnostics;
 using Microsoft.AspNetCore.Mvc;
-using Olbrasoft.TextToSpeech.Providers.GoogleCloud;
+using Olbrasoft.VirtualAssistant.Service.Infrastructure;
 
 namespace Olbrasoft.VirtualAssistant.Service.Controllers;
 
@@ -16,12 +16,15 @@ public class TtsController : ControllerBase
 {
     private readonly ILogger<TtsController> _logger;
     private readonly string _piperModelPath;
+    private readonly IKeysUsageReporter _keysUsageReporter;
 
     public TtsController(
         ILogger<TtsController> logger,
-        IConfiguration configuration)
+        IConfiguration configuration,
+        IKeysUsageReporter keysUsageReporter)
     {
         _logger = logger;
+        _keysUsageReporter = keysUsageReporter;
 
         // Piper model path - resolve relative path
         var piperPath = configuration["TTS:Piper:ModelPath"] ?? "piper-voices/cs/cs_CZ-jirka-medium.onnx";
@@ -39,10 +42,9 @@ public class TtsController : ControllerBase
     /// failure counts). Used by the /Admin/Tts dashboard for live polling.
     /// </summary>
     [HttpGet("keys-usage")]
-    public ActionResult<IReadOnlyList<TtsKeyUsageDto>> GetKeysUsage(
-        [FromServices] GoogleCloudMultiKeyTtsProvider provider)
+    public ActionResult<IReadOnlyList<TtsKeyUsageDto>> GetKeysUsage()
     {
-        var snapshots = provider.GetKeysUsage();
+        var snapshots = _keysUsageReporter.GetKeysUsage();
         var dtos = snapshots.Select(s => new TtsKeyUsageDto
         {
             Index = s.Index,
