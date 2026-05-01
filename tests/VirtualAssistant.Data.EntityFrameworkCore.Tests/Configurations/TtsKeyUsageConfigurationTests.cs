@@ -44,8 +44,11 @@ public class TtsKeyUsageConfigurationTests
     public async Task TtsKeyUsage_RowsCanBeUpserted_ByKeyName()
     {
         // Mirrors EfCoreApiKeyUsageStore.SaveAsync upsert behavior: load by
-        // key_name, mutate or create, save. Verifies the unique index keeps
-        // exactly one row per key.
+        // key_name, mutate or create, save. Note: the EF Core InMemory provider
+        // does NOT enforce unique-index constraints, so this test only proves
+        // the upsert *logic* keeps a single row per key (looking it up before
+        // inserting). The actual DB-level uniqueness is enforced by the
+        // PostgreSQL ix_tts_key_usage_key_name_unique index in the migration.
         using var context = CreateInMemoryContext();
 
         async Task UpsertAsync(string name, long count)

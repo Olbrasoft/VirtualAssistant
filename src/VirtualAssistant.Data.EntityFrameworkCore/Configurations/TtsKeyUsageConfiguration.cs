@@ -44,6 +44,7 @@ public class TtsKeyUsageConfiguration : IEntityTypeConfiguration<TtsKeyUsage>
 
         builder.Property(x => x.UpdatedAt)
             .HasColumnName("updated_at")
+            .HasDefaultValueSql("NOW()")
             .IsRequired();
     }
 }
