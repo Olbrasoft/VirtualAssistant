@@ -41,9 +41,14 @@ public sealed class EfCoreApiKeyUsageStore : IApiKeyUsageStore
                 .FirstOrDefaultAsync(x => x.KeyName == keyName, cancellationToken)
                 .ConfigureAwait(false);
         }
+        catch (OperationCanceledException)
+        {
+            // Honor the caller's cancellation - don't pretend the row was missing.
+            throw;
+        }
         catch (Exception ex)
         {
-            _logger.LogWarning(ex, "Failed to load TTS key usage for key {KeyName}", keyName);
+            _logger.LogWarning(ex, "Failed to load TTS key usage for key {KeyName}; falling back to fresh in-memory state", keyName);
             return null;
         }
 
@@ -98,10 +103,19 @@ public sealed class EfCoreApiKeyUsageStore : IApiKeyUsageStore
 
             await db.SaveChangesAsync(cancellationToken).ConfigureAwait(false);
         }
-        catch (DbUpdateException ex)
+        catch (OperationCanceledException)
         {
+            // Honor the caller's cancellation.
+            throw;
+        }
+        catch (Exception ex)
+        {
+            // Fail open: persistence outages (DB connection drop, transient
+            // EF/Npgsql exceptions, even transient FirstOrDefaultAsync failures)
+            // must not break TTS synthesis. The provider keeps in-memory state
+            // and will retry on the next call.
             _logger.LogWarning(ex,
-                "Failed to persist TTS key usage for key {KeyName} (counter={Count})",
+                "Failed to persist TTS key usage for key {KeyName} (counter={Count}); in-memory state retained",
                 record.KeyName, record.MonthlyCharacterCount);
         }
     }
