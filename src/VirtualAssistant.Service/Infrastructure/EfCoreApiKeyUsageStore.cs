@@ -41,9 +41,11 @@ public sealed class EfCoreApiKeyUsageStore : IApiKeyUsageStore
                 .FirstOrDefaultAsync(x => x.KeyName == keyName, cancellationToken)
                 .ConfigureAwait(false);
         }
-        catch (OperationCanceledException)
+        catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
         {
-            // Honor the caller's cancellation - don't pretend the row was missing.
+            // Caller-initiated cancellation - propagate. Internal cancellations
+            // (e.g. DB command timeout) fall through to the generic catch below
+            // so TTS still degrades gracefully.
             throw;
         }
         catch (Exception ex)
@@ -103,9 +105,11 @@ public sealed class EfCoreApiKeyUsageStore : IApiKeyUsageStore
 
             await db.SaveChangesAsync(cancellationToken).ConfigureAwait(false);
         }
-        catch (OperationCanceledException)
+        catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
         {
-            // Honor the caller's cancellation.
+            // Caller-initiated cancellation only. Internal OCE (DB command
+            // timeout) falls through to the generic catch so persistence
+            // outages don't break TTS synthesis.
             throw;
         }
         catch (Exception ex)
