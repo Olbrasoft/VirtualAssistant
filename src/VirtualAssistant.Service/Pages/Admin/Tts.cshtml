@@ -148,6 +148,7 @@
     .state-MonthlyLimitExceeded { background: rgba(206, 145, 120, 0.18); color: #ce9178; }
     .state-TemporaryError { background: rgba(220, 220, 0, 0.15); color: #d7ba7d; }
     .state-Invalid       { background: rgba(244, 135, 113, 0.18); color: #f48771; }
+    .state-Unknown       { background: rgba(120, 120, 120, 0.18); color: #b0b0b0; }
 
     .meter {
         position: relative;
@@ -250,6 +251,14 @@
         document.getElementById('summary-cap').textContent = cap > 0 ? fmtNum(cap) : 'unlimited';
     }
 
+    // Whitelist of states the server can return. Anything else falls back
+    // to a generic "Unknown" class so an unexpected value can't poison the
+    // CSS class name (defense-in-depth; today the API enum guarantees the set).
+    const KNOWN_STATES = new Set([
+        'Available', 'RateLimited', 'QuotaExceeded',
+        'Invalid', 'TemporaryError', 'MonthlyLimitExceeded'
+    ]);
+
     function renderTable(keys) {
         const tbody = document.getElementById('keys-tbody');
         if (!keys.length) {
@@ -260,27 +269,33 @@
             const failClass = k.consecutiveFailures >= 5 ? 'bad'
                             : k.consecutiveFailures >= 2 ? 'warn'
                             : '';
+            const stateRaw = String(k.state || '');
+            const stateClass = KNOWN_STATES.has(stateRaw) ? stateRaw : 'Unknown';
+            const stateLabel = escapeHtml(stateRaw);
+            const errReason = escapeHtml(k.lastErrorReason || '');
+            const errTime = fmtTime(k.lastErrorUtc); // already a safe formatted string
             const lastErr = k.lastErrorReason
-                ? `<span title="${fmtTime(k.lastErrorUtc)}">${k.lastErrorReason} · ${fmtTime(k.lastErrorUtc)}</span>`
+                ? `<span title="${escapeAttr(errTime)}">${errReason} · ${escapeHtml(errTime)}</span>`
                 : '<span class="muted">—</span>';
             return `
                 <tr>
-                    <td class="muted">#${k.index}</td>
+                    <td class="muted">#${k.index | 0}</td>
                     <td>${escapeHtml(k.name)}</td>
-                    <td><span class="state-badge state-${k.state}">${k.state}</span></td>
+                    <td><span class="state-badge state-${stateClass}">${stateLabel}</span></td>
                     <td>${meterCell(k.monthlyCharacterCount, k.monthlyCharacterLimit)}</td>
                     <td>${fmtNum(k.totalSuccesses)}</td>
                     <td>${fmtNum(k.totalFailures)}</td>
-                    <td class="fail ${failClass}">${k.consecutiveFailures}</td>
-                    <td class="muted">${fmtTime(k.lastSuccessUtc)}</td>
+                    <td class="fail ${failClass}">${k.consecutiveFailures | 0}</td>
+                    <td class="muted">${escapeHtml(fmtTime(k.lastSuccessUtc))}</td>
                     <td>${lastErr}</td>
                 </tr>`;
         }).join('');
     }
 
     function escapeHtml(s) {
-        return String(s).replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+        return String(s ?? '').replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
     }
+    function escapeAttr(s) { return escapeHtml(s); }
 
     function start() {
         if (pollingTimer) return;

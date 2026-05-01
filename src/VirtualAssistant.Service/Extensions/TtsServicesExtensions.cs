@@ -74,6 +74,7 @@ public static class TtsServicesExtensions
 
         services.AddSingleton<GoogleCloudMultiKeyTtsProvider>();
         services.AddSingleton<ITtsProvider>(sp => sp.GetRequiredService<GoogleCloudMultiKeyTtsProvider>());
+        services.AddSingleton<IKeysUsageReporter, GoogleCloudKeysUsageReporter>();
 
         // Register Piper provider (separate package)
         services.AddPiperTts(configuration);

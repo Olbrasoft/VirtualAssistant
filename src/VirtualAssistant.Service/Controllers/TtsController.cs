@@ -1,6 +1,6 @@
 using System.Diagnostics;
 using Microsoft.AspNetCore.Mvc;
-using Olbrasoft.TextToSpeech.Providers.GoogleCloud;
+using Olbrasoft.VirtualAssistant.Service.Infrastructure;
 
 namespace Olbrasoft.VirtualAssistant.Service.Controllers;
 
@@ -40,9 +40,9 @@ public class TtsController : ControllerBase
     /// </summary>
     [HttpGet("keys-usage")]
     public ActionResult<IReadOnlyList<TtsKeyUsageDto>> GetKeysUsage(
-        [FromServices] GoogleCloudMultiKeyTtsProvider provider)
+        [FromServices] IKeysUsageReporter reporter)
     {
-        var snapshots = provider.GetKeysUsage();
+        var snapshots = reporter.GetKeysUsage();
         var dtos = snapshots.Select(s => new TtsKeyUsageDto
         {
             Index = s.Index,
