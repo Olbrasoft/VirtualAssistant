@@ -425,3 +425,7 @@ keys/*.key
 
 # Local-dev NuGet sources (do not commit)
 NuGet.config
+
+# Claude / Playwright dev state (do not commit)
+.claude/
+.playwright-mcp/
