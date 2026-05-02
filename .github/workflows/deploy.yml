@@ -200,7 +200,24 @@ jobs:
           # non-interactive runners) is the robust approach.
           export PATH="$HOME/.cargo/bin:$HOME/.local/bin:$PATH"
           if command -v ghnotify > /dev/null 2>&1; then
-            ghnotify send --repo "$GITHUB_REPOSITORY" --prompt "$WAKE_PROMPT" || \
+            # Pass --commit so ghnotify can resolve the PR-author UUID
+            # via `gh api commits/SHA/pulls` and route to the session
+            # that opened the PR. Without it, ghnotify falls back to
+            # repo-name routing (`claude-VirtualAssistant-*`), which
+            # silently fails on machines whose tmux sessions follow a
+            # different naming convention (e.g. `claude-<user>-<tty>`).
+            # That failure mode lost the wake for run #456 on
+            # 2026-05-02 even though the deploy itself succeeded.
+            #
+            # Use the full $GITHUB_SHA, NOT the short $COMMIT_SHA
+            # (defined above as ${GITHUB_SHA:0:7} for filenames/log
+            # display). The commits/SHA/pulls endpoint is unreliable
+            # with abbreviated SHAs — short SHAs can be ambiguous
+            # across the repo's history.
+            ghnotify send \
+              --repo "$GITHUB_REPOSITORY" \
+              --commit "$GITHUB_SHA" \
+              --prompt "$WAKE_PROMPT" || \
               echo "ghnotify send failed; wake not delivered" >&2
           else
             echo "ghnotify CLI not found on PATH (looked in: $PATH) — install via 'cargo install --path /home/jirka/Olbrasoft/ghnotify'" >&2
