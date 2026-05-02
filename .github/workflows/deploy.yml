@@ -208,9 +208,15 @@ jobs:
             # different naming convention (e.g. `claude-<user>-<tty>`).
             # That failure mode lost the wake for run #456 on
             # 2026-05-02 even though the deploy itself succeeded.
+            #
+            # Use the full $GITHUB_SHA, NOT the short $COMMIT_SHA
+            # (defined above as ${GITHUB_SHA:0:7} for filenames/log
+            # display). The commits/SHA/pulls endpoint is unreliable
+            # with abbreviated SHAs — short SHAs can be ambiguous
+            # across the repo's history.
             ghnotify send \
               --repo "$GITHUB_REPOSITORY" \
-              --commit "$COMMIT_SHA" \
+              --commit "$GITHUB_SHA" \
               --prompt "$WAKE_PROMPT" || \
               echo "ghnotify send failed; wake not delivered" >&2
           else
