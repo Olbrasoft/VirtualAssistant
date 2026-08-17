@@ -8,6 +8,7 @@ using Olbrasoft.VirtualAssistant.Core.WindowManagement;
 using Microsoft.AspNetCore.SignalR;
 using Olbrasoft.VirtualAssistant.Service.Hubs;
 using Olbrasoft.VirtualAssistant.Service.Infrastructure;
+using Olbrasoft.VirtualAssistant.Service.Tray.Menu;
 using Olbrasoft.VirtualAssistant.Service.Workers;
 using Olbrasoft.VirtualAssistant.Service.Workers.Dictation;
 using Olbrasoft.VirtualAssistant.Service.Workers.Streaming;
@@ -91,7 +92,8 @@ public static class WorkerServicesExtensions
             sp.GetRequiredService<IDictationKeyHandler>(),
             sp.GetRequiredService<IDictationRecordingSession>(),
             sp.GetRequiredService<IDictationCompletionPipeline>(),
-            sp.GetRequiredService<IDictationCancellationCoordinator>()));
+            sp.GetRequiredService<IDictationCancellationCoordinator>(),
+            sp.GetService<IMenuStateManager>()));
 
         // Register the same instance as IDictationControl interface (issue #466)
         // This allows MenuEventDispatcher to control dictation functionality

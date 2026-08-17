@@ -152,7 +152,8 @@ public static class TrayServicesExtensions
                 sp.GetService<ILlmProvider>(),
                 sp.GetService<IPromptSyncService>(),
                 sp.GetService<IMenuStateManager>(),
-                sp.GetService<Olbrasoft.VirtualAssistant.Voice.Filters.DatabaseCorrectionFilterStrategy>());
+                sp.GetService<Olbrasoft.VirtualAssistant.Voice.Filters.DatabaseCorrectionFilterStrategy>(),
+                sp.GetServices<ILlmProvider>());
 
             var dashboard = new Tray.Handlers.DashboardMenuHandler(
                 sp.GetRequiredService<ILogger<Tray.Handlers.DashboardMenuHandler>>(),

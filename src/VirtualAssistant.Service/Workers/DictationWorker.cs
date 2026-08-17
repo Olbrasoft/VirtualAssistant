@@ -4,6 +4,7 @@ using Olbrasoft.VirtualAssistant.Core.Speech;
 using Olbrasoft.VirtualAssistant.Core.WindowManagement;
 using Olbrasoft.VirtualAssistant.Core.StateMachine;
 using Olbrasoft.VirtualAssistant.Service.Hubs;
+using Olbrasoft.VirtualAssistant.Service.Tray.Menu;
 using Olbrasoft.VirtualAssistant.Service.Workers.Dictation;
 
 namespace Olbrasoft.VirtualAssistant.Service.Workers;
@@ -20,9 +21,11 @@ public class DictationWorker : BackgroundService, IDictationControl, IDictationS
     private readonly IDictationRecordingSession _recordingSession;
     private readonly IDictationCompletionPipeline _completionPipeline;
     private readonly IDictationCancellationCoordinator _cancellationCoordinator;
+    private readonly IMenuStateManager? _menuStateManager;
 
     private bool _dictationEnabled = true;
     private bool _quickDictationMode;
+    private bool _keyboardStartedSession;
     private volatile bool _streamingTranscriptionEnabled;
 
     /// <inheritdoc/>
@@ -36,13 +39,15 @@ public class DictationWorker : BackgroundService, IDictationControl, IDictationS
         IDictationKeyHandler keyHandler,
         IDictationRecordingSession recordingSession,
         IDictationCompletionPipeline completionPipeline,
-        IDictationCancellationCoordinator cancellationCoordinator)
+        IDictationCancellationCoordinator cancellationCoordinator,
+        IMenuStateManager? menuStateManager = null)
     {
         _logger = logger ?? throw new ArgumentNullException(nameof(logger));
         _keyHandler = keyHandler ?? throw new ArgumentNullException(nameof(keyHandler));
         _recordingSession = recordingSession ?? throw new ArgumentNullException(nameof(recordingSession));
         _completionPipeline = completionPipeline ?? throw new ArgumentNullException(nameof(completionPipeline));
         _cancellationCoordinator = cancellationCoordinator ?? throw new ArgumentNullException(nameof(cancellationCoordinator));
+        _menuStateManager = menuStateManager;
     }
 
     /// <summary>
@@ -84,6 +89,7 @@ public class DictationWorker : BackgroundService, IDictationControl, IDictationS
         if (_recordingSession.CurrentState == DictationState.Idle)
         {
             _quickDictationMode = false;
+            _keyboardStartedSession = false;
             await StartRecordingAsync();
         }
     }
@@ -100,6 +106,7 @@ public class DictationWorker : BackgroundService, IDictationControl, IDictationS
         if (_recordingSession.CurrentState == DictationState.Idle)
         {
             _quickDictationMode = true;
+            _keyboardStartedSession = false;
             await StartRecordingAsync();
         }
     }
@@ -125,6 +132,7 @@ public class DictationWorker : BackgroundService, IDictationControl, IDictationS
             // recording starts in normal mode by default, the user picks
             // fast vs slow only when releasing the button.
             _quickDictationMode = quickMode;
+            _keyboardStartedSession = false;
             _logger.LogInformation(
                 "StopDictationAsync(quickMode={QuickMode}) - overriding start-time mode",
                 quickMode);
@@ -203,6 +211,7 @@ public class DictationWorker : BackgroundService, IDictationControl, IDictationS
         public Task StartAsync()
         {
             worker._quickDictationMode = false;
+            worker._keyboardStartedSession = true;
             return worker.StartRecordingAsync();
         }
 
@@ -235,8 +244,17 @@ public class DictationWorker : BackgroundService, IDictationControl, IDictationS
 
             var token = _cancellationCoordinator.BeginTranscription();
 
-            if (_quickDictationMode)
+            var useQuickPipeline = _quickDictationMode
+                || (_keyboardStartedSession && _menuStateManager?.IsLlmCorrectionEnabled == false);
+
+            if (useQuickPipeline)
             {
+                if (!_quickDictationMode)
+                {
+                    _logger.LogInformation(
+                        "ScrollLock dictation using quick pipeline because LLM correction is disabled in tray menu");
+                }
+
                 await _completionPipeline.CompleteQuickAsync(audioData, token);
             }
             else
@@ -259,6 +277,7 @@ public class DictationWorker : BackgroundService, IDictationControl, IDictationS
         }
         finally
         {
+            _keyboardStartedSession = false;
             _cancellationCoordinator.EndTranscription();
             _recordingSession.EndSession();
         }
