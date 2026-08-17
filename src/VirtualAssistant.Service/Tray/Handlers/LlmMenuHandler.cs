@@ -10,7 +10,7 @@ namespace Olbrasoft.VirtualAssistant.Service.Tray.Handlers;
 public sealed class LlmMenuHandler : ILlmMenuHandler
 {
     private readonly ILogger<LlmMenuHandler> _logger;
-    private readonly ILlmProvider? _llmProvider;
+    private readonly IReadOnlyList<ILlmProvider> _llmProviders;
     private readonly IPromptSyncService? _promptSyncService;
     private readonly IMenuStateManager? _menuStateManager;
     private readonly DatabaseCorrectionFilterStrategy? _correctionFilter;
@@ -20,10 +20,11 @@ public sealed class LlmMenuHandler : ILlmMenuHandler
         ILlmProvider? llmProvider = null,
         IPromptSyncService? promptSyncService = null,
         IMenuStateManager? menuStateManager = null,
-        DatabaseCorrectionFilterStrategy? correctionFilter = null)
+        DatabaseCorrectionFilterStrategy? correctionFilter = null,
+        IEnumerable<ILlmProvider>? llmProviders = null)
     {
         _logger = logger ?? throw new ArgumentNullException(nameof(logger));
-        _llmProvider = llmProvider;
+        _llmProviders = BuildProviderList(llmProvider, llmProviders);
         _promptSyncService = promptSyncService;
         _menuStateManager = menuStateManager;
         _correctionFilter = correctionFilter;
@@ -31,7 +32,7 @@ public sealed class LlmMenuHandler : ILlmMenuHandler
 
     public void HandleLlmCorrectionToggle(bool enabled)
     {
-        if (_llmProvider == null)
+        if (_llmProviders.Count == 0)
         {
             _logger.LogWarning("LLM provider not available");
             return;
@@ -40,8 +41,15 @@ public sealed class LlmMenuHandler : ILlmMenuHandler
         try
         {
             _logger.LogInformation("Toggling LLM correction to: {Enabled}", enabled);
-            _llmProvider.SetEnabled(enabled);
-            _logger.LogInformation("LLM correction successfully {Status}", enabled ? "enabled" : "disabled");
+            foreach (var provider in _llmProviders)
+            {
+                provider.SetEnabled(enabled);
+            }
+
+            _logger.LogInformation(
+                "LLM correction successfully {Status} for {ProviderCount} providers",
+                enabled ? "enabled" : "disabled",
+                _llmProviders.Count);
         }
         catch (Exception ex)
         {
@@ -51,7 +59,7 @@ public sealed class LlmMenuHandler : ILlmMenuHandler
 
     public void HandleReloadPrompt()
     {
-        if (_llmProvider == null)
+        if (_llmProviders.Count == 0)
         {
             _logger.LogWarning("LLM provider not available");
             return;
@@ -69,7 +77,7 @@ public sealed class LlmMenuHandler : ILlmMenuHandler
                 if (result.Success)
                 {
                     _logger.LogInformation("Prompt sync completed. Copied {Count} files.", result.FilesCopied);
-                    _llmProvider.ReloadPrompt();
+                    ReloadAllProviderPrompts();
                     _menuStateManager?.UpdatePromptSyncStatus(PromptSyncStatus.InSync);
                     _logger.LogInformation("LLM prompts synced and reloaded successfully");
                 }
@@ -84,7 +92,7 @@ public sealed class LlmMenuHandler : ILlmMenuHandler
             {
                 // Fallback: just clear cache (legacy behavior before PromptSync was wired up).
                 _logger.LogWarning("PromptSyncService not available - ensure PromptSync:SourcePath is configured in appsettings.json. Only clearing LLM prompt cache.");
-                _llmProvider.ReloadPrompt();
+                ReloadAllProviderPrompts();
                 _menuStateManager?.UpdatePromptSyncStatus(PromptSyncStatus.Unknown);
             }
         }
@@ -140,6 +148,37 @@ public sealed class LlmMenuHandler : ILlmMenuHandler
         catch (Exception ex)
         {
             _logger.LogError(ex, "Failed to invalidate transcription corrections cache");
+        }
+    }
+
+    private static IReadOnlyList<ILlmProvider> BuildProviderList(
+        ILlmProvider? llmProvider,
+        IEnumerable<ILlmProvider>? llmProviders)
+    {
+        if (llmProviders is not null)
+        {
+            var providers = llmProviders
+                .Where(provider => provider is not null)
+                .GroupBy(provider => provider.ProviderName, StringComparer.OrdinalIgnoreCase)
+                .Select(group => group.First())
+                .ToList();
+
+            if (providers.Count > 0)
+            {
+                return providers;
+            }
+        }
+
+        return llmProvider is null
+            ? Array.Empty<ILlmProvider>()
+            : new[] { llmProvider };
+    }
+
+    private void ReloadAllProviderPrompts()
+    {
+        foreach (var provider in _llmProviders)
+        {
+            provider.ReloadPrompt();
         }
     }
 }
