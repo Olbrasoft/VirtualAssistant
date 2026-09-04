@@ -11,6 +11,7 @@ public class LlmMenuHandlerTests
 {
     private readonly Mock<ILogger<LlmMenuHandler>> _loggerMock = new();
     private readonly Mock<ILlmProvider> _llmProviderMock = new();
+    private readonly Mock<ILlmProvider> _secondLlmProviderMock = new();
     private readonly Mock<IPromptSyncService> _syncMock = new();
     private readonly Mock<IMenuStateManager> _stateManagerMock = new();
 
@@ -34,6 +35,20 @@ public class LlmMenuHandlerTests
         sut.HandleLlmCorrectionToggle(enabled);
 
         _llmProviderMock.Verify(x => x.SetEnabled(enabled), Times.Once);
+    }
+
+    [Fact]
+    public void HandleLlmCorrectionToggle_WithMultipleProviders_DelegatesToEveryProvider()
+    {
+        _llmProviderMock.SetupGet(x => x.ProviderName).Returns("mercury");
+        _secondLlmProviderMock.SetupGet(x => x.ProviderName).Returns("zen");
+        var providers = new[] { _llmProviderMock.Object, _secondLlmProviderMock.Object };
+        var sut = new LlmMenuHandler(_loggerMock.Object, llmProviders: providers);
+
+        sut.HandleLlmCorrectionToggle(false);
+
+        _llmProviderMock.Verify(x => x.SetEnabled(false), Times.Once);
+        _secondLlmProviderMock.Verify(x => x.SetEnabled(false), Times.Once);
     }
 
     [Fact]
@@ -75,6 +90,25 @@ public class LlmMenuHandlerTests
 
         _llmProviderMock.Verify(x => x.ReloadPrompt(), Times.Once);
         _stateManagerMock.Verify(x => x.UpdatePromptSyncStatus(PromptSyncStatus.Unknown, null), Times.Once);
+    }
+
+    [Fact]
+    public void HandleReloadPrompt_WithMultipleProviders_ReloadsEveryProvider()
+    {
+        _llmProviderMock.SetupGet(x => x.ProviderName).Returns("mercury");
+        _secondLlmProviderMock.SetupGet(x => x.ProviderName).Returns("zen");
+        _syncMock.Setup(x => x.SyncPrompts()).Returns(new PromptSyncResult(true, 3, 0, Array.Empty<string>()));
+        var providers = new[] { _llmProviderMock.Object, _secondLlmProviderMock.Object };
+        var sut = new LlmMenuHandler(
+            _loggerMock.Object,
+            promptSyncService: _syncMock.Object,
+            menuStateManager: _stateManagerMock.Object,
+            llmProviders: providers);
+
+        sut.HandleReloadPrompt();
+
+        _llmProviderMock.Verify(x => x.ReloadPrompt(), Times.Once);
+        _secondLlmProviderMock.Verify(x => x.ReloadPrompt(), Times.Once);
     }
 
     [Fact]

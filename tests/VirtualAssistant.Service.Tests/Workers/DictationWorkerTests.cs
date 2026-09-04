@@ -7,6 +7,7 @@ using Olbrasoft.VirtualAssistant.Core.Speech;
 using Olbrasoft.VirtualAssistant.Core.StateMachine;
 using Olbrasoft.VirtualAssistant.Service.Workers;
 using Olbrasoft.VirtualAssistant.Service.Workers.Dictation;
+using Olbrasoft.VirtualAssistant.Service.Tray.Menu;
 
 namespace Olbrasoft.VirtualAssistant.Service.Tests.Workers;
 
@@ -17,6 +18,7 @@ public class DictationWorkerTests : IDisposable
     private readonly Mock<IDictationRecordingSession> _recordingSessionMock;
     private readonly Mock<IDictationCompletionPipeline> _completionPipelineMock;
     private readonly Mock<IDictationCancellationCoordinator> _cancellationCoordinatorMock;
+    private readonly Mock<IMenuStateManager> _menuStateManagerMock;
     private readonly DictationWorker _sut;
 
     // Bindings captured from _keyHandler.Start(bindings); tests await
@@ -34,6 +36,7 @@ public class DictationWorkerTests : IDisposable
         _recordingSessionMock = new Mock<IDictationRecordingSession>();
         _completionPipelineMock = new Mock<IDictationCompletionPipeline>();
         _cancellationCoordinatorMock = new Mock<IDictationCancellationCoordinator>();
+        _menuStateManagerMock = new Mock<IMenuStateManager>();
 
         _keyHandlerMock
             .Setup(x => x.Start(It.IsAny<IDictationKeyHandlerBindings>()))
@@ -44,13 +47,15 @@ public class DictationWorkerTests : IDisposable
             });
 
         _recordingSessionMock.SetupGet(x => x.CurrentState).Returns(DictationState.Idle);
+        _menuStateManagerMock.SetupGet(x => x.IsLlmCorrectionEnabled).Returns(true);
 
         _sut = new DictationWorker(
             _loggerMock.Object,
             _keyHandlerMock.Object,
             _recordingSessionMock.Object,
             _completionPipelineMock.Object,
-            _cancellationCoordinatorMock.Object);
+            _cancellationCoordinatorMock.Object,
+            _menuStateManagerMock.Object);
     }
 
     /// <summary>
@@ -431,6 +436,55 @@ public class DictationWorkerTests : IDisposable
         _completionPipelineMock.Verify(
             x => x.CompleteFullAsync(audioData, It.IsAny<Action<string>>(), It.IsAny<CancellationToken>()),
             Times.AtLeastOnce);
+        _completionPipelineMock.Verify(
+            x => x.CompleteQuickAsync(audioData, It.IsAny<CancellationToken>()),
+            Times.Never);
+    }
+
+    [SkipOnCIFact]
+    public async Task KeyboardDictation_WhenLlmCorrectionDisabled_UsesQuickPipeline()
+    {
+        using var cts = new CancellationTokenSource();
+        var bindings = await StartAndAwaitBindingsAsync(cts.Token);
+        var audioData = new byte[] { 1, 2, 3 };
+
+        _menuStateManagerMock.SetupGet(x => x.IsLlmCorrectionEnabled).Returns(false);
+        _recordingSessionMock.SetupGet(x => x.CurrentState).Returns(DictationState.Idle);
+        _recordingSessionMock.Setup(x => x.StartAsync(It.IsAny<bool>())).Returns(Task.CompletedTask);
+        await bindings.StartAsync();
+
+        _recordingSessionMock.SetupGet(x => x.CurrentState).Returns(DictationState.Recording);
+        _recordingSessionMock.Setup(x => x.StopAndValidateAsync()).ReturnsAsync(audioData);
+        await bindings.StopAndTranscribeAsync();
+        await Task.Delay(200);
+
+        _completionPipelineMock.Verify(
+            x => x.CompleteQuickAsync(audioData, It.IsAny<CancellationToken>()),
+            Times.Once);
+        _completionPipelineMock.Verify(
+            x => x.CompleteFullAsync(It.IsAny<byte[]>(), It.IsAny<Action<string>>(), It.IsAny<CancellationToken>()),
+            Times.Never);
+    }
+
+    [SkipOnCIFact]
+    public async Task RemoteSlowDictation_WhenLlmCorrectionDisabled_StillUsesFullPipeline()
+    {
+        using var cts = new CancellationTokenSource();
+        await StartAndAwaitBindingsAsync(cts.Token);
+        var audioData = new byte[] { 1, 2, 3 };
+
+        _menuStateManagerMock.SetupGet(x => x.IsLlmCorrectionEnabled).Returns(false);
+        _recordingSessionMock.SetupGet(x => x.CurrentState).Returns(DictationState.Idle);
+        await _sut.StartDictationAsync();
+
+        _recordingSessionMock.SetupGet(x => x.CurrentState).Returns(DictationState.Recording);
+        _recordingSessionMock.Setup(x => x.StopAndValidateAsync()).ReturnsAsync(audioData);
+        await _sut.StopDictationAsync(quickMode: false);
+        await Task.Delay(200);
+
+        _completionPipelineMock.Verify(
+            x => x.CompleteFullAsync(audioData, It.IsAny<Action<string>>(), It.IsAny<CancellationToken>()),
+            Times.Once);
         _completionPipelineMock.Verify(
             x => x.CompleteQuickAsync(audioData, It.IsAny<CancellationToken>()),
             Times.Never);

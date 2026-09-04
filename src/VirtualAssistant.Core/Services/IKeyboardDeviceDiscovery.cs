@@ -7,6 +7,12 @@ namespace Olbrasoft.VirtualAssistant.Core.Services;
 public interface IKeyboardDeviceDiscovery
 {
     /// <summary>
+    /// Finds all keyboard device paths.
+    /// </summary>
+    /// <returns>Unique device paths (e.g., "/dev/input/by-id/...-event-kbd").</returns>
+    IReadOnlyList<string> FindKeyboardDevices();
+
+    /// <summary>
     /// Finds the primary keyboard device path.
     /// </summary>
     /// <returns>Device path (e.g., "/dev/input/event3" on Linux).</returns>
