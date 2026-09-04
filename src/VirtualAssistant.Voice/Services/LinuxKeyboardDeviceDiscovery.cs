@@ -20,25 +20,25 @@ public class LinuxKeyboardDeviceDiscovery : IKeyboardDeviceDiscovery
     }
 
     /// <inheritdoc />
-    public string FindKeyboardDevice()
+    public IReadOnlyList<string> FindKeyboardDevices()
     {
-        // Try to find by-id first (more reliable)
+        // Stable by-id paths survive event-number changes across reconnects.
         if (Directory.Exists(ByIdDirectory))
         {
             var kbdDevices = Directory.GetFiles(ByIdDirectory)
                 .Where(f => f.Contains("kbd", StringComparison.OrdinalIgnoreCase)
                          && f.Contains("event", StringComparison.OrdinalIgnoreCase))
+                .Where(f => !f.Contains("Mouse", StringComparison.OrdinalIgnoreCase))
+                .OrderBy(f => f, StringComparer.Ordinal)
+                .GroupBy(GetCanonicalPath, StringComparer.Ordinal)
+                .Select(group => group.First())
                 .ToList();
 
-            // Prefer devices that are NOT mice (mice can have embedded keyboards)
-            var kbdDevice = kbdDevices
-                .FirstOrDefault(f => !f.Contains("Mouse", StringComparison.OrdinalIgnoreCase))
-                ?? kbdDevices.FirstOrDefault();
-
-            if (kbdDevice != null)
+            if (kbdDevices.Count > 0)
             {
-                _logger.LogInformation("Found keyboard device by-id: {Device}", kbdDevice);
-                return kbdDevice;
+                _logger.LogInformation("Found {Count} keyboard devices by-id: {Devices}",
+                    kbdDevices.Count, string.Join(", ", kbdDevices));
+                return kbdDevices;
             }
         }
 
@@ -47,19 +47,21 @@ public class LinuxKeyboardDeviceDiscovery : IKeyboardDeviceDiscovery
             .OrderBy(d => d)
             .ToList();
 
-        foreach (var device in eventDevices)
+        var detectedDevices = eventDevices.Where(IsKeyboardDevice).ToList();
+        if (detectedDevices.Count > 0)
         {
-            if (IsKeyboardDevice(device))
-            {
-                _logger.LogInformation("Found keyboard device: {Device}", device);
-                return device;
-            }
+            _logger.LogInformation("Found {Count} keyboard devices: {Devices}",
+                detectedDevices.Count, string.Join(", ", detectedDevices));
+            return detectedDevices;
         }
 
         // Last resort: use event0
         _logger.LogWarning("Could not detect keyboard device, using fallback: {Device}", FallbackDevice);
-        return FallbackDevice;
+        return [FallbackDevice];
     }
+
+    /// <inheritdoc />
+    public string FindKeyboardDevice() => FindKeyboardDevices()[0];
 
     /// <inheritdoc />
     public bool IsKeyboardDevice(string devicePath)
@@ -91,6 +93,19 @@ public class LinuxKeyboardDeviceDiscovery : IKeyboardDeviceDiscovery
         {
             _logger.LogWarning(ex, "Error checking if {Device} is keyboard", devicePath);
             return false;
+        }
+    }
+
+    private static string GetCanonicalPath(string devicePath)
+    {
+        try
+        {
+            return File.ResolveLinkTarget(devicePath, returnFinalTarget: true)?.FullName
+                ?? Path.GetFullPath(devicePath);
+        }
+        catch (IOException)
+        {
+            return Path.GetFullPath(devicePath);
         }
     }
 }

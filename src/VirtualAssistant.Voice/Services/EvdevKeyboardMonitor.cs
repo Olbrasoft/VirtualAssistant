@@ -11,11 +11,10 @@ public class EvdevKeyboardMonitor : IKeyboardMonitor
 {
     private readonly ILogger<EvdevKeyboardMonitor> _logger;
     private readonly IKeyboardLedReader _ledReader;
-    private readonly IKeyboardDeviceDiscovery _deviceDiscovery;
-    private readonly string _devicePath;
-    private FileStream? _deviceStream;
+    private readonly IReadOnlyList<string> _devicePaths;
+    private readonly List<FileStream> _deviceStreams = [];
     private CancellationTokenSource? _cts;
-    private Task? _monitorTask;
+    private readonly List<Task> _monitorTasks = [];
     private bool _disposed;
 
     // Linux input event structure size (struct input_event)
@@ -36,14 +35,16 @@ public class EvdevKeyboardMonitor : IKeyboardMonitor
     {
         _logger = logger ?? throw new ArgumentNullException(nameof(logger));
         _ledReader = ledReader ?? throw new ArgumentNullException(nameof(ledReader));
-        _deviceDiscovery = deviceDiscovery ?? throw new ArgumentNullException(nameof(deviceDiscovery));
-        _devicePath = devicePath ?? _deviceDiscovery.FindKeyboardDevice();
+        ArgumentNullException.ThrowIfNull(deviceDiscovery);
+        _devicePaths = devicePath is not null
+            ? [devicePath]
+            : deviceDiscovery.FindKeyboardDevices();
     }
 
     /// <inheritdoc />
     public async Task StartAsync(CancellationToken cancellationToken)
     {
-        if (_monitorTask != null)
+        if (_monitorTasks.Count > 0)
         {
             _logger.LogWarning("Keyboard monitor already running");
             return;
@@ -51,23 +52,42 @@ public class EvdevKeyboardMonitor : IKeyboardMonitor
 
         try
         {
-            // Open device in shared mode (doesn't block X.org/Wayland)
-            _deviceStream = new FileStream(
-                _devicePath,
-                FileMode.Open,
-                FileAccess.Read,
-                FileShare.ReadWrite,
-                bufferSize: InputEventSize,
-                useAsync: false);
-
-            _logger.LogInformation("Keyboard monitor started on {Device}", _devicePath);
-
             _cts = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
-            _monitorTask = Task.Run(() => MonitorLoop(_cts.Token), _cts.Token);
+            var monitorToken = _cts.Token;
+
+            foreach (var devicePath in _devicePaths)
+            {
+                try
+                {
+                    // Open in shared mode so desktop input handling is unaffected.
+                    var stream = new FileStream(
+                        devicePath,
+                        FileMode.Open,
+                        FileAccess.Read,
+                        FileShare.ReadWrite,
+                        bufferSize: InputEventSize,
+                        useAsync: false);
+
+                    _deviceStreams.Add(stream);
+                    _monitorTasks.Add(Task.Run(
+                        () => MonitorLoop(devicePath, stream, monitorToken), monitorToken));
+                    _logger.LogInformation("Keyboard monitor started on {Device}", devicePath);
+                }
+                catch (Exception ex)
+                {
+                    _logger.LogWarning(ex, "Failed to open keyboard device {Device}", devicePath);
+                }
+            }
+
+            if (_monitorTasks.Count == 0)
+                throw new InvalidOperationException("Failed to open any keyboard device");
+
+            await Task.CompletedTask;
         }
         catch (Exception ex)
         {
-            _logger.LogError(ex, "Failed to open keyboard device {Device}", _devicePath);
+            Stop();
+            _logger.LogError(ex, "Failed to start keyboard monitor");
             throw;
         }
     }
@@ -76,9 +96,12 @@ public class EvdevKeyboardMonitor : IKeyboardMonitor
     public void Stop()
     {
         _cts?.Cancel();
-        _deviceStream?.Dispose();
-        _deviceStream = null;
-        _monitorTask = null;
+        foreach (var stream in _deviceStreams)
+            stream.Dispose();
+        _deviceStreams.Clear();
+        _monitorTasks.Clear();
+        _cts?.Dispose();
+        _cts = null;
         _logger.LogInformation("Keyboard monitor stopped");
     }
 
@@ -94,16 +117,19 @@ public class EvdevKeyboardMonitor : IKeyboardMonitor
         return _ledReader.IsCapsLockOn();
     }
 
-    private void MonitorLoop(CancellationToken cancellationToken)
+    private void MonitorLoop(string devicePath, FileStream deviceStream, CancellationToken cancellationToken)
     {
         var buffer = new byte[InputEventSize];
 
-        while (!cancellationToken.IsCancellationRequested && _deviceStream != null)
+        while (!cancellationToken.IsCancellationRequested)
         {
             try
             {
                 // Synchronous blocking read for kernel events
-                int bytesRead = _deviceStream.Read(buffer, 0, InputEventSize);
+                int bytesRead = deviceStream.Read(buffer, 0, InputEventSize);
+
+                if (bytesRead == 0)
+                    break;
 
                 if (bytesRead < InputEventSize)
                     continue;
@@ -148,10 +174,12 @@ public class EvdevKeyboardMonitor : IKeyboardMonitor
             }
             catch (Exception ex)
             {
-                _logger.LogError(ex, "Error reading keyboard event");
+                _logger.LogError(ex, "Error reading keyboard event from {Device}", devicePath);
                 break;
             }
         }
+
+        _logger.LogInformation("Keyboard monitoring ended on {Device}", devicePath);
     }
 
     /// <summary>
