@@ -58,6 +58,21 @@ public class LinuxKeyboardDeviceDiscoveryTests
         Assert.True(result.Contains("/dev/input/") || result.Contains("event"));
     }
 
+    [Fact]
+    public void FindKeyboardDevices_WhenDirectoriesExist_ReturnsUniqueDevicePaths()
+    {
+        // Arrange
+        var discovery = new LinuxKeyboardDeviceDiscovery(_loggerMock.Object);
+
+        // Act
+        var result = discovery.FindKeyboardDevices();
+
+        // Assert
+        Assert.NotEmpty(result);
+        Assert.Equal(result.Count, result.Distinct(StringComparer.Ordinal).Count());
+        Assert.All(result, path => Assert.StartsWith("/dev/input/", path));
+    }
+
     #endregion
 
     #region IsKeyboardDevice Tests
