@@ -18,14 +18,32 @@ public class DictationWorker : BackgroundService
     /// </summary>
     private static readonly HashSet<string> WhisperHallucinations = new(StringComparer.OrdinalIgnoreCase)
     {
+        // Czech Whisper hallucinations
         "titulky vytvořil johnyx",
         "titulky vytvořil johny x",
         "titulky vytvořil johnny x",
         "titulky vytvořil johnyx.",
+        "titulky vytvořil johny",
+        "titulky vytvořil johnny",
+        "titulky vytvoril johnyx",
+        "titulky vytvoril johny x",
+        "titulky vytvoril johnny x",
+        "titulky vytvoril johny",
+        "titulky vytvoril johnny",
+        "titulky:",
+        "titulky :",
+        // English Whisper hallucinations
         "subtitles by johnyx",
         "subtitles created by johnyx",
+        "subtitles by johny x",
+        "subtitles by johnny x",
         "thank you for watching",
-        "thanks for watching"
+        "thanks for watching",
+        "thanks for watching!",
+        "thank you for watching!",
+        "please subscribe",
+        "please like and subscribe",
+        "like and subscribe"
     };
 
     private readonly ILogger<DictationWorker> _logger;
@@ -318,7 +336,7 @@ public class DictationWorker : BackgroundService
                     if (transcription.Success && !string.IsNullOrWhiteSpace(transcription.Text))
                 {
                     // CRITICAL: Validate transcription to filter out Whisper hallucinations
-                    if (!IsValidTranscription(transcription.Text))
+                    if (!IsValidTranscription(transcription.Text, out var cleanedText))
                     {
                         // Hallucination detected - hide icon, stop sound, but DON'T type text
                         _logger.LogInformation("Whisper hallucination detected and filtered: '{Text}'", transcription.Text);
@@ -332,23 +350,23 @@ public class DictationWorker : BackgroundService
                     }
 
                     _logger.LogInformation("Transcription successful: {Text} (confidence: {Confidence:F3})",
-                        transcription.Text, transcription.Confidence);
+                        cleanedText, transcription.Confidence);
 
                     // Notify clients about successful transcription
-                    await _pttNotifier.NotifyTranscriptionCompletedAsync(transcription.Text, transcription.Confidence);
+                    await _pttNotifier.NotifyTranscriptionCompletedAsync(cleanedText, transcription.Confidence);
 
                     // Save to history before typing (allows repeat if pasted to wrong window)
-                    _transcriptionHistory.SaveText(transcription.Text);
+                    _transcriptionHistory.SaveText(cleanedText);
                     _logger.LogDebug("Transcription saved to history");
 
                     // Save to database (fire-and-forget to not block typing)
                     var durationMs = _recordingStartTime.HasValue
                         ? (int)(DateTime.UtcNow - _recordingStartTime.Value).TotalMilliseconds
                         : (int?)null;
-                    _ = SaveTranscriptionToDatabaseAsync(transcription.Text, null, durationMs);
+                    _ = SaveTranscriptionToDatabaseAsync(cleanedText, null, durationMs);
 
                     // Type transcribed text
-                    await _textTyper.TypeTextAsync(transcription.Text);
+                    await _textTyper.TypeTextAsync(cleanedText);
                     _logger.LogInformation("Text typed successfully");
                 }
                 else
@@ -420,12 +438,16 @@ public class DictationWorker : BackgroundService
     }
     
     /// <summary>
-    /// Validates transcription text to filter out Whisper hallucinations and empty results.
+    /// Validates and cleans transcription text by removing Whisper hallucinations.
+    /// Hallucinations are removed even if they appear as part of longer text.
     /// </summary>
-    /// <param name="text">Transcription text to validate</param>
-    /// <returns>True if transcription is valid, false if it's a hallucination or invalid</returns>
-    private bool IsValidTranscription(string? text)
+    /// <param name="text">Transcription text to validate and clean</param>
+    /// <param name="cleanedText">Output cleaned text with hallucinations removed</param>
+    /// <returns>True if transcription is valid after cleaning, false if empty or invalid</returns>
+    private bool IsValidTranscription(string? text, out string cleanedText)
     {
+        cleanedText = string.Empty;
+
         // Empty or whitespace
         if (string.IsNullOrWhiteSpace(text))
         {
@@ -433,22 +455,38 @@ public class DictationWorker : BackgroundService
             return false;
         }
 
-        var trimmedText = text.Trim();
+        var result = text.Trim();
+
+        // Remove all known hallucinations from the text (case-insensitive)
+        foreach (var hallucination in WhisperHallucinations)
+        {
+            var index = result.IndexOf(hallucination, StringComparison.OrdinalIgnoreCase);
+            while (index >= 0)
+            {
+                _logger.LogDebug("Removing hallucination '{Hallucination}' from position {Index}", hallucination, index);
+                result = result.Remove(index, hallucination.Length);
+                index = result.IndexOf(hallucination, StringComparison.OrdinalIgnoreCase);
+            }
+        }
+
+        // Clean up any resulting double spaces or leading/trailing whitespace
+        result = System.Text.RegularExpressions.Regex.Replace(result, @"\s+", " ").Trim();
+
+        // Check if anything remains after cleaning
+        if (string.IsNullOrWhiteSpace(result))
+        {
+            _logger.LogInformation("Transcription was entirely hallucination, nothing remains after cleaning");
+            return false;
+        }
 
         // Too short (likely noise)
-        if (trimmedText.Length < 2)
+        if (result.Length < 2)
         {
-            _logger.LogDebug("Transcription validation failed: too short ({Length} chars)", trimmedText.Length);
+            _logger.LogDebug("Transcription validation failed: too short ({Length} chars) after cleaning", result.Length);
             return false;
         }
 
-        // Known Whisper hallucinations
-        if (WhisperHallucinations.Contains(trimmedText))
-        {
-            _logger.LogInformation("Whisper hallucination detected and filtered: '{Text}'", trimmedText);
-            return false;
-        }
-
+        cleanedText = result;
         return true;
     }
 

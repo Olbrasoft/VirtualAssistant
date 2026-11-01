@@ -10,9 +10,9 @@ namespace Olbrasoft.VirtualAssistant.PushToTalk;
 /// </summary>
 /// <remarks>
 /// Button mappings:
-/// - LEFT: Single=CapsLock, Double=ESC, Triple=OpenCode
+/// - LEFT: Single=CapsLock, Double=None, Triple=OpenCode
 /// - MIDDLE: Single=Enter, Double=Chrome, Triple=Ctrl+C
-/// - RIGHT: Single=None, Double=Ctrl+Shift+V, Triple=Claude
+/// - RIGHT: Single=ESC, Double=Ctrl+Shift+V, Triple=Claude
 /// </remarks>
 public class BluetoothMouseMonitor : IDisposable
 {
@@ -68,11 +68,11 @@ public class BluetoothMouseMonitor : IDisposable
         _deviceDiscovery = deviceDiscovery ?? throw new ArgumentNullException(nameof(deviceDiscovery));
         _deviceNamePattern = deviceNamePattern;
 
-        // Configure LEFT button: Single=CapsLock, Double=ESC, Triple=OpenCode
+        // Configure LEFT button: Single=CapsLock, Double=None, Triple=OpenCode
         _leftButtonHandler = new ButtonClickHandler(
             "LEFT",
             new KeyPressAction(_keyboardMonitor, KeyCode.CapsLock, "CapsLock (toggle recording)"),
-            new KeyPressAction(_keyboardMonitor, KeyCode.Escape, "ESC (cancel transcription)", raiseReleaseEvent: true),
+            NoAction.Instance,
             string.IsNullOrEmpty(leftTripleClickCommand)
                 ? NoAction.Instance
                 : new ShellCommandAction(leftTripleClickCommand, $"Command: {leftTripleClickCommand}"),
@@ -88,10 +88,10 @@ public class BluetoothMouseMonitor : IDisposable
             logger,
             maxClickCount: 3);
 
-        // Configure RIGHT button: Single=None, Double=Ctrl+Shift+V, Triple=Claude
+        // Configure RIGHT button: Single=ESC, Double=Ctrl+Shift+V, Triple=Claude
         _rightButtonHandler = new ButtonClickHandler(
             "RIGHT",
-            NoAction.Instance,
+            new KeyPressAction(_keyboardMonitor, KeyCode.Escape, "ESC (cancel transcription)", raiseReleaseEvent: true),
             new KeyComboWithTwoModifiersAction(_keyboardMonitor, KeyCode.LeftControl, KeyCode.LeftShift, KeyCode.V, "Ctrl+Shift+V (terminal paste)"),
             new ShellCommandAction("~/.local/bin/focus-claude.sh", "Focus Claude"),
             logger,
