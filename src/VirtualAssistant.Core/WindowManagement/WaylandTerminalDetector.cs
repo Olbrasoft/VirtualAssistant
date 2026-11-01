@@ -12,29 +12,6 @@ public class WaylandTerminalDetector : ITerminalDetector
 {
     private readonly ILogger<WaylandTerminalDetector> _logger;
 
-    /// <summary>
-    /// Terminal window class names that require Ctrl+Shift+V for pasting.
-    /// </summary>
-    private static readonly HashSet<string> TerminalClasses = new(StringComparer.OrdinalIgnoreCase)
-    {
-        "kitty",
-        "gnome-terminal",
-        "gnome-terminal-server",
-        "org.gnome.Terminal",
-        "konsole",
-        "xfce4-terminal",
-        "mate-terminal",
-        "tilix",
-        "terminator",
-        "alacritty",
-        "wezterm",
-        "foot",
-        "xterm",
-        "urxvt",
-        "st",
-        "terminology"
-    };
-
     public WaylandTerminalDetector(ILogger<WaylandTerminalDetector> logger)
     {
         _logger = logger ?? throw new ArgumentNullException(nameof(logger));
@@ -46,7 +23,7 @@ public class WaylandTerminalDetector : ITerminalDetector
         {
             var windowClass = await GetActiveWindowClassAsync(cancellationToken);
 
-            if (!string.IsNullOrEmpty(windowClass) && TerminalClasses.Contains(windowClass))
+            if (TerminalWindowClasses.IsTerminal(windowClass))
             {
                 _logger.LogDebug("Detected terminal window: {WindowClass}", windowClass);
                 return true;

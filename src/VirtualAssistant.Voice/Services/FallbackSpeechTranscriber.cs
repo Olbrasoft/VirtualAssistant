@@ -10,6 +10,12 @@ namespace Olbrasoft.VirtualAssistant.Voice.Services;
 /// </summary>
 public sealed class FallbackSpeechTranscriber : ISpeechTranscriber
 {
+    private static readonly HashSet<string> KnownWhisperWholeTextHallucinations = new(StringComparer.OrdinalIgnoreCase)
+    {
+        "titulky vytvořil johnyx",
+        "titulky vytvořil johnyx.",
+    };
+
     private readonly ISpeechTranscriber _primary;
     private readonly ISpeechTranscriber _fallback;
     private readonly ISpeechTranscriberFactory _factory;
@@ -82,39 +88,50 @@ public sealed class FallbackSpeechTranscriber : ISpeechTranscriber
 
             if (result.Success)
             {
-                LastUsedProviderId = _factory.GetProviderId(_settings.PrimaryProvider);
-                _logger.LogDebug("Primary provider {Provider} succeeded", _settings.PrimaryProvider);
-                return WithProviderId(result, LastUsedProviderId);
+                if (IsKnownPrimaryHallucination(result.Text))
+                {
+                    _logger.LogWarning(
+                        "Primary provider {Provider} returned known whole-text hallucination: '{Text}', falling back to {Fallback}",
+                        _settings.PrimaryProvider, result.Text, _settings.FallbackProvider);
+                }
+                else
+                {
+                    LastUsedProviderId = _factory.GetProviderId(_settings.PrimaryProvider);
+                    _logger.LogDebug("Primary provider {Provider} succeeded", _settings.PrimaryProvider);
+                    return WithProviderId(result, LastUsedProviderId);
+                }
             }
-
-            // Short-circuit non-provider failures (e.g., input validation, cancellation)
-            var errorMessage = result.ErrorMessage ?? string.Empty;
-            var loweredError = errorMessage.ToLowerInvariant();
-
-            var isInputValidationError =
-                loweredError.Contains("audio data cannot be empty") ||
-                loweredError.Contains("audio data is empty") ||
-                loweredError.Contains("no audio data");
-
-            var isCancellationError =
-                cancellationToken.IsCancellationRequested ||
-                loweredError.Contains("transcription cancelled") ||
-                loweredError.Contains("transcription canceled") ||
-                loweredError.Contains("operation cancelled") ||
-                loweredError.Contains("operation canceled");
-
-            if (isInputValidationError || isCancellationError)
+            else
             {
-                LastUsedProviderId = _factory.GetProviderId(_settings.PrimaryProvider);
-                _logger.LogWarning(
-                    "Primary provider {Provider} returned non-transient error: {Error}, not falling back",
-                    _settings.PrimaryProvider, result.ErrorMessage);
-                return WithProviderId(result, LastUsedProviderId);
-            }
+                // Short-circuit non-provider failures (e.g., input validation, cancellation)
+                var errorMessage = result.ErrorMessage ?? string.Empty;
+                var loweredError = errorMessage.ToLowerInvariant();
 
-            _logger.LogWarning(
-                "Primary provider {Provider} returned error: {Error}, falling back to {Fallback}",
-                _settings.PrimaryProvider, result.ErrorMessage, _settings.FallbackProvider);
+                var isInputValidationError =
+                    loweredError.Contains("audio data cannot be empty") ||
+                    loweredError.Contains("audio data is empty") ||
+                    loweredError.Contains("no audio data");
+
+                var isCancellationError =
+                    cancellationToken.IsCancellationRequested ||
+                    loweredError.Contains("transcription cancelled") ||
+                    loweredError.Contains("transcription canceled") ||
+                    loweredError.Contains("operation cancelled") ||
+                    loweredError.Contains("operation canceled");
+
+                if (isInputValidationError || isCancellationError)
+                {
+                    LastUsedProviderId = _factory.GetProviderId(_settings.PrimaryProvider);
+                    _logger.LogWarning(
+                        "Primary provider {Provider} returned non-transient error: {Error}, not falling back",
+                        _settings.PrimaryProvider, result.ErrorMessage);
+                    return WithProviderId(result, LastUsedProviderId);
+                }
+
+                _logger.LogWarning(
+                    "Primary provider {Provider} returned error: {Error}, falling back to {Fallback}",
+                    _settings.PrimaryProvider, result.ErrorMessage, _settings.FallbackProvider);
+            }
         }
         catch (Exception ex) when (ShouldFallback(ex, cancellationToken))
         {
@@ -129,6 +146,18 @@ public sealed class FallbackSpeechTranscriber : ISpeechTranscriber
         _logger.LogInformation("Using fallback provider: {Provider}", _settings.FallbackProvider);
         var fallbackResult = await _fallback.TranscribeAsync(audioData, cancellationToken);
         return WithProviderId(fallbackResult, LastUsedProviderId);
+    }
+
+    private bool IsKnownPrimaryHallucination(string? text)
+    {
+        if (!string.Equals(_settings.PrimaryProvider, "whisper", StringComparison.OrdinalIgnoreCase))
+            return false;
+
+        if (string.IsNullOrWhiteSpace(text))
+            return false;
+
+        var normalized = text.Trim();
+        return KnownWhisperWholeTextHallucinations.Contains(normalized);
     }
 
     /// <summary>

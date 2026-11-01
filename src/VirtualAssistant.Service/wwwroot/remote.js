@@ -296,12 +296,14 @@ function handleAppFocusChanged(wmClass) {
 }
 
 // Toggles the "Pokračuj" button visibility based on the active CLI app
-// detected in the focused terminal. Only Claude Code enables the split —
-// other CLI apps (OpenCode, Gemini) keep the single full-width Diktovat.
+// detected in the focused terminal. Claude Code and Codex both expose a
+// "continue" action, so the split row turns on for either; OpenCode and
+// Gemini keep the single full-width Diktovat.
 function handleCliAppChanged(cliAppName) {
-    const isClaudeCode = (cliAppName || '').toLowerCase() === 'claude code';
+    const normalized = (cliAppName || '').toLowerCase();
+    const showsContinue = normalized === 'claude code' || normalized === 'codex';
     if (!elements.dictationRow) return;
-    elements.dictationRow.classList.toggle('claude-code', isClaudeCode);
+    elements.dictationRow.classList.toggle('claude-code', showsContinue);
 }
 
 function handleWorkspaceChanged(workspace, total) {

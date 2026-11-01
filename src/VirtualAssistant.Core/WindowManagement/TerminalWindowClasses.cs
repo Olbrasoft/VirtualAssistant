@@ -18,6 +18,8 @@ public static class TerminalWindowClasses
         "kitty", "gnome-terminal", "gnome-terminal-server", "org.gnome.Terminal",
         "konsole", "xfce4-terminal", "mate-terminal", "tilix", "terminator",
         "alacritty", "wezterm", "foot", "xterm", "urxvt", "st", "terminology",
+        // Kitty launchers can override WM_CLASS to identify a dedicated CLI window.
+        "OpenCode",
     };
 
     /// <summary>

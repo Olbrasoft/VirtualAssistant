@@ -72,6 +72,47 @@ public class FallbackSpeechTranscriberTests
     }
 
     [Fact]
+    public async Task TranscribeAsync_WhisperReturnsKnownHallucination_FallbackUsed()
+    {
+        // Arrange
+        var settings = new SpeechProviderSettings
+        {
+            PrimaryProvider = "whisper",
+            FallbackProvider = "google",
+            EnableFallback = true
+        };
+
+        _factoryMock.Setup(f => f.GetProviderId("whisper")).Returns(FallbackProviderId);
+        _factoryMock.Setup(f => f.GetProviderId("google")).Returns(PrimaryProviderId);
+
+        _primaryMock
+            .Setup(p => p.TranscribeAsync(It.IsAny<byte[]>(), It.IsAny<CancellationToken>()))
+            .ReturnsAsync(new TranscriptionResult("Titulky vytvořil JohnyX.", 0.90f));
+        _fallbackMock
+            .Setup(p => p.TranscribeAsync(It.IsAny<byte[]>(), It.IsAny<CancellationToken>()))
+            .ReturnsAsync(new TranscriptionResult("Fallback result", 0.85f));
+
+        var transcriber = new FallbackSpeechTranscriber(
+            _primaryMock.Object,
+            _fallbackMock.Object,
+            _factoryMock.Object,
+            _loggerMock.Object,
+            settings);
+        var audioData = new byte[] { 1, 2, 3 };
+
+        // Act
+        var result = await transcriber.TranscribeAsync(audioData);
+
+        // Assert
+        Assert.True(result.Success);
+        Assert.Equal("Fallback result", result.Text);
+        Assert.Equal(PrimaryProviderId, transcriber.LastUsedProviderId);
+
+        _primaryMock.Verify(p => p.TranscribeAsync(audioData, It.IsAny<CancellationToken>()), Times.Once);
+        _fallbackMock.Verify(p => p.TranscribeAsync(audioData, It.IsAny<CancellationToken>()), Times.Once);
+    }
+
+    [Fact]
     public async Task TranscribeAsync_PrimaryReturnsError_FallbackUsed()
     {
         // Arrange

@@ -6,8 +6,6 @@ namespace Olbrasoft.VirtualAssistant.Service.Workers.Dictation;
 /// <inheritdoc />
 public sealed class ClaudeCodeCivilityTrimmer : IClaudeCodeCivilityTrimmer
 {
-    private const string ClaudeCodeAppName = "Claude Code";
-
     private readonly ILogger<ClaudeCodeCivilityTrimmer> _logger;
     private readonly ICliAppDetector _cliAppDetector;
 
@@ -41,7 +39,10 @@ public sealed class ClaudeCodeCivilityTrimmer : IClaudeCodeCivilityTrimmer
             return text;
         }
 
-        if (cliApp is null || !string.Equals(cliApp.AppName, ClaudeCodeAppName, StringComparison.OrdinalIgnoreCase))
+        // Auto-paste agents (Claude Code, Codex) treat "Děkuji"/"Prosím" as
+        // dictation cruft, not chat content — strip it. Chat-style targets
+        // (browsers, Ferdium, Gnome Text Editor) fall through unchanged.
+        if (cliApp is null || !CliAgentRegistry.IsAutoPasteAgent(cliApp.AppName))
         {
             return text;
         }
@@ -50,8 +51,8 @@ public sealed class ClaudeCodeCivilityTrimmer : IClaudeCodeCivilityTrimmer
         if (stripped.Length != text.Length)
         {
             _logger.LogInformation(
-                "Quick dictation: stripped trailing civility for Claude Code ({Before} → {After} chars)",
-                text.Length, stripped.Length);
+                "Quick dictation: stripped trailing civility for {AppName} ({Before} → {After} chars)",
+                cliApp.AppName, text.Length, stripped.Length);
         }
         return stripped;
     }

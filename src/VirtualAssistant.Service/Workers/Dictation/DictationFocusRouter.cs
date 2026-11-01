@@ -72,18 +72,18 @@ public sealed class DictationFocusRouter : IDictationFocusRouter
             return false;
         }
 
-        if (await IsClaudeCodeAsync(focused, cancellationToken))
+        if (await IsAutoPasteTargetAsync(focused, cancellationToken))
         {
             // Already on the right target — nothing to do.
             return false;
         }
 
-        // Scan non-focused windows for Claude Code candidates. The focused
-        // window was already checked above (and we know it is not Claude),
-        // so reprobing would waste a pgrep tree walk per loop. Break as soon
-        // as a second candidate turns up — 2+ is unconditionally ambiguous
-        // below, no point probing further.
-        var claudeWindows = new List<WindowInfo>();
+        // Scan non-focused windows for auto-paste candidates (Claude Code or
+        // Codex). The focused window was already checked above (and we know
+        // it is not a target), so reprobing would waste a pgrep tree walk per
+        // loop. Break as soon as a second candidate turns up — 2+ is
+        // unconditionally ambiguous below, no point probing further.
+        var targetWindows = new List<WindowInfo>();
         foreach (var candidate in currentWorkspace)
         {
             if (candidate.Id == focused.Id)
@@ -91,28 +91,28 @@ public sealed class DictationFocusRouter : IDictationFocusRouter
                 continue;
             }
 
-            if (await IsClaudeCodeAsync(candidate, cancellationToken))
+            if (await IsAutoPasteTargetAsync(candidate, cancellationToken))
             {
-                claudeWindows.Add(candidate);
-                if (claudeWindows.Count > 1)
+                targetWindows.Add(candidate);
+                if (targetWindows.Count > 1)
                 {
                     break;
                 }
             }
         }
 
-        if (claudeWindows.Count != 1)
+        if (targetWindows.Count != 1)
         {
             // 0 → nothing to route to; 2+ → ambiguous, leave focus alone.
             _logger.LogDebug(
-                "Focus router: {Count} Claude Code windows on current workspace, skipping",
-                claudeWindows.Count);
+                "Focus router: {Count} auto-paste target windows on current workspace, skipping",
+                targetWindows.Count);
             return false;
         }
 
-        var target = claudeWindows[0];
+        var target = targetWindows[0];
         _logger.LogInformation(
-            "Focus router: activating Claude Code '{Title}' (id {Id}) from '{FromClass}'",
+            "Focus router: activating auto-paste target '{Title}' (id {Id}) from '{FromClass}'",
             target.Title, target.Id, focused.WmClass);
 
         try
@@ -133,27 +133,26 @@ public sealed class DictationFocusRouter : IDictationFocusRouter
             // never be killed by a flaky window-calls extension.
             _logger.LogWarning(
                 ex,
-                "Focus router: failed to activate Claude Code window {Id}, skipping focus switch",
+                "Focus router: failed to activate target window {Id}, skipping focus switch",
                 target.Id);
             return false;
         }
     }
 
     /// <summary>
-    /// Checks whether a window is hosting Claude Code. Cheap path first
-    /// (outer title contains a Claude Code marker — works for Alacritty and
-    /// for terminators whose tmux propagates titles); if that misses and the
-    /// window is a known terminal, fall through to the full identifier so a
-    /// terminator hosting <c>tmux → claude</c> with an un-propagated
-    /// <c>/bin/bash</c> title is still recognised. Non-terminal windows that
-    /// don't match by title are rejected without any pgrep work.
+    /// Checks whether a window hosts an auto-paste-eligible agent (Claude
+    /// Code or Codex). Cheap path first (outer title contains an agent
+    /// marker — works for Alacritty and for terminators whose tmux
+    /// propagates titles); if that misses and the window is a known
+    /// terminal, fall through to the full identifier so a terminator
+    /// hosting <c>tmux → claude</c> (or <c>tmux → codex</c>) with an
+    /// un-propagated <c>/bin/bash</c> title is still recognised.
+    /// Non-terminal windows that don't match by title are rejected without
+    /// any pgrep work.
     /// </summary>
-    private async Task<bool> IsClaudeCodeAsync(WindowInfo window, CancellationToken cancellationToken)
+    private async Task<bool> IsAutoPasteTargetAsync(WindowInfo window, CancellationToken cancellationToken)
     {
-        if (string.Equals(
-                CliAgentRegistry.FindByTitle(window.Title)?.AppName,
-                "Claude Code",
-                StringComparison.OrdinalIgnoreCase))
+        if (CliAgentRegistry.IsAutoPasteAgent(CliAgentRegistry.FindByTitle(window.Title)?.AppName))
         {
             return true;
         }
@@ -167,7 +166,7 @@ public sealed class DictationFocusRouter : IDictationFocusRouter
         {
             var agent = await _terminalAgentIdentifier.IdentifyAsync(
                 window.Title, window.Pid, cancellationToken);
-            return string.Equals(agent?.AppName, "Claude Code", StringComparison.OrdinalIgnoreCase);
+            return CliAgentRegistry.IsAutoPasteAgent(agent?.AppName);
         }
         catch (OperationCanceledException)
         {
@@ -177,7 +176,7 @@ public sealed class DictationFocusRouter : IDictationFocusRouter
         {
             _logger.LogDebug(
                 ex,
-                "Focus router: agent identification failed for window {Id} ({WmClass}), treating as non-Claude",
+                "Focus router: agent identification failed for window {Id} ({WmClass}), treating as non-target",
                 window.Id, window.WmClass);
             return false;
         }

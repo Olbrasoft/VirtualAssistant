@@ -29,5 +29,10 @@ public enum AgentType
     /// <summary>
     /// CI/CD pipeline agent (ID: 30)
     /// </summary>
-    CiPipeline = 30
+    CiPipeline = 30,
+
+    /// <summary>
+    /// OpenAI Codex CLI agent (ID: 40)
+    /// </summary>
+    Codex = 40
 }

@@ -30,7 +30,27 @@ public static class CliAgentRegistry
             new[] { "OpenCode", "OC |" }, "opencode-"),
         new("Gemini CLI", "GeminiCorrection", "gemini",
             new[] { "Gemini" }, "gemini-"),
+        new("Codex", "CodexCorrection", "codex",
+            new[] { "Codex" }, "codex-"),
     };
+
+    /// <summary>
+    /// Agents that Quick Dictation should auto-target: the focus router will
+    /// switch focus to a window of this agent if the user pressed dictate
+    /// from somewhere else, and the civility trimmer will strip "Děkuji" /
+    /// "Prosím" before paste. Whitelist-based so adding a new agent to
+    /// <see cref="KnownAgents"/> doesn't silently change paste behaviour for
+    /// chat-style apps where civility is legitimate content.
+    /// </summary>
+    private static readonly HashSet<string> AutoPasteAgentNames =
+        new(StringComparer.OrdinalIgnoreCase) { "Claude Code", "Codex" };
+
+    /// <summary>
+    /// True if Quick Dictation should treat <paramref name="appName"/> as an
+    /// auto-paste target (focus-route + civility-trim eligible).
+    /// </summary>
+    public static bool IsAutoPasteAgent(string? appName) =>
+        !string.IsNullOrEmpty(appName) && AutoPasteAgentNames.Contains(appName);
 
     /// <summary>
     /// Returns the agent whose tmux session prefix matches the start of
